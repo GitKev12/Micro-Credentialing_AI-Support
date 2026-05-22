@@ -1,7 +1,4 @@
 # Capstone Project Dev
-
-A structured MERN starter repository for a capstone project.
-
 ## Stack
 
 - MongoDB with Mongoose
