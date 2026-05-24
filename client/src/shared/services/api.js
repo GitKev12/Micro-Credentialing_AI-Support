@@ -9,4 +9,9 @@ export async function getHealthStatus() {
   return data;
 }
 
+export async function getSystemOverview() {
+  const { data } = await api.get("/overview");
+  return data;
+}
+
 export default api;

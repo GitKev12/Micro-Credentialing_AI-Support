@@ -2,15 +2,15 @@
 
 :root {
   color-scheme: light;
-  --bg: #f4f0e8;
-  --surface: rgba(255, 250, 242, 0.82);
-  --surface-strong: #fff8f0;
-  --ink: #1f1a17;
-  --muted: #5d5248;
-  --accent: #d2672a;
-  --accent-soft: #f6d6bc;
-  --border: rgba(55, 38, 25, 0.12);
-  --shadow: 0 24px 60px rgba(69, 44, 20, 0.12);
+  --bg: #efe8dd;
+  --surface: rgba(255, 252, 247, 0.84);
+  --surface-strong: #fffaf4;
+  --ink: #1d1712;
+  --muted: #65574b;
+  --accent: #b85722;
+  --accent-soft: #f5d7c2;
+  --border: rgba(60, 41, 24, 0.12);
+  --shadow: 0 24px 60px rgba(77, 51, 23, 0.12);
 }
 
 * {
@@ -23,8 +23,8 @@ body {
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(210, 103, 42, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(63, 122, 91, 0.16), transparent 24%),
+    radial-gradient(circle at top left, rgba(184, 87, 34, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(40, 108, 88, 0.12), transparent 25%),
     linear-gradient(180deg, #fbf7f1 0%, var(--bg) 100%);
 }
 
@@ -39,10 +39,8 @@ a {
 }
 
 .app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
@@ -69,6 +67,33 @@ a {
   line-height: 1.7;
 }
 
+.nav-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.nav-link {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--muted);
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.nav-link:hover {
+  transform: translateY(-1px);
+  color: var(--ink);
+}
+
+.nav-link.active {
+  background: var(--ink);
+  color: #fff7ef;
+}
+
 .status-pill {
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
@@ -80,10 +105,28 @@ a {
   box-shadow: 0 10px 30px rgba(69, 44, 20, 0.08);
 }
 
-.home-grid {
+.app-body,
+.home-grid,
+.page-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
   gap: 1.5rem;
+}
+
+.home-grid,
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.home-hero {
+  grid-column: 1 / -1;
+}
+
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .panel {
@@ -100,17 +143,64 @@ a {
   margin-top: 0;
 }
 
+.lead-copy,
+.entity-copy,
+.loading-copy,
+.error-copy {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.entity-label {
+  margin: 0 0 0.5rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
 .stack-list,
-.task-list {
+.task-list,
+.detail-list {
   margin: 1rem 0 0;
   padding-left: 1.25rem;
   color: var(--muted);
   line-height: 1.7;
 }
 
+.entity-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.entity-card h3 {
+  margin-bottom: 0;
+}
+
+.entity-card dl,
 .status-card {
   display: grid;
   gap: 0.9rem;
+}
+
+.status-card dl,
+.entity-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 0.85rem;
+  margin: 0;
+}
+
+.status-card dt,
+.entity-card dt {
+  font-weight: 700;
+}
+
+.status-card dd,
+.entity-card dd {
+  margin: 0;
+  color: var(--muted);
 }
 
 .status-badge {
@@ -133,20 +223,42 @@ a {
   background: currentColor;
 }
 
-.status-card dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.65rem 1rem;
-  margin: 0;
-}
-
-.status-card dt {
+.entity-link {
+  width: fit-content;
+  padding: 0.8rem 1rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff8f1;
   font-weight: 700;
+  text-decoration: none;
 }
 
-.status-card dd {
-  margin: 0;
+.callout {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
   color: var(--muted);
+}
+
+.entity-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.entity-highlights {
+  height: fit-content;
+}
+
+.entity-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .error-card {
@@ -155,16 +267,15 @@ a {
 }
 
 .error-copy {
-  margin: 0;
   color: #8c342b;
-  line-height: 1.6;
 }
 
 @media (max-width: 860px) {
-  .app-header,
-  .home-grid {
+  .home-grid,
+  .page-grid,
+  .entity-grid,
+  .entity-columns {
     grid-template-columns: 1fr;
-    display: grid;
   }
 
   .status-pill {

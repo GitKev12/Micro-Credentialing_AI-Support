@@ -1,63 +1,104 @@
 import { useEffect, useState } from "react";
-import StatusCard from "../components/StatusCard";
-import { getHealthStatus } from "../services/api";
+import EntityDirectoryCard from "../shared/components/EntityDirectoryCard";
+import StatusCard from "../shared/components/StatusCard";
+import { getHealthStatus, getSystemOverview } from "../shared/services/api";
+
+const fallbackEntities = [
+  {
+    name: "Student",
+    clientRoute: "/student",
+    apiPath: "/api/students/overview",
+    modulePath: "server/src/modules/student",
+    focus: "Learner records, adviser assignments, and capstone milestone submissions."
+  },
+  {
+    name: "Professor",
+    clientRoute: "/professor",
+    apiPath: "/api/professors/overview",
+    modulePath: "server/src/modules/professor",
+    focus: "Faculty advising, panel responsibilities, and evaluation workflows."
+  },
+  {
+    name: "Admin",
+    clientRoute: "/admin",
+    apiPath: "/api/admins/overview",
+    modulePath: "server/src/modules/admin",
+    focus: "Program governance, user oversight, and reporting operations."
+  }
+];
 
 function HomePage() {
   const [status, setStatus] = useState(null);
+  const [overview, setOverview] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadHealth = async () => {
+    const loadDashboard = async () => {
       try {
-        const response = await getHealthStatus();
+        const [healthResponse, overviewResponse] = await Promise.all([
+          getHealthStatus(),
+          getSystemOverview()
+        ]);
 
         if (isMounted) {
-          setStatus(response);
+          setStatus(healthResponse);
+          setOverview(overviewResponse);
         }
       } catch (requestError) {
         if (isMounted) {
-          setError("API health check failed. Start the Express server and verify the Vite proxy.");
+          setError(
+            "The API overview could not be loaded. Start the Express server and verify the Vite proxy."
+          );
         }
       }
     };
 
-    loadHealth();
+    loadDashboard();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
+  const entities = overview?.entities ?? fallbackEntities;
+
   return (
     <section className="home-grid">
+      <article className="panel home-hero">
+        <p className="entity-label">Entity Directory</p>
+        <h2>Each study actor now has its own client workspace and backend module.</h2>
+        <p className="lead-copy">
+          The starter structure now mirrors your study directly: separate paths for Student,
+          Professor, and Admin on both the React app and the Express API.
+        </p>
+        <div className="entity-grid">
+          {entities.map((entity) => (
+            <EntityDirectoryCard key={entity.name} entity={entity} />
+          ))}
+        </div>
+      </article>
+
+      <StatusCard status={status} error={error} />
+
       <article className="panel">
-        <h2>What is already configured</h2>
+        <h3>Updated backend shape</h3>
         <ul className="stack-list">
-          <li>Workspace-based root package for one-command development.</li>
-          <li>React client with Vite, Axios, and React Router.</li>
-          <li>Express server with CORS, dotenv, and Mongoose-ready connection logic.</li>
-          <li>Folder structure separated for pages, components, services, routes, and controllers.</li>
+          <li>`server/src/modules/student` holds student model, controller, and routes.</li>
+          <li>`server/src/modules/professor` holds professor model, controller, and routes.</li>
+          <li>`server/src/modules/admin` holds admin model, controller, and routes.</li>
+          <li>`server/src/modules/overview` exposes the project structure to the client.</li>
         </ul>
       </article>
 
-      {error ? (
-        <article className="panel error-card">
-          <h3>Server Status</h3>
-          <p className="error-copy">{error}</p>
-        </article>
-      ) : (
-        <StatusCard status={status} />
-      )}
-
       <article className="panel">
-        <h2>Suggested next steps</h2>
+        <h3>Suggested next steps</h3>
         <ol className="task-list">
-          <li>Duplicate `server/.env.example` into `server/.env`.</li>
-          <li>Point `MONGODB_URI` at your local or hosted MongoDB instance.</li>
-          <li>Build your first API resource in `server/src/routes` and `server/src/controllers`.</li>
-          <li>Replace the starter dashboard with your capstone features in `client/src/pages`.</li>
+          <li>Expand each Mongoose schema with the real fields from your capstone study.</li>
+          <li>Replace the overview endpoints with database-backed services.</li>
+          <li>Connect each role page to real CRUD screens and protected routes.</li>
+          <li>Add authentication rules that separate student, professor, and admin access.</li>
         </ol>
       </article>
     </section>
