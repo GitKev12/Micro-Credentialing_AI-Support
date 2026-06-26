@@ -13,6 +13,19 @@
   --shadow: 0 24px 60px rgba(77, 51, 23, 0.12);
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #050813;
+  --surface: rgba(13, 19, 40, 0.88);
+  --surface-strong: #0a1124;
+  --ink: #e4e9f7;
+  --muted: #8b96b8;
+  --accent: #34509c;
+  --accent-soft: #0e1730;
+  --border: rgba(150, 175, 240, 0.12);
+  --shadow: 0 6px 18px rgba(255, 255, 255, 0.03);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -26,6 +39,13 @@ body {
     radial-gradient(circle at top left, rgba(184, 87, 34, 0.18), transparent 28%),
     radial-gradient(circle at top right, rgba(40, 108, 88, 0.12), transparent 25%),
     linear-gradient(180deg, #fbf7f1 0%, var(--bg) 100%);
+}
+
+[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at top left, rgba(91, 134, 255, 0.1), transparent 28%),
+    radial-gradient(circle at top right, rgba(50, 75, 150, 0.09), transparent 25%),
+    linear-gradient(180deg, #070b18 0%, var(--bg) 100%);
 }
 
 a {
@@ -62,6 +82,21 @@ a {
 
 /* ── Auth ─────────────────────────────────────────────── */
 
+/* Login/auth screens always render light, regardless of the app theme. */
+.login-screen,
+.admin-login-screen {
+  color-scheme: light;
+  --surface: rgba(255, 252, 247, 0.84);
+  --surface-strong: #fffaf4;
+  --ink: #1d1712;
+  --muted: #65574b;
+  --accent: #b85722;
+  --accent-soft: #f5d7c2;
+  --border: rgba(60, 41, 24, 0.12);
+  --shadow: 0 24px 60px rgba(77, 51, 23, 0.12);
+  color: var(--ink);
+}
+
 .entity-label {
   margin: 0 0 0.5rem;
   color: #9a2838;
@@ -72,14 +107,37 @@ a {
 }
 
 .login-screen {
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
   min-height: 100vh;
   padding: clamp(1.25rem, 4vw, 4rem);
-  background: #f0eee8;
+  background: #0f172a;
+}
+
+.login-screen__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(rgba(15, 23, 42, 0.4), rgba(15, 23, 42, 0.4)),
+    url("./assets/CCS-Background.jpg") center / cover no-repeat;
+  transform: scale(1.12);
+  transition: transform 0.2s ease-out;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-screen__bg {
+    transition: none;
+    transform: none;
+  }
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   width: min(100%, 28rem);
   padding: clamp(1.5rem, 4vw, 2.5rem);
   border: 1px solid rgba(125, 31, 43, 0.16);
@@ -278,6 +336,42 @@ a {
   background: rgba(154, 40, 56, 0.1);
 }
 
+.student-nav__dropdown-item--toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.theme-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.15s ease;
+}
+
+.theme-switch.is-on {
+  background: var(--accent);
+}
+
+.theme-switch__thumb {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.theme-switch.is-on .theme-switch__thumb {
+  transform: translateX(1rem);
+}
+
 .profile-avatar {
   display: inline-grid;
   place-items: center;
@@ -335,14 +429,10 @@ a {
   background: var(--surface);
 }
 
-.student-courses__empty-icon {
-  display: grid;
-  place-items: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  font-size: 1.6rem;
+.student-courses__empty-img {
+  width: 6rem;
+  height: 6rem;
+  object-fit: contain;
 }
 
 .student-courses__empty-title {

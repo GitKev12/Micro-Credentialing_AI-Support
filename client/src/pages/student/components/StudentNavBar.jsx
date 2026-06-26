@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearAuthSession, getStoredSession } from "../../../auth/services/authService";
 import { resolveAvatarUrl } from "../../../services/avatar";
+import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import ProfileAvatar from "./ProfileAvatar";
 
 function StudentNavBar() {
   const navigate = useNavigate();
   const menuRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [theme, setTheme] = useState(getStoredTheme);
+  const isDarkMode = theme === THEMES.DARK;
 
   const session = getStoredSession();
   const student = session?.user;
@@ -39,6 +42,11 @@ function StudentNavBar() {
   const goToDashboard = () => {
     setIsOpen(false);
     navigate("/student");
+  };
+
+  const handleToggleTheme = () => {
+    // Keep the menu open so the change is visible and easy to flip back.
+    setTheme(toggleTheme());
   };
 
   const handleLogout = () => {
@@ -75,6 +83,23 @@ function StudentNavBar() {
                 onClick={goToDashboard}
               >
                 Dashboard
+              </button>
+            </li>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={isDarkMode}
+                className="student-nav__dropdown-item student-nav__dropdown-item--toggle"
+                onClick={handleToggleTheme}
+              >
+                <span>Dark Mode</span>
+                <span
+                  className={`theme-switch${isDarkMode ? " is-on" : ""}`}
+                  aria-hidden="true"
+                >
+                  <span className="theme-switch__thumb" />
+                </span>
               </button>
             </li>
             <li role="none">

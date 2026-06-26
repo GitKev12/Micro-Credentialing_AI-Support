@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getStoredSession } from "../../../auth/services/authService";
 import { fetchStudentCourses } from "../../../services/courses";
+import noCoursesImage from "../../../assets/no-courses-student.png";
 
 // Placeholder backdrops shown until real course pictures exist (course.imageUrl).
 const PLACEHOLDER_GRADIENTS = [
@@ -42,9 +43,12 @@ function StudentCourses() {
         <p className="student-courses__status">Loading your courses…</p>
       ) : courses.length === 0 ? (
         <div className="student-courses__empty">
-          <span className="student-courses__empty-icon" aria-hidden="true">
-            📚
-          </span>
+          <img
+            className="student-courses__empty-img"
+            src={noCoursesImage}
+            alt=""
+            aria-hidden="true"
+          />
           <p className="student-courses__empty-title">
             You aren&apos;t enrolled in any courses yet
           </p>
