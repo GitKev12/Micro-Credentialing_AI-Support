@@ -39,9 +39,14 @@ function StudentNavBar() {
     };
   }, [isOpen]);
 
-  const goToDashboard = () => {
+  const goToCourses = () => {
     setIsOpen(false);
     navigate("/student");
+  };
+
+  const goToDashboard = () => {
+    setIsOpen(false);
+    navigate("/student/dashboard");
   };
 
   const handleToggleTheme = () => {
@@ -75,6 +80,16 @@ function StudentNavBar() {
 
         {isOpen ? (
           <ul className="student-nav__dropdown" role="menu">
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                className="student-nav__dropdown-item"
+                onClick={goToCourses}
+              >
+                My Courses
+              </button>
+            </li>
             <li role="none">
               <button
                 type="button"

@@ -2,7 +2,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import AdminPage from "./pages/admin/AdminPage";
 import AssessorPage from "./pages/assessor/AssessorPage";
-import StudentPage from "./pages/student/StudentPage";
+import StudentLayout from "./pages/student/StudentLayout";
+import StudentDashboard from "./pages/student/StudentDashboard";
+import StudentCourses from "./pages/student/components/StudentCourses";
 import ProtectedRoute from "./auth/components/ProtectedRoute";
 import AdminLoginPage from "./auth/pages/AdminLoginPage";
 import LoginPage from "./auth/pages/LoginPage";
@@ -18,10 +20,13 @@ function App() {
           path="/student"
           element={
             <ProtectedRoute allowedRole="student">
-              <StudentPage />
+              <StudentLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<StudentCourses />} />
+          <Route path="dashboard" element={<StudentDashboard />} />
+        </Route>
         <Route
           path="/assessor"
           element={

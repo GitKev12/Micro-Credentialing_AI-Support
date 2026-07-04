@@ -1,13 +1,13 @@
+import { Outlet } from "react-router-dom";
 import StudentNavBar from "./components/StudentNavBar";
-import StudentCourses from "./components/StudentCourses";
 
-function StudentPage() {
+function StudentLayout() {
   return (
     <div className="student-page">
       <StudentNavBar />
-      <StudentCourses />
+      <Outlet />
     </div>
   );
 }
 
-export default StudentPage;
+export default StudentLayout;

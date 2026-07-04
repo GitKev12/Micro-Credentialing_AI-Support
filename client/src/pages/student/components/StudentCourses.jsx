@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getStoredSession } from "../../../auth/services/authService";
 import { fetchStudentCourses } from "../../../services/courses";
 import noCoursesImage from "../../../assets/no-courses-student.png";
 
 // Placeholder backdrops shown until real course pictures exist (course.imageUrl).
 const PLACEHOLDER_GRADIENTS = [
-  "linear-gradient(135deg, #b85722, #7d1f2b)",
-  "linear-gradient(135deg, #286c58, #14342a)",
-  "linear-gradient(135deg, #4b6cb7, #182848)",
-  "linear-gradient(135deg, #c2682f, #6a2c12)"
+  "linear-gradient(135deg, #2563eb, #1e3a8a)",
+  "linear-gradient(135deg, #0ea5e9, #0369a1)",
+  "linear-gradient(135deg, #6366f1, #3730a3)",
+  "linear-gradient(135deg, #14b8a6, #0f766e)"
 ];
 
 function StudentCourses() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const openCourse = (course) => {
+    navigate("/student/dashboard", {
+      state: { courseId: course.id, title: course.title }
+    });
+  };
 
   useEffect(() => {
     let active = true;
@@ -40,7 +48,11 @@ function StudentCourses() {
       <h2 className="student-courses__title">Your Courses</h2>
 
       {isLoading ? (
-        <p className="student-courses__status">Loading your courses…</p>
+        <ul className="student-courses__list" aria-hidden="true">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <li key={index} className="course-card course-card--skeleton" />
+          ))}
+        </ul>
       ) : courses.length === 0 ? (
         <div className="student-courses__empty">
           <img
@@ -64,7 +76,11 @@ function StudentCourses() {
               : PLACEHOLDER_GRADIENTS[index % PLACEHOLDER_GRADIENTS.length];
 
             return (
-              <li key={course.id} className="course-card">
+              <li
+                key={course.id}
+                className="course-card course-card--enter"
+                style={{ animationDelay: `${index * 70}ms` }}
+              >
                 <div
                   className="course-card__image"
                   style={{ backgroundImage: backdrop }}
@@ -77,6 +93,12 @@ function StudentCourses() {
                   ) : null}
                   <span className="course-card__name">{course.title}</span>
                 </div>
+                <button
+                  type="button"
+                  className="course-card__click"
+                  onClick={() => openCourse(course)}
+                  aria-label={`Open ${course.title} dashboard`}
+                />
               </li>
             );
           })}
