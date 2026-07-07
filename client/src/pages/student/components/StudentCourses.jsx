@@ -18,8 +18,8 @@ function StudentCourses() {
   const [isLoading, setIsLoading] = useState(true);
 
   const openCourse = (course) => {
-    navigate("/student/dashboard", {
-      state: { courseId: course.id, title: course.title }
+    navigate(`/student/courses/${course.id}/modules`, {
+      state: { title: course.title }
     });
   };
 
@@ -97,7 +97,7 @@ function StudentCourses() {
                   type="button"
                   className="course-card__click"
                   onClick={() => openCourse(course)}
-                  aria-label={`Open ${course.title} dashboard`}
+                  aria-label={`Open ${course.title} learning modules`}
                 />
               </li>
             );

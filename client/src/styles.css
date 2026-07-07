@@ -467,9 +467,8 @@ a {
 
 .dash-courses__grid {
   display: grid;
-  /* Scales to any number of courses: as many ~230–270px columns as fit. */
-  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-  justify-content: start;
+  /* Up to 2 large columns; cards stretch to fill the row. */
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 1.5rem;
   margin: 0;
   padding: 0;
@@ -828,6 +827,11 @@ a {
   background: rgba(154, 40, 56, 0.1);
 }
 
+/* Dark mode: the muted red is unreadable on the near-black surface, so brighten it. */
+[data-theme="dark"] .student-nav__dropdown-item--danger {
+  color: #f87171;
+}
+
 .student-nav__dropdown-item--toggle {
   display: flex;
   align-items: center;
@@ -904,6 +908,12 @@ a {
   color: var(--muted);
 }
 
+/* Dark mode: --muted is too dim for these headings on the near-black surface. */
+[data-theme="dark"] .student-courses__title,
+[data-theme="dark"] .student-nav__welcome {
+  color: #b7c0db;
+}
+
 .student-courses__status {
   margin: 0;
   padding: 2rem 1rem;
@@ -945,8 +955,8 @@ a {
 
 .student-courses__list {
   display: grid;
-  /* Desktop & tablet: 2 columns, each card capped around 270px */
-  grid-template-columns: repeat(2, minmax(0, 270px));
+  /* Up to 4 columns; cards fill the row but never exceed 320px each. */
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 320px));
   justify-content: center;
   gap: 1.5rem;
   margin: 0;
@@ -954,11 +964,10 @@ a {
   list-style: none;
 }
 
-/* Mobile: 1 column */
-@media (max-width: 560px) {
-  .student-courses__list {
-    grid-template-columns: minmax(0, 270px);
-  }
+/* "Your Courses" cards use the same 16:9 widescreen ratio as the dashboard. */
+.student-courses__list .course-card {
+  height: auto;
+  aspect-ratio: 16 / 9;
 }
 
 .course-card {
@@ -980,6 +989,28 @@ a {
 .course-card--stat {
   height: auto;
   aspect-ratio: 16 / 9;
+}
+
+/* Refit the internals for the shorter widescreen tile so nothing crowds. */
+.course-card--stat .course-card__icon {
+  top: 24%;
+  font-size: 2.1rem;
+}
+
+.course-card--stat .course-card__overlay {
+  padding: 14px 16px;
+}
+
+.course-card--stat .course-card__name {
+  font-size: 0.98rem;
+}
+
+.course-card--stat .course-card__progress {
+  margin-top: 0.4rem;
+}
+
+.course-card--stat .course-card__cta {
+  margin-top: 0.35rem;
 }
 
 .course-card__image {
@@ -1194,4 +1225,96 @@ a {
   .course-card--skeleton {
     animation: none;
   }
+}
+
+/* ── Learning Modules page ───────────────────────────────── */
+
+.modules-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modules-page__title {
+  margin: 0.5rem 0 0;
+}
+
+.modules-section__title {
+  margin: 1rem 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.module-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.module-row__icon {
+  font-size: 1.35rem;
+}
+
+.module-row__info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.module-row__title {
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.module-row__meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.module-row__action {
+  flex-shrink: 0;
+  padding: 0.45rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: background 0.15s ease;
+}
+
+.module-row__action:hover {
+  background: var(--accent-soft);
+}
+
+.module-row__action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.module-row__action[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

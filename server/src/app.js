@@ -3,6 +3,7 @@ import express from "express";
 import authRoutes from "./auth/auth.routes.js";
 import courseRoutes from "./courses/courses.routes.js";
 import healthRoutes from "./health/health.routes.js";
+import moduleRoutes from "./modules/modules.routes.js";
 import { trackRequestUsage } from "./middleware/requestMetrics.js";
 
 const app = express();
@@ -22,5 +23,6 @@ app.get("/", (_request, response) => {
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/students", courseRoutes);
+app.use("/api", moduleRoutes);
 
 export default app;

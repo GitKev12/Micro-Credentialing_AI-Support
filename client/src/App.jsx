@@ -5,6 +5,7 @@ import AssessorPage from "./pages/assessor/AssessorPage";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentCourses from "./pages/student/components/StudentCourses";
+import LearningModules from "./pages/student/LearningModules";
 import ProtectedRoute from "./auth/components/ProtectedRoute";
 import AdminLoginPage from "./auth/pages/AdminLoginPage";
 import LoginPage from "./auth/pages/LoginPage";
@@ -26,6 +27,7 @@ function App() {
         >
           <Route index element={<StudentCourses />} />
           <Route path="dashboard" element={<StudentDashboard />} />
+          <Route path="courses/:courseId/modules" element={<LearningModules />} />
         </Route>
         <Route
           path="/assessor"

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { collectionExists, idCandidates } from "../lib/mongo.js";
 
 /**
  * "Abang" — lookout endpoints that wait for their collections.
@@ -8,8 +9,10 @@ import mongoose from "mongoose";
  * exists. Once the collection is created with documents linked to a student,
  * the endpoint immediately starts serving real data — no route changes needed.
  *
- * Expected course document shape (flexible — common field names are accepted):
- *   { studentId, code, title, imageUrl }
+ * Enrollment model: the Student document carries the enrollment, e.g.
+ *   { _id, student_id, enrolledCourses: [<Course _id>, ...] }
+ * and each Course document looks like (flexible — common field names accepted):
+ *   { _id, courseCode, courseName, description, imageUrl }
  *
  * Expected course performance document shape (one per student per course),
  * powering the Student Dashboard's skill gap analysis:
@@ -24,26 +27,15 @@ import mongoose from "mongoose";
  *     skills: [{ topic, score }]
  *   }
  */
+const STUDENTS_COLLECTION = "Student";
 const COURSES_COLLECTION = "Course";
 const PERFORMANCE_COLLECTION = "CoursePerformance";
-
-function isDatabaseReady() {
-  return mongoose.connection.readyState === 1;
-}
-
-async function collectionExists(name) {
-  if (!isDatabaseReady()) return false;
-  const collections = await mongoose.connection.db
-    .listCollections({ name }, { nameOnly: true })
-    .toArray();
-  return collections.length > 0;
-}
 
 function toPublicCourse(course) {
   return {
     id: course._id,
-    code: course.code ?? course.course_code ?? "",
-    title: course.title ?? course.name ?? course.course_name ?? "",
+    code: course.code ?? course.courseCode ?? course.course_code ?? "",
+    title: course.title ?? course.courseName ?? course.name ?? course.course_name ?? "",
     imageUrl: course.imageUrl ?? course.image_url ?? null
   };
 }
@@ -89,9 +81,25 @@ export async function getStudentCourses(request, response) {
     return response.json({ courses: [], pending: true });
   }
 
+  // Enrollment lives on the Student document: find the student (by Mongo _id
+  // from the session, or by their student number), then load the Course docs
+  // listed in enrolledCourses.
+  const student = await mongoose.connection
+    .collection(STUDENTS_COLLECTION)
+    .findOne({
+      $or: [{ _id: { $in: idCandidates(studentId) } }, { student_id: studentId }]
+    });
+
+  const enrolled =
+    student?.enrolledCourses ?? student?.enrolled_courses ?? student?.courses ?? [];
+
+  if (!Array.isArray(enrolled) || enrolled.length === 0) {
+    return response.json({ courses: [] });
+  }
+
   const courses = await mongoose.connection
     .collection(COURSES_COLLECTION)
-    .find({ $or: [{ studentId }, { student_id: studentId }, { studentIds: studentId }] })
+    .find({ _id: { $in: enrolled.flatMap(idCandidates) } })
     .toArray();
 
   return response.json({ courses: courses.map(toPublicCourse) });
