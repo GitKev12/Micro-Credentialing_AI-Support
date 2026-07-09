@@ -26,6 +26,20 @@
   --shadow: 0 6px 18px rgba(255, 255, 255, 0.03);
 }
 
+/* Student & assessor: college red/maroon theme (light mode only). */
+[data-theme="light"] .student-page,
+[data-theme="light"] .assessor-page {
+  --bg: #f4e8e7;
+  --surface: rgba(255, 250, 249, 0.9);
+  --surface-strong: #fffafa;
+  --ink: #2b1613;
+  --muted: #7a5b54;
+  --accent: #822b20;
+  --accent-soft: #f6dfd9;
+  --border: rgba(130, 43, 32, 0.16);
+  --shadow: 0 10px 30px rgba(130, 43, 32, 0.1);
+}
+
 * {
   box-sizing: border-box;
 }
