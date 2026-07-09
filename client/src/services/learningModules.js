@@ -6,6 +6,7 @@ import api from "./api";
  *   GET /api/courses/:courseId/modules      → { modules: [...] }
  *   GET /api/courses/:courseId/assessments  → { assessments: [...] }
  *   GET /api/modules/:moduleId/file         → streams the lesson file (PDF)
+ *   GET /api/modules/:moduleId/text         → OCR/extracted text, cached server-side
  *
  * Each module arrives as
  *   { id, title, subject, fileName, fileType, fileSize, uploadDate }
@@ -27,4 +28,10 @@ export async function fetchCourseAssessments(courseId) {
 
 export function moduleFileUrl(moduleId) {
   return `${api.defaults.baseURL}/modules/${moduleId}/file`;
+}
+
+// Extracted text arrives as { title, numPages, hasText, pages: [{ page, text }] }.
+export async function fetchModuleText(moduleId) {
+  const { data } = await api.get(`/modules/${moduleId}/text`);
+  return data;
 }

@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   fetchCourseAssessments,
   fetchCourseModules,
+  fetchModuleText,
   moduleFileUrl
 } from "../../services/learningModules";
 
@@ -22,6 +23,11 @@ function LearningModules() {
   const [isLoading, setIsLoading] = useState(true);
   // The item shown in the right-hand viewer: { type: "lesson" | "assessment", item }.
   const [selected, setSelected] = useState(null);
+  // Lesson viewer mode: the PDF itself, or its OCR-extracted text.
+  const [viewMode, setViewMode] = useState("pdf");
+  const [textByModule, setTextByModule] = useState({});
+  const [textStatus, setTextStatus] = useState("idle");
+  const [textRetry, setTextRetry] = useState(0);
 
   // Course title travels via navigation state; fall back to the modules'
   // subject code after a hard refresh.
@@ -55,6 +61,34 @@ function LearningModules() {
       active = false;
     };
   }, [courseId]);
+
+  const selectedLessonId = selected?.type === "lesson" ? selected.item.id : null;
+  const lessonText = selectedLessonId ? textByModule[selectedLessonId] : null;
+
+  // Fetch the extracted text lazily: only in text mode, only once per module
+  // (the server caches too, so repeat visits are instant).
+  useEffect(() => {
+    if (viewMode !== "text" || !selectedLessonId || textByModule[selectedLessonId]) {
+      return undefined;
+    }
+
+    let active = true;
+    setTextStatus("loading");
+
+    fetchModuleText(selectedLessonId)
+      .then((data) => {
+        if (!active) return;
+        setTextByModule((cache) => ({ ...cache, [selectedLessonId]: data }));
+        setTextStatus("idle");
+      })
+      .catch(() => {
+        if (active) setTextStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [viewMode, selectedLessonId, textByModule, textRetry]);
 
   const isActive = (type, id) => selected?.type === type && selected.item.id === id;
 
@@ -163,20 +197,91 @@ function LearningModules() {
             <div className="module-viewer">
               <div className="module-viewer__head">
                 <h3 className="module-viewer__title">{selected.item.title}</h3>
-                <a
-                  className="module-row__action"
-                  href={moduleFileUrl(selected.item.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open in new tab
-                </a>
+                <div className="module-viewer__tools">
+                  <div
+                    className="dash-tabs module-viewer__modes"
+                    role="tablist"
+                    aria-label="Lesson view mode"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={viewMode === "pdf"}
+                      className={`dash-tab${viewMode === "pdf" ? " is-active" : ""}`}
+                      onClick={() => setViewMode("pdf")}
+                    >
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={viewMode === "text"}
+                      className={`dash-tab${viewMode === "text" ? " is-active" : ""}`}
+                      onClick={() => setViewMode("text")}
+                    >
+                      Text (OCR)
+                    </button>
+                  </div>
+                  <a
+                    className="module-row__action"
+                    href={moduleFileUrl(selected.item.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open in new tab
+                  </a>
+                </div>
               </div>
-              <iframe
-                className="module-viewer__frame"
-                src={moduleFileUrl(selected.item.id)}
-                title={selected.item.title}
-              />
+
+              {viewMode === "pdf" ? (
+                <iframe
+                  className="module-viewer__frame"
+                  src={moduleFileUrl(selected.item.id)}
+                  title={selected.item.title}
+                />
+              ) : (
+                <div
+                  className="module-viewer__text"
+                  aria-label={`${selected.item.title} extracted text`}
+                >
+                  {!lessonText && textStatus === "loading" ? (
+                    <p className="student-courses__status">Extracting text…</p>
+                  ) : !lessonText && textStatus === "error" ? (
+                    <div className="module-viewer__text-status">
+                      <p className="student-courses__status">
+                        Couldn&apos;t extract this module&apos;s text.
+                      </p>
+                      <button
+                        type="button"
+                        className="module-row__action"
+                        onClick={() => setTextRetry((count) => count + 1)}
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : lessonText && !lessonText.hasText ? (
+                    <p className="student-courses__status">
+                      This module looks like a scanned document — it has no
+                      embedded text to extract.
+                    </p>
+                  ) : lessonText ? (
+                    lessonText.pages.map((page) => (
+                      <section key={page.page} className="module-viewer__page">
+                        <span className="module-viewer__page-label">
+                          Page {page.page} / {lessonText.numPages}
+                        </span>
+                        {page.text ? (
+                          <pre className="module-viewer__page-text">{page.text}</pre>
+                        ) : (
+                          <p className="module-viewer__page-empty">
+                            No text on this page.
+                          </p>
+                        )}
+                      </section>
+                    ))
+                  ) : null}
+                </div>
+              )}
             </div>
           ) : (
             <div className="module-viewer">
