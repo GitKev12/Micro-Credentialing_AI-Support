@@ -1491,6 +1491,170 @@ a {
   font-size: 0.85rem;
 }
 
+/* ── Curriculum: progress, numbering, completion ──────── */
+
+.modules-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.modules-progress__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.modules-progress__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.modules-progress__count {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.modules-progress__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.modules-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.5s ease;
+}
+
+.module-row__num {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.module-row__num.is-done {
+  border-color: transparent;
+  background: #2e9e5b;
+  color: #fff;
+}
+
+.module-row--button.is-complete .module-row__title {
+  color: var(--muted);
+}
+
+.module-row--button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modules-lock-note {
+  margin: 0 0 0.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.module-viewer__complete.is-done {
+  border-color: transparent;
+  background: #2e9e5b;
+  color: #fff;
+}
+
+/* ── Lesson reader: formatted module text ─────────────── */
+
+.lesson-reader__content {
+  max-width: 70ch;
+  margin: 0 auto;
+}
+
+.lesson-reader__meta {
+  margin: 0 0 1.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lesson-reader__h2 {
+  margin: 1.75rem 0 0.6rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--accent-soft);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.lesson-reader__content .lesson-reader__h2:first-of-type {
+  margin-top: 0;
+}
+
+.lesson-reader__h3 {
+  margin: 1.35rem 0 0.45rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.lesson-reader__p {
+  margin: 0.75rem 0;
+  line-height: 1.75;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.lesson-reader__list {
+  margin: 0.75rem 0;
+  padding-left: 1.4rem;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.lesson-reader__list li {
+  margin: 0.35rem 0;
+  overflow-wrap: anywhere;
+}
+
+.module-viewer__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.module-viewer__nav-pos {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* Stack the two panes on small screens. */
 @media (max-width: 720px) {
   .modules-layout {

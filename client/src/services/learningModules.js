@@ -30,8 +30,24 @@ export function moduleFileUrl(moduleId) {
   return `${api.defaults.baseURL}/modules/${moduleId}/file`;
 }
 
-// Extracted text arrives as { title, numPages, hasText, pages: [{ page, text }] }.
+// Extracted text arrives as { title, numPages, hasText, readingMinutes,
+// blocks: [{ type, ... }], pages: [{ page, text }] } — `blocks` is the
+// lesson-formatted structure, `pages` the raw fallback.
 export async function fetchModuleText(moduleId) {
   const { data } = await api.get(`/modules/${moduleId}/text`);
+  return data;
+}
+
+// Ids of the lessons this student has marked complete in a course.
+export async function fetchCourseProgress(studentId, courseId) {
+  if (!studentId || !courseId) return [];
+
+  const { data } = await api.get(`/students/${studentId}/courses/${courseId}/progress`);
+  return data?.completedModuleIds ?? [];
+}
+
+export async function setModuleCompleted(studentId, moduleId, completed) {
+  const url = `/students/${studentId}/modules/${moduleId}/complete`;
+  const { data } = completed ? await api.post(url) : await api.delete(url);
   return data;
 }

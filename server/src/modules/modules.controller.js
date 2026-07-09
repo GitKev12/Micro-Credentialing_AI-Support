@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { extractPdfText } from "./modules.ocr.js";
+import { buildLessonBlocks, countReadingMinutes } from "./modules.format.js";
 
 /**
  * Learning modules (lessons) and assessments for a course.
@@ -22,7 +23,14 @@ const DEFAULT_BUCKET = "LearningModule";
 
 // OCR/text-extraction results are cached here, one document per module, so
 // each PDF is only parsed once: { moduleId, fileId, numPages, pages, ... }.
+// Bump the version when the extraction/formatting logic changes so stale
+// cache entries re-extract on their next request.
 const MODULE_TEXT_COLLECTION = "ModuleText";
+const TEXT_FORMAT_VERSION = 3;
+
+// Per-student lesson completion, one document per completed module:
+// { studentId, courseId, moduleId, completedAt }.
+const PROGRESS_COLLECTION = "ModuleProgress";
 
 function courseMatch(courseId) {
   return { $or: [{ courseId: { $in: idCandidates(courseId) } }, { courseCode: courseId }] };
@@ -150,6 +158,8 @@ function toTextResponse(record, cached) {
     source: record.source,
     textLength: record.textLength,
     pages: record.pages,
+    blocks: record.blocks ?? [],
+    readingMinutes: record.readingMinutes ?? 0,
     extractedAt: record.extractedAt,
     cached
   };
@@ -166,9 +176,14 @@ export async function getModuleText(request, response) {
   const fileKey = String(module.fileId ?? "");
   const textCollection = mongoose.connection.collection(MODULE_TEXT_COLLECTION);
 
-  // Serve the cached extraction unless the module's file was replaced.
+  // Serve the cached extraction unless the module's file was replaced or the
+  // cache entry predates the current formatter.
   const cachedRecord = await textCollection.findOne({ moduleId: moduleKey });
-  if (cachedRecord && cachedRecord.fileId === fileKey) {
+  if (
+    cachedRecord &&
+    cachedRecord.fileId === fileKey &&
+    cachedRecord.formatVersion === TEXT_FORMAT_VERSION
+  ) {
     return response.json(toTextResponse(cachedRecord, true));
   }
 
@@ -185,6 +200,8 @@ export async function getModuleText(request, response) {
       source: "unsupported-type",
       textLength: 0,
       pages: [],
+      blocks: [],
+      readingMinutes: 0,
       cached: false
     });
   }
@@ -204,12 +221,17 @@ export async function getModuleText(request, response) {
     return response.status(500).json({ message: "Failed to extract text from this module." });
   }
 
+  const blocks = extracted.hasText ? buildLessonBlocks(extracted.pages) : [];
+
   const record = {
     moduleId: moduleKey,
     fileId: fileKey,
+    formatVersion: TEXT_FORMAT_VERSION,
     title: module.title ?? "",
     numPages: extracted.numPages,
     pages: extracted.pages,
+    blocks,
+    readingMinutes: blocks.length ? countReadingMinutes(blocks) : 0,
     textLength: extracted.textLength,
     hasText: extracted.hasText,
     source: extracted.hasText ? "embedded-text" : "none",
@@ -223,4 +245,59 @@ export async function getModuleText(request, response) {
   );
 
   return response.json(toTextResponse(record, false));
+}
+
+export async function getCourseProgress(request, response) {
+  const { studentId, courseId } = request.params;
+
+  if (!(await collectionExists(PROGRESS_COLLECTION))) {
+    return response.json({ completedModuleIds: [], pending: true });
+  }
+
+  const entries = await mongoose.connection
+    .collection(PROGRESS_COLLECTION)
+    .find({
+      studentId: { $in: idCandidates(studentId) },
+      courseId: { $in: idCandidates(courseId) }
+    })
+    .toArray();
+
+  return response.json({
+    completedModuleIds: entries.map((entry) => entry.moduleId)
+  });
+}
+
+export async function markModuleComplete(request, response) {
+  const module = await findModule(request.params.moduleId);
+
+  if (!module) {
+    return response.status(404).json({ message: "Learning module not found." });
+  }
+
+  const record = {
+    studentId: String(request.params.studentId),
+    moduleId: String(module._id),
+    courseId: String(module.courseId ?? ""),
+    completedAt: new Date()
+  };
+
+  await mongoose.connection
+    .collection(PROGRESS_COLLECTION)
+    .updateOne(
+      { studentId: record.studentId, moduleId: record.moduleId },
+      { $set: record },
+      { upsert: true }
+    );
+
+  return response.json({ completed: true, moduleId: record.moduleId });
+}
+
+export async function unmarkModuleComplete(request, response) {
+  const { studentId, moduleId } = request.params;
+
+  await mongoose.connection
+    .collection(PROGRESS_COLLECTION)
+    .deleteOne({ studentId: String(studentId), moduleId: String(moduleId) });
+
+  return response.json({ completed: false, moduleId });
 }
