@@ -955,9 +955,8 @@ a {
 
 .student-courses__list {
   display: grid;
-  /* Up to 4 columns; cards fill the row but never exceed 320px each. */
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 320px));
-  justify-content: center;
+  /* Fixed 3 columns; cards fill each track. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
   margin: 0;
   padding: 0;
@@ -966,8 +965,8 @@ a {
 
 /* "Your Courses" cards use the same 16:9 widescreen ratio as the dashboard. */
 .student-courses__list .course-card {
-  height: auto;
-  aspect-ratio: 16 / 9;
+  width: clamp(240px, 100%, 360px);
+  height: clamp(180px, 15vw, 240px);
 }
 
 .course-card {
@@ -1233,6 +1232,9 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  /* Near-full-bleed: break out of the centered app-shell, leaving a 1rem gap each side. */
+  margin-left: calc(50% - 50vw + 1rem);
+  margin-right: calc(50% - 50vw + 1rem);
 }
 
 .modules-page__title {
@@ -1317,4 +1319,109 @@ a {
 .module-row__action[disabled] {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Master-detail: narrow module list (left) + wider viewer (right). */
+.modules-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.modules-layout__aside {
+  flex: 0 0 300px;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.modules-layout__main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Module rows double as selectable buttons in the left list. */
+.module-row--button {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.module-row--button:hover {
+  border-color: var(--accent);
+}
+
+.module-row--button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.module-row--button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Right-hand viewer showing the selected module. */
+.module-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 60vh;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.module-viewer--empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.module-viewer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.module-viewer__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.module-viewer__frame {
+  flex: 1;
+  width: 100%;
+  min-height: 60vh;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.module-viewer__desc {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+/* Stack the two panes on small screens. */
+@media (max-width: 720px) {
+  .modules-layout {
+    flex-direction: column;
+  }
+
+  .modules-layout__aside {
+    flex-basis: auto;
+    max-width: none;
+    width: 100%;
+  }
 }
