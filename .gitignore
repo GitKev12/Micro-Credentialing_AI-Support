@@ -4,6 +4,7 @@ dist/
 *.log
 
 server/.env
+server/.cache/
 client/.env
 client/.env.local
 client/.env.development.local

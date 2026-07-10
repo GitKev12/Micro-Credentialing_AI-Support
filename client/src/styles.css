@@ -26,22 +26,44 @@
   --shadow: 0 6px 18px rgba(255, 255, 255, 0.03);
 }
 
-/* Student & assessor: college red/maroon theme (light mode only). */
+/* Student & assessor: college red theme (light mode only). */
 [data-theme="light"] .student-page,
 [data-theme="light"] .assessor-page {
-  --bg: #f4e8e7;
-  --surface: rgba(255, 250, 249, 0.9);
-  --surface-strong: #fffafa;
-  --ink: #2b1613;
-  --muted: #7a5b54;
-  --accent: #822b20;
-  --accent-soft: #f6dfd9;
-  --border: rgba(130, 43, 32, 0.16);
-  --shadow: 0 10px 30px rgba(130, 43, 32, 0.1);
+  --bg: #fbeceb;
+  --surface: rgba(255, 250, 250, 0.9);
+  --surface-strong: #fffbfb;
+  --ink: #2a1517;
+  --muted: #8a5d5f;
+  --accent: #c1121f;
+  --accent-soft: #fbdada;
+  --border: rgba(193, 18, 31, 0.18);
+  --shadow: 0 10px 30px rgba(193, 18, 31, 0.1);
 }
 
 * {
   box-sizing: border-box;
+  /* Thin scrollbars app-wide (Firefox + Chromium 121+). */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 130, 160, 0.5) transparent;
+}
+
+/* Slim scrollbars for older Chromium/Edge/Safari. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(120, 130, 160, 0.5);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 130, 160, 0.75);
 }
 
 body {
@@ -1412,15 +1434,6 @@ a {
   overflow-wrap: anywhere;
 }
 
-.module-viewer__frame {
-  flex: 1;
-  width: 100%;
-  min-height: 60vh;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff;
-}
-
 .module-viewer__desc {
   margin: 0;
   color: var(--ink);
@@ -1434,10 +1447,6 @@ a {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-}
-
-.module-viewer__modes {
-  margin-bottom: 0;
 }
 
 .module-viewer__text {
@@ -1578,6 +1587,11 @@ a {
   font-size: 0.8rem;
 }
 
+/* Auto-completion status chip — looks like an action pill but is inert. */
+.module-viewer__complete {
+  pointer-events: none;
+}
+
 .module-viewer__complete.is-done {
   border-color: transparent;
   background: #2e9e5b;
@@ -1587,17 +1601,7 @@ a {
 /* ── Lesson reader: formatted module text ─────────────── */
 
 .lesson-reader__content {
-  max-width: 70ch;
-  margin: 0 auto;
-}
-
-.lesson-reader__meta {
-  margin: 0 0 1.25rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
+  width: 100%;
 }
 
 .lesson-reader__h2 {
@@ -1627,16 +1631,78 @@ a {
   overflow-wrap: anywhere;
 }
 
+/* Lists live in their own card container, like the other reader blocks. */
 .lesson-reader__list {
-  margin: 0.75rem 0;
-  padding-left: 1.4rem;
+  margin: 0.9rem 0;
+  padding: 0.8rem 1.1rem 0.8rem 2.3rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
   line-height: 1.7;
   color: var(--ink);
 }
 
 .lesson-reader__list li {
-  margin: 0.35rem 0;
+  margin: 0.45rem 0;
+  padding-left: 0.3rem;
   overflow-wrap: anywhere;
+}
+
+/* Accent markers: colored bullets, bold colored numbers. */
+.lesson-reader__list li::marker {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+ul.lesson-reader__list {
+  list-style: disc;
+}
+
+ol.lesson-reader__list {
+  list-style: decimal;
+}
+
+ol.lesson-reader__list li::marker {
+  font-size: 0.9em;
+}
+
+/* Code samples: monospace card; long lines scroll. */
+.lesson-reader__code {
+  margin: 1rem 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow-x: auto;
+  font-family: "Cascadia Code", "Consolas", ui-monospace, SFMono-Regular,
+    Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre;
+}
+
+/* "Term — definition" callout cards: tinted background sets explanations
+   apart from regular paragraphs in every theme. */
+.lesson-reader__term {
+  margin: 0.85rem 0;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  line-height: 1.7;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.lesson-reader__term-name {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Breathing room between template sections. */
+.lesson-reader__section + .lesson-reader__section {
+  margin-top: 2.25rem;
 }
 
 .module-viewer__nav {
@@ -1653,6 +1719,105 @@ a {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted);
+}
+
+/* ── Chapter sections dropdown ────────────────────────── */
+
+.module-row--split {
+  padding: 0;
+  cursor: default;
+  overflow: hidden;
+}
+
+.module-row__select {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 0.85rem 0.5rem 0.85rem 1.1rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.module-row__toggle {
+  flex-shrink: 0;
+  align-self: stretch;
+  padding: 0 0.85rem;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.module-row__toggle:hover {
+  color: var(--accent);
+}
+
+.module-row__toggle:focus-visible,
+.module-row__select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.module-row__chev {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.module-row__chev.is-open {
+  transform: rotate(180deg);
+}
+
+.module-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.35rem 0 0.4rem;
+  padding: 0 0 0 1.6rem;
+  list-style: none;
+}
+
+.module-sections__link {
+  width: 100%;
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  border-left: 2px solid var(--border);
+  border-radius: 0 8px 8px 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.module-sections__link:hover {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.module-sections__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.module-sections__status {
+  padding: 0.35rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.lesson-reader__section {
+  scroll-margin-top: 0.75rem;
 }
 
 /* Stack the two panes on small screens. */

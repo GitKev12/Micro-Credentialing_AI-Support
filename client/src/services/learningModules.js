@@ -38,6 +38,14 @@ export async function fetchModuleText(moduleId) {
   return data;
 }
 
+// Section list for a module's curriculum dropdown — the server derives these
+// from the chapter's template headings and caches them with the text.
+// Each section is { id, title, page, start, end } (block index range).
+export async function fetchModuleSections(moduleId) {
+  const { data } = await api.get(`/modules/${moduleId}/sections`);
+  return data?.sections ?? [];
+}
+
 // Ids of the lessons this student has marked complete in a course.
 export async function fetchCourseProgress(studentId, courseId) {
   if (!studentId || !courseId) return [];

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getStoredSession } from "../../auth/services/authService";
 import {
   fetchCourseAssessments,
   fetchCourseModules,
   fetchCourseProgress,
+  fetchModuleSections,
   fetchModuleText,
   moduleFileUrl,
   setModuleCompleted
@@ -16,7 +17,28 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Renders the server's formatted lesson blocks (headings/paragraphs/lists).
+// The extractor wraps runs that are italic in the source PDF with these
+// control markers; render them as <em>.
+const ITALIC_OPEN = String.fromCharCode(17); // U+0011
+const ITALIC_CLOSE = String.fromCharCode(18); // U+0012
+
+function renderStyledText(text) {
+  if (!text || !text.includes(ITALIC_OPEN)) return text;
+
+  const chunks = String(text).split(ITALIC_OPEN);
+  const output = [chunks[0]];
+
+  chunks.slice(1).forEach((chunk, index) => {
+    const [italic, ...rest] = chunk.split(ITALIC_CLOSE);
+    output.push(<em key={index}>{italic}</em>);
+    output.push(rest.join(ITALIC_CLOSE));
+  });
+
+  return output;
+}
+
+// Renders the server's formatted lesson blocks (headings, paragraphs, lists,
+// code samples, and term definitions).
 function LessonBlocks({ blocks }) {
   return blocks.map((block, index) => {
     if (block.type === "heading") {
@@ -36,15 +58,35 @@ function LessonBlocks({ blocks }) {
       return (
         <ListTag key={index} className="lesson-reader__list">
           {block.items.map((item, itemIndex) => (
-            <li key={itemIndex}>{item}</li>
+            <li key={itemIndex}>{renderStyledText(item)}</li>
           ))}
         </ListTag>
       );
     }
 
+    if (block.type === "code") {
+      return (
+        <pre key={index} className="lesson-reader__code">
+          <code>{block.text}</code>
+        </pre>
+      );
+    }
+
+    if (block.type === "term") {
+      return (
+        <p key={index} className="lesson-reader__term">
+          <strong className="lesson-reader__term-name">{block.term}</strong>
+          <span className="lesson-reader__term-sep" aria-hidden="true">
+            {" — "}
+          </span>
+          {renderStyledText(block.text)}
+        </p>
+      );
+    }
+
     return (
       <p key={index} className="lesson-reader__p">
-        {block.text}
+        {renderStyledText(block.text)}
       </p>
     );
   });
@@ -62,12 +104,18 @@ function LearningModules() {
   const [isLoading, setIsLoading] = useState(true);
   // The item shown in the right-hand viewer: { type: "lesson" | "assessment", item }.
   const [selected, setSelected] = useState(null);
-  // Lesson viewer mode: the PDF itself, or its OCR-extracted text.
-  const [viewMode, setViewMode] = useState("pdf");
   const [textByModule, setTextByModule] = useState({});
   const [textStatus, setTextStatus] = useState("idle");
   const [textRetry, setTextRetry] = useState(0);
   const [completionBusy, setCompletionBusy] = useState(false);
+  // Section dropdown state: which chapter is expanded + fetched section lists.
+  const [expandedId, setExpandedId] = useState(null);
+  const [sectionsByModule, setSectionsByModule] = useState({});
+  const [sectionsLoadingId, setSectionsLoadingId] = useState(null);
+  // Section to scroll to once the lesson text is on screen.
+  const [pendingSection, setPendingSection] = useState(null);
+  // The scrollable reader pane — watched to auto-complete lessons.
+  const readerRef = useRef(null);
 
   // Course title travels via navigation state; fall back to the modules'
   // subject code after a hard refresh.
@@ -107,10 +155,10 @@ function LearningModules() {
   const selectedLessonId = selected?.type === "lesson" ? selected.item.id : null;
   const lessonText = selectedLessonId ? textByModule[selectedLessonId] : null;
 
-  // Fetch the extracted text lazily: only in text mode, only once per module
-  // (the server caches too, so repeat visits are instant).
+  // Fetch the extracted text once per module (the server caches too, so
+  // repeat visits are instant).
   useEffect(() => {
-    if (viewMode !== "text" || !selectedLessonId || textByModule[selectedLessonId]) {
+    if (!selectedLessonId || textByModule[selectedLessonId]) {
       return undefined;
     }
 
@@ -130,7 +178,18 @@ function LearningModules() {
     return () => {
       active = false;
     };
-  }, [viewMode, selectedLessonId, textByModule, textRetry]);
+  }, [selectedLessonId, textByModule, textRetry]);
+
+  // Once the target lesson's text is rendered, jump to the chosen section.
+  useEffect(() => {
+    if (!pendingSection || pendingSection.moduleId !== selectedLessonId) return;
+    if (!lessonText) return;
+    const target = document.getElementById(
+      `lesson-section-${pendingSection.sectionId}`
+    );
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    setPendingSection(null);
+  }, [pendingSection, lessonText, selectedLessonId]);
 
   const isActive = (type, id) => selected?.type === type && selected.item.id === id;
   const isCompleted = (moduleId) => completedIds.includes(String(moduleId));
@@ -150,24 +209,62 @@ function LearningModules() {
     if (module) setSelected({ type: "lesson", item: module });
   };
 
-  const toggleCompleted = async () => {
-    if (!studentId || !selectedLessonId || completionBusy) return;
-    const nextState = !isCompleted(selectedLessonId);
+  const toggleSections = (module) => {
+    const moduleId = module.id;
+    setExpandedId((current) => (current === moduleId ? null : moduleId));
+
+    if (!sectionsByModule[moduleId]) {
+      setSectionsLoadingId(moduleId);
+      fetchModuleSections(moduleId)
+        .then((sections) =>
+          setSectionsByModule((cache) => ({ ...cache, [moduleId]: sections }))
+        )
+        .catch(() =>
+          setSectionsByModule((cache) => ({ ...cache, [moduleId]: [] }))
+        )
+        .finally(() =>
+          setSectionsLoadingId((current) => (current === moduleId ? null : current))
+        );
+    }
+  };
+
+  const openSection = (module, section) => {
+    setSelected({ type: "lesson", item: module });
+    setPendingSection({ moduleId: module.id, sectionId: section.id });
+  };
+
+  // Reading to the end of a lesson marks it complete automatically.
+  const markLessonComplete = async (moduleId) => {
+    if (!studentId || !moduleId || completionBusy || isCompleted(moduleId)) return;
 
     setCompletionBusy(true);
     try {
-      await setModuleCompleted(studentId, selectedLessonId, nextState);
+      await setModuleCompleted(studentId, moduleId, true);
       setCompletedIds((ids) =>
-        nextState
-          ? [...ids, String(selectedLessonId)]
-          : ids.filter((id) => id !== String(selectedLessonId))
+        ids.includes(String(moduleId)) ? ids : [...ids, String(moduleId)]
       );
     } catch (_error) {
-      // Leave the local state unchanged; the button stays togglable.
+      // Ignore — the next scroll event retries.
     } finally {
       setCompletionBusy(false);
     }
   };
+
+  const handleReaderScroll = (event) => {
+    const reader = event.currentTarget;
+    if (reader.scrollTop + reader.clientHeight >= reader.scrollHeight - 32) {
+      markLessonComplete(selectedLessonId);
+    }
+  };
+
+  // Lessons short enough to show without scrolling count as read on open.
+  useEffect(() => {
+    if (!lessonText || !selectedLessonId) return;
+    const reader = readerRef.current;
+    if (reader && reader.scrollHeight <= reader.clientHeight + 8) {
+      markLessonComplete(selectedLessonId);
+    }
+  }, [lessonText, selectedLessonId]);
 
   return (
     <section className="student-courses modules-page">
@@ -222,31 +319,77 @@ function LearningModules() {
               {modules.map((module, index) => {
                 const size = formatFileSize(module.fileSize);
                 const done = isCompleted(module.id);
+                const isExpanded = expandedId === module.id;
+                const sections = sectionsByModule[module.id];
 
                 return (
                   <li key={module.id}>
-                    <button
-                      type="button"
-                      className={`module-row module-row--button${
+                    <div
+                      className={`module-row module-row--button module-row--split${
                         isActive("lesson", module.id) ? " is-active" : ""
                       }${done ? " is-complete" : ""}`}
-                      onClick={() => setSelected({ type: "lesson", item: module })}
-                      aria-label={`${module.title}${done ? " (completed)" : ""}`}
                     >
-                      <span
-                        className={`module-row__num${done ? " is-done" : ""}`}
-                        aria-hidden="true"
+                      <button
+                        type="button"
+                        className="module-row__select"
+                        onClick={() => setSelected({ type: "lesson", item: module })}
+                        aria-label={`${module.title}${done ? " (completed)" : ""}`}
                       >
-                        {done ? "✓" : String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span className="module-row__info">
-                        <span className="module-row__title">{module.title}</span>
-                        <span className="module-row__meta">
-                          {module.fileName}
-                          {size ? ` · ${size}` : ""}
+                        <span
+                          className={`module-row__num${done ? " is-done" : ""}`}
+                          aria-hidden="true"
+                        >
+                          {done ? "✓" : String(index + 1).padStart(2, "0")}
                         </span>
-                      </span>
-                    </button>
+                        <span className="module-row__info">
+                          <span className="module-row__title">{module.title}</span>
+                          <span className="module-row__meta">
+                            {module.fileName}
+                            {size ? ` · ${size}` : ""}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="module-row__toggle"
+                        onClick={() => toggleSections(module)}
+                        aria-expanded={isExpanded}
+                        aria-label={`${isExpanded ? "Hide" : "Show"} ${module.title} sections`}
+                      >
+                        <span
+                          className={`module-row__chev${isExpanded ? " is-open" : ""}`}
+                          aria-hidden="true"
+                        >
+                          ▾
+                        </span>
+                      </button>
+                    </div>
+
+                    {isExpanded ? (
+                      <ul className="module-sections">
+                        {!sections && sectionsLoadingId === module.id ? (
+                          <li className="module-sections__status">
+                            Loading sections…
+                          </li>
+                        ) : !sections || sections.length === 0 ? (
+                          <li className="module-sections__status">
+                            No sections detected in this module.
+                          </li>
+                        ) : (
+                          sections.map((section) => (
+                            <li key={section.id}>
+                              <button
+                                type="button"
+                                className="module-sections__link"
+                                onClick={() => openSection(module, section)}
+                              >
+                                {section.title}
+                              </button>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    ) : null}
                   </li>
                 );
               })}
@@ -313,40 +456,11 @@ function LearningModules() {
               <div className="module-viewer__head">
                 <h3 className="module-viewer__title">{selected.item.title}</h3>
                 <div className="module-viewer__tools">
-                  <div
-                    className="dash-tabs module-viewer__modes"
-                    role="tablist"
-                    aria-label="Lesson view mode"
-                  >
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={viewMode === "pdf"}
-                      className={`dash-tab${viewMode === "pdf" ? " is-active" : ""}`}
-                      onClick={() => setViewMode("pdf")}
-                    >
-                      PDF
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={viewMode === "text"}
-                      className={`dash-tab${viewMode === "text" ? " is-active" : ""}`}
-                      onClick={() => setViewMode("text")}
-                    >
-                      Text (OCR)
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className={`module-row__action module-viewer__complete${
-                      isCompleted(selected.item.id) ? " is-done" : ""
-                    }`}
-                    onClick={toggleCompleted}
-                    disabled={completionBusy}
-                  >
-                    {isCompleted(selected.item.id) ? "✓ Completed" : "Mark as complete"}
-                  </button>
+                  {isCompleted(selected.item.id) ? (
+                    <span className="module-row__action module-viewer__complete is-done">
+                      ✓ Completed
+                    </span>
+                  ) : null}
                   <a
                     className="module-row__action"
                     href={moduleFileUrl(selected.item.id)}
@@ -358,58 +472,63 @@ function LearningModules() {
                 </div>
               </div>
 
-              {viewMode === "pdf" ? (
-                <iframe
-                  className="module-viewer__frame"
-                  src={moduleFileUrl(selected.item.id)}
-                  title={selected.item.title}
-                />
-              ) : (
-                <div
-                  className="module-viewer__text lesson-reader"
-                  aria-label={`${selected.item.title} extracted text`}
-                >
-                  {!lessonText && textStatus === "loading" ? (
-                    <p className="student-courses__status">Extracting text…</p>
-                  ) : !lessonText && textStatus === "error" ? (
-                    <div className="module-viewer__text-status">
-                      <p className="student-courses__status">
-                        Couldn&apos;t extract this module&apos;s text.
-                      </p>
-                      <button
-                        type="button"
-                        className="module-row__action"
-                        onClick={() => setTextRetry((count) => count + 1)}
-                      >
-                        Try again
-                      </button>
-                    </div>
-                  ) : lessonText && !lessonText.hasText ? (
+              <div
+                ref={readerRef}
+                className="module-viewer__text lesson-reader"
+                aria-label={`${selected.item.title} lesson content`}
+                onScroll={handleReaderScroll}
+              >
+                {!lessonText && textStatus === "loading" ? (
+                  <p className="student-courses__status">Extracting text…</p>
+                ) : !lessonText && textStatus === "error" ? (
+                  <div className="module-viewer__text-status">
                     <p className="student-courses__status">
-                      This module looks like a scanned document — it has no
-                      embedded text to extract.
+                      Couldn&apos;t extract this module&apos;s text.
                     </p>
-                  ) : lessonText ? (
-                    <div className="lesson-reader__content">
-                      <p className="lesson-reader__meta">
-                        {lessonText.readingMinutes
-                          ? `~${lessonText.readingMinutes} min read · `
-                          : ""}
-                        {lessonText.numPages} pages
-                      </p>
-                      {lessonText.blocks?.length ? (
-                        <LessonBlocks blocks={lessonText.blocks} />
-                      ) : (
-                        lessonText.pages.map((page) => (
-                          <pre key={page.page} className="module-viewer__page-text">
-                            {page.text}
-                          </pre>
+                    <button
+                      type="button"
+                      className="module-row__action"
+                      onClick={() => setTextRetry((count) => count + 1)}
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : lessonText && !lessonText.hasText ? (
+                  <p className="student-courses__status">
+                    This module looks like a scanned document — it has no
+                    embedded text to extract.
+                  </p>
+                ) : lessonText ? (
+                  <div className="lesson-reader__content">
+                    {lessonText.blocks?.length ? (
+                      lessonText.sections?.length ? (
+                        lessonText.sections.map((section) => (
+                          <section
+                            key={section.id}
+                            id={`lesson-section-${section.id}`}
+                            className="lesson-reader__section"
+                          >
+                            <LessonBlocks
+                              blocks={lessonText.blocks.slice(
+                                section.start,
+                                section.end
+                              )}
+                            />
+                          </section>
                         ))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              )}
+                      ) : (
+                        <LessonBlocks blocks={lessonText.blocks} />
+                      )
+                    ) : (
+                      lessonText.pages.map((page) => (
+                        <pre key={page.page} className="module-viewer__page-text">
+                          {page.text}
+                        </pre>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
 
               <div className="module-viewer__nav">
                 <button

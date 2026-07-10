@@ -8,12 +8,14 @@
     "start": "node src/index.js"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "mongoose": "^8.14.2",
     "openai": "^6.42.0",
-    "pdf-parse": "^1.1.1"
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
