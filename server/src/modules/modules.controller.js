@@ -20,13 +20,15 @@ import { buildLessonBlocks, buildSections, countReadingMinutes } from "./modules
 const MODULES_COLLECTION = "LearningModule";
 const ASSESSMENTS_COLLECTION = "Assessment";
 const DEFAULT_BUCKET = "LearningModule";
+const COURSES_COLLECTION = "Course";
+const COURSE_IMAGES_BUCKET = "CourseImage";
 
 // OCR/text-extraction results are cached here, one document per module, so
 // each PDF is only parsed once: { moduleId, fileId, numPages, pages, ... }.
 // Bump the version when the extraction/formatting logic changes so stale
 // cache entries re-extract on their next request.
 const MODULE_TEXT_COLLECTION = "ModuleText";
-const TEXT_FORMAT_VERSION = 15;
+const TEXT_FORMAT_VERSION = 21;
 
 // Per-student lesson completion, one document per completed module:
 // { studentId, courseId, moduleId, completedAt }.
@@ -68,8 +70,21 @@ export async function getCourseModules(request, response) {
   const modules = await mongoose.connection
     .collection(MODULES_COLLECTION)
     .find(courseMatch(courseId))
-    .sort({ title: 1 })
     .toArray();
+
+  // Order lessons by their chapter/week number — the last number in the
+  // title ("CC2 Lec Chapter 3 Module", "TSM3 Module Week10", "… CHAPTER 7").
+  // Plain title sorting fails both on "Chapter 10" < "Chapter 2" and on
+  // prefix quirks like MST's "FINALS MODULE … CHAPTER 7".
+  const lessonNumber = (title) => {
+    const numbers = String(title ?? "").match(/\d+/g);
+    return numbers ? Number(numbers[numbers.length - 1]) : Number.POSITIVE_INFINITY;
+  };
+  modules.sort((a, b) => {
+    const difference = lessonNumber(a.title) - lessonNumber(b.title);
+    if (difference !== 0) return difference;
+    return String(a.title ?? "").localeCompare(String(b.title ?? ""), "en", { numeric: true });
+  });
 
   return response.json({ modules: modules.map(toPublicModule) });
 }
@@ -303,6 +318,37 @@ export async function getModuleSections(request, response) {
     hasText: record.hasText,
     sections: record.sections ?? []
   });
+}
+
+// Streams a course's background picture from the CourseImage bucket.
+export async function getCourseImage(request, response) {
+  const course = await mongoose.connection
+    .collection(COURSES_COLLECTION)
+    .findOne({ _id: { $in: idCandidates(request.params.courseId) } });
+
+  if (!course?.imageFileId) {
+    return response.status(404).json({ message: "Course image not found." });
+  }
+
+  response.set({
+    "Content-Type": course.imageContentType ?? "image/png",
+    "Cache-Control": "public, max-age=86400"
+  });
+
+  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: COURSE_IMAGES_BUCKET
+  });
+  const stream = bucket.openDownloadStream(course.imageFileId);
+
+  stream.on("error", () => {
+    if (!response.headersSent) {
+      response.status(404).json({ message: "Course image is missing from storage." });
+    } else {
+      response.end();
+    }
+  });
+
+  return stream.pipe(response);
 }
 
 export async function getCourseProgress(request, response) {

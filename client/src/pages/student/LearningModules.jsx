@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getStoredSession } from "../../auth/services/authService";
 import {
@@ -10,12 +10,6 @@ import {
   moduleFileUrl,
   setModuleCompleted
 } from "../../services/learningModules";
-
-function formatFileSize(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 // The extractor wraps runs that are italic in the source PDF with these
 // control markers; render them as <em>.
@@ -38,9 +32,59 @@ function renderStyledText(text) {
 }
 
 // Renders the server's formatted lesson blocks (headings, paragraphs, lists,
-// code samples, and term definitions).
-function LessonBlocks({ blocks }) {
+// code samples, term definitions, and multiple-choice exercises).
+function LessonBlocks({ blocks, answers, onAnswer }) {
   return blocks.map((block, index) => {
+    if (block.type === "exercise") {
+      const answeredCount = block.questions.filter(
+        (question) => answers?.[question.id] !== undefined
+      ).length;
+      const allAnswered = answeredCount === block.questions.length;
+
+      return (
+        <div key={index} className="lesson-exercise">
+          <p className="lesson-exercise__heading">Exercise</p>
+          <ol className="lesson-exercise__questions">
+            {block.questions.map((question) => (
+              <li key={question.id} className="lesson-exercise__question">
+                <p className="lesson-exercise__prompt">
+                  {renderStyledText(question.prompt)}
+                </p>
+                <div className="lesson-exercise__choices">
+                  {question.choices.map((choice, choiceIndex) => {
+                    const checked = answers?.[question.id] === choiceIndex;
+                    return (
+                      <label
+                        key={choiceIndex}
+                        className={`lesson-exercise__choice${
+                          checked ? " is-selected" : ""
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`exercise-${question.id}`}
+                          checked={checked}
+                          onChange={() => onAnswer?.(question.id, choiceIndex)}
+                        />
+                        <span>{renderStyledText(choice)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p
+            className={`lesson-exercise__status${allAnswered ? " is-done" : ""}`}
+          >
+            {allAnswered
+              ? "All questions answered."
+              : `${answeredCount} of ${block.questions.length} answered — answer every question to complete this lesson.`}
+          </p>
+        </div>
+      );
+    }
+
     if (block.type === "heading") {
       return block.level === 2 ? (
         <h2 key={index} className="lesson-reader__h2">
@@ -108,6 +152,10 @@ function LearningModules() {
   const [textStatus, setTextStatus] = useState("idle");
   const [textRetry, setTextRetry] = useState(0);
   const [completionBusy, setCompletionBusy] = useState(false);
+  // Selected exercise answers, per module: { [moduleId]: { [questionId]: choiceIndex } }.
+  const [answersByModule, setAnswersByModule] = useState({});
+  // Modules whose reader was scrolled to the end this session.
+  const [endReachedIds, setEndReachedIds] = useState([]);
   // Section dropdown state: which chapter is expanded + fetched section lists.
   const [expandedId, setExpandedId] = useState(null);
   const [sectionsByModule, setSectionsByModule] = useState({});
@@ -194,6 +242,36 @@ function LearningModules() {
   const isActive = (type, id) => selected?.type === type && selected.item.id === id;
   const isCompleted = (moduleId) => completedIds.includes(String(moduleId));
 
+  // Multiple-choice questions the server extracted from the module's own
+  // evaluation section — empty when the PDF has none.
+  const exerciseQuestionsFor = (moduleId) => {
+    const blocks = textByModule[moduleId]?.blocks ?? [];
+    return blocks
+      .filter((block) => block.type === "exercise")
+      .flatMap((block) => block.questions);
+  };
+
+  // A module with an exercise only completes once every question is answered.
+  const isExerciseFulfilled = (moduleId) => {
+    const answers = answersByModule[moduleId] ?? {};
+    return exerciseQuestionsFor(moduleId).every(
+      (question) => answers[question.id] !== undefined
+    );
+  };
+
+  const selectAnswer = (moduleId, questionId, choiceIndex) => {
+    setAnswersByModule((all) => ({
+      ...all,
+      [moduleId]: { ...(all[moduleId] ?? {}), [questionId]: choiceIndex }
+    }));
+  };
+
+  const noteEndReached = (moduleId) => {
+    setEndReachedIds((ids) =>
+      ids.includes(String(moduleId)) ? ids : [...ids, String(moduleId)]
+    );
+  };
+
   const completedCount = modules.filter((module) => isCompleted(module.id)).length;
   const progressPercent = modules.length
     ? Math.round((completedCount / modules.length) * 100)
@@ -233,9 +311,11 @@ function LearningModules() {
     setPendingSection({ moduleId: module.id, sectionId: section.id });
   };
 
-  // Reading to the end of a lesson marks it complete automatically.
+  // Reading to the end of a lesson (and finishing its exercise, when the
+  // module has one) marks it complete automatically.
   const markLessonComplete = async (moduleId) => {
     if (!studentId || !moduleId || completionBusy || isCompleted(moduleId)) return;
+    if (!isExerciseFulfilled(moduleId)) return;
 
     setCompletionBusy(true);
     try {
@@ -251,34 +331,55 @@ function LearningModules() {
   };
 
   const handleReaderScroll = (event) => {
+    // Loading/error placeholders are short — scrolling them must not count.
+    if (!lessonText) return;
     const reader = event.currentTarget;
     if (reader.scrollTop + reader.clientHeight >= reader.scrollHeight - 32) {
-      markLessonComplete(selectedLessonId);
+      noteEndReached(selectedLessonId);
     }
   };
+
+  // Completion needs both signals: the reader scrolled to the end AND the
+  // module's exercise (if any) fully answered — in either order.
+  useEffect(() => {
+    if (!selectedLessonId || !lessonText) return;
+    if (!endReachedIds.includes(String(selectedLessonId))) return;
+    if (!isExerciseFulfilled(selectedLessonId)) return;
+    markLessonComplete(selectedLessonId);
+  }, [endReachedIds, answersByModule, selectedLessonId, lessonText]);
+
+  // Each lesson starts at the top of the pane. Without this, the previous
+  // module's scroll position survives the content swap and the bottom-of-pane
+  // check instantly completes a module the student never read.
+  useLayoutEffect(() => {
+    const reader = readerRef.current;
+    if (reader) reader.scrollTop = 0;
+  }, [selectedLessonId]);
 
   // Lessons short enough to show without scrolling count as read on open.
   useEffect(() => {
     if (!lessonText || !selectedLessonId) return;
     const reader = readerRef.current;
     if (reader && reader.scrollHeight <= reader.clientHeight + 8) {
-      markLessonComplete(selectedLessonId);
+      noteEndReached(selectedLessonId);
     }
   }, [lessonText, selectedLessonId]);
 
   return (
     <section className="student-courses modules-page">
-      <button
-        type="button"
-        className="dash-back"
-        onClick={() => navigate("/student")}
-      >
-        <span aria-hidden="true">←</span> Back to courses
-      </button>
+      <div className="modules-page__header">
+        <button
+          type="button"
+          className="dash-back"
+          onClick={() => navigate("/student")}
+        >
+          <span aria-hidden="true">←</span> Back to courses
+        </button>
 
-      <h2 className="student-courses__title modules-page__title">
-        {courseTitle} · Learning Modules
-      </h2>
+        <h2 className="student-courses__title modules-page__title">
+          {courseTitle} · Learning Modules
+        </h2>
+      </div>
 
       <div className="modules-layout">
         {/* Left: curriculum — numbered lessons with completion state */}
@@ -317,7 +418,6 @@ function LearningModules() {
           ) : (
             <ul className="module-list">
               {modules.map((module, index) => {
-                const size = formatFileSize(module.fileSize);
                 const done = isCompleted(module.id);
                 const isExpanded = expandedId === module.id;
                 const sections = sectionsByModule[module.id];
@@ -343,10 +443,6 @@ function LearningModules() {
                         </span>
                         <span className="module-row__info">
                           <span className="module-row__title">{module.title}</span>
-                          <span className="module-row__meta">
-                            {module.fileName}
-                            {size ? ` · ${size}` : ""}
-                          </span>
                         </span>
                       </button>
                       <button
@@ -356,12 +452,18 @@ function LearningModules() {
                         aria-expanded={isExpanded}
                         aria-label={`${isExpanded ? "Hide" : "Show"} ${module.title} sections`}
                       >
-                        <span
+                        <svg
                           className={`module-row__chev${isExpanded ? " is-open" : ""}`}
                           aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                         >
-                          ▾
-                        </span>
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
                       </button>
                     </div>
 
@@ -394,52 +496,6 @@ function LearningModules() {
                 );
               })}
             </ul>
-          )}
-
-          <h3 className="modules-section__title">Assessments</h3>
-          {isLoading ? (
-            <p className="student-courses__status">Loading assessments…</p>
-          ) : assessments.length === 0 ? (
-            <p className="student-courses__status">
-              No assessments for this course yet.
-            </p>
-          ) : (
-            <>
-              {!allLessonsDone ? (
-                <p className="modules-lock-note">
-                  <span aria-hidden="true">🔒</span> Complete all lessons to
-                  unlock assessments.
-                </p>
-              ) : null}
-              <ul className="module-list">
-                {assessments.map((assessment) => (
-                  <li key={assessment.id}>
-                    <button
-                      type="button"
-                      className={`module-row module-row--button${
-                        isActive("assessment", assessment.id) ? " is-active" : ""
-                      }`}
-                      disabled={!allLessonsDone}
-                      onClick={() =>
-                        setSelected({ type: "assessment", item: assessment })
-                      }
-                    >
-                      <span className="module-row__icon" aria-hidden="true">
-                        {allLessonsDone ? "📝" : "🔒"}
-                      </span>
-                      <span className="module-row__info">
-                        <span className="module-row__title">{assessment.title}</span>
-                        {assessment.description ? (
-                          <span className="module-row__meta">
-                            {assessment.description}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
           )}
         </aside>
 
@@ -513,11 +569,21 @@ function LearningModules() {
                                 section.start,
                                 section.end
                               )}
+                              answers={answersByModule[selectedLessonId]}
+                              onAnswer={(questionId, choiceIndex) =>
+                                selectAnswer(selectedLessonId, questionId, choiceIndex)
+                              }
                             />
                           </section>
                         ))
                       ) : (
-                        <LessonBlocks blocks={lessonText.blocks} />
+                        <LessonBlocks
+                          blocks={lessonText.blocks}
+                          answers={answersByModule[selectedLessonId]}
+                          onAnswer={(questionId, choiceIndex) =>
+                            selectAnswer(selectedLessonId, questionId, choiceIndex)
+                          }
+                        />
                       )
                     ) : (
                       lessonText.pages.map((page) => (
@@ -570,6 +636,49 @@ function LearningModules() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="modules-assessments">
+        <h3 className="modules-section__title">Assessments</h3>
+        {isLoading ? (
+          <p className="student-courses__status">Loading assessments…</p>
+        ) : assessments.length === 0 ? (
+          <p className="student-courses__status">
+            No assessments for this course yet.
+          </p>
+        ) : (
+          <>
+            {!allLessonsDone ? (
+              <p className="modules-lock-note">
+                <span aria-hidden="true">🔒</span> Complete all lessons to unlock
+                assessments.
+              </p>
+            ) : null}
+            <ul className="module-list modules-assessments__list">
+              {assessments.map((assessment) => (
+                <li key={assessment.id}>
+                  <button
+                    type="button"
+                    className={`module-row module-row--button${
+                      isActive("assessment", assessment.id) ? " is-active" : ""
+                    }`}
+                    disabled={!allLessonsDone}
+                    onClick={() =>
+                      setSelected({ type: "assessment", item: assessment })
+                    }
+                  >
+                    <span className="module-row__icon" aria-hidden="true">
+                      {allLessonsDone ? "📝" : "🔒"}
+                    </span>
+                    <span className="module-row__info">
+                      <span className="module-row__title">{assessment.title}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     </section>
   );

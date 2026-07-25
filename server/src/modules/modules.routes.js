@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getCourseAssessments,
+  getCourseImage,
   getCourseModules,
   getCourseProgress,
   getModuleFile,
@@ -23,6 +24,7 @@ const router = Router();
 
 router.get("/courses/:courseId/modules", getCourseModules);
 router.get("/courses/:courseId/assessments", getCourseAssessments);
+router.get("/courses/:courseId/image", getCourseImage);
 router.get("/modules/:moduleId/file", getModuleFile);
 router.get("/modules/:moduleId/text", getModuleText);
 router.get("/modules/:moduleId/sections", getModuleSections);

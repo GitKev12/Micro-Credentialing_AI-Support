@@ -34,9 +34,13 @@ const PERFORMANCE_COLLECTION = "CoursePerformance";
 function toPublicCourse(course) {
   return {
     id: course._id,
-    code: course.code ?? course.courseCode ?? course.course_code ?? "",
+    code: (course.code ?? course.courseCode ?? course.course_code ?? "").trim(),
     title: course.title ?? course.courseName ?? course.name ?? course.course_name ?? "",
-    imageUrl: course.imageUrl ?? course.image_url ?? null
+    description: course.description ?? "",
+    imageUrl: course.imageUrl ?? course.image_url ?? null,
+    // Set when a picture is stored in the CourseImage bucket — the client
+    // then loads GET /api/courses/:id/image.
+    hasImage: Boolean(course.imageFileId)
   };
 }
 

@@ -1,4 +1,4 @@
-import { stripStyleMarkers } from "./modules.ocr.js";
+import { ITALIC_CLOSE, ITALIC_OPEN, stripStyleMarkers } from "./modules.ocr.js";
 
 /**
  * Heuristic lesson formatter: turns raw per-page PDF text into structured
@@ -120,13 +120,56 @@ function reindentCode(lines) {
 const BOILERPLATE_SECTIONS = [
   "INSTRUCTIONAL MODULE AND ITS COMPONENTS",
   "DEVELOPER AND THEIR BACKGROUND",
+  // The developer heading often wraps across two PDF lines, arriving as two
+  // separate headings — match both halves so the whole part is dropped.
+  "DEVELOPER AND THEIR",
+  "BACKGROUND",
   "COURSE OUTLINE",
-  "TITLE"
+  "TITLE",
+  "REFERENCES",
+  // Per-course template variants (surveyed across all 59 PDF modules).
+  "COURSE",
+  "DESCRIPTION",
+  "USERS",
+  "THE USERS",
+  "GILBERT G. GONZALES"
 ];
 
+// Wording varies per course ("INSTRUCTIONAL MODULE IN FUNDAMENTALS OF
+// BPO102", "COURSE TSM3 …", "INSTRUCTION TO THE USERS") — prefixes catch
+// every variant.
+const BOILERPLATE_PREFIXES = [
+  "INSTRUCTIONAL MODULE",
+  "COURSE ",
+  "INSTRUCTION TO",
+  "DEVELOPER AND",
+  "THEIR BACKGROUND",
+  "BACKGROUND GILBERT",
+  "TITLE "
+];
+
+// Any template part mentioning an agreement ("VI. ASSIGNMENT / AGREEMENT",
+// "LEARNING AGREEMENT", …) is boilerplate regardless of its exact wording.
+const AGREEMENT_HEADING = /\bAGREEMENTS?\b/;
+
+// Chapter number banners ("CHAPTER 1", "CHAPTER II", "CHAPTER #", "CHAPTER
+// # 3") — dropped along with whatever sits under them until the next heading.
+const CHAPTER_HEADING = /^CHAPTER\s*#?\s*(\d{1,3}|[IVXL]{1,7})?$/;
+
 function isBoilerplateHeading(text) {
-  const normalized = text.replace(/\s+/g, " ").trim().toUpperCase();
-  return BOILERPLATE_SECTIONS.includes(normalized);
+  // Template parts keep their roman marker ("VI. ASSIGNMENT / AGREEMENT") and
+  // the numeral varies between modules, so match with the marker stripped.
+  const normalized = text
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase()
+    .replace(/^[IVX]{1,7}[.)]\s*/, "");
+  return (
+    AGREEMENT_HEADING.test(normalized) ||
+    CHAPTER_HEADING.test(normalized) ||
+    BOILERPLATE_SECTIONS.includes(normalized) ||
+    BOILERPLATE_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  );
 }
 
 // Drops each boilerplate section: from its level-2 heading up to (not
@@ -239,6 +282,9 @@ function parsePage(lines, furniture, page) {
   let codeLines = [];
   let codeHoldsBlank = false;
   let term = null;
+  // The last level-2 heading block and its source line, for re-joining
+  // headings that wrap across adjacent lines.
+  let headingRun = null;
 
   const plainLines = lines.map((line) => stripStyleMarkers(line));
 
@@ -338,8 +384,17 @@ function parsePage(lines, furniture, page) {
     if (ROMAN_HEADING.test(plain)) {
       flushAll();
       const { title, rest } = splitRomanHeading(plain);
-      blocks.push({ type: "heading", level: 2, text: title, page });
-      if (rest) paragraph.push(rest);
+      const block = { type: "heading", level: 2, text: title, page };
+      blocks.push(block);
+      if (rest && /\w/.test(rest)) {
+        paragraph.push(rest);
+      } else if (rest) {
+        // A dangling joiner ("IV. SYNTHESIS /") — the heading definitely
+        // continues on the next line.
+        headingRun = { block, lineIndex: index, joiner: " / ", always: true };
+      } else {
+        headingRun = { block, lineIndex: index, roman: true };
+      }
       return;
     }
 
@@ -371,7 +426,36 @@ function parsePage(lines, furniture, page) {
 
     if (isAllCapsHeading(plain)) {
       flushAll();
-      blocks.push({ type: "heading", level: 2, text: plain, page });
+      // Headings wrap across PDF lines ("LEARNING" / "OBJECTIVES (GUIDE)",
+      // "INSTRUCTION TO THE" / "USERS") — an ALL-CAPS line directly under a
+      // heading line continues it when the first part reads incomplete (a
+      // dangling joiner, a single word, or a "(...)" fragment follows).
+      // Chapter banners stay standalone so their removal rule keeps matching.
+      if (
+        headingRun &&
+        headingRun.lineIndex === index - 1 &&
+        !/^CHAPTER\b/i.test(headingRun.block.text)
+      ) {
+        const previous = headingRun.block.text;
+        // "LEARNING" is a dangling modifier; whole words like "CONTENT" are
+        // complete — Roman template parts only continue on a clear signal.
+        const endsIncomplete = /\b(AND|OF|TO|THE|IN|FOR|WITH|&|LEARNING)$/.test(previous);
+        const continues =
+          headingRun.always ||
+          plain.startsWith("(") ||
+          endsIncomplete ||
+          (!headingRun.roman && previous.split(" ").length === 1);
+        if (continues) {
+          headingRun.block.text = previous + (headingRun.joiner ?? " ") + plain;
+          headingRun.lineIndex = index;
+          headingRun.always = false;
+          headingRun.joiner = undefined;
+          return;
+        }
+      }
+      const block = { type: "heading", level: 2, text: plain, page };
+      blocks.push(block);
+      headingRun = { block, lineIndex: index };
       return;
     }
 
@@ -443,13 +527,81 @@ function stitchPages(pageBlocks) {
   return blocks;
 }
 
+// ── Long-paragraph splitting ────────────────────────────
+// Re-joining wrapped lines (and stitching across pages) can produce paragraph
+// walls hundreds of words long. Split those at sentence boundaries into
+// chunks a reader can breathe between.
+const PARAGRAPH_SPLIT_THRESHOLD = 500; // plain chars before a split kicks in
+const PARAGRAPH_CHUNK_TARGET = 320; // aimed-for plain chars per chunk
+
+// A sentence ends with .?! (optionally a closing quote/paren and an italic
+// marker) followed by whitespace and a capital/number starting the next one.
+const SENTENCE_BOUNDARY = new RegExp(
+  `(?<=[.?!]["”)\\]]?[${ITALIC_OPEN}${ITALIC_CLOSE}]?)\\s+` +
+    `(?=[${ITALIC_OPEN}]?["“(]?[A-Z0-9])`
+);
+
+// An italic run that spans a chunk seam is closed at the seam and reopened in
+// the next chunk, so every chunk carries balanced markers.
+function balanceItalics(chunks) {
+  let open = false;
+  return chunks.map((chunk) => {
+    let text = open ? ITALIC_OPEN + chunk : chunk;
+    for (const character of text) {
+      if (character === ITALIC_OPEN) open = true;
+      else if (character === ITALIC_CLOSE) open = false;
+    }
+    if (open) text += ITALIC_CLOSE;
+    return text;
+  });
+}
+
+function splitLongParagraphs(blocks) {
+  const result = [];
+
+  for (const block of blocks) {
+    if (
+      block.type !== "paragraph" ||
+      stripStyleMarkers(block.text).length <= PARAGRAPH_SPLIT_THRESHOLD
+    ) {
+      result.push(block);
+      continue;
+    }
+
+    const sentences = block.text.split(SENTENCE_BOUNDARY);
+    if (sentences.length < 2) {
+      result.push(block);
+      continue;
+    }
+
+    const chunks = [];
+    let current = "";
+    for (const sentence of sentences) {
+      const wouldBe = current ? `${current} ${sentence}` : sentence;
+      if (current && stripStyleMarkers(wouldBe).length > PARAGRAPH_CHUNK_TARGET) {
+        chunks.push(current);
+        current = sentence;
+      } else {
+        current = wouldBe;
+      }
+    }
+    if (current) chunks.push(current);
+
+    for (const text of balanceItalics(chunks)) {
+      result.push({ type: "paragraph", text, page: block.page });
+    }
+  }
+
+  return result;
+}
+
 export function buildLessonBlocks(pages) {
   const normalizedPages = pages.map((entry) => normalizeLines(entry.text));
   const furniture = findRepeatedLines(normalizedPages);
   const pageBlocks = normalizedPages.map((lines, index) =>
     parsePage(lines, furniture, pages[index].page)
   );
-  return stripBoilerplateSections(stitchPages(pageBlocks));
+  return stripBoilerplateSections(splitLongParagraphs(stitchPages(pageBlocks)));
 }
 
 /**
@@ -482,17 +634,49 @@ export function buildSections(blocks) {
     ];
   }
 
+  // Content before the first heading is usually page-header residue ("Week 1
+  // Fundamentals of … 1"), not an overview — only keep it as a section when
+  // there's real substance.
+  const frontBlocks = blocks.slice(0, starts[0].start);
+  const frontText = stripStyleMarkers(
+    frontBlocks
+      .map((block) => (block.type === "list" ? block.items.join(" ") : block.text))
+      .join(" ")
+  );
+  const keepFront = frontBlocks.length > 2 || frontText.length >= 200;
+
   const entries =
-    starts[0].start > 0
+    starts[0].start > 0 && keepFront
       ? [{ title: "Module Overview", page: blocks[0].page, start: 0 }, ...starts]
       : starts;
 
-  return entries.map((entry, index) => ({
+  // Some headings split across non-adjacent lines survive as two sections —
+  // re-join the known template pairs.
+  const joined = [];
+  for (const entry of entries) {
+    const previous = joined[joined.length - 1];
+    const title = entry.title.toUpperCase();
+    if (previous) {
+      const previousTitle = previous.title.toUpperCase();
+      if (/\bSYNTHESIS\s*\/?\s*$/.test(previousTitle) && title.startsWith("GENERALIZATION")) {
+        previous.title = `${previous.title.replace(/\s*\/\s*$/, "")} / GENERALIZATION`;
+        continue;
+      }
+      if (/\bLEARNING$/.test(previousTitle) && title.startsWith("OBJECTIVES")) {
+        previous.title += ` ${entry.title}`;
+        continue;
+      }
+    }
+    joined.push(entry);
+  }
+
+  return joined.map((entry, index) => ({
     id: `s${index + 1}`,
     title: entry.title,
     page: entry.page,
     start: entry.start,
-    end: entries[index + 1]?.start ?? blocks.length
+    // Absorbed and skipped ranges flow into the preceding section.
+    end: joined[index + 1]?.start ?? blocks.length
   }));
 }
 

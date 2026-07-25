@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getStoredSession } from "../../../auth/services/authService";
-import { fetchStudentCourses } from "../../../services/courses";
+import { courseImageUrl, fetchStudentCourses } from "../../../services/courses";
 import noCoursesImage from "../../../assets/no-courses-student.png";
 
-// Placeholder backdrops shown until real course pictures exist (course.imageUrl).
+// Placeholder backdrops for courses that have no stored picture.
 const PLACEHOLDER_GRADIENTS = [
   "linear-gradient(135deg, #2563eb, #1e3a8a)",
   "linear-gradient(135deg, #0ea5e9, #0369a1)",
@@ -71,9 +71,11 @@ function StudentCourses() {
       ) : (
         <ul className="student-courses__list">
           {courses.map((course, index) => {
-            const backdrop = course.imageUrl
-              ? `url(${course.imageUrl})`
-              : PLACEHOLDER_GRADIENTS[index % PLACEHOLDER_GRADIENTS.length];
+            const backdrop = course.hasImage
+              ? `url(${courseImageUrl(course.id)})`
+              : course.imageUrl
+                ? `url(${course.imageUrl})`
+                : PLACEHOLDER_GRADIENTS[index % PLACEHOLDER_GRADIENTS.length];
 
             return (
               <li
@@ -88,10 +90,13 @@ function StudentCourses() {
                   aria-label={course.title}
                 />
                 <div className="course-card__overlay">
+                  <span className="course-card__name">{course.title}</span>
                   {course.code ? (
                     <span className="course-card__code">{course.code}</span>
                   ) : null}
-                  <span className="course-card__name">{course.title}</span>
+                  {course.description ? (
+                    <span className="course-card__desc">{course.description}</span>
+                  ) : null}
                 </div>
                 <button
                   type="button"
