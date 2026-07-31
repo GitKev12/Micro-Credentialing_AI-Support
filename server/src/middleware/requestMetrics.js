@@ -13,15 +13,17 @@ export function trackRequestUsage(request, _response, next) {
   next();
 }
 
-export function getRequestMetricsSnapshot() {
-  const topRoutes = Object.entries(requestMetricsStore.routeHits)
-    .sort((left, right) => right[1] - left[1])
-    .slice(0, 10)
-    .map(([route, hits]) => ({ route, hits }));
+// export function getRequestMetricsSnapshot() {
+//   const topRoutes = Object.entries(requestMetricsStore.routeHits)
+//     .sort((left, right) => right[1] - left[1])
+//     .slice(0, 10)
+//     .map(([route, hits]) => ({ route, hits }));
+//
+//   return {
+//     startedAt: requestMetricsStore.startedAt,
+//     totalRequests: requestMetricsStore.totalRequests,
+//     topRoutes
+//   };
+// }
 
-  return {
-    startedAt: requestMetricsStore.startedAt,
-    totalRequests: requestMetricsStore.totalRequests,
-    topRoutes
-  };
-}
+//UNCOMMENT WHEN IT AFFECTS THE SYSTEM.

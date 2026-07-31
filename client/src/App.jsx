@@ -1,6 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
-import AdminPage from "./pages/admin/AdminPage";
+import AdminLayout from "./pages/admin/AdminLayout";
+import CourseManagement from "./pages/admin/CourseManagement";
+import StudentsManagement from "./pages/admin/StudentsManagement";
+import AssessorsManagement from "./pages/admin/AssessorsManagement";
+import TableOfSpecification from "./pages/admin/TableOfSpecification";
 import AssessorPage from "./pages/assessor/AssessorPage";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -41,10 +45,16 @@ function App() {
           path="/admin"
           element={
             <ProtectedRoute allowedRole="admin" loginPath="/admin-login">
-              <AdminPage />
+              <AdminLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="/admin/courses" replace />} />
+          <Route path="courses" element={<CourseManagement />} />
+          <Route path="students" element={<StudentsManagement />} />
+          <Route path="assessors" element={<AssessorsManagement />} />
+          <Route path="table-of-specification" element={<TableOfSpecification />} />
+        </Route>
       </Routes>
     </AppLayout>
   );

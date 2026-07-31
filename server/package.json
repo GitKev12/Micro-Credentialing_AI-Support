@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "seed:tos": "node src/admin/seedTos.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.2",

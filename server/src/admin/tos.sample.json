@@ -1,0 +1,72 @@
+{
+  "_comment": "Sample Table of Specification. The TableOfSpecification collection in MainSystemDB is empty, so this seeds it. Course rows match the real Course documents. Run: npm run seed:tos (from /server).",
+  "examination": "Midterm Examination",
+  "rows": [
+    {
+      "course": "Computer Programming 2",
+      "courseCode": "CC2",
+      "hours": 6,
+      "remember": 3,
+      "understand": 3,
+      "apply": 2,
+      "analyze": 1,
+      "evaluate": 1,
+      "create": 0
+    },
+    {
+      "course": "Enterprise Architecture",
+      "courseCode": "EA",
+      "hours": 5,
+      "remember": 2,
+      "understand": 3,
+      "apply": 2,
+      "analyze": 1,
+      "evaluate": 0,
+      "create": 1
+    },
+    {
+      "course": "Object-Oriented Programming",
+      "courseCode": "OOP",
+      "hours": 8,
+      "remember": 3,
+      "understand": 4,
+      "apply": 3,
+      "analyze": 2,
+      "evaluate": 1,
+      "create": 1
+    },
+    {
+      "course": "Fundamentals of BPO",
+      "courseCode": "TSM3",
+      "hours": 7,
+      "remember": 2,
+      "understand": 3,
+      "apply": 3,
+      "analyze": 2,
+      "evaluate": 1,
+      "create": 0
+    },
+    {
+      "course": "Module Service Culture",
+      "courseCode": "MCS",
+      "hours": 4,
+      "remember": 2,
+      "understand": 2,
+      "apply": 2,
+      "analyze": 1,
+      "evaluate": 1,
+      "create": 0
+    },
+    {
+      "course": "Principles of Systems Thinking",
+      "courseCode": "ITTSM ELECT 5",
+      "hours": 6,
+      "remember": 2,
+      "understand": 3,
+      "apply": 2,
+      "analyze": 2,
+      "evaluate": 2,
+      "create": 1
+    }
+  ]
+}
