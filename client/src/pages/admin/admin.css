@@ -34,8 +34,15 @@
   --admin-ink: rgb(16, 24, 40);
   --shadow-tint: rgba(70, 70, 70, 0.2);
 
-  /* ---- Semantic aliases ---- */
+  /* ---- Semantic aliases ----
+     --white stays literal white (type on brand/teal fills); --surface* are the
+     themeable backgrounds. --brand fills, --brand-text is the readable accent
+     for type — they diverge in dark mode. */
+  --surface: var(--white);
+  --surface-raised: var(--off-white);
+  --surface-sunken: var(--blue-bg);
   --brand: var(--maroon-700);
+  --brand-text: var(--maroon-700);
   --brand-strong: var(--maroon-900);
   --brand-soft: var(--maroon-700-23);
   --action: var(--teal-700);
@@ -67,6 +74,80 @@
     0 0 0 4px rgb(148, 243, 218);
 }
 
+/* ── Dark theme ─────────────────────────────────────────────
+   Same navy palette as the student interface, driven by the
+   app-wide [data-theme] attribute (services/theme.js). Tokens
+   only — no component rule is duplicated.
+   ───────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .admin-app {
+  color-scheme: dark;
+
+  /* Student theme's navy ramp, verbatim. */
+  --surface-sunken: #050813;
+  --surface: #0a1124;
+  --surface-raised: #111a33;
+
+  /* Accent — the student theme's navy blue. */
+  --brand: #34509c;
+  --brand-text: #b7c0db;
+  --brand-strong: #0e1730;
+  --brand-soft: #0e1730;
+  --maroon-700-23: #0e1730;
+
+  /* Neutrals resolve onto the navy ramp. */
+  --gray-100: #0d1526;
+  --gray-150: rgba(150, 175, 240, 0.12);
+  --gray-200: rgba(150, 175, 240, 0.16);
+  --gray-400: #6b779b;
+  --gray-600: #8b96b8;
+  --gray-700: #e4e9f7;
+  --admin-ink: #e4e9f7;
+  --off-white: #e4e9f7;
+
+  --teal-700: #2f8f95;
+  --shadow-tint: rgba(255, 255, 255, 0.04);
+  --shadow-sidebar: 0 0 26px 4px rgba(0, 0, 0, 0.4);
+  --shadow-avatar: 0 4px 18px 6px rgba(0, 0, 0, 0.35);
+  --shadow-inset-field: inset 0 0 0 1px rgba(150, 175, 240, 0.22),
+    0 1px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* The page picks up the student theme's radial-glow backdrop. */
+[data-theme="dark"] .admin-app {
+  background:
+    radial-gradient(circle at top left, rgba(91, 134, 255, 0.1), transparent 28%),
+    radial-gradient(circle at top right, rgba(50, 75, 150, 0.09), transparent 25%),
+    linear-gradient(180deg, #070b18 0%, var(--surface-sunken) 100%);
+}
+
+/* Cards sit on a near-black page — give them a hairline edge. */
+[data-theme="dark"] .admin-app .admin-table-card,
+[data-theme="dark"] .admin-app .admin-card,
+[data-theme="dark"] .admin-app .admin-course-card,
+[data-theme="dark"] .admin-app .admin-tos-card {
+  border: 1px solid rgba(150, 175, 240, 0.12);
+}
+
+/* Table headers and hover rows need to read against the navy surface. */
+[data-theme="dark"] .admin-app .admin-table th {
+  background: #0e1730;
+}
+
+[data-theme="dark"] .admin-app .admin-table tbody tr:hover {
+  background: rgba(150, 175, 240, 0.07);
+}
+
+/* The teal "Active" pill keeps its meaning but lifts off the dark surface. */
+[data-theme="dark"] .admin-app .admin-pill {
+  background: rgba(95, 211, 196, 0.14);
+  color: #5fd3c4;
+}
+
+[data-theme="dark"] .admin-app .admin-pill__dot {
+  background: #5fd3c4;
+}
+
 /* ── Shell ──────────────────────────────────────────────── */
 
 .admin-app {
@@ -77,7 +158,7 @@
      horizontal scroll the 100vw-wide breakout margin causes on Windows. */
   height: 100vh;
   overflow: hidden;
-  background: var(--blue-bg);
+  background: var(--surface-sunken);
   font-family: var(--font-ui);
   color: var(--text-body);
   /* Break out of AppLayout's centred .app-shell: the admin console is
@@ -139,15 +220,15 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--white);
-  color: var(--brand);
+  background: var(--surface);
+  color: var(--brand-text);
   box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .admin-sidebar__toggle:hover {
-  background: var(--off-white);
+  background: var(--surface-raised);
   transform: scale(1.08);
 }
 
@@ -211,7 +292,7 @@
   width: 112px;
   height: 112px;
   border-radius: 50%;
-  background: var(--white);
+  background: var(--surface);
   box-shadow: var(--shadow-avatar);
   display: flex;
   align-items: center;
@@ -274,8 +355,8 @@
 }
 
 .admin-nav-item.is-active {
-  background: var(--white);
-  color: var(--brand);
+  background: var(--surface);
+  color: var(--brand-text);
   font-weight: 600;
 }
 
@@ -283,8 +364,73 @@
   min-width: 0;
 }
 
-.admin-sidebar__signout {
+/* Dark-mode switch, directly above Sign Out. */
+.admin-sidebar__theme {
   margin-top: auto;
+  align-self: flex-start;
+  margin-left: 32px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px 9px 12px;
+  border: none;
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--off-white);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-sidebar__theme:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.admin-sidebar--collapsed .admin-sidebar__theme {
+  align-self: center;
+  margin-left: 0;
+  padding: 9px;
+  border-radius: 50%;
+}
+
+.admin-sidebar--collapsed .admin-sidebar__theme span,
+.admin-sidebar--collapsed .admin-theme-switch {
+  display: none;
+}
+
+.admin-theme-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background 0.18s ease;
+}
+
+.admin-theme-switch.is-on {
+  background: var(--white);
+}
+
+.admin-theme-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--brand);
+  transition: transform 0.18s ease;
+}
+
+.admin-theme-switch.is-on .admin-theme-switch__thumb {
+  transform: translateX(14px);
+}
+
+.admin-sidebar__signout {
   align-self: flex-start;
   margin-left: 32px;
   display: flex;
@@ -293,8 +439,8 @@
   padding: 9px 16px 9px 12px;
   border: none;
   border-radius: var(--radius-xl);
-  background: var(--off-white);
-  color: var(--brand);
+  background: var(--surface-raised);
+  color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
   font-size: 14px;
@@ -392,7 +538,7 @@
   height: 44px;
   padding: 8px 16px;
   margin-bottom: 22px;
-  background: var(--white);
+  background: var(--surface);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-inset-field);
 }
@@ -418,7 +564,7 @@
 .admin-table-card {
   padding: 6px;
   overflow: hidden;
-  background: var(--white);
+  background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
@@ -458,7 +604,7 @@
 }
 
 .admin-table tbody tr:hover {
-  background: var(--blue-bg);
+  background: var(--surface-sunken);
 }
 
 .admin-table__empty td {
@@ -474,7 +620,7 @@
 
 .admin-table__chevron {
   text-align: right;
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .admin-person {
@@ -495,7 +641,7 @@
 }
 
 .admin-strong-brand {
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 /* ── Avatar (initials) ──────────────────────────────────── */
@@ -509,7 +655,7 @@
   justify-content: center;
   border-radius: 50%;
   background: var(--maroon-700-23);
-  color: var(--brand);
+  color: var(--brand-text);
   font-weight: 600;
   font-size: 13px;
 }
@@ -546,7 +692,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: var(--brand);
+  color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
   font-size: 15px;
@@ -568,7 +714,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--white);
+  background: var(--surface);
   box-shadow: var(--shadow-card);
 }
 
@@ -612,7 +758,7 @@
 
 .admin-card {
   padding: 24px;
-  background: var(--white);
+  background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
@@ -656,7 +802,7 @@
   gap: 12px;
   padding: 11px 12px 11px 16px;
   border-radius: var(--radius-sm);
-  background: var(--blue-bg);
+  background: var(--surface-sunken);
 }
 
 .admin-assign-row__title {
@@ -679,7 +825,7 @@
   padding: 6px 12px;
   border-radius: var(--radius-xs);
   background: var(--maroon-700-23);
-  color: var(--brand);
+  color: var(--brand-text);
   font-family: var(--font-label);
   font-size: 13px;
   font-weight: 500;
@@ -703,7 +849,7 @@
   padding: 0 12px;
   border: none;
   border-radius: var(--radius-xs);
-  background: var(--white);
+  background: var(--surface);
   box-shadow: var(--shadow-inset-field);
   font-family: var(--font-ui);
   font-size: 15px;
@@ -722,7 +868,7 @@
   flex: 1;
   padding: 16px 18px;
   border-radius: var(--radius-sm);
-  background: var(--blue-bg);
+  background: var(--surface-sunken);
 }
 
 .admin-stat__value {
@@ -730,7 +876,7 @@
   font-weight: 600;
   font-size: 34px;
   line-height: 1;
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .admin-stat__label {
@@ -791,7 +937,7 @@
   overflow: hidden;
   border: none;
   text-align: left;
-  background: var(--white);
+  background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   cursor: pointer;
@@ -852,7 +998,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--brand);
+  color: var(--brand-text);
   font-weight: 500;
   font-size: 14px;
 }
@@ -872,7 +1018,7 @@
   gap: 12px;
   padding: 12px 14px 12px 18px;
   border-radius: var(--radius-sm);
-  background: var(--white);
+  background: var(--surface);
   box-shadow: inset 0 0 0 1px rgba(130, 43, 32, 0.35);
 }
 
@@ -880,7 +1026,7 @@
   font-family: var(--font-ui);
   font-weight: 500;
   font-size: 16px;
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .admin-chip-btn--icon {
@@ -910,7 +1056,7 @@
   border: none;
   outline: none;
   border-radius: var(--radius-sm);
-  background: var(--white);
+  background: var(--surface);
   box-shadow: var(--shadow-inset-field);
   font-family: var(--font-alt);
   font-size: 15px;
@@ -939,7 +1085,7 @@
 }
 
 .admin-dropzone__icon {
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .admin-dropzone__text {
@@ -947,21 +1093,21 @@
 }
 
 .admin-dropzone__link {
-  color: var(--brand);
+  color: var(--brand-text);
   font-weight: 500;
 }
 
 .admin-dropzone__file {
   font-family: var(--font-label);
   font-size: 12px;
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 /* ── Table of Specification ─────────────────────────────── */
 
 .admin-tos-card {
   overflow: hidden;
-  background: var(--white);
+  background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
@@ -971,7 +1117,7 @@
   gap: 36px;
   flex-wrap: wrap;
   padding: 16px 22px;
-  background: var(--blue-bg);
+  background: var(--surface-sunken);
 }
 
 .admin-tos-summary__label {
@@ -992,7 +1138,7 @@
 }
 
 .admin-tos-summary__value--brand {
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .admin-tos-summary__input {
@@ -1008,7 +1154,7 @@
 }
 
 .admin-tos-summary__input:focus {
-  background: var(--white);
+  background: var(--surface);
   box-shadow: inset 0 0 0 2px var(--brand);
 }
 
@@ -1064,7 +1210,7 @@
   text-align: center;
   font-weight: 700;
   font-size: 15px;
-  color: var(--brand);
+  color: var(--brand-text);
   background: var(--maroon-700-23);
 }
 
@@ -1081,7 +1227,7 @@
 }
 
 .tos-cell:focus {
-  background: var(--white);
+  background: var(--surface);
   box-shadow: inset 0 0 0 2px var(--brand);
 }
 
@@ -1118,7 +1264,7 @@
   border: none;
   border-radius: var(--radius-xs);
   background: transparent;
-  color: var(--brand);
+  color: var(--brand-text);
   cursor: pointer;
   transition: background 0.15s ease;
 }

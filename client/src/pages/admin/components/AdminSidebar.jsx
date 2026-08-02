@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { clearAuthSession } from "../../../auth/services/authService";
+import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import {
   AssessorsIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CoursesIcon,
+  MoonIcon,
   SignOutIcon,
   StudentsIcon,
+  SunIcon,
   TosIcon,
   UserIcon
 } from "./icons";
@@ -26,6 +29,9 @@ function AdminSidebar({ name, idNumber }) {
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem(COLLAPSED_KEY) === "1"
   );
+  // Shares the app-wide theme switch with the student and assessor interfaces.
+  const [theme, setTheme] = useState(getStoredTheme);
+  const isDark = theme === THEMES.DARK;
 
   const toggleCollapsed = () => {
     setCollapsed((current) => {
@@ -80,6 +86,21 @@ function AdminSidebar({ name, idNumber }) {
           ))}
         </nav>
       </div>
+
+      <button
+        type="button"
+        className="admin-sidebar__theme"
+        onClick={() => setTheme(toggleTheme())}
+        role="switch"
+        aria-checked={isDark}
+        title={collapsed ? (isDark ? "Light mode" : "Dark mode") : undefined}
+      >
+        {isDark ? <SunIcon size={18} /> : <MoonIcon size={18} />}
+        <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+        <span className={`admin-theme-switch${isDark ? " is-on" : ""}`} aria-hidden="true">
+          <span className="admin-theme-switch__thumb" />
+        </span>
+      </button>
 
       <button
         type="button"

@@ -1,0 +1,284 @@
+{
+  "_comment": "Static sample data transcribed from the Instructor End storyboard. Front-end only — nothing here touches the database. Replace each list with API data when the assessor endpoints exist.",
+  "assessor": {
+    "name": "Engr. Liza M. Aquino",
+    "idNumber": "FAC-0091"
+  },
+  "summary": {
+    "toGrade": 12,
+    "aiFlagged": 5,
+    "credentials": 7
+  },
+  "classes": [
+    {
+      "id": "cs221",
+      "code": "CS 221",
+      "section": "BSCS 3-A",
+      "name": "Data Structures",
+      "students": 42,
+      "pending": 7
+    },
+    {
+      "id": "it214",
+      "code": "IT 214",
+      "section": "BSIT 3-B",
+      "name": "Web Systems",
+      "students": 38,
+      "pending": 4
+    },
+    {
+      "id": "cs231",
+      "code": "CS 231",
+      "section": "BSCS 2-A",
+      "name": "Database Systems",
+      "students": 51,
+      "pending": 1
+    }
+  ],
+  "roster": [
+    { "id": "s1", "name": "Andrea Salcedo", "sid": "2021-00412", "done": 7, "creds": 3, "pending": 2 },
+    { "id": "s2", "name": "Marco Villanueva", "sid": "2021-00518", "done": 5, "creds": 2, "pending": 1 },
+    { "id": "s3", "name": "Bianca Reyes", "sid": "2020-00233", "done": 8, "creds": 5, "pending": 0 },
+    { "id": "s4", "name": "Joshua Ramos", "sid": "2022-00901", "done": 3, "creds": 1, "pending": 2 },
+    { "id": "s5", "name": "Krista Domingo", "sid": "2021-00677", "done": 4, "creds": 2, "pending": 0 },
+    { "id": "s6", "name": "Nathaniel Cruz", "sid": "2021-00745", "done": 6, "creds": 3, "pending": 1 }
+  ],
+  "totalModules": 8,
+  "queue": [
+    {
+      "id": "u1",
+      "studentId": "s1",
+      "name": "Andrea Salcedo",
+      "sid": "2021-00412",
+      "assessment": "Module 4 — Stacks & Queues",
+      "course": "CS 221",
+      "when": "2 hours ago",
+      "ai": 40,
+      "flags": 2
+    },
+    {
+      "id": "u2",
+      "studentId": "s4",
+      "name": "Joshua Ramos",
+      "sid": "2022-00901",
+      "assessment": "Module 2 — Linked Lists",
+      "course": "CS 221",
+      "when": "4 hours ago",
+      "ai": 35,
+      "flags": 1
+    },
+    {
+      "id": "u3",
+      "studentId": "s2",
+      "name": "Marco Villanueva",
+      "sid": "2021-00518",
+      "assessment": "Module 4 — Stacks & Queues",
+      "course": "CS 221",
+      "when": "Yesterday",
+      "ai": 45,
+      "flags": 0
+    },
+    {
+      "id": "u4",
+      "studentId": "s6",
+      "name": "Nathaniel Cruz",
+      "sid": "2021-00745",
+      "assessment": "Module 3 — Recursion",
+      "course": "CS 221",
+      "when": "Yesterday",
+      "ai": 45,
+      "flags": 0
+    },
+    {
+      "id": "u5",
+      "studentId": "s5",
+      "name": "Krista Domingo",
+      "sid": "2021-00677",
+      "assessment": "Module 4 — Stacks & Queues",
+      "course": "CS 221",
+      "when": "2 days ago",
+      "ai": 30,
+      "flags": 2
+    }
+  ],
+  "queueFilters": [
+    { "key": "all", "label": "All", "count": 12 },
+    { "key": "flagged", "label": "AI flagged", "count": 5 },
+    { "key": "confident", "label": "High confidence", "count": 7 }
+  ],
+  "review": {
+    "pointsPerItem": 5,
+    "total": 50,
+    "passMark": 40,
+    "assessmentTitle": "Module 4 Quiz",
+    "assessmentMeta": "CS 221 · Stacks & Queues · 50 points",
+    "items": [
+      {
+        "id": "q1",
+        "n": 1,
+        "q": "Which data structure follows the Last-In-First-Out principle?",
+        "choice": "B. Stack",
+        "key": "B. Stack",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      },
+      {
+        "id": "q2",
+        "n": 2,
+        "q": "What is the amortized time complexity of push() on an array-based stack?",
+        "choice": "A. O(1)",
+        "key": "A. O(1)",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      },
+      {
+        "id": "q3",
+        "n": 3,
+        "q": "Which queue operation removes the element at the front?",
+        "choice": "C. Dequeue",
+        "key": "C. Dequeue",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      },
+      {
+        "id": "q4",
+        "n": 4,
+        "q": "Breadth-first traversal of a graph is implemented using which structure?",
+        "choice": "B. Queue",
+        "key": "B. Queue",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      },
+      {
+        "id": "q5",
+        "n": 5,
+        "q": "A circular queue of capacity n is full when…",
+        "choice": "D. (rear + 1) mod n equals front",
+        "key": "C. rear is one slot behind front",
+        "verdict": "flagged",
+        "aiGuess": "correct",
+        "why": "Chosen option is worded differently from the key but is mathematically equivalent. Confidence 61% — needs your review."
+      },
+      {
+        "id": "q6",
+        "n": 6,
+        "q": "Evaluating a postfix expression relies on which data structure?",
+        "choice": "B. Stack",
+        "key": "B. Stack",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      },
+      {
+        "id": "q7",
+        "n": 7,
+        "q": "A deque allows insertion and deletion at…",
+        "choice": "D. Both ends",
+        "key": "D. Both ends",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      },
+      {
+        "id": "q8",
+        "n": 8,
+        "q": "Which situation typically causes a stack overflow?",
+        "choice": "A. Popping from an empty stack",
+        "key": "C. Unbounded recursive calls",
+        "verdict": "incorrect",
+        "why": "Selected option describes stack underflow, not overflow."
+      },
+      {
+        "id": "q9",
+        "n": 9,
+        "q": "A priority queue is most commonly implemented with…",
+        "choice": "C. A sorted linked list",
+        "key": "B. A binary heap",
+        "verdict": "flagged",
+        "aiGuess": "incorrect",
+        "why": "Not the keyed answer, but a sorted linked list is a valid priority-queue implementation. Confidence 48% — needs your review."
+      },
+      {
+        "id": "q10",
+        "n": 10,
+        "q": "Enqueue on a linked-list queue with a tail pointer runs in…",
+        "choice": "A. O(1)",
+        "key": "A. O(1)",
+        "verdict": "correct",
+        "why": "Exact match with the answer key."
+      }
+    ],
+    "remarkPlaceholder": "Item 9 accepted — a linked list with a sorted insert is a valid implementation."
+  },
+  "studentDetail": {
+    "program": "BSCS 3-A",
+    "points": "301",
+    "courseLabel": "Modules — CS 221 Data Structures",
+    "modules": [
+      { "n": 1, "title": "Introduction to Data Structures", "meta": "Quiz · 10 items", "score": "48/50", "state": "done" },
+      { "n": 2, "title": "Arrays & Linked Lists", "meta": "Quiz · 10 items", "score": "45/50", "state": "done" },
+      { "n": 3, "title": "Recursion", "meta": "Quiz · 10 items", "score": "44/50", "state": "done" },
+      { "n": 4, "title": "Stacks & Queues", "meta": "Quiz · 10 items · submitted 2 hours ago", "score": "40/50", "state": "pending" },
+      { "n": 5, "title": "Trees & Traversals", "meta": "Quiz · 10 items", "score": "42/50", "state": "done" },
+      { "n": 6, "title": "Hashing", "meta": "Quiz · 10 items", "score": "39/50", "state": "done" },
+      { "n": 7, "title": "Graphs", "meta": "Quiz · 10 items", "score": "43/50", "state": "done" },
+      { "n": 8, "title": "Sorting & Searching", "meta": "Not yet attempted", "score": "—", "state": "locked" }
+    ],
+    "credentials": [
+      { "name": "Data Structures Fundamentals", "meta": "Issued Jun 12, 2026", "earned": true },
+      { "name": "Linked List Practitioner", "meta": "Issued Jun 29, 2026", "earned": true },
+      { "name": "Recursion Practitioner", "meta": "Issued Jul 09, 2026", "earned": true },
+      { "name": "Stacks & Queues Practitioner", "meta": "Awaiting your approval", "earned": false },
+      { "name": "Tree Traversal Practitioner", "meta": "Module 5 in progress", "earned": false }
+    ],
+    "waitingOnYou": {
+      "eyebrow": "Waiting on you",
+      "title": "Stacks & Queues Practitioner",
+      "body": "AI scored Module 4 at 40/50. Confirm or adjust the grade to release this credential."
+    }
+  },
+  "pendingCredentials": [
+    {
+      "id": "p1",
+      "name": "Andrea Salcedo",
+      "sid": "2021-00412",
+      "cred": "Stacks & Queues Practitioner",
+      "module": "CS 221 · Module 4",
+      "score": "45/50",
+      "source": "You overrode 1 item"
+    },
+    {
+      "id": "p2",
+      "name": "Marco Villanueva",
+      "sid": "2021-00518",
+      "cred": "Stacks & Queues Practitioner",
+      "module": "CS 221 · Module 4",
+      "score": "45/50",
+      "source": "AI score accepted"
+    },
+    {
+      "id": "p3",
+      "name": "Nathaniel Cruz",
+      "sid": "2021-00745",
+      "cred": "Recursion Practitioner",
+      "module": "CS 221 · Module 3",
+      "score": "45/50",
+      "source": "AI score accepted"
+    },
+    {
+      "id": "p4",
+      "name": "Bianca Reyes",
+      "sid": "2020-00233",
+      "cred": "Hashing Practitioner",
+      "module": "CS 221 · Module 6",
+      "score": "45/50",
+      "source": "AI score accepted"
+    }
+  ],
+  "copy": {
+    "howGradingWorks": {
+      "title": "How grading works here",
+      "body": "Every submission is checked by the AI first. You confirm the suggested score, override any item, or type a final grade yourself. A micro-credential is only issued after you approve it.",
+      "tags": ["AI checked", "Assessor decides"]
+    },
+    "credentialsIntro": "A micro-credential is issued only after an assessor approves the final grade. AI scoring is a recommendation — your approval is what puts the badge on the student's record."
+  }
+}
