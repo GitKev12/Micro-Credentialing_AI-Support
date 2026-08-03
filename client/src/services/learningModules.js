@@ -30,6 +30,11 @@ export function moduleFileUrl(moduleId) {
   return `${api.defaults.baseURL}/modules/${moduleId}/file`;
 }
 
+// A cropped figure extracted from the module's PDF (see modules.controller).
+export function moduleFigureUrl(moduleId, figureId) {
+  return `${api.defaults.baseURL}/modules/${moduleId}/figures/${figureId}`;
+}
+
 // Extracted text arrives as { title, numPages, hasText, readingMinutes,
 // blocks: [{ type, ... }], pages: [{ page, text }] } — `blocks` is the
 // lesson-formatted structure, `pages` the raw fallback.

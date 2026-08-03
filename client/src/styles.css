@@ -1749,6 +1749,23 @@ ol.lesson-reader__list li::marker {
   font-weight: 700;
 }
 
+/* Figures extracted from the module PDF — centred, framed like a card, and
+   never wider than the reader column. */
+.lesson-reader__figure {
+  margin: 1.25rem 0;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.lesson-reader__figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
 /* Breathing room between template sections. */
 .lesson-reader__section + .lesson-reader__section {
   margin-top: 2.25rem;

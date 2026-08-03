@@ -4,6 +4,7 @@ import {
   getCourseImage,
   getCourseModules,
   getCourseProgress,
+  getModuleFigure,
   getModuleFile,
   getModuleSections,
   getModuleText,
@@ -28,6 +29,7 @@ router.get("/courses/:courseId/image", getCourseImage);
 router.get("/modules/:moduleId/file", getModuleFile);
 router.get("/modules/:moduleId/text", getModuleText);
 router.get("/modules/:moduleId/sections", getModuleSections);
+router.get("/modules/:moduleId/figures/:figureId", getModuleFigure);
 router.get("/students/:studentId/courses/:courseId/progress", getCourseProgress);
 router.post("/students/:studentId/modules/:moduleId/complete", markModuleComplete);
 router.delete("/students/:studentId/modules/:moduleId/complete", unmarkModuleComplete);

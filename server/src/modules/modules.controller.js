@@ -1,7 +1,12 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
-import { extractPdfText, extractPdfTextViaOcr, stripStyleMarkers } from "./modules.ocr.js";
-import { buildLessonBlocks, buildSections, countReadingMinutes } from "./modules.format.js";
+import { extractPdfFigures, extractPdfText, extractPdfTextViaOcr, stripStyleMarkers } from "./modules.ocr.js";
+import {
+  buildLessonBlocks,
+  buildSections,
+  countReadingMinutes,
+  insertFigureBlocks
+} from "./modules.format.js";
 
 /**
  * Learning modules (lessons) and assessments for a course.
@@ -26,9 +31,14 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 // OCR/text-extraction results are cached here, one document per module, so
 // each PDF is only parsed once: { moduleId, fileId, numPages, pages, ... }.
 // Bump the version when the extraction/formatting logic changes so stale
-// cache entries re-extract on their next request.
+// cache entries re-extract on their next request. v22: embedded figures are
+// extracted and interleaved into the lesson blocks.
 const MODULE_TEXT_COLLECTION = "ModuleText";
-const TEXT_FORMAT_VERSION = 21;
+const TEXT_FORMAT_VERSION = 22;
+
+// Cropped figure images (PNG) are stored here, one GridFS file per figure,
+// tagged with metadata.moduleId so a re-extraction can replace them.
+const MODULE_FIGURES_BUCKET = "ModuleFigure";
 
 // Per-student lesson completion, one document per completed module:
 // { studentId, courseId, moduleId, completedAt }.
@@ -164,6 +174,38 @@ function readGridFsBuffer(bucketName, fileId) {
   });
 }
 
+// Uploads a module's freshly-cropped figures to GridFS, replacing any from a
+// previous extraction. Returns `[{ fileId, page, width, height }]` for the
+// blocks to reference.
+async function storeModuleFigures(moduleId, figures) {
+  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: MODULE_FIGURES_BUCKET
+  });
+
+  // Drop figures left over from an earlier extraction of this module.
+  const previous = await bucket.find({ "metadata.moduleId": moduleId }).toArray();
+  await Promise.all(previous.map((file) => bucket.delete(file._id).catch(() => {})));
+
+  const stored = [];
+  for (const figure of figures) {
+    const fileId = await new Promise((resolve, reject) => {
+      const upload = bucket.openUploadStream(`fig-${moduleId}-p${figure.page}-${figure.order}.png`, {
+        contentType: "image/png",
+        metadata: { moduleId, page: figure.page }
+      });
+      upload.on("error", reject).on("finish", () => resolve(upload.id));
+      upload.end(figure.png);
+    });
+    stored.push({
+      fileId: String(fileId),
+      page: figure.page,
+      width: figure.width,
+      height: figure.height
+    });
+  }
+  return stored;
+}
+
 function toTextResponse(record, cached) {
   return {
     id: record.moduleId,
@@ -252,7 +294,18 @@ async function getOrExtractModuleText(module) {
     }
   }
 
-  const blocks = extracted.hasText ? buildLessonBlocks(extracted.pages) : [];
+  let blocks = extracted.hasText ? buildLessonBlocks(extracted.pages) : [];
+
+  // Pull embedded figures and slot them into the blocks by page. Best-effort:
+  // a figure failure must never fail the whole lesson (the text still renders).
+  if (extracted.hasText) {
+    try {
+      const figures = await storeModuleFigures(moduleKey, await extractPdfFigures(buffer));
+      blocks = insertFigureBlocks(blocks, figures);
+    } catch (error) {
+      console.error(`Figure extraction failed for module ${moduleKey}:`, error.message);
+    }
+  }
 
   const record = {
     moduleId: moduleKey,
@@ -343,6 +396,36 @@ export async function getCourseImage(request, response) {
   stream.on("error", () => {
     if (!response.headersSent) {
       response.status(404).json({ message: "Course image is missing from storage." });
+    } else {
+      response.end();
+    }
+  });
+
+  return stream.pipe(response);
+}
+
+// Streams a single cropped figure PNG from the ModuleFigure bucket.
+export async function getModuleFigure(request, response) {
+  let figureId;
+  try {
+    figureId = new mongoose.Types.ObjectId(request.params.figureId);
+  } catch {
+    return response.status(400).json({ message: "Invalid figure id." });
+  }
+
+  response.set({
+    "Content-Type": "image/png",
+    "Cache-Control": "public, max-age=86400"
+  });
+
+  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: MODULE_FIGURES_BUCKET
+  });
+  const stream = bucket.openDownloadStream(figureId);
+
+  stream.on("error", () => {
+    if (!response.headersSent) {
+      response.status(404).json({ message: "Figure not found." });
     } else {
       response.end();
     }

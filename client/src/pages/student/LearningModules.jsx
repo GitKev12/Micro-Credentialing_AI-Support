@@ -7,6 +7,7 @@ import {
   fetchCourseProgress,
   fetchModuleSections,
   fetchModuleText,
+  moduleFigureUrl,
   moduleFileUrl,
   setModuleCompleted
 } from "../../services/learningModules";
@@ -33,8 +34,22 @@ function renderStyledText(text) {
 
 // Renders the server's formatted lesson blocks (headings, paragraphs, lists,
 // code samples, term definitions, and multiple-choice exercises).
-function LessonBlocks({ blocks, answers, onAnswer }) {
+function LessonBlocks({ blocks, answers, onAnswer, moduleId }) {
   return blocks.map((block, index) => {
+    if (block.type === "figure") {
+      return (
+        <figure key={index} className="lesson-reader__figure">
+          <img
+            src={moduleFigureUrl(moduleId, block.fileId)}
+            alt={`Figure from page ${block.page}`}
+            loading="lazy"
+            width={block.width}
+            height={block.height}
+          />
+        </figure>
+      );
+    }
+
     if (block.type === "exercise") {
       const answeredCount = block.questions.filter(
         (question) => answers?.[question.id] !== undefined
@@ -569,6 +584,7 @@ function LearningModules() {
                                 section.start,
                                 section.end
                               )}
+                              moduleId={selectedLessonId}
                               answers={answersByModule[selectedLessonId]}
                               onAnswer={(questionId, choiceIndex) =>
                                 selectAnswer(selectedLessonId, questionId, choiceIndex)
@@ -579,6 +595,7 @@ function LearningModules() {
                       ) : (
                         <LessonBlocks
                           blocks={lessonText.blocks}
+                          moduleId={selectedLessonId}
                           answers={answersByModule[selectedLessonId]}
                           onAnswer={(questionId, choiceIndex) =>
                             selectAnswer(selectedLessonId, questionId, choiceIndex)

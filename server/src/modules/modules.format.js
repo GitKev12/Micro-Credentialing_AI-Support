@@ -695,3 +695,45 @@ export function countReadingMinutes(blocks) {
 
   return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 }
+
+/**
+ * Interleaves extracted figures into the block stream, placing each page's
+ * figures right after that page's last text block. Figures whose page has no
+ * surviving block (e.g. a boilerplate cover page that was stripped) are
+ * dropped, so cover-art and template imagery never leak into the lesson.
+ *
+ * Each figure is `{ fileId, page, width, height }`; the emitted block is
+ * `{ type: "figure", page, fileId, width, height }`.
+ */
+export function insertFigureBlocks(blocks, figures) {
+  if (!figures?.length) return blocks;
+
+  const figuresByPage = new Map();
+  for (const figure of figures) {
+    if (!figuresByPage.has(figure.page)) figuresByPage.set(figure.page, []);
+    figuresByPage.get(figure.page).push(figure);
+  }
+
+  // The index of the last block belonging to each page.
+  const lastBlockOfPage = new Map();
+  blocks.forEach((block, index) => {
+    if (block.page != null) lastBlockOfPage.set(block.page, index);
+  });
+
+  const result = [];
+  blocks.forEach((block, index) => {
+    result.push(block);
+    if (figuresByPage.has(block.page) && lastBlockOfPage.get(block.page) === index) {
+      for (const figure of figuresByPage.get(block.page)) {
+        result.push({
+          type: "figure",
+          page: block.page,
+          fileId: figure.fileId,
+          width: figure.width,
+          height: figure.height
+        });
+      }
+    }
+  });
+  return result;
+}
