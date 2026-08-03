@@ -152,6 +152,13 @@ const BOILERPLATE_PREFIXES = [
 // "LEARNING AGREEMENT", …) is boilerplate regardless of its exact wording.
 const AGREEMENT_HEADING = /\bAGREEMENTS?\b/;
 
+// The lesson's own test/evaluation parts ("V. EVALUATION", "POST-TEST",
+// "PRE-TEST / DIAGNOSTIC", "SELF-ASSESSMENT", "QUIZ") — dropped like the other
+// boilerplate. Graded work lives in the separate Assessment feature, so this
+// scaffolding just clutters the reader. "UNIT TESTING"/"TEST CASES" stay: the
+// TEST alternatives require the PRE-/POST- prefix.
+const EVALUATION_HEADING = /\b(EVALUATION|POST[-\s]?TEST|PRE[-\s]?TEST|ASSESSMENT|QUIZ)\b/;
+
 // Chapter number banners ("CHAPTER 1", "CHAPTER II", "CHAPTER #", "CHAPTER
 // # 3") — dropped along with whatever sits under them until the next heading.
 const CHAPTER_HEADING = /^CHAPTER\s*#?\s*(\d{1,3}|[IVXL]{1,7})?$/;
@@ -166,6 +173,7 @@ function isBoilerplateHeading(text) {
     .replace(/^[IVX]{1,7}[.)]\s*/, "");
   return (
     AGREEMENT_HEADING.test(normalized) ||
+    EVALUATION_HEADING.test(normalized) ||
     CHAPTER_HEADING.test(normalized) ||
     BOILERPLATE_SECTIONS.includes(normalized) ||
     BOILERPLATE_PREFIXES.some((prefix) => normalized.startsWith(prefix))
@@ -275,11 +283,15 @@ function findRepeatedLines(normalizedPages) {
   return furniture;
 }
 
-function parsePage(lines, furniture, page) {
+function parsePage(lines, furniture, page, lineTops = []) {
   const blocks = [];
   let paragraph = [];
+  // The normalized top of a paragraph/code run's first line, carried onto the
+  // block when it flushes (list/term keep theirs on the accumulator object).
+  let paragraphTop = null;
   let list = null;
   let codeLines = [];
+  let codeTop = null;
   let codeHoldsBlank = false;
   let term = null;
   // The last level-2 heading block and its source line, for re-joining
@@ -287,6 +299,7 @@ function parsePage(lines, furniture, page) {
   let headingRun = null;
 
   const plainLines = lines.map((line) => stripStyleMarkers(line));
+  const topAt = (index) => lineTops[index] ?? null;
 
   const contentIndexes = plainLines
     .map((line, index) => (line ? index : -1))
@@ -296,8 +309,9 @@ function parsePage(lines, furniture, page) {
 
   const flushParagraph = () => {
     if (paragraph.length) {
-      blocks.push({ type: "paragraph", text: paragraph.join(" "), page });
+      blocks.push({ type: "paragraph", text: paragraph.join(" "), page, top: paragraphTop });
       paragraph = [];
+      paragraphTop = null;
     }
   };
   const flushList = () => {
@@ -307,18 +321,20 @@ function parsePage(lines, furniture, page) {
   const flushCode = () => {
     if (codeLines.length) {
       if (isDefinitelyCodeBlock(codeLines)) {
-        blocks.push({ type: "code", text: reindentCode(codeLines), page });
+        blocks.push({ type: "code", text: reindentCode(codeLines), page, top: codeTop });
       } else {
         // Not really a listing — return the lines to the prose flow.
+        if (!paragraph.length) paragraphTop = codeTop;
         paragraph.push(...codeLines.filter(Boolean));
       }
       codeLines = [];
+      codeTop = null;
     }
     codeHoldsBlank = false;
   };
   const flushTerm = () => {
     if (term) {
-      blocks.push({ type: "term", term: term.name, text: term.parts.join(" "), page });
+      blocks.push({ type: "term", term: term.name, text: term.parts.join(" "), page, top: term.top });
       term = null;
     }
   };
@@ -334,6 +350,7 @@ function parsePage(lines, furniture, page) {
     // Tests and structural output use the plain text; paragraph/list/term
     // content keeps the marked line so italics survive.
     const plain = plainLines[index];
+    const top = topAt(index);
 
     if (!plain) {
       // A blank inside a code sample is kept if more code follows.
@@ -370,7 +387,7 @@ function parsePage(lines, furniture, page) {
       flushTerm();
       if (!list || list.ordered) {
         flushList();
-        list = { type: "list", ordered: false, items: [], page };
+        list = { type: "list", ordered: false, items: [], page, top };
       }
       // Strip the marker prefix from the marked line when possible so the
       // item keeps its italics; fall back to the plain line.
@@ -384,9 +401,10 @@ function parsePage(lines, furniture, page) {
     if (ROMAN_HEADING.test(plain)) {
       flushAll();
       const { title, rest } = splitRomanHeading(plain);
-      const block = { type: "heading", level: 2, text: title, page };
+      const block = { type: "heading", level: 2, text: title, page, top };
       blocks.push(block);
       if (rest && /\w/.test(rest)) {
+        if (!paragraph.length) paragraphTop = top;
         paragraph.push(rest);
       } else if (rest) {
         // A dangling joiner ("IV. SYNTHESIS /") — the heading definitely
@@ -400,7 +418,7 @@ function parsePage(lines, furniture, page) {
 
     if (NUMBERED_HEADING.test(plain) && plain.length <= 90) {
       flushAll();
-      blocks.push({ type: "heading", level: 3, text: plain, page });
+      blocks.push({ type: "heading", level: 3, text: plain, page, top });
       return;
     }
 
@@ -408,6 +426,7 @@ function parsePage(lines, furniture, page) {
     // stay code, while plain numbered steps stay lists.
     if (isCode) {
       flushAll();
+      codeTop = top;
       codeLines.push(plain);
       return;
     }
@@ -417,7 +436,7 @@ function parsePage(lines, furniture, page) {
       flushTerm();
       if (!list || !list.ordered) {
         flushList();
-        list = { type: "list", ordered: true, items: [], page };
+        list = { type: "list", ordered: true, items: [], page, top };
       }
       const markedItem = line.replace(ORDERED_ITEM, "");
       list.items.push(markedItem !== line ? markedItem : plain.replace(ORDERED_ITEM, ""));
@@ -453,7 +472,7 @@ function parsePage(lines, furniture, page) {
           return;
         }
       }
-      const block = { type: "heading", level: 2, text: plain, page };
+      const block = { type: "heading", level: 2, text: plain, page, top };
       blocks.push(block);
       headingRun = { block, lineIndex: index };
       return;
@@ -461,7 +480,7 @@ function parsePage(lines, furniture, page) {
 
     if (isLabelHeading(plain)) {
       flushAll();
-      blocks.push({ type: "heading", level: 3, text: plain, page });
+      blocks.push({ type: "heading", level: 3, text: plain, page, top });
       return;
     }
 
@@ -473,7 +492,8 @@ function parsePage(lines, furniture, page) {
       flushTerm();
       term = {
         name: stripStyleMarkers(definition[1]).trim(),
-        parts: [definition[2].trim()]
+        parts: [definition[2].trim()],
+        top
       };
       return;
     }
@@ -497,6 +517,7 @@ function parsePage(lines, furniture, page) {
       flushList();
     }
 
+    if (!paragraph.length) paragraphTop = top;
     paragraph.push(line);
   });
 
@@ -588,7 +609,7 @@ function splitLongParagraphs(blocks) {
     if (current) chunks.push(current);
 
     for (const text of balanceItalics(chunks)) {
-      result.push({ type: "paragraph", text, page: block.page });
+      result.push({ type: "paragraph", text, page: block.page, top: block.top });
     }
   }
 
@@ -599,7 +620,7 @@ export function buildLessonBlocks(pages) {
   const normalizedPages = pages.map((entry) => normalizeLines(entry.text));
   const furniture = findRepeatedLines(normalizedPages);
   const pageBlocks = normalizedPages.map((lines, index) =>
-    parsePage(lines, furniture, pages[index].page)
+    parsePage(lines, furniture, pages[index].page, pages[index].lineTops ?? [])
   );
   return stripBoilerplateSections(splitLongParagraphs(stitchPages(pageBlocks)));
 }
@@ -696,13 +717,32 @@ export function countReadingMinutes(blocks) {
   return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 }
 
+// A figure caption or reference in the running text — "Figure 3", "Fig. 2",
+// "Figure 4 Anatomy of a method". These lecture modules label every diagram
+// this way, so the sentence carrying the label is the explanation the picture
+// belongs with — a far more reliable anchor than raw geometry, which the text
+// reflow (merged paragraphs, out-of-order captions) makes noisy.
+const CAPTION_REFERENCE = /\bfig(?:ure)?\.?\s*\d+\b/i;
+
+function blockPlainText(block) {
+  if (block.type === "list") return stripStyleMarkers(block.items.join(" "));
+  if (block.type === "term") return stripStyleMarkers(`${block.term} ${block.text}`);
+  return stripStyleMarkers(block.text ?? "");
+}
+
 /**
- * Interleaves extracted figures into the block stream, placing each page's
- * figures right after that page's last text block. Figures whose page has no
- * surviving block (e.g. a boilerplate cover page that was stripped) are
- * dropped, so cover-art and template imagery never leak into the lesson.
+ * Interleaves extracted figures into the block stream so each picture sits with
+ * the text that explains it. For every figure, on its own page:
+ *   1. Caption match (preferred): pair it with the block that carries a "Figure
+ *      N" caption/reference — nearest by vertical position when known — and put
+ *      the image right before that block (the caption reads under its image).
+ *   2. Geometry fallback: when the page has no caption text, place the figure
+ *      after the last text block above it (by normalized `top`); a figure above
+ *      all of them leads the page.
+ * Figures whose page has no surviving block (e.g. a stripped boilerplate cover
+ * page) are dropped, so cover-art and template imagery never leak in.
  *
- * Each figure is `{ fileId, page, width, height }`; the emitted block is
+ * Each figure is `{ fileId, page, width, height, top }`; the emitted block is
  * `{ type: "figure", page, fileId, width, height }`.
  */
 export function insertFigureBlocks(blocks, figures) {
@@ -714,25 +754,91 @@ export function insertFigureBlocks(blocks, figures) {
     figuresByPage.get(figure.page).push(figure);
   }
 
-  // The index of the last block belonging to each page.
-  const lastBlockOfPage = new Map();
+  // Block indexes for each page, in reading (top-to-bottom) order.
+  const pageBlockIndexes = new Map();
   blocks.forEach((block, index) => {
-    if (block.page != null) lastBlockOfPage.set(block.page, index);
+    if (block.page == null) return;
+    if (!pageBlockIndexes.has(block.page)) pageBlockIndexes.set(block.page, []);
+    pageBlockIndexes.get(block.page).push(index);
   });
+
+  // Where each figure goes: before a block (its caption), after a block
+  // (geometry), or leading its page.
+  const beforeBlock = new Map();
+  const afterBlock = new Map();
+  const leadPage = new Map();
+  const pushTo = (map, key, figure) => {
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(figure);
+  };
+
+  for (const [page, pageFigures] of figuresByPage) {
+    const indexes = pageBlockIndexes.get(page);
+    if (!indexes?.length) continue; // page dropped -> its figures go too
+
+    const hasTops = indexes.some((index) => blocks[index].top != null);
+    const captions = indexes.filter((index) =>
+      CAPTION_REFERENCE.test(blockPlainText(blocks[index]))
+    );
+    const usedCaption = new Set();
+    const figuresSorted = [...pageFigures].sort((a, b) => (a.top ?? 1) - (b.top ?? 1));
+
+    for (const figure of figuresSorted) {
+      // 1) Anchor to the figure's caption when the page has one.
+      const freeCaptions = captions.filter((index) => !usedCaption.has(index));
+      if (freeCaptions.length) {
+        if (hasTops && figure.top != null) {
+          freeCaptions.sort(
+            (a, b) =>
+              Math.abs((blocks[a].top ?? 1) - figure.top) -
+              Math.abs((blocks[b].top ?? 1) - figure.top)
+          );
+        }
+        const captionIndex = freeCaptions[0];
+        usedCaption.add(captionIndex);
+        pushTo(beforeBlock, captionIndex, figure);
+        continue;
+      }
+
+      // 2) Geometry fallback: after the last block above the figure; above all
+      //    of them (or no positions at all) it leads / trails the page.
+      let anchor = null;
+      if (hasTops && figure.top != null) {
+        for (const index of indexes) {
+          const blockTop = blocks[index].top;
+          if (blockTop != null && blockTop <= figure.top) anchor = index;
+        }
+      } else {
+        anchor = indexes[indexes.length - 1];
+      }
+      if (anchor == null) pushTo(leadPage, page, figure);
+      else pushTo(afterBlock, anchor, figure);
+    }
+  }
+
+  const toFigureBlock = (figure) => ({
+    type: "figure",
+    page: figure.page,
+    fileId: figure.fileId,
+    width: figure.width,
+    height: figure.height
+  });
+
+  // The first block index of each page, so leading figures emit before it.
+  const pageFirstIndexes = new Set();
+  for (const indexes of pageBlockIndexes.values()) pageFirstIndexes.add(indexes[0]);
 
   const result = [];
   blocks.forEach((block, index) => {
+    if (pageFirstIndexes.has(index) && leadPage.has(block.page)) {
+      for (const figure of leadPage.get(block.page)) result.push(toFigureBlock(figure));
+    }
+    if (beforeBlock.has(index)) {
+      for (const figure of beforeBlock.get(index)) result.push(toFigureBlock(figure));
+    }
     result.push(block);
-    if (figuresByPage.has(block.page) && lastBlockOfPage.get(block.page) === index) {
-      for (const figure of figuresByPage.get(block.page)) {
-        result.push({
-          type: "figure",
-          page: block.page,
-          fileId: figure.fileId,
-          width: figure.width,
-          height: figure.height
-        });
-      }
+    if (afterBlock.has(index)) {
+      for (const figure of afterBlock.get(index)) result.push(toFigureBlock(figure));
     }
   });
   return result;

@@ -52,7 +52,9 @@
       "Bash(npm -v)",
       "Bash(npm install *)",
       "Bash(python3 -c ' *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Read(//home/kevkharl/**)",
+      "Read(//home/kevkharl/.local/share/blesh/**)"
     ]
   }
 }

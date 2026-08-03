@@ -56,8 +56,15 @@ function loadPdf(buffer) {
   }).promise;
 }
 
-function toExtractionResult(numPages, pageTexts) {
-  const pages = pageTexts.map((text, index) => ({ page: index + 1, text }));
+function toExtractionResult(numPages, pageTexts, pageLineTops) {
+  const pages = pageTexts.map((text, index) => ({
+    page: index + 1,
+    text,
+    // Normalized vertical position (0 = top of page, 1 = bottom) of each line,
+    // parallel to the page's lines — lets the formatter place figures by
+    // position. Null when unavailable (e.g. the OCR fallback path).
+    lineTops: pageLineTops?.[index] ?? null
+  }));
   const totalChars = stripStyleMarkers(pageTexts.join("")).replace(/\s+/g, "").length;
 
   return {
@@ -99,6 +106,7 @@ export async function extractPdfText(buffer) {
   try {
     const italicFonts = new Map();
     const pageTexts = [];
+    const pageLineTops = [];
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
       const page = await document.getPage(pageNumber);
@@ -122,9 +130,20 @@ export async function extractPdfText(buffer) {
         return italicFonts.get(fontName);
       };
 
+      // A page-space y (bottom-up user units) becomes a normalized top-down
+      // fraction, the same convention figure rects use — so a figure and the
+      // text around it can be ordered against each other.
+      const viewportUnit = page.getViewport({ scale: 1 });
+      const normalizeTop = (y) => {
+        if (y === undefined || y === null) return null;
+        const top = viewportUnit.convertToViewportPoint(0, y)[1];
+        return viewportUnit.height ? top / viewportUnit.height : null;
+      };
+
       // Same line-grouping rule as before: items that share a y-coordinate
       // stay on one line, a y jump starts a new line.
       const lines = [];
+      const lineTops = [];
       let segments = [];
       let lastY;
 
@@ -134,19 +153,24 @@ export async function extractPdfText(buffer) {
 
         if (lastY !== undefined && y !== undefined && y !== lastY && segments.length) {
           lines.push(buildLine(segments));
+          lineTops.push(normalizeTop(lastY));
           segments = [];
         }
 
         segments.push({ str: item.str, italic: isItalicFont(item.fontName) });
         if (y !== undefined) lastY = y;
       }
-      if (segments.length) lines.push(buildLine(segments));
+      if (segments.length) {
+        lines.push(buildLine(segments));
+        lineTops.push(normalizeTop(lastY));
+      }
 
       pageTexts.push(lines.join("\n"));
+      pageLineTops.push(lineTops);
       page.cleanup();
     }
 
-    return toExtractionResult(document.numPages, pageTexts);
+    return toExtractionResult(document.numPages, pageTexts, pageLineTops);
   } finally {
     await document.destroy();
   }
@@ -406,6 +430,9 @@ export async function extractPdfFigures(
             order,
             width: rect.width,
             height: rect.height,
+            // Normalized top-down position on the page, matched against the
+            // text lines' `top` so the figure lands beside its explanation.
+            top: viewport.height ? rect.y / viewport.height : 0,
             png,
             signature: crypto.createHash("md5").update(png).digest("hex")
           });

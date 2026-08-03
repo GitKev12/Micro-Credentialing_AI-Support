@@ -33,9 +33,13 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 // Bump the version when the extraction/formatting logic changes so stale
 // cache entries re-extract on their next request. v22: embedded figures are
 // extracted and interleaved into the lesson blocks. v23: a diagram's pieces
-// merge into one figure instead of fragmenting.
+// merge into one figure instead of fragmenting. v24: figures are placed at
+// their real vertical position (beside the matching text) instead of at the
+// end of the page, and evaluation/test sections are stripped. v25: figures
+// anchor to their "Figure N" caption text when present (geometry is only the
+// fallback), since the reflowed text makes raw position unreliable.
 const MODULE_TEXT_COLLECTION = "ModuleText";
-const TEXT_FORMAT_VERSION = 23;
+const TEXT_FORMAT_VERSION = 25;
 
 // Cropped figure images (PNG) are stored here, one GridFS file per figure,
 // tagged with metadata.moduleId so a re-extraction can replace them.
@@ -201,7 +205,8 @@ async function storeModuleFigures(moduleId, figures) {
       fileId: String(fileId),
       page: figure.page,
       width: figure.width,
-      height: figure.height
+      height: figure.height,
+      top: figure.top ?? null
     });
   }
   return stored;
