@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import data from "./assessorSampleData.json";
+import { fetchStudentDetail, storedAssessorId, timeAgo } from "../../services/assessors";
 import { CheckIcon, UserIcon } from "./components/icons";
 import { Chip, ScreenHeader } from "./components/ui";
 
@@ -9,16 +10,72 @@ const MODULE_CHIP = {
   locked: { tone: "neutral", label: "Not started" }
 };
 
+function moduleMeta(module) {
+  if (module.state === "pending") return `Submitted ${timeAgo(module.submittedAt)}`;
+  if (module.state === "done") return "Quiz graded";
+  return module.read ? "Lesson read — quiz not yet taken" : "Not yet attempted";
+}
+
+function credentialMeta(credential) {
+  if (credential.status === "issued" && credential.issuedAt) {
+    const date = new Date(credential.issuedAt).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+    return `Issued ${date}`;
+  }
+  return "Awaiting your approval";
+}
+
 function StudentPage() {
   const navigate = useNavigate();
   const { classId, studentId } = useParams();
+  const [detail, setDetail] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
-  const course = data.classes.find((c) => c.id === classId) ?? data.classes[0];
-  const student = data.roster.find((s) => s.id === studentId) ?? data.roster[0];
-  const detail = data.studentDetail;
+  useEffect(() => {
+    let active = true;
+    const assessorId = storedAssessorId();
+    if (!assessorId || !classId || !studentId) {
+      setLoadError(true);
+      return undefined;
+    }
 
-  // The queue entry for this student, so "Open assessment review" lands right.
-  const submission = data.queue.find((row) => row.studentId === student.id);
+    fetchStudentDetail(assessorId, classId, studentId)
+      .then((data) => {
+        if (active) setDetail(data);
+      })
+      .catch(() => {
+        if (active) setLoadError(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [classId, studentId]);
+
+  if (loadError || !detail) {
+    return (
+      <>
+        <ScreenHeader
+          back={{ label: "Students", onClick: () => navigate(`/assessor/classes/${classId}`) }}
+          eyebrow="Student"
+          title={loadError ? "Student not found" : "Loading student…"}
+        />
+        <div className="assessor-body">
+          <p className="assessor-meta">
+            {loadError
+              ? "This student could not be loaded for this class."
+              : "Fetching module progress and credentials…"}
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  const { student, course, modules, credentials, waiting } = detail;
+  const issuedCount = credentials.filter((credential) => credential.status === "issued").length;
 
   return (
     <>
@@ -39,9 +96,7 @@ function StudentPage() {
 
           <div className="student-hero__lead">
             <div className="student-hero__name">{student.name}</div>
-            <div className="student-hero__meta">
-              {student.sid} · {detail.program}
-            </div>
+            <div className="student-hero__meta">{student.sid}</div>
           </div>
 
           <div className="student-hero__stats">
@@ -52,7 +107,7 @@ function StudentPage() {
             <div>
               <div className="metric__label">Credentials</div>
               <div className="student-hero__value student-hero__value--brand">
-                {student.creds} / {data.totalModules}
+                {issuedCount} / {detail.totalModules}
               </div>
             </div>
             <button
@@ -67,15 +122,17 @@ function StudentPage() {
 
         <div className="student-split">
           <section className="assessor-card">
-            <h2 className="assessor-card-title">{detail.courseLabel}</h2>
+            <h2 className="assessor-card-title">
+              Modules — {course.code} {course.name}
+            </h2>
 
             <div className="assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
-              {detail.modules.map((module) => {
+              {modules.map((module) => {
                 const chip = MODULE_CHIP[module.state];
                 const locked = module.state === "locked";
 
                 return (
-                  <div key={module.n} className="module-row">
+                  <div key={module.moduleId} className="module-row">
                     <span className={`module-row__num${locked ? " is-locked" : ""}`}>
                       {module.n}
                     </span>
@@ -83,10 +140,10 @@ function StudentPage() {
                       <span className="cell-title" style={{ display: "block" }}>
                         {module.title}
                       </span>
-                      <span className="assessor-meta">{module.meta}</span>
+                      <span className="assessor-meta">{moduleMeta(module)}</span>
                     </span>
                     <span className={`module-row__score${locked ? " is-locked" : ""}`}>
-                      {module.score}
+                      {module.score !== null ? `${module.score}/${module.total}` : "—"}
                     </span>
                     <span>
                       <Chip tone={chip.tone}>{chip.label}</Chip>
@@ -94,6 +151,12 @@ function StudentPage() {
                   </div>
                 );
               })}
+
+              {modules.length === 0 ? (
+                <p className="assessor-meta" style={{ padding: "var(--sp-4)", textAlign: "center" }}>
+                  This course has no modules yet.
+                </p>
+              ) : null}
             </div>
           </section>
 
@@ -102,36 +165,44 @@ function StudentPage() {
               <h2 className="assessor-card-title">Micro-credentials</h2>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-                {detail.credentials.map((credential) => (
-                  <div key={credential.name} className="cred-line">
-                    <span className={`cred-line__mark${credential.earned ? " is-earned" : ""}`}>
+                {credentials.map((credential) => (
+                  <div key={credential.submissionId} className="cred-line">
+                    <span className={`cred-line__mark${credential.status === "issued" ? " is-earned" : ""}`}>
                       <CheckIcon size={16} />
                     </span>
                     <span style={{ minWidth: 0 }}>
                       <span className="cred-line__name" style={{ display: "block" }}>
                         {credential.name}
                       </span>
-                      <span className="assessor-meta">{credential.meta}</span>
+                      <span className="assessor-meta">{credentialMeta(credential)}</span>
                     </span>
                   </div>
                 ))}
+
+                {credentials.length === 0 ? (
+                  <p className="assessor-meta">No credentials earned yet.</p>
+                ) : null}
               </div>
             </section>
 
-            <section className="callout">
-              <div className="callout__eyebrow">{detail.waitingOnYou.eyebrow}</div>
-              <h2 className="callout__title">{detail.waitingOnYou.title}</h2>
-              <p className="callout__body">{detail.waitingOnYou.body}</p>
-              <button
-                type="button"
-                className="btn btn--light"
-                onClick={() =>
-                  navigate(`/assessor/review/${submission?.id ?? data.queue[0].id}`)
-                }
-              >
-                Open assessment review
-              </button>
-            </section>
+            {waiting ? (
+              <section className="callout">
+                <div className="callout__eyebrow">Waiting on you</div>
+                <h2 className="callout__title">{waiting.credentialName}</h2>
+                <p className="callout__body">
+                  {waiting.aiScore !== null
+                    ? `AI scored ${waiting.assessmentTitle} at ${waiting.aiScore}/${waiting.total}. Confirm or adjust the grade to release this credential.`
+                    : `${waiting.assessmentTitle} needs manual grading. Approve a final grade to release this credential.`}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn--light"
+                  onClick={() => navigate(`/assessor/review/${waiting.submissionId}`)}
+                >
+                  Open assessment review
+                </button>
+              </section>
+            ) : null}
           </div>
         </div>
       </div>

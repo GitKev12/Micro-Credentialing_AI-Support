@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, SearchIcon, UserIcon } from "./icons";
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon, UserIcon } from "./icons";
 
 /** Screen header: optional back link, eyebrow, title, and a right-hand slot. */
 export function ScreenHeader({ back, eyebrow, title, children }) {
@@ -19,17 +19,27 @@ export function ScreenHeader({ back, eyebrow, title, children }) {
   );
 }
 
-export function StatCard({ value, label, action, onAction }) {
+/** KPI tile — the whole card is the action, anchored by a per-stat icon. */
+export function StatCard({ value, label, action, onAction, icon }) {
   return (
-    <div className="stat-card">
-      <div className="stat-card__face">
-        <span className="stat-card__value">{value}</span>
-        <span className="stat-card__label">{label}</span>
-      </div>
-      <button type="button" className="stat-card__action" onClick={onAction}>
+    <button
+      type="button"
+      className="stat-card"
+      onClick={onAction}
+      aria-label={`${label}: ${value}. ${action}.`}
+    >
+      {icon ? (
+        <span className="stat-card__icon" aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
+      <span className="stat-card__value">{value}</span>
+      <span className="stat-card__label">{label}</span>
+      <span className="stat-card__action">
         {action}
-      </button>
-    </div>
+        <ChevronRightIcon size={15} />
+      </span>
+    </button>
   );
 }
 

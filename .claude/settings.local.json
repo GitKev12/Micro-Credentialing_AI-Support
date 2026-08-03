@@ -48,7 +48,11 @@
       "PowerShell($deadline = \\(Get-Date\\).AddSeconds\\(20\\); do { try { $null = Invoke-RestMethod -Uri 'http://localhost:5057/api/health' -TimeoutSec 3; break } catch { Start-Sleep -Milliseconds 500 } } while \\(\\(Get-Date\\) -lt $deadline\\); foreach \\($code in @\\('TSM3','OOP','MST'\\)\\) { $r = Invoke-RestMethod -Uri \\(\"http://localhost:5057/api/courses/\" + $code + \"/modules\"\\) -TimeoutSec 30; Write-Output \\(\"=== \" + $code + \" ===\"\\); $r.modules | ForEach-Object { Write-Output \\(\"  \" + $_.title\\) } })",
       "PowerShell($deadline = \\(Get-Date\\).AddSeconds\\(20\\); do { try { $null = Invoke-RestMethod -Uri 'http://localhost:5057/api/health' -TimeoutSec 3; break } catch { Start-Sleep -Milliseconds 500 } } while \\(\\(Get-Date\\) -lt $deadline\\); foreach \\($code in @\\('MST','CC2','EA'\\)\\) { $r = Invoke-RestMethod -Uri \\(\"http://localhost:5057/api/courses/\" + $code + \"/modules\"\\) -TimeoutSec 30; Write-Output \\(\"=== \" + $code + \" ===\"\\); $r.modules | ForEach-Object { Write-Output \\(\"  \" + $_.title\\) } })",
       "Bash(awk '/^\\\\.course-card \\\\{/{f=1} f{print} /^\\\\.course-card:hover \\\\{/{h=1} h&&/^\\\\}/{print;exit}' src/styles.css)",
-      "PowerShell($word = $null; try { $word = New-Object -ComObject Word.Application; $ver = $word.Version; $word.Quit\\(\\); Write-Output \\(\"MS Word available via COM, version \" + $ver\\) } catch { Write-Output \"MS Word COM: not available\" }; $soffice = Get-Command soffice -ErrorAction SilentlyContinue; if \\($soffice\\) { Write-Output \\(\"LibreOffice: \" + $soffice.Source\\) } else { Write-Output \"LibreOffice: not found\" })"
+      "PowerShell($word = $null; try { $word = New-Object -ComObject Word.Application; $ver = $word.Version; $word.Quit\\(\\); Write-Output \\(\"MS Word available via COM, version \" + $ver\\) } catch { Write-Output \"MS Word COM: not available\" }; $soffice = Get-Command soffice -ErrorAction SilentlyContinue; if \\($soffice\\) { Write-Output \\(\"LibreOffice: \" + $soffice.Source\\) } else { Write-Output \"LibreOffice: not found\" })",
+      "Bash(npm -v)",
+      "Bash(npm install *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)"
     ]
   }
 }

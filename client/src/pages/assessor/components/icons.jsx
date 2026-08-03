@@ -39,6 +39,15 @@ export function CredentialIcon({ size = 20 }) {
   );
 }
 
+export function FlagIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 21V4" {...line} />
+      <path d="M6 4.5h11l-2.2 3.5L17 11.5H6" {...line} />
+    </svg>
+  );
+}
+
 /** Phosphor "User" (thin) — avatar glyph. */
 export function UserIcon({ size = 24, color }) {
   return (

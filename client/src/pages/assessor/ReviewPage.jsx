@@ -1,6 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import data from "./assessorSampleData.json";
+import {
+  fetchSubmissionReview,
+  saveSubmissionReview,
+  storedAssessorId
+} from "../../services/assessors";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from "./components/icons";
 import { Chip, ScreenHeader, Segmented } from "./components/ui";
 
@@ -10,10 +14,7 @@ const LAYOUTS = [
   { key: "focus", label: "Focus" }
 ];
 
-const { pointsPerItem: PTS, total: TOTAL, passMark: PASS } = data.review;
-const ITEMS = data.review.items;
-
-/** The AI's own verdict — a flagged item falls back to its best guess. */
+/** The AI's own verdict — a flagged item falls back to its best guess. Undefined when AI never scored the item. */
 const aiVerdict = (item) => (item.verdict === "flagged" ? item.aiGuess : item.verdict);
 
 function ReviewPage() {
@@ -23,13 +24,77 @@ function ReviewPage() {
   const [layout, setLayout] = useState("split");
   const [overrides, setOverrides] = useState({});
   const [typed, setTyped] = useState(null);
-  const [focusIdx, setFocusIdx] = useState(4);
+  const [remark, setRemark] = useState("");
+  const [focusIdx, setFocusIdx] = useState(0);
+  const [review, setReview] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [saving, setSaving] = useState(null); // "draft" | "release" while a save runs
+  const [draftSaved, setDraftSaved] = useState(false);
 
-  const submission = data.queue.find((row) => row.id === submissionId) ?? data.queue[0];
-  const student = data.roster.find((s) => s.id === submission.studentId) ?? data.roster[0];
+  useEffect(() => {
+    let active = true;
+    const assessorId = storedAssessorId();
+    if (!assessorId || !submissionId) {
+      setLoadError(true);
+      return undefined;
+    }
 
-  /** The verdict in force for an item: your override, else the AI's. */
+    fetchSubmissionReview(assessorId, submissionId)
+      .then((data) => {
+        if (!active) return;
+        setReview(data);
+
+        // Resume a saved draft: restore overrides, remark, and — when the
+        // stored score differs from what the item verdicts imply — the typed score.
+        const saved = data?.review ?? {};
+        const savedOverrides = saved.overrides ?? {};
+        setOverrides(savedOverrides);
+        setRemark(saved.remark ?? "");
+        if (saved.status === "draft" && saved.finalScore !== null) {
+          const points = data.reviewConfig.pointsPerItem;
+          const implied = data.items.reduce((sum, item) => {
+            const verdict = savedOverrides[item.id] ?? aiVerdict(item);
+            return sum + (verdict === "correct" ? points : 0);
+          }, 0);
+          if (saved.finalScore !== implied) setTyped(String(saved.finalScore));
+        }
+      })
+      .catch(() => {
+        if (active) setLoadError(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [submissionId]);
+
+  // Any change to the grade invalidates the "Draft saved" confirmation.
+  useEffect(() => {
+    setDraftSaved(false);
+  }, [overrides, typed, remark]);
+
+  const ITEMS = useMemo(
+    () =>
+      (review?.items ?? []).map((item) => ({
+        ...item,
+        // The page treats "ungraded" as undefined; the API sends null.
+        verdict: item.verdict ?? undefined,
+        aiGuess: item.aiGuess ?? undefined,
+        why: item.why ?? undefined
+      })),
+    [review]
+  );
+
+  const { pointsPerItem: PTS = 5, total: TOTAL = 50, passMark: PASS = 40 } =
+    review?.reviewConfig ?? {};
+  const isManual = review?.aiStatus === "unavailable";
+
+  /** The verdict in force for an item: your override, else the AI's (undefined until graded). */
   const effective = (item) => overrides[item.id] ?? aiVerdict(item);
+
+  /** Whether an item still needs the assessor's attention. */
+  const needsAttention = (item) =>
+    isManual ? effective(item) === undefined : item.verdict === "flagged" && !overrides[item.id];
 
   const totals = useMemo(() => {
     const aiScore = ITEMS.reduce((sum, it) => sum + (aiVerdict(it) === "correct" ? PTS : 0), 0);
@@ -37,14 +102,15 @@ function ReviewPage() {
       (sum, it) => sum + ((overrides[it.id] ?? aiVerdict(it)) === "correct" ? PTS : 0),
       0
     );
+    const gradedCount = ITEMS.filter((it) => (overrides[it.id] ?? aiVerdict(it)) !== undefined).length;
     const final = typed === null ? computed : parseInt(typed, 10) || 0;
     const overrideCount = ITEMS.filter(
       (it) => overrides[it.id] && overrides[it.id] !== aiVerdict(it)
     ).length;
     const openFlags = ITEMS.filter((it) => it.verdict === "flagged" && !overrides[it.id]).length;
 
-    return { aiScore, computed, final, delta: final - aiScore, overrideCount, openFlags };
-  }, [overrides, typed]);
+    return { aiScore, computed, gradedCount, final, delta: final - aiScore, overrideCount, openFlags };
+  }, [overrides, typed, ITEMS, PTS]);
 
   const setVerdict = (itemId, verdict) => {
     setOverrides((current) => ({ ...current, [itemId]: verdict }));
@@ -56,24 +122,87 @@ function ReviewPage() {
     setTyped(null);
   };
 
+  const save = async (action) => {
+    setSaving(action);
+    try {
+      await saveSubmissionReview(storedAssessorId(), submissionId, {
+        action,
+        overrides,
+        finalScore: totals.final,
+        remark
+      });
+      if (action === "release") {
+        navigate("/assessor/credentials");
+      } else {
+        setDraftSaved(true);
+      }
+    } catch {
+      // Keep the assessor's work on screen; they can retry the save.
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (loadError) {
+    return (
+      <>
+        <ScreenHeader
+          back={{ label: "To grade", onClick: () => navigate("/assessor/queue") }}
+          eyebrow="Review"
+          title="Submission not found"
+        />
+        <div className="assessor-body">
+          <p className="assessor-meta">
+            This submission could not be loaded. It may have been graded already.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  if (!review) {
+    return (
+      <>
+        <ScreenHeader
+          back={{ label: "To grade", onClick: () => navigate("/assessor/queue") }}
+          eyebrow="Review"
+          title="Loading submission…"
+        />
+        <div className="assessor-body">
+          <p className="assessor-meta">Fetching answers and AI grading…</p>
+        </div>
+      </>
+    );
+  }
+
   const canReset = typed !== null || Object.keys(overrides).length > 0;
   const passed = totals.final >= PASS;
   const isSplit = layout === "split";
   const isFocus = layout === "focus";
 
-  const deltaLabel =
-    totals.delta === 0
+  const deltaLabel = isManual
+    ? `${totals.gradedCount} / ${ITEMS.length} graded`
+    : totals.delta === 0
       ? "Same as AI"
       : `${totals.delta > 0 ? "+" : ""}${totals.delta} vs AI`;
 
   /** Chip describing where an item's verdict came from. */
   const itemChip = (item) => {
+    const verdict = effective(item);
+    if (verdict === undefined) return { tone: "outline", label: "Not graded yet" };
+
+    if (isManual) {
+      return verdict === "correct"
+        ? { tone: "info", label: "You marked correct" }
+        : { tone: "danger", label: "You marked incorrect" };
+    }
+
     const overridden = overrides[item.id] && overrides[item.id] !== aiVerdict(item);
     const openFlag = item.verdict === "flagged" && !overrides[item.id];
 
     if (overridden) return { tone: "brand", label: "You changed this" };
     if (openFlag) return { tone: "outline", label: "Needs your review" };
-    return effective(item) === "correct"
+    return verdict === "correct"
       ? { tone: "info", label: "AI · correct" }
       : { tone: "danger", label: "AI · incorrect" };
   };
@@ -101,25 +230,30 @@ function ReviewPage() {
     );
   };
 
-  const AnswerPills = ({ item }) => (
-    <div className="item-card__answers">
-      <span
-        className={`answer-pill ${
-          effective(item) === "correct" ? "answer-pill--correct" : "answer-pill--wrong"
-        }`}
-      >
-        Student · {item.choice}
-      </span>
-      <span className="answer-pill answer-pill--key">Key · {item.key}</span>
-    </div>
-  );
+  const AnswerPills = ({ item }) => {
+    const verdict = effective(item);
+    const tone =
+      verdict === undefined ? "answer-pill--neutral" : verdict === "correct" ? "answer-pill--correct" : "answer-pill--wrong";
+    return (
+      <div className="item-card__answers">
+        <span className={`answer-pill ${tone}`}>Student · {item.choice}</span>
+        <span className="answer-pill answer-pill--key">Key · {item.key}</span>
+      </div>
+    );
+  };
 
-  const AiNote = ({ item }) => (
-    <div className="ai-note">
-      <span className="ai-note__tag">AI</span>
-      <span className="ai-note__body">{item.why}</span>
-    </div>
-  );
+  const AiNote = ({ item }) =>
+    item.why ? (
+      <div className="ai-note">
+        <span className="ai-note__tag">AI</span>
+        <span className="ai-note__body">{item.why}</span>
+      </div>
+    ) : (
+      <div className="ai-note ai-note--manual">
+        <span className="ai-note__tag ai-note__tag--manual">Manual</span>
+        <span className="ai-note__body">No AI note for this item — compare the answer with the key and mark it yourself.</span>
+      </div>
+    );
 
   const focusItem = ITEMS[focusIdx];
 
@@ -127,14 +261,18 @@ function ReviewPage() {
     <>
       <ScreenHeader
         back={{ label: "To grade", onClick: () => navigate("/assessor/queue") }}
-        eyebrow={data.review.assessmentMeta}
-        title={`${student.name} — ${data.review.assessmentTitle}`}
+        eyebrow={review.assessment.meta}
+        title={`${review.submission.studentName} — ${review.assessment.title}`}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
           <span className="assessor-meta">Layout</span>
           <Segmented options={LAYOUTS} value={layout} onChange={setLayout} label="Review layout" />
         </div>
       </ScreenHeader>
+
+      {review.assessment.source ? (
+        <p className="assessor-meta review-source">{review.assessment.source}</p>
+      ) : null}
 
       <div className="assessor-body">
         <div className={isSplit ? "review-grid" : "review-grid--stacked"}>
@@ -164,19 +302,18 @@ function ReviewPage() {
                   </span>
                   <span className="review-legend__item">
                     <span className="legend-dot" style={{ background: "var(--brand)" }} />
-                    Needs review
+                    {isManual ? "Not graded yet" : "Needs review"}
                   </span>
                 </div>
               </div>
 
               {ITEMS.map((item) => {
                 const chip = itemChip(item);
-                const openFlag = item.verdict === "flagged" && !overrides[item.id];
 
                 return (
                   <article
                     key={item.id}
-                    className={`item-card${openFlag ? " is-flagged" : ""}`}
+                    className={`item-card${needsAttention(item) ? " is-flagged" : ""}`}
                   >
                     <div className="item-card__grid">
                       <span className="item-card__num">{item.n}</span>
@@ -193,7 +330,7 @@ function ReviewPage() {
                         <Chip tone={chip.tone}>{chip.label}</Chip>
                         <VerdictButtons item={item} />
                         <span className="assessor-meta">
-                          {effective(item) === "correct" ? PTS : 0} / {PTS} pts
+                          {effective(item) === undefined ? "—" : effective(item) === "correct" ? PTS : 0} / {PTS} pts
                         </span>
                       </div>
                     </div>
@@ -218,20 +355,17 @@ function ReviewPage() {
                 </button>
 
                 <div className="focus-dots">
-                  {ITEMS.map((item, index) => {
-                    const openFlag = item.verdict === "flagged" && !overrides[item.id];
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        aria-label={`Go to item ${item.n}`}
-                        className={`focus-dot${index === focusIdx ? " is-current" : ""}${
-                          openFlag && index !== focusIdx ? " is-flagged" : ""
-                        }`}
-                        onClick={() => setFocusIdx(index)}
-                      />
-                    );
-                  })}
+                  {ITEMS.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-label={`Go to item ${item.n}`}
+                      className={`focus-dot${index === focusIdx ? " is-current" : ""}${
+                        needsAttention(item) && index !== focusIdx ? " is-flagged" : ""
+                      }`}
+                      onClick={() => setFocusIdx(index)}
+                    />
+                  ))}
                 </div>
 
                 <button
@@ -246,14 +380,12 @@ function ReviewPage() {
               </div>
 
               <article
-                className={`item-card${
-                  focusItem.verdict === "flagged" && !overrides[focusItem.id] ? " is-flagged" : ""
-                }`}
+                className={`item-card${needsAttention(focusItem) ? " is-flagged" : ""}`}
               >
                 <div className="focus-card__head">
                   <span className="focus-card__step">
                     Item {focusItem.n} of {ITEMS.length} ·{" "}
-                    {effective(focusItem) === "correct" ? PTS : 0} / {PTS} pts
+                    {effective(focusItem) === undefined ? "—" : effective(focusItem) === "correct" ? PTS : 0} / {PTS} pts
                   </span>
                   <Chip tone={itemChip(focusItem).tone}>{itemChip(focusItem).label}</Chip>
                 </div>
@@ -275,20 +407,35 @@ function ReviewPage() {
 
           {/* ---- Grading panel ---- */}
           <aside className="grade-panel">
-            <div className="grade-panel__ai">
-              <span className="grade-panel__ai-label">
-                <span className="chip__dot" style={{ background: "var(--blue-hard)" }} />
-                AI suggested grade
-              </span>
-              <span className="grade-panel__ai-score">
-                <strong>{totals.aiScore}</strong>
-                <span>/ {TOTAL}</span>
-              </span>
-              <span className="grade-panel__ai-hint">
-                {totals.aiScore / PTS} of {ITEMS.length} items matched ·{" "}
-                {ITEMS.filter((i) => i.verdict === "flagged").length} flagged for your review
-              </span>
-            </div>
+            {isManual ? (
+              <div className="grade-panel__ai grade-panel__ai--manual">
+                <span className="grade-panel__ai-label">
+                  <span className="chip__dot" style={{ background: "var(--gray-400)" }} />
+                  Manual grading — AI unavailable
+                </span>
+                {review.aiStatusReason ? (
+                  <span className="grade-panel__ai-hint">{review.aiStatusReason}</span>
+                ) : null}
+                <span className="grade-panel__ai-hint">
+                  {totals.gradedCount} of {ITEMS.length} items graded
+                </span>
+              </div>
+            ) : (
+              <div className="grade-panel__ai">
+                <span className="grade-panel__ai-label">
+                  <span className="chip__dot" style={{ background: "var(--blue-hard)" }} />
+                  AI suggested grade
+                </span>
+                <span className="grade-panel__ai-score">
+                  <strong>{totals.aiScore}</strong>
+                  <span>/ {TOTAL}</span>
+                </span>
+                <span className="grade-panel__ai-hint">
+                  {totals.aiScore / PTS} of {ITEMS.length} items matched ·{" "}
+                  {ITEMS.filter((i) => i.verdict === "flagged").length} flagged for your review
+                </span>
+              </div>
+            )}
 
             <div className="grade-panel__body">
               <div>
@@ -303,7 +450,19 @@ function ReviewPage() {
                     onChange={(event) => setTyped(event.target.value.replace(/[^0-9]/g, ""))}
                   />
                   <span className="score-denom">/ {TOTAL}</span>
-                  <Chip tone={totals.delta === 0 ? "neutral" : "brand-soft"}>{deltaLabel}</Chip>
+                  <Chip
+                    tone={
+                      isManual
+                        ? totals.gradedCount === ITEMS.length
+                          ? "success"
+                          : "outline"
+                        : totals.delta === 0
+                          ? "neutral"
+                          : "brand-soft"
+                    }
+                  >
+                    {deltaLabel}
+                  </Chip>
                 </div>
                 <div className="score-hint">
                   <span>
@@ -322,14 +481,25 @@ function ReviewPage() {
               <div className="grade-divider" />
 
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
-                <div className="summary-line">
-                  <span>Items you overrode</span>
-                  <strong>{totals.overrideCount}</strong>
-                </div>
-                <div className="summary-line">
-                  <span>Flags still open</span>
-                  <strong>{totals.openFlags === 0 ? "All resolved" : totals.openFlags}</strong>
-                </div>
+                {isManual ? (
+                  <div className="summary-line">
+                    <span>Items graded</span>
+                    <strong>
+                      {totals.gradedCount === ITEMS.length ? "All graded" : `${totals.gradedCount} / ${ITEMS.length}`}
+                    </strong>
+                  </div>
+                ) : (
+                  <>
+                    <div className="summary-line">
+                      <span>Items you overrode</span>
+                      <strong>{totals.overrideCount}</strong>
+                    </div>
+                    <div className="summary-line">
+                      <span>Flags still open</span>
+                      <strong>{totals.openFlags === 0 ? "All resolved" : totals.openFlags}</strong>
+                    </div>
+                  </>
+                )}
                 <div className="summary-line">
                   <span>Credential threshold</span>
                   <Chip tone={passed ? "success" : "danger"}>
@@ -351,7 +521,9 @@ function ReviewPage() {
                   className="remark-input"
                   rows={3}
                   aria-label="Remark to student"
-                  placeholder={data.review.remarkPlaceholder}
+                  placeholder="A short note the student sees with their grade."
+                  value={remark}
+                  onChange={(event) => setRemark(event.target.value)}
                 />
               </div>
 
@@ -359,13 +531,24 @@ function ReviewPage() {
                 <button
                   type="button"
                   className="btn btn--primary"
-                  onClick={() => navigate("/assessor/credentials")}
+                  disabled={saving !== null || (isManual && totals.gradedCount < ITEMS.length)}
+                  title={
+                    isManual && totals.gradedCount < ITEMS.length
+                      ? "Mark every item before approving a manual grade."
+                      : undefined
+                  }
+                  onClick={() => save("release")}
                 >
                   <CheckIcon size={17} />
-                  Approve &amp; release
+                  {saving === "release" ? "Releasing…" : "Approve & release"}
                 </button>
-                <button type="button" className="btn btn--ghost">
-                  Save draft
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={saving !== null}
+                  onClick={() => save("draft")}
+                >
+                  {saving === "draft" ? "Saving…" : draftSaved ? "Draft saved ✓" : "Save draft"}
                 </button>
               </div>
             </div>

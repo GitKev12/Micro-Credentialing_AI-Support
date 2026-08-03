@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import data from "./assessorSampleData.json";
+import { fetchClassRoster, storedAssessorId } from "../../services/assessors";
 import { ChevronRightIcon } from "./components/icons";
 import {
   Chip,
@@ -15,25 +15,53 @@ function RosterPage() {
   const navigate = useNavigate();
   const { classId } = useParams();
   const [query, setQuery] = useState("");
+  const [course, setCourse] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const course = data.classes.find((c) => c.id === classId) ?? data.classes[0];
-  const total = data.totalModules;
+  useEffect(() => {
+    let active = true;
+    const assessorId = storedAssessorId();
+    if (!assessorId || !classId) {
+      setIsLoading(false);
+      return undefined;
+    }
+
+    fetchClassRoster(assessorId, classId)
+      .then((data) => {
+        if (!active) return;
+        setCourse(data?.course ?? null);
+        setStudents(data?.roster ?? []);
+        setTotal(data?.totalModules ?? 0);
+      })
+      .catch(() => {
+        if (active) setStudents([]);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [classId]);
 
   const roster = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return data.roster;
-    return data.roster.filter(
+    if (!term) return students;
+    return students.filter(
       (student) =>
-        student.name.toLowerCase().includes(term) || student.sid.includes(term)
+        student.name.toLowerCase().includes(term) || (student.sid ?? "").includes(term)
     );
-  }, [query]);
+  }, [query, students]);
 
   return (
     <>
       <ScreenHeader
         back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
-        eyebrow={`${course.code} · ${course.section}`}
-        title={`${course.name} — Students`}
+        eyebrow={course ? `${course.code}${course.section ? ` · ${course.section}` : ""}` : ""}
+        title={course ? `${course.name} — Students` : "Students"}
       >
         <SearchField
           value={query}
@@ -53,14 +81,14 @@ function RosterPage() {
         </div>
 
         {roster.map((student) => {
-          const pct = Math.round((student.done / total) * 100);
+          const pct = total > 0 ? Math.round((student.done / total) * 100) : 0;
 
           return (
             <button
               type="button"
               key={student.id}
               className="data-row data-row--clickable roster-grid"
-              onClick={() => navigate(`/assessor/classes/${course.id}/students/${student.id}`)}
+              onClick={() => navigate(`/assessor/classes/${classId}/students/${student.id}`)}
             >
               <Person name={student.name} sid={student.sid} />
 
@@ -81,9 +109,9 @@ function RosterPage() {
           );
         })}
 
-        {roster.length === 0 ? (
+        {!isLoading && roster.length === 0 ? (
           <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            No students match your search.
+            {students.length === 0 ? "No students are enrolled yet." : "No students match your search."}
           </p>
         ) : null}
       </div>

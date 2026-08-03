@@ -1,17 +1,38 @@
-import { Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import AssessorSidebar from "./components/AssessorSidebar";
 import { getStoredSession } from "../../auth/services/authService";
-import sampleData from "./assessorSampleData.json";
+import { fetchAssessorOverview, storedAssessorId } from "../../services/assessors";
 import "./assessor.css";
 
 function AssessorLayout() {
   const session = getStoredSession()?.user;
-  const name = session?.displayName || sampleData.assessor.name;
-  const idNumber = session?.identifier || sampleData.assessor.idNumber;
+  // Refetch on navigation so the "To Grade" badge tracks grading actions.
+  const { pathname } = useLocation();
+  const [overview, setOverview] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const assessorId = storedAssessorId();
+    if (!assessorId) return undefined;
+
+    fetchAssessorOverview(assessorId)
+      .then((data) => {
+        if (active) setOverview(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
+  const name = overview?.assessor?.name || session?.displayName || "Assessor";
+  const idNumber = overview?.assessor?.idNumber || session?.identifier || "";
 
   return (
-    <div className="assessor-app">
-      <AssessorSidebar name={name} idNumber={idNumber} counts={sampleData.summary} />
+    <div className="assessor-app entity-enter">
+      <AssessorSidebar name={name} idNumber={idNumber} counts={overview?.summary} />
       <div className="assessor-main">
         <Outlet />
       </div>

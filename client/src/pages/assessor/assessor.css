@@ -32,12 +32,14 @@
   --pink-100: #ffcccc;
 
   /* ---- Neutrals ---- */
-  --bg-app: #edf7fc;
+  /* Near-white canvas with just a whisper of gray, so the white cards/
+     sidebar sitting on top of it read as raised surfaces. */
+  --bg-app: #f6f7f8;
   /* --white stays literal white (type on brand fills); --surface is the
      themeable card/row background. */
   --white: #ffffff;
   --surface: #ffffff;
-  --rail-bg: #f2f2f2;
+  --rail-bg: #ffffff;
   --gray-050: #f5f5f5;
   --gray-100: #f2f2f2;
   --gray-150: #efefef;
@@ -88,13 +90,13 @@
   --radius-pill: 999px;
 
   /* ---- Elevation ---- */
-  --shadow-row: 0 2px 10px rgba(16, 24, 40, 0.06);
-  --shadow-row-hover: 0 10px 24px rgba(16, 24, 40, 0.13);
-  --shadow-card: 0 4px 18px rgba(16, 24, 40, 0.08);
+  --shadow-row: 0 4px 16px rgba(16, 24, 40, 0.10);
+  --shadow-row-hover: 0 14px 32px rgba(16, 24, 40, 0.16);
+  --shadow-card: 0 10px 30px rgba(16, 24, 40, 0.12);
   --shadow-pill: 0 1px 6px rgba(16, 24, 40, 0.12);
   --shadow-brand-glow: 0 10px 28px -6px rgba(130, 43, 32, 0.45);
   --shadow-field: inset 0 0 0 1px var(--gray-300);
-  --shadow-sidebar: 2px 0 18px rgba(16, 24, 40, 0.08);
+  --shadow-sidebar: 3px 0 24px rgba(16, 24, 40, 0.12);
 
   /* ---- Layout ---- */
   --rail-w: 272px;
@@ -181,21 +183,25 @@
 [data-theme="dark"] .assessor-app .assessor-card,
 [data-theme="dark"] .assessor-app .data-row,
 [data-theme="dark"] .assessor-app .item-card,
-[data-theme="dark"] .assessor-app .stat-card,
-[data-theme="dark"] .assessor-app .explainer,
 [data-theme="dark"] .assessor-app .student-hero,
 [data-theme="dark"] .assessor-app .grade-panel {
   border: 1px solid rgba(150, 175, 240, 0.12);
 }
+/* .stat-card and .explainer take their edge from the --gray-200 token (which
+   already resolves to this hairline in dark), so .stat-card's :hover can
+   raise the border to --brand without a dark-mode override fighting it. */
 
 /* ── Shell ──────────────────────────────────────────────── */
 
 .assessor-app {
   display: flex;
   align-items: stretch;
+  width: 100%;
   min-height: 100vh;
-  /* Break out of AppLayout's centred .app-shell — this is a full screen. */
-  margin: -2rem calc(50% - 50vw) -4rem;
+  /* AppLayout skips the centred .app-shell for /assessor routes (see
+     layouts/AppLayout.jsx) so this can just be a plain full-width block —
+     no vw-based breakout math, which drifted a few px whenever the page's
+     scrollbar was reserved (vw includes it, the shell's % didn't). */
   background: var(--bg-app);
   font-family: "Poppins", "Segoe UI", sans-serif;
   color: var(--text-body);
@@ -225,6 +231,12 @@
   padding: var(--sp-2) clamp(1.25rem, 3vw, 2.75rem) var(--sp-10);
 }
 
+.review-source {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 clamp(1.25rem, 3vw, 2.75rem);
+}
+
 /* ── Sidebar (light theme, collapsible) ─────────────────── */
 
 .assessor-rail {
@@ -238,7 +250,10 @@
   padding: var(--sp-8) 0 var(--sp-6);
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   background: var(--rail-bg);
-  box-shadow: var(--shadow-sidebar);
+  /* Right edge only — the rail is flush with the viewport on the other
+     three sides, so an all-around outline had nothing to trace there.
+     box-shadow (not border) so it still follows the rounded corners. */
+  box-shadow: 2px 0 0 0 var(--brand), var(--shadow-sidebar);
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -379,6 +394,11 @@
   background: var(--brand-hover);
 }
 
+.assessor-nav-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
 .assessor-nav-item.is-active {
   background: var(--brand);
   color: var(--white);
@@ -408,6 +428,7 @@
 
 /* Dark-mode switch, sits just above Sign Out. */
 .assessor-rail__theme {
+  outline: 2px solid var(--brand);
   margin-top: auto;
   display: flex;
   align-items: center;
@@ -486,6 +507,11 @@
 
 .assessor-rail__signout:hover {
   filter: brightness(1.08);
+}
+
+.assessor-rail__signout:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* ── Page header ────────────────────────────────────────── */
@@ -695,6 +721,12 @@
   font-size: var(--fs-label);
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
 .btn:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
@@ -808,24 +840,51 @@
   gap: var(--sp-3);
 }
 
+/* One cohesive surface: a tinted icon anchors each stat, the number carries
+   the hierarchy, and the whole tile is the click target — the action reads as
+   a footer link, not a heavy button block. */
 .stat-card {
   flex: 0 0 auto;
-  width: 164px;
+  width: 184px;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-2);
-  border-radius: var(--radius-md);
-  background: var(--gray-200);
+  align-items: flex-start;
+  padding: var(--sp-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   box-shadow: var(--shadow-card);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.stat-card__face {
-  display: flex;
-  flex-direction: column;
-  padding: var(--sp-3);
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand);
+  box-shadow: var(--shadow-row-hover);
+}
+
+.stat-card:active {
+  transform: translateY(0);
+}
+
+.stat-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.stat-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--sp-4);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--brand-hover);
+  color: var(--brand-text);
 }
 
 .stat-card__value {
@@ -837,27 +896,33 @@
 }
 
 .stat-card__label {
-  margin-top: 2px;
-  font-size: var(--fs-body-lg);
+  margin-top: var(--sp-1);
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   color: var(--text-body);
 }
 
 .stat-card__action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 0.5rem 0.5rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--brand);
-  color: var(--white);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-200);
   font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-  transition: filter 0.15s ease;
+  font-weight: var(--fw-semibold);
+  color: var(--brand-text);
 }
 
-.stat-card__action:hover {
-  filter: brightness(1.08);
+.stat-card__action svg {
+  flex: 0 0 auto;
+  transition: transform 0.16s ease;
+}
+
+.stat-card:hover .stat-card__action svg {
+  transform: translateX(3px);
 }
 
 /* The explainer panel that sits beside the stat cards — takes the rest. */
@@ -869,12 +934,14 @@
   justify-content: center;
   gap: var(--sp-3);
   padding: var(--sp-5);
-  border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
 
 .explainer__title {
+  margin: 0;
   font-size: var(--fs-h3);
   font-weight: var(--fw-semibold);
   letter-spacing: -0.01em;
@@ -905,7 +972,7 @@
   padding: var(--sp-5) var(--sp-6);
   border: none;
   border-radius: var(--radius-lg);
-  background: var(--gray-150);
+  background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--brand), var(--shadow-row);
   text-align: left;
   cursor: pointer;
@@ -1351,6 +1418,11 @@
   color: var(--gray-700);
 }
 
+.answer-pill--neutral {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
 .ai-note {
   display: flex;
   gap: var(--sp-2);
@@ -1372,6 +1444,18 @@
   font-size: var(--fs-label);
   line-height: 1.5;
   color: var(--blue-ink);
+}
+
+.ai-note--manual {
+  background: var(--gray-100);
+}
+
+.ai-note__tag--manual {
+  color: var(--gray-600);
+}
+
+.ai-note--manual .ai-note__body {
+  color: var(--text-body);
 }
 
 .item-card__side {
@@ -1519,6 +1603,15 @@
   gap: var(--sp-1);
   padding: var(--sp-5);
   background: var(--blue-whiter);
+}
+
+.grade-panel__ai--manual {
+  background: var(--gray-100);
+}
+
+.grade-panel__ai--manual .grade-panel__ai-label,
+.grade-panel__ai--manual .grade-panel__ai-hint {
+  color: var(--text-body);
 }
 
 .review-grid--stacked .grade-panel__ai {

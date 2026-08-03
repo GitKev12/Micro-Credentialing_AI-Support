@@ -1,33 +1,83 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import data from "./assessorSampleData.json";
+import {
+  fetchGradingQueue,
+  releaseConfident,
+  storedAssessorId,
+  timeAgo
+} from "../../services/assessors";
 import { CheckIcon, ChevronRightIcon } from "./components/icons";
 import { Chip, Metric, Person, ScreenHeader, Segmented } from "./components/ui";
+
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "flagged", label: "AI flagged" },
+  { key: "confident", label: "High confidence" },
+  { key: "manual", label: "Manual grading" }
+];
 
 function QueuePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState(searchParams.get("filter") ?? "all");
+  const [queue, setQueue] = useState([]);
+  const [counts, setCounts] = useState({ all: 0, flagged: 0, confident: 0, manual: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [releasing, setReleasing] = useState(false);
 
-  const { queue, queueFilters, review, classes } = data;
-  const course = classes[0];
+  useEffect(() => {
+    let active = true;
+    const assessorId = storedAssessorId();
+    if (!assessorId) {
+      setIsLoading(false);
+      return undefined;
+    }
 
-  const options = queueFilters.map((option) => ({
+    fetchGradingQueue(assessorId)
+      .then((data) => {
+        if (!active) return;
+        setQueue(data?.queue ?? []);
+        setCounts(data?.counts ?? { all: 0, flagged: 0, confident: 0, manual: 0 });
+      })
+      .catch(() => {
+        if (active) setQueue([]);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const options = FILTERS.map((option) => ({
     key: option.key,
-    label: `${option.label} · ${option.count}`
+    label: `${option.label} · ${counts[option.key] ?? 0}`
   }));
 
   const visible = useMemo(() => {
     if (filter === "flagged") return queue.filter((row) => row.flags > 0);
-    if (filter === "confident") return queue.filter((row) => row.flags === 0);
+    if (filter === "confident") return queue.filter((row) => row.aiStatus === "graded" && row.flags === 0);
+    if (filter === "manual") return queue.filter((row) => row.aiStatus === "unavailable");
     return queue;
   }, [filter, queue]);
+
+  const acceptConfident = async () => {
+    setReleasing(true);
+    try {
+      await releaseConfident(storedAssessorId());
+      navigate("/assessor/credentials");
+    } catch {
+      setReleasing(false);
+    }
+  };
 
   return (
     <>
       <ScreenHeader
         back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
-        eyebrow={`${course.code} · ${data.summary.toGrade} submissions waiting`}
+        eyebrow={`${counts.all} submission${counts.all === 1 ? "" : "s"} waiting`}
         title="To Grade"
       />
 
@@ -48,54 +98,71 @@ function QueuePage() {
             label="Filter submissions"
           />
           <span style={{ flex: 1 }} />
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => navigate("/assessor/credentials")}
-          >
-            <CheckIcon />
-            Accept all high-confidence
-          </button>
-        </div>
-
-        {visible.map((row) => (
-          <div key={row.id} className="data-row queue-grid">
-            <Person name={row.name} sid={row.sid} />
-
-            <div style={{ minWidth: 0 }}>
-              <div className="cell-title">{row.assessment}</div>
-              <div className="assessor-meta">
-                {row.course} · submitted {row.when}
-              </div>
-            </div>
-
-            <Metric
-              label="AI score"
-              value={`${row.ai} / ${review.total}`}
-              hint={`${Math.round(row.ai / review.pointsPerItem)} of ${review.items.length} correct`}
-            />
-
-            <span>
-              <Chip tone={row.flags ? "brand-soft" : "info"}>
-                {row.flags ? `${row.flags} flagged for review` : "High confidence"}
-              </Chip>
-            </span>
-
+          {filter !== "manual" && counts.confident > 0 ? (
             <button
               type="button"
-              className="btn btn--primary"
-              style={{ justifySelf: "end" }}
-              onClick={() => navigate(`/assessor/review/${row.id}`)}
+              className="btn btn--ghost"
+              disabled={releasing}
+              onClick={acceptConfident}
             >
-              Review
-              <ChevronRightIcon size={15} />
+              <CheckIcon />
+              {releasing ? "Releasing…" : "Accept all high-confidence"}
             </button>
-          </div>
-        ))}
+          ) : null}
+        </div>
+
+        {visible.map((row) => {
+          const isManual = row.aiStatus === "unavailable";
+
+          return (
+            <div key={row.id} className="data-row queue-grid">
+              <Person name={row.name} sid={row.sid} />
+
+              <div style={{ minWidth: 0 }}>
+                <div className="cell-title">{row.assessment}</div>
+                <div className="assessor-meta">
+                  {row.course} · submitted {timeAgo(row.submittedAt)}
+                </div>
+              </div>
+
+              <div style={{ marginLeft: "-10px" }}>
+                {isManual ? (
+                  <Metric label="AI grading" value="N/A" hint="Grade manually" />
+                ) : (
+                  <Metric
+                    label="AI score"
+                    value={`${row.ai} / ${row.total}`}
+                    hint={`${Math.round(row.ai / row.pointsPerItem)} items correct`}
+                  />
+                )}
+              </div>
+
+              <span style={{ marginLeft: "-10px" }}>
+                {isManual ? (
+                  <Chip tone="outline">Manual grading needed</Chip>
+                ) : (
+                  <Chip tone={row.flags ? "brand-soft" : "info"}>
+                    {row.flags ? `${row.flags} flagged for review` : "High confidence"}
+                  </Chip>
+                )}
+              </span>
+
+              <button
+                type="button"
+                className="btn btn--primary"
+                style={{ justifySelf: "end" }}
+                onClick={() => navigate(`/assessor/review/${row.id}`)}
+              >
+                Review
+                <ChevronRightIcon size={15} />
+              </button>
+            </div>
+          );
+        })}
 
         {visible.length === 0 ? (
           <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            Nothing in this filter.
+            {isLoading ? "Loading submissions…" : "Nothing in this filter."}
           </p>
         ) : null}
       </div>
