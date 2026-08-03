@@ -307,9 +307,12 @@ function unionRect(a, b) {
   };
 }
 
-// A diagram is often assembled from several adjacent images (each box of a
-// flowchart is its own image). Merge touching rects so the whole diagram comes
-// out as one figure instead of a pile of fragments.
+// A diagram is often assembled from several images (each box of a flowchart is
+// its own image, separated by drawn arrows and labels). Merge rects within
+// `gap` so the whole diagram comes out as one figure instead of a pile of
+// fragments. The gap is generous (~55pt) because arrow/label spans between a
+// diagram's pieces are wide; in a single-column lesson two *distinct* figures
+// are almost always separated by more than that, so they stay apart.
 function mergeNearbyRects(rects, gap) {
   const merged = rects.map((rect) => ({ ...rect }));
   let changed = true;
@@ -347,7 +350,10 @@ function dropRepeatedFurniture(figures, numPages) {
  * Pages with no qualifying images are never rendered, so a text-only lesson
  * costs almost nothing here.
  */
-export async function extractPdfFigures(buffer, { scale = OCR_SCALE } = {}) {
+export async function extractPdfFigures(
+  buffer,
+  { scale = OCR_SCALE, mergeGap = Math.round(scale * 55) } = {}
+) {
   const document = await loadPdf(buffer);
 
   try {
@@ -370,7 +376,7 @@ export async function extractPdfFigures(buffer, { scale = OCR_SCALE } = {}) {
       const allRects = matrices
         .map((matrix) => matrixToPixelRect(matrix, viewport))
         .filter((rect) => rect.width > 2 && rect.height > 2);
-      const rects = mergeNearbyRects(allRects, Math.round(scale * 22)).filter(
+      const rects = mergeNearbyRects(allRects, mergeGap).filter(
         (rect) => rect.width >= MIN_FIGURE_PX && rect.height >= MIN_FIGURE_PX
       );
 

@@ -32,9 +32,10 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 // each PDF is only parsed once: { moduleId, fileId, numPages, pages, ... }.
 // Bump the version when the extraction/formatting logic changes so stale
 // cache entries re-extract on their next request. v22: embedded figures are
-// extracted and interleaved into the lesson blocks.
+// extracted and interleaved into the lesson blocks. v23: a diagram's pieces
+// merge into one figure instead of fragmenting.
 const MODULE_TEXT_COLLECTION = "ModuleText";
-const TEXT_FORMAT_VERSION = 22;
+const TEXT_FORMAT_VERSION = 23;
 
 // Cropped figure images (PNG) are stored here, one GridFS file per figure,
 // tagged with metadata.moduleId so a re-extraction can replace them.
