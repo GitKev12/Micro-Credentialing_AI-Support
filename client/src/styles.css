@@ -1762,6 +1762,9 @@ ol.lesson-reader__list li::marker {
 
 .lesson-reader__figure img {
   max-width: 100%;
+  /* Cap tall figures to the viewport so a big diagram scales down to fit
+     whole — proportionally, never cropped — instead of overflowing the pane. */
+  max-height: 78vh;
   height: auto;
   border-radius: 6px;
 }

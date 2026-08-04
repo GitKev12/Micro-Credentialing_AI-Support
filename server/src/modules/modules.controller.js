@@ -37,9 +37,11 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 // their real vertical position (beside the matching text) instead of at the
 // end of the page, and evaluation/test sections are stripped. v25: figures
 // anchor to their "Figure N" caption text when present (geometry is only the
-// fallback), since the reflowed text makes raw position unreliable.
+// fallback), since the reflowed text makes raw position unreliable. v26:
+// full-page covers/scans are skipped and over-tall merges are split, so a
+// figure is never a whole page or a stack of unrelated diagrams.
 const MODULE_TEXT_COLLECTION = "ModuleText";
-const TEXT_FORMAT_VERSION = 25;
+const TEXT_FORMAT_VERSION = 26;
 
 // Cropped figure images (PNG) are stored here, one GridFS file per figure,
 // tagged with metadata.moduleId so a re-extraction can replace them.

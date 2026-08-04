@@ -337,19 +337,23 @@ function unionRect(a, b) {
 // fragments. The gap is generous (~55pt) because arrow/label spans between a
 // diagram's pieces are wide; in a single-column lesson two *distinct* figures
 // are almost always separated by more than that, so they stay apart.
-function mergeNearbyRects(rects, gap) {
+function mergeNearbyRects(rects, gap, maxHeight = Infinity) {
   const merged = rects.map((rect) => ({ ...rect }));
   let changed = true;
   while (changed) {
     changed = false;
     for (let i = 0; i < merged.length && !changed; i++) {
       for (let j = i + 1; j < merged.length; j++) {
-        if (rectsAdjacent(merged[i], merged[j], gap)) {
-          merged[i] = unionRect(merged[i], merged[j]);
-          merged.splice(j, 1);
-          changed = true;
-          break;
-        }
+        if (!rectsAdjacent(merged[i], merged[j], gap)) continue;
+        const union = unionRect(merged[i], merged[j]);
+        // Refuse a merge that would grow past `maxHeight` — that's no longer
+        // one diagram but several stacked ones (or a whole page), which should
+        // stay separate rather than become a giant strip.
+        if (union.height > maxHeight) continue;
+        merged[i] = union;
+        merged.splice(j, 1);
+        changed = true;
+        break;
       }
     }
   }
@@ -376,7 +380,15 @@ function dropRepeatedFurniture(figures, numPages) {
  */
 export async function extractPdfFigures(
   buffer,
-  { scale = OCR_SCALE, mergeGap = Math.round(scale * 55) } = {}
+  {
+    scale = OCR_SCALE,
+    mergeGap = Math.round(scale * 55),
+    // A single image this close to page size is a cover / full-page scan, not a
+    // content figure — skip it. And a merged figure may not exceed this share
+    // of the page height, so stacked diagrams stay separate.
+    fullPageRatio = 0.9,
+    maxHeightRatio = 0.55
+  } = {}
 ) {
   const document = await loadPdf(buffer);
 
@@ -395,14 +407,24 @@ export async function extractPdfFigures(
       }
 
       const viewport = page.getViewport({ scale });
-      // Compute every image rect, merge adjacent ones into whole diagrams, then
-      // keep only those large enough to be a real figure.
+      // Compute every image rect, drop full-page covers/scans, merge adjacent
+      // ones into whole diagrams (never past maxHeight), then keep those large
+      // enough to be a real figure.
       const allRects = matrices
         .map((matrix) => matrixToPixelRect(matrix, viewport))
-        .filter((rect) => rect.width > 2 && rect.height > 2);
-      const rects = mergeNearbyRects(allRects, mergeGap).filter(
-        (rect) => rect.width >= MIN_FIGURE_PX && rect.height >= MIN_FIGURE_PX
-      );
+        .filter((rect) => rect.width > 2 && rect.height > 2)
+        .filter(
+          (rect) =>
+            !(
+              rect.width >= viewport.width * fullPageRatio &&
+              rect.height >= viewport.height * fullPageRatio
+            )
+        );
+      const rects = mergeNearbyRects(
+        allRects,
+        mergeGap,
+        viewport.height * maxHeightRatio
+      ).filter((rect) => rect.width >= MIN_FIGURE_PX && rect.height >= MIN_FIGURE_PX);
 
       if (rects.length === 0) {
         page.cleanup();
