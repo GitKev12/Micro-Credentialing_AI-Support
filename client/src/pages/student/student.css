@@ -1142,6 +1142,34 @@ body:has(.student-app) {
   font-variant-numeric: tabular-nums;
 }
 
+/* The stamped PDF. Chrome, not data — so it wears the brand, not a band. */
+.sd-cert__download {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-1);
+  margin-top: var(--sd-1);
+  padding: 3px var(--sd-2);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sd-cert__download:hover {
+  background: var(--sd-brand-wash-hover);
+  border-color: var(--sd-border-strong);
+}
+
+.sd-cert__download:focus-visible {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: 2px;
+}
+
 /* ===========================================================
    Badges
 

@@ -3,6 +3,7 @@ import express from "express";
 import adminRoutes from "./admin/admin.routes.js";
 import assessorRoutes from "./assessors/assessors.routes.js";
 import authRoutes from "./auth/auth.routes.js";
+import certificateRoutes from "./certificates/certificates.routes.js";
 import courseRoutes from "./courses/courses.routes.js";
 import healthRoutes from "./health/health.routes.js";
 import moduleRoutes from "./modules/modules.routes.js";
@@ -27,6 +28,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/students", courseRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/assessors", assessorRoutes);
+app.use("/api", certificateRoutes);
 app.use("/api", moduleRoutes);
 
 export default app;

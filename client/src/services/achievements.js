@@ -9,7 +9,12 @@ import api from "./api";
  * micro-credential an assessor released after approving a final grade, so it
  * names a course and carries an issue date:
  *   { id, name, courseCode, courseTitle, assessmentTitle,
- *     status: "issued" | "pending", issuedAt, score, totalPoints }
+ *     status: "issued" | "pending", issuedAt, score, totalPoints,
+ *     document: { id, filename, issuedBy, issuedAt } | null }
+ *
+ * `document` is the printable certificate stamped when the assessor released
+ * the credential — null when none was generated, which the card treats as "the
+ * record stands, the sheet just isn't there".
  *
  * A badge is a milestone the server derives from work already recorded —
  * lessons read, courses finished. Locked ones arrive too, with the counts
@@ -27,4 +32,10 @@ export async function fetchStudentAchievements(studentId) {
     certifications: data?.certifications ?? [],
     badges: data?.badges ?? []
   };
+}
+
+/** The stamped PDF — opened in a tab rather than fetched, so the browser's own
+ *  PDF viewer handles it. */
+export function certificateFileUrl(studentId, certificateId) {
+  return `${api.defaults.baseURL}/students/${studentId}/certificates/${certificateId}/file`;
 }

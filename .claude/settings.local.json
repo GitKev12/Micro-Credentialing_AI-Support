@@ -55,7 +55,8 @@
       "Bash(python3 *)",
       "Read(//home/kevkharl/**)",
       "Read(//home/kevkharl/.local/share/blesh/**)",
-      "Bash(grep -n \"^\\\\/\\\\* \" styles.css)"
+      "Bash(grep -n \"^\\\\/\\\\* \" styles.css)",
+      "Bash(node tmp-inspect-db.mjs)"
     ]
   }
 }

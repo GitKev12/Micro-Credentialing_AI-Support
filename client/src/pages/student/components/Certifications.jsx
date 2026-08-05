@@ -1,4 +1,6 @@
-import { CertificateIcon, CheckIcon, LockIcon } from "./icons";
+import { getStoredSession } from "../../../auth/services/authService";
+import { certificateFileUrl } from "../../../services/achievements";
+import { CertificateIcon, CheckIcon, DownloadIcon, LockIcon } from "./icons";
 import { EmptyState } from "./ui";
 
 /**
@@ -23,13 +25,16 @@ function formatDate(value) {
   });
 }
 
-function Certificate({ certification }) {
+function Certificate({ certification, studentId }) {
   const issued = certification.status === "issued";
   const issuedOn = formatDate(certification.issuedAt);
   const hasScore =
     certification.score !== null &&
     certification.score !== undefined &&
     certification.totalPoints;
+
+  // The stamped PDF, when the release produced one.
+  const document = certification.document;
 
   return (
     <li className="sd-cert" data-status={certification.status}>
@@ -57,6 +62,18 @@ function Certificate({ certification }) {
             {certification.score}/{certification.totalPoints}
           </span>
         ) : null}
+
+        {document && studentId ? (
+          <a
+            className="sd-cert__download"
+            href={certificateFileUrl(studentId, document.id)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <DownloadIcon size={13} />
+            Certificate
+          </a>
+        ) : null}
       </div>
     </li>
   );
@@ -64,6 +81,7 @@ function Certificate({ certification }) {
 
 function Certifications({ certifications = [] }) {
   const issuedCount = certifications.filter((entry) => entry.status === "issued").length;
+  const studentId = getStoredSession()?.user?.id;
 
   return (
     <section className="sd-card" aria-labelledby="sd-certs-title">
@@ -89,7 +107,11 @@ function Certifications({ certifications = [] }) {
       ) : (
         <ul className="sd-cert__list">
           {certifications.map((certification) => (
-            <Certificate key={certification.id} certification={certification} />
+            <Certificate
+              key={certification.id}
+              certification={certification}
+              studentId={studentId}
+            />
           ))}
         </ul>
       )}

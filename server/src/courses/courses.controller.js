@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { listIssuedCertificates } from "../certificates/certificates.service.js";
 
 /**
  * "Abang" — lookout endpoints that wait for their collections.
@@ -461,8 +462,19 @@ export async function getStudentAchievements(request, response) {
   const { index, completions } = await buildProgressIndex(studentId, student, courses);
   const certifications = await buildCertifications(studentId, student, courses);
 
+  // The stamped PDF for each release, matched to its credential so the card
+  // can offer the download. A credential without one still lists — the record
+  // stands whether or not the sheet was generated.
+  const issued = await listIssuedCertificates(student?._id ?? studentId);
+  const documentBySubmission = new Map(
+    issued.map((certificate) => [String(certificate.submissionId), certificate])
+  );
+
   return response.json({
-    certifications,
+    certifications: certifications.map((entry) => ({
+      ...entry,
+      document: documentBySubmission.get(String(entry.id)) ?? null
+    })),
     badges: buildBadges({ completions, index, certifications })
   });
 }

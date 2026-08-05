@@ -202,6 +202,15 @@ export function CertificateIcon({ size = 16 }) {
   );
 }
 
+export function DownloadIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5" {...line} />
+      <path d="M4.5 17.5v1.5a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5v-1.5" {...line} />
+    </svg>
+  );
+}
+
 export function BadgeIcon({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">

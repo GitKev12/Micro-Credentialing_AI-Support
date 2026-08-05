@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
+import { issueCertificate } from "../certificates/certificates.service.js";
 
 /**
  * Assessor console endpoints — classes, roster, grading queue, submission
@@ -617,24 +618,73 @@ export async function issueCredential(request, response) {
     return response.status(409).json({ message: "This submission has no credential awaiting release." });
   }
 
+  const issuedAt = new Date();
+
   await collection(RESULTS_COLLECTION).updateOne(
     { _id: result._id },
     {
       $set: {
         "credential.status": "issued",
-        "credential.issuedAt": new Date(),
+        "credential.issuedAt": issuedAt,
         "credential.issuedBy": asId(assessor._id)
       }
     }
   );
+
+  // Stamp the printable certificate from this release. The credential above is
+  // the record; this is the artefact the student downloads, so a failure here
+  // must not un-issue the credential — it is reported and can be retried.
+  let certificate = null;
+  let certificateError = null;
+
+  try {
+    certificate = await issueStudentCertificate({
+      result,
+      assessor,
+      issuedAt,
+      credentialName:
+        result.credential?.name ??
+        credentialName((await assessmentMap([result])).get(asId(result.assessmentId)))
+    });
+  } catch (error) {
+    certificateError = error.message;
+  }
 
   return response.json({
     credential: {
       id: asId(result._id),
       name: result.credential?.name ?? null,
       status: "issued",
-      issuedAt: new Date()
-    }
+      issuedAt
+    },
+    certificate: certificate
+      ? { id: asId(certificate._id), filename: certificate.filename }
+      : null,
+    certificateError
+  });
+}
+
+/**
+ * Fills the blank certificate for the student behind one released submission.
+ *
+ * Everything printed is read back from the records rather than passed in, so
+ * the sheet can only ever say what the database already says.
+ */
+async function issueStudentCertificate({ result, assessor, issuedAt, credentialName: name }) {
+  const [student, course] = await Promise.all([
+    collection(STUDENTS_COLLECTION).findOne({ _id: { $in: idCandidates(result.studentId) } }),
+    collection(COURSES_COLLECTION).findOne({ _id: { $in: idCandidates(result.courseId) } })
+  ]);
+
+  if (!student) throw new Error("Student not found for this submission.");
+
+  return issueCertificate({
+    student,
+    course,
+    assessor: { name: assessor.full_name ?? assessor.name ?? assessor.assessor_id ?? "" },
+    submissionId: asId(result._id),
+    credentialName: name,
+    issuedAt
   });
 }
 
