@@ -11,6 +11,10 @@ import {
   moduleFileUrl,
   setModuleCompleted
 } from "../../services/learningModules";
+import LessonNav from "./components/LessonNav";
+
+// Breathing room left above a section heading when jumping to it.
+const SECTION_SCROLL_MARGIN = 12;
 
 // The extractor wraps runs that are italic in the source PDF with these
 // control markers; render them as <em>.
@@ -177,6 +181,9 @@ function LearningModules() {
   const [sectionsLoadingId, setSectionsLoadingId] = useState(null);
   // Section to scroll to once the lesson text is on screen.
   const [pendingSection, setPendingSection] = useState(null);
+  // Section the rail keeps lit. Unlike pendingSection this survives the
+  // scroll, so the list still shows where in the lesson you landed.
+  const [activeSection, setActiveSection] = useState(null);
   // The scrollable reader pane — watched to auto-complete lessons.
   const readerRef = useRef(null);
 
@@ -216,6 +223,8 @@ function LearningModules() {
   }, [courseId, studentId]);
 
   const selectedLessonId = selected?.type === "lesson" ? selected.item.id : null;
+  const selectedAssessmentId =
+    selected?.type === "assessment" ? selected.item.id : null;
   const lessonText = selectedLessonId ? textByModule[selectedLessonId] : null;
 
   // Fetch the extracted text once per module (the server caches too, so
@@ -247,14 +256,27 @@ function LearningModules() {
   useEffect(() => {
     if (!pendingSection || pendingSection.moduleId !== selectedLessonId) return;
     if (!lessonText) return;
+
+    const reader = readerRef.current;
     const target = document.getElementById(
       `lesson-section-${pendingSection.sectionId}`
     );
-    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // scrollIntoView() scrolls *every* scrollable ancestor, so it moved the
+    // reader pane and dragged the page behind it along too. Scrolling the
+    // pane directly leaves the rest of the page where the student left it.
+    if (reader && target) {
+      const offset =
+        target.getBoundingClientRect().top - reader.getBoundingClientRect().top;
+      reader.scrollTo({
+        top: reader.scrollTop + offset - SECTION_SCROLL_MARGIN,
+        behavior: "smooth"
+      });
+    }
+
     setPendingSection(null);
   }, [pendingSection, lessonText, selectedLessonId]);
 
-  const isActive = (type, id) => selected?.type === type && selected.item.id === id;
   const isCompleted = (moduleId) => completedIds.includes(String(moduleId));
 
   // Multiple-choice questions the server extracted from the module's own
@@ -287,11 +309,19 @@ function LearningModules() {
     );
   };
 
+  // Assessments are stored one quiz per module, so the rail groups them by
+  // their module and shows each inside that module's dropdown.
+  const assessmentsByModule = assessments.reduce((groups, assessment) => {
+    const key = String(assessment.moduleId ?? "");
+    if (!key) return groups;
+    (groups[key] ??= []).push(assessment);
+    return groups;
+  }, {});
+
   const completedCount = modules.filter((module) => isCompleted(module.id)).length;
   const progressPercent = modules.length
     ? Math.round((completedCount / modules.length) * 100)
     : 0;
-  const allLessonsDone = modules.length > 0 && completedCount === modules.length;
 
   const selectedIndex = selectedLessonId
     ? modules.findIndex((module) => module.id === selectedLessonId)
@@ -324,6 +354,18 @@ function LearningModules() {
   const openSection = (module, section) => {
     setSelected({ type: "lesson", item: module });
     setPendingSection({ moduleId: module.id, sectionId: section.id });
+    setActiveSection({ moduleId: module.id, sectionId: section.id });
+  };
+
+  // Opening a lesson from its row lands at the top, so no section is current.
+  const openLesson = (module) => {
+    setSelected({ type: "lesson", item: module });
+    setActiveSection(null);
+  };
+
+  const openAssessment = (assessment) => {
+    setSelected({ type: "assessment", item: assessment });
+    setActiveSection(null);
   };
 
   // Reading to the end of a lesson (and finishing its exercise, when the
@@ -424,94 +466,33 @@ function LearningModules() {
           ) : null}
 
           <h3 className="modules-section__title">Lessons</h3>
-          {isLoading ? (
-            <p className="student-courses__status">Loading lessons…</p>
-          ) : modules.length === 0 ? (
-            <p className="student-courses__status">
-              No lessons have been uploaded for this course yet.
-            </p>
-          ) : (
-            <ul className="module-list">
-              {modules.map((module, index) => {
-                const done = isCompleted(module.id);
-                const isExpanded = expandedId === module.id;
-                const sections = sectionsByModule[module.id];
 
-                return (
-                  <li key={module.id}>
-                    <div
-                      className={`module-row module-row--button module-row--split${
-                        isActive("lesson", module.id) ? " is-active" : ""
-                      }${done ? " is-complete" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="module-row__select"
-                        onClick={() => setSelected({ type: "lesson", item: module })}
-                        aria-label={`${module.title}${done ? " (completed)" : ""}`}
-                      >
-                        <span
-                          className={`module-row__num${done ? " is-done" : ""}`}
-                          aria-hidden="true"
-                        >
-                          {done ? "✓" : String(index + 1).padStart(2, "0")}
-                        </span>
-                        <span className="module-row__info">
-                          <span className="module-row__title">{module.title}</span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="module-row__toggle"
-                        onClick={() => toggleSections(module)}
-                        aria-expanded={isExpanded}
-                        aria-label={`${isExpanded ? "Hide" : "Show"} ${module.title} sections`}
-                      >
-                        <svg
-                          className={`module-row__chev${isExpanded ? " is-open" : ""}`}
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    {isExpanded ? (
-                      <ul className="module-sections">
-                        {!sections && sectionsLoadingId === module.id ? (
-                          <li className="module-sections__status">
-                            Loading sections…
-                          </li>
-                        ) : !sections || sections.length === 0 ? (
-                          <li className="module-sections__status">
-                            No sections detected in this module.
-                          </li>
-                        ) : (
-                          sections.map((section) => (
-                            <li key={section.id}>
-                              <button
-                                type="button"
-                                className="module-sections__link"
-                                onClick={() => openSection(module, section)}
-                              >
-                                {section.title}
-                              </button>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {/* Only the list scrolls — the progress block and heading stay put. */}
+          <div className="modules-layout__scroll">
+            {isLoading ? (
+              <p className="student-courses__status">Loading lessons…</p>
+            ) : modules.length === 0 ? (
+              <p className="student-courses__status">
+                No lessons have been uploaded for this course yet.
+              </p>
+            ) : (
+              <LessonNav
+                modules={modules}
+                isCompleted={isCompleted}
+                selectedLessonId={selectedLessonId}
+                selectedAssessmentId={selectedAssessmentId}
+                activeSection={activeSection}
+                expandedId={expandedId}
+                sectionsByModule={sectionsByModule}
+                sectionsLoadingId={sectionsLoadingId}
+                assessmentsByModule={assessmentsByModule}
+                onSelectLesson={openLesson}
+                onToggleSections={toggleSections}
+                onOpenSection={openSection}
+                onOpenAssessment={openAssessment}
+              />
+            )}
+          </div>
         </aside>
 
         {/* Right: the selected module, shown wider */}
@@ -653,49 +634,6 @@ function LearningModules() {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="modules-assessments">
-        <h3 className="modules-section__title">Assessments</h3>
-        {isLoading ? (
-          <p className="student-courses__status">Loading assessments…</p>
-        ) : assessments.length === 0 ? (
-          <p className="student-courses__status">
-            No assessments for this course yet.
-          </p>
-        ) : (
-          <>
-            {!allLessonsDone ? (
-              <p className="modules-lock-note">
-                <span aria-hidden="true">🔒</span> Complete all lessons to unlock
-                assessments.
-              </p>
-            ) : null}
-            <ul className="module-list modules-assessments__list">
-              {assessments.map((assessment) => (
-                <li key={assessment.id}>
-                  <button
-                    type="button"
-                    className={`module-row module-row--button${
-                      isActive("assessment", assessment.id) ? " is-active" : ""
-                    }`}
-                    disabled={!allLessonsDone}
-                    onClick={() =>
-                      setSelected({ type: "assessment", item: assessment })
-                    }
-                  >
-                    <span className="module-row__icon" aria-hidden="true">
-                      {allLessonsDone ? "📝" : "🔒"}
-                    </span>
-                    <span className="module-row__info">
-                      <span className="module-row__title">{assessment.title}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
       </div>
     </section>
   );

@@ -70,6 +70,9 @@ function toPublicModule(module) {
 function toPublicAssessment(assessment) {
   return {
     id: assessment._id,
+    // One quiz per module (see assessors.controller.js) — the student rail
+    // groups assessments by this to show each inside its own module.
+    moduleId: assessment.moduleId ?? assessment.module_id ?? null,
     title: assessment.title ?? assessment.name ?? "",
     description: assessment.description ?? "",
     status: assessment.status ?? "open",

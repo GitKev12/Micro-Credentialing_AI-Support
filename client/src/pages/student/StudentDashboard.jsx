@@ -2,46 +2,45 @@ import { useEffect, useMemo, useState } from "react";
 import StudentSidebar from "./components/StudentSidebar";
 import CoursePerformance from "./components/CoursePerformance";
 import SkillGapAnalysis from "./components/SkillGapAnalysis";
+import { BackIcon, BookIcon, SkillsIcon, TargetIcon } from "./components/icons";
+import { BandChip, EmptyState, Meter, StatTile, TargetLegend } from "./components/ui";
+import {
+  TARGET,
+  averageScore,
+  bandFor,
+  collectSkills,
+  gapToTarget,
+  toScore
+} from "./performance";
 import { getStoredSession } from "../../auth/services/authService";
 import { fetchStudentSkillGap } from "../../services/skillGap";
 import noCoursesImage from "../../assets/no-courses-student.png";
 
-// Placeholder backdrops shown until real course pictures exist (course.imageUrl).
-const PLACEHOLDER_GRADIENTS = [
-  "linear-gradient(135deg, #2563eb, #1e3a8a)",
-  "linear-gradient(135deg, #0ea5e9, #0369a1)",
-  "linear-gradient(135deg, #6366f1, #3730a3)",
-  "linear-gradient(135deg, #14b8a6, #0f766e)"
-];
+const FOCUS_LIMIT = 5;
 
-const TABS = [
-  { id: "all", label: "All" },
-  { id: "in-progress", label: "In Progress" },
-  { id: "completed", label: "Completed" }
-];
+function greeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
-const PAGE_SIZE = 6;
-
-// Band color for the on-card performance badge + progress bar.
-function bandColor(value) {
-  if (value >= 90) return "#2e9e5b";
-  if (value >= 75) return "#2f6fed";
-  if (value >= 60) return "#e0a92e";
-  return "#d64545";
+function firstName(displayName) {
+  if (!displayName) return "there";
+  return displayName.trim().split(/\s+/)[0];
 }
 
 function StudentDashboard() {
   const [courses, setCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const student = getStoredSession()?.user;
 
   // Per-course performance + skills, from the CoursePerformance collection.
   useEffect(() => {
     let active = true;
-    const studentId = getStoredSession()?.user?.id;
+    const studentId = student?.id;
 
     fetchStudentSkillGap(studentId)
       .then((list) => {
@@ -57,54 +56,49 @@ function StudentDashboard() {
     return () => {
       active = false;
     };
+    // The session id is read once on mount; it cannot change without a re-login.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Animate the on-card progress bars from 0 on first load.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  /* ── Derived analytics ───────────────────────────────── */
 
-  // Courses matching the active tab + search query.
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return courses.filter((course) => {
-      const matchesTab = activeTab === "all" || course.status === activeTab;
-      const matchesQuery = course.title.toLowerCase().includes(q);
-      return matchesTab && matchesQuery;
-    });
-  }, [courses, query, activeTab]);
+  const overall = useMemo(
+    () => averageScore(courses.map((course) => course.performance)),
+    [courses]
+  );
+  const overallBand = bandFor(overall);
 
-  // Reset how many are shown whenever the filter changes.
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [query, activeTab]);
+  const allSkills = useMemo(() => collectSkills(courses), [courses]);
+  const gaps = useMemo(() => allSkills.filter((skill) => gapToTarget(skill.score) > 0), [allSkills]);
+  const completedCount = courses.filter((course) => course.status === "completed").length;
 
-  const visibleCourses = filtered.slice(0, visibleCount);
-  const hasMore = filtered.length > visibleCount;
+  const railSummary = courses.length
+    ? [
+        { label: "Overall", value: `${overall}%` },
+        { label: "Courses", value: courses.length },
+        { label: "Topics to close", value: gaps.length }
+      ]
+    : [];
 
-  const tabCount = (tabId) =>
-    tabId === "all"
-      ? courses.length
-      : courses.filter((course) => course.status === tabId).length;
+  /* ── Detail view ─────────────────────────────────────── */
 
   if (selected) {
     return (
-      <div className="student-body">
-        <StudentSidebar />
-        <main className="student-main">
-          <button
-            type="button"
-            className="dash-back"
-            onClick={() => setSelected(null)}
-          >
-            <span aria-hidden="true">←</span> Back to courses
-          </button>
+      <div className="sd-body">
+        <StudentSidebar summary={railSummary} />
+
+        <main className="sd-main">
+          <div className="sd-breadcrumb">
+            <button type="button" className="sd-btn sd-btn--sm" onClick={() => setSelected(null)}>
+              <BackIcon size={15} />
+              Back to dashboard
+            </button>
+          </div>
 
           <CoursePerformance
             title={selected.title}
             performance={selected.performance}
+            skillCount={(selected.skills ?? []).length}
           />
           <SkillGapAnalysis skills={selected.skills} />
         </main>
@@ -112,157 +106,171 @@ function StudentDashboard() {
     );
   }
 
-  return (
-    <div className="student-body">
-      <StudentSidebar />
+  /* ── Overview ────────────────────────────────────────── */
 
-      <main className="student-main">
-        <section className="dash-courses">
-          {isLoading ? (
-            <ul className="dash-courses__grid" aria-hidden="true">
-              {Array.from({ length: PAGE_SIZE }).map((_, index) => (
-                <li key={index} className="course-card course-card--skeleton" />
+  return (
+    <div className="sd-body">
+      <StudentSidebar summary={railSummary} />
+
+      <main className="sd-main">
+        {isLoading ? (
+          <>
+            <div className="sd-skeleton sd-skeleton--hero" aria-hidden="true" />
+            <ul className="sd-kpis" aria-hidden="true">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <li key={index} className="sd-skeleton sd-skeleton--tile" />
               ))}
             </ul>
-          ) : courses.length === 0 ? (
-            <div className="student-courses__empty">
-              <img
-                className="student-courses__empty-img"
-                src={noCoursesImage}
-                alt=""
-                aria-hidden="true"
-              />
-              <p className="student-courses__empty-title">
-                No course analytics yet
-              </p>
-              <p className="student-courses__empty-text">
-                Your skill gap analysis will show up here once your assessment
-                results are in.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="dash-courses__bar">
-                <h2 className="dash-courses__title">Your Courses</h2>
+            <p className="sd-sr-only" role="status">
+              Loading your analytics…
+            </p>
+          </>
+        ) : courses.length === 0 ? (
+          <section className="sd-card">
+            <EmptyState image={noCoursesImage} title="No course analytics yet">
+              Your skill gap analysis appears here once your assessment results are in.
+              Nothing to do in the meantime — keep working through your modules.
+            </EmptyState>
+          </section>
+        ) : (
+          <>
+            {/* Hero — the one figure this view leads with. */}
+            <section className="sd-hero" aria-labelledby="sd-overall-label">
+              <div>
+                <p className="sd-hero__greeting">
+                  {greeting()}, <span>{firstName(student?.displayName)}</span>
+                </p>
+                <p className="sd-sub">
+                  {gaps.length === 0
+                    ? `Every topic you have been assessed on sits at or above the ${TARGET}% passing mark.`
+                    : `${gaps.length} ${
+                        gaps.length === 1 ? "topic sits" : "topics sit"
+                      } below the ${TARGET}% passing mark across ${courses.length} ${
+                        courses.length === 1 ? "course" : "courses"
+                      }. The list below is ordered by where you would gain the most.`}
+                </p>
+              </div>
 
-                <div className="dash-search">
-                  <svg
-                    className="dash-search__icon"
-                    viewBox="0 0 24 24"
-                    width="16"
-                    height="16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <circle cx="11" cy="11" r="7" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <input
-                    type="search"
-                    className="dash-search__input"
-                    placeholder="Filter courses…"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    aria-label="Filter courses by name"
+              <div className="sd-hero__figure">
+                <p className="sd-hero__label" id="sd-overall-label">
+                  Overall performance
+                </p>
+                <p className="sd-hero__value">
+                  {overall}
+                  <small>%</small>
+                </p>
+                <div className="sd-hero__meter">
+                  <Meter
+                    value={overall}
+                    band={overallBand}
+                    label={`Overall performance across all courses: ${overall} percent, ${overallBand.label}`}
                   />
                 </div>
+                <div className="sd-hero__foot">
+                  <TargetLegend />
+                  <BandChip band={overallBand} />
+                </div>
               </div>
+            </section>
 
-              <div className="dash-tabs" role="tablist" aria-label="Course status">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === tab.id}
-                    className={`dash-tab${activeTab === tab.id ? " is-active" : ""}`}
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    {tab.label} <span className="dash-tab__count">{tabCount(tab.id)}</span>
-                  </button>
-                ))}
-              </div>
+            {/* KPI row — headline counts, no chart needed. */}
+            <ul className="sd-kpis">
+              <StatTile
+                icon={<BookIcon />}
+                label="Courses tracked"
+                value={courses.length}
+                note={
+                  completedCount
+                    ? `${completedCount} completed · ${courses.length - completedCount} in progress`
+                    : "All in progress"
+                }
+              />
+              <StatTile
+                icon={<SkillsIcon />}
+                label="Topics assessed"
+                value={allSkills.length}
+                note={
+                  allSkills.length
+                    ? `Averaging ${averageScore(allSkills.map((skill) => skill.score))}% across every topic`
+                    : "No topic scores yet"
+                }
+              />
+              <StatTile
+                icon={<TargetIcon />}
+                label="Topics below passing"
+                value={gaps.length}
+                note={
+                  gaps.length
+                    ? `Closing them needs ${gaps.reduce(
+                        (sum, skill) => sum + gapToTarget(skill.score),
+                        0
+                      )} points in total`
+                    : `Nothing under the ${TARGET}% mark`
+                }
+              />
+            </ul>
 
-              {visibleCourses.length === 0 ? (
-                <p className="dash-courses__empty">No courses match your filter.</p>
-              ) : (
-                <ul className="dash-courses__grid">
-                  {visibleCourses.map((course, index) => {
-                    const value = Math.max(0, Math.min(100, Math.round(course.performance)));
-                    const color = bandColor(value);
-                    const backdrop = course.imageUrl
-                      ? `url(${course.imageUrl})`
-                      : PLACEHOLDER_GRADIENTS[index % PLACEHOLDER_GRADIENTS.length];
+            {/* Cross-course focus list — the weakest topics, wherever they live. */}
+            {allSkills.length ? (
+              <section className="sd-card" aria-labelledby="sd-focus-title">
+                <header className="sd-section-head">
+                  <div className="sd-section-head__text">
+                    <p className="sd-eyebrow">Where to focus next</p>
+                    <h2 className="sd-h3" id="sd-focus-title">
+                      Your weakest topics
+                    </h2>
+                    <p className="sd-sub">
+                      Ordered lowest first across every course you are enrolled in.
+                    </p>
+                  </div>
+                  <TargetLegend />
+                </header>
+
+                <ul className="sd-focus__list">
+                  {allSkills.slice(0, FOCUS_LIMIT).map((skill) => {
+                    const band = bandFor(skill.score);
+                    const course = courses.find((entry) => entry.id === skill.courseId);
 
                     return (
-                      <li key={course.id} className="course-card course-card--stat">
-                        <div
-                          className="course-card__image"
-                          style={{ backgroundImage: backdrop }}
-                          role="img"
-                          aria-label={course.title}
-                        />
-
-                        {course.icon ? (
-                          <span className="course-card__icon" aria-hidden="true">
-                            {course.icon}
-                          </span>
-                        ) : null}
-
-                        <span className="course-card__badge" style={{ color }}>
-                          {value}%
-                        </span>
-
-                        <div className="course-card__overlay">
-                          <span className="course-card__name">{course.title}</span>
-
-                          <div
-                            className="course-card__progress"
-                            role="progressbar"
-                            aria-valuenow={value}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`${course.title} overall performance`}
-                          >
-                            <div
-                              className="course-card__progress-fill"
-                              style={{ width: `${mounted ? value : 0}%`, backgroundColor: color }}
-                            />
-                          </div>
-
-                          <span className="course-card__cta">View analysis →</span>
+                      <li className="sd-focus__row" key={skill.key} data-band={band.id}>
+                        <div>
+                          <p className="sd-focus__topic">{skill.topic}</p>
+                          <p className="sd-focus__course">{skill.courseTitle}</p>
                         </div>
 
-                        <button
-                          type="button"
-                          className="course-card__click"
-                          onClick={() => setSelected(course)}
-                          aria-label={`View ${course.title} skill gap analysis`}
-                        />
+                        <div className="sd-focus__meter">
+                          <Meter
+                            value={skill.score}
+                            band={band}
+                            small
+                            label={`${skill.topic} in ${skill.courseTitle}: ${skill.score} percent, ${band.label}`}
+                          />
+                        </div>
+
+                        <span className="sd-focus__value">
+                          {toScore(skill.score)}
+                          <small>%</small>
+                        </span>
+
+                        {/* The course grid used to be the way into the full
+                            analysis; the row that names the course now is. */}
+                        {course ? (
+                          <button
+                            type="button"
+                            className="sd-focus__open"
+                            onClick={() => setSelected(course)}
+                            aria-label={`Open the full skill gap analysis for ${skill.courseTitle}`}
+                          />
+                        ) : null}
                       </li>
                     );
                   })}
                 </ul>
-              )}
+              </section>
+            ) : null}
+          </>
+        )}
 
-              {hasMore ? (
-                <div className="dash-more-wrap">
-                  <button
-                    type="button"
-                    className="dash-more"
-                    onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
-                  >
-                    Show more
-                  </button>
-                </div>
-              ) : null}
-            </>
-          )}
-        </section>
       </main>
     </div>
   );

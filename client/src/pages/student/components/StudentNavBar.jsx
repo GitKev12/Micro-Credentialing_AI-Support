@@ -1,20 +1,42 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuthSession, getStoredSession } from "../../../auth/services/authService";
 import { resolveAvatarUrl } from "../../../services/avatar";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import ProfileAvatar from "./ProfileAvatar";
+import { CoursesIcon, DashboardIcon, LogoutIcon, MoonIcon, SunIcon } from "./icons";
+
+const NAV_ITEMS = [
+  { to: "/student", label: "My Courses", Icon: CoursesIcon, end: true },
+  { to: "/student/dashboard", label: "Dashboard", Icon: DashboardIcon, end: false }
+];
+
+function CaretIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 9.5l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function StudentNavBar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const menuRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [theme, setTheme] = useState(getStoredTheme);
   const isDarkMode = theme === THEMES.DARK;
 
-  const session = getStoredSession();
-  const student = session?.user;
+  const student = getStoredSession()?.user;
   const studentName = student?.displayName || student?.identifier || "Student";
+  const studentNumber =
+    student?.studentNumber || student?.studentNo || student?.identifier || "—";
   const avatarUrl = resolveAvatarUrl(student);
 
   useEffect(() => {
@@ -39,19 +61,12 @@ function StudentNavBar() {
     };
   }, [isOpen]);
 
-  const goToCourses = () => {
-    setIsOpen(false);
-    navigate("/student");
-  };
+  const isCurrent = (item) =>
+    item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
 
-  const goToDashboard = () => {
+  const go = (to) => {
     setIsOpen(false);
-    navigate("/student/dashboard");
-  };
-
-  const handleToggleTheme = () => {
-    // Keep the menu open so the change is visible and easy to flip back.
-    setTheme(toggleTheme());
+    navigate(to);
   };
 
   const handleLogout = () => {
@@ -61,70 +76,100 @@ function StudentNavBar() {
   };
 
   return (
-    <header className="student-nav">
-      <p className="student-nav__welcome">
-        Welcome! <span>{studentName}</span>
-      </p>
+    <header className="sd-topbar">
+      <div className="sd-topbar__brand">
+        <span className="sd-topbar__mark" aria-hidden="true">
+          TSU
+        </span>
+        <span className="sd-topbar__titles">
+          <span className="sd-topbar__eyebrow">MicroCred</span>
+          <span className="sd-topbar__name">Student Portal</span>
+        </span>
+      </div>
 
-      <div className="student-nav__profile-menu" ref={menuRef}>
+      <nav className="sd-topbar__nav" aria-label="Student sections">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.to}
+            type="button"
+            className="sd-topbar__link"
+            aria-current={isCurrent(item) ? "page" : undefined}
+            onClick={() => go(item.to)}
+          >
+            <item.Icon size={17} />
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="sd-profile" ref={menuRef}>
         <button
           type="button"
-          className="student-nav__profile"
+          className="sd-profile__trigger"
           onClick={() => setIsOpen((open) => !open)}
           aria-haspopup="menu"
           aria-expanded={isOpen}
+          aria-label={`Account menu for ${studentName}`}
         >
-          <span className="student-nav__profile-label">Your Profile</span>
-          <ProfileAvatar src={avatarUrl} name={studentName} />
+          <ProfileAvatar src={avatarUrl} name={studentName} size={32} />
+          <span className="sd-profile__caret">
+            <CaretIcon />
+          </span>
         </button>
 
         {isOpen ? (
-          <ul className="student-nav__dropdown" role="menu">
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                className="student-nav__dropdown-item"
-                onClick={goToCourses}
-              >
-                My Courses
-              </button>
+          <ul className="sd-menu" role="menu">
+            <li role="none" className="sd-menu__head">
+              <p className="sd-menu__name">{studentName}</p>
+              <p className="sd-menu__sub">{studentNumber}</p>
             </li>
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                className="student-nav__dropdown-item"
-                onClick={goToDashboard}
-              >
-                Dashboard
-              </button>
-            </li>
+
+            {NAV_ITEMS.map(({ to, label, Icon }) => (
+              <li role="none" key={to}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="sd-menu__item"
+                  onClick={() => go(to)}
+                >
+                  <span className="sd-menu__item-icon">
+                    <Icon size={16} />
+                  </span>
+                  {label}
+                </button>
+              </li>
+            ))}
+
             <li role="none">
               <button
                 type="button"
                 role="menuitemcheckbox"
                 aria-checked={isDarkMode}
-                className="student-nav__dropdown-item student-nav__dropdown-item--toggle"
-                onClick={handleToggleTheme}
+                className="sd-menu__item sd-menu__item--toggle"
+                // Menu stays open so the change is visible and easy to flip back.
+                onClick={() => setTheme(toggleTheme())}
               >
-                <span>Dark Mode</span>
-                <span
-                  className={`theme-switch${isDarkMode ? " is-on" : ""}`}
-                  aria-hidden="true"
-                >
-                  <span className="theme-switch__thumb" />
+                <span className="sd-menu__item-icon">
+                  {isDarkMode ? <MoonIcon size={16} /> : <SunIcon size={16} />}
+                </span>
+                Dark mode
+                <span className={`sd-switch${isDarkMode ? " is-on" : ""}`} aria-hidden="true">
+                  <span className="sd-switch__thumb" />
                 </span>
               </button>
             </li>
+
             <li role="none">
               <button
                 type="button"
                 role="menuitem"
-                className="student-nav__dropdown-item student-nav__dropdown-item--danger"
+                className="sd-menu__item sd-menu__item--danger"
                 onClick={handleLogout}
               >
-                Logout
+                <span className="sd-menu__item-icon">
+                  <LogoutIcon size={16} />
+                </span>
+                Log out
               </button>
             </li>
           </ul>

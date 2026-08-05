@@ -1,86 +1,184 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { BANDS, TARGET, bandFor, gapToTarget, toScore } from "../performance";
+import { BandIcon, ChartIcon, TableIcon } from "./icons";
+import { BandChip, Meter, TargetLegend } from "./ui";
 
-// Color + text label bands: green = high, yellow = medium, red = low.
-function skillBand(value) {
-  if (value >= 80) return { color: "#2e9e5b", label: "High" };
-  if (value >= 60) return { color: "#e0a92e", label: "Medium" };
-  return { color: "#d64545", label: "Low" };
-}
+const VIEWS = [
+  { id: "chart", label: "Chart", Icon: ChartIcon },
+  { id: "table", label: "Table", Icon: TableIcon }
+];
 
+const LEGEND = [BANDS.strong, BANDS.developing, BANDS.focus];
+
+/**
+ * Per-topic scores for one course.
+ *
+ * Sorted weakest-first, because the question this panel answers is "where is
+ * my gap", not "what is my alphabetical list of topics". One measure, banded
+ * by the reserved status palette; the band legend is always on screen, every
+ * bar prints its own value, and the table view carries the same numbers for
+ * anyone the colour does not reach.
+ */
 function SkillGapAnalysis({ skills = [] }) {
-  // Animate every bar from 0 to its value once mounted.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  const [view, setView] = useState("chart");
 
-  // Weakest skill = the focus area to highlight.
-  const focus = skills.length
-    ? skills.reduce((lowest, skill) => (skill.score < lowest.score ? skill : lowest))
-    : null;
+  const rows = useMemo(
+    () =>
+      skills
+        .map((skill) => {
+          const score = toScore(skill.score);
+          return { topic: skill.topic, score, band: bandFor(score), gap: gapToTarget(score) };
+        })
+        .sort((a, b) => a.score - b.score),
+    [skills]
+  );
+
+  const belowTarget = rows.filter((row) => row.gap > 0);
+  const focus = rows[0];
+
+  if (rows.length === 0) {
+    return (
+      <section className="sd-card">
+        <h2 className="sd-h3">Skill gap analysis</h2>
+        <p className="sd-sub">
+          No topic scores for this course yet. They appear here once your assessments
+          are graded.
+        </p>
+      </section>
+    );
+  }
 
   return (
-    <section className="skill-gap">
-      <h2 className="skill-gap__title">Skill Gap Analysis</h2>
+    <section className="sd-card" aria-labelledby="sd-skills-title">
+      <header className="sd-section-head">
+        <div className="sd-section-head__text">
+          <p className="sd-eyebrow">Weakest first</p>
+          <h2 className="sd-h3" id="sd-skills-title">
+            Skill gap analysis
+          </h2>
+          <p className="sd-sub">
+            {belowTarget.length === 0
+              ? `Every topic sits at or above the ${TARGET}% passing mark.`
+              : `${belowTarget.length} of ${rows.length} ${
+                  rows.length === 1 ? "topic is" : "topics are"
+                } below the ${TARGET}% passing mark.`}
+          </p>
+        </div>
 
-      {skills.length === 0 ? (
-        <p className="dash-courses__empty">
-          No skill data for this course yet. Your scores will appear here once
-          your assessments are graded.
-        </p>
-      ) : (
+        <div className="sd-segmented" role="group" aria-label="Skill data view">
+          {VIEWS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="sd-segmented__btn"
+              aria-pressed={view === option.id}
+              onClick={() => setView(option.id)}
+            >
+              <option.Icon />
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {view === "chart" ? (
         <>
-          <div className="skill-gap__head" aria-hidden="true">
-            <span>Topic</span>
-            <span></span>
-            <span>Score</span>
+          <div className="sd-skills__legend">
+            {LEGEND.map((band) => (
+              <span className="sd-skills__legend-item" key={band.id} data-band={band.id}>
+                <span className="sd-skills__legend-swatch" aria-hidden="true" />
+                <BandIcon band={band.id} size={13} />
+                {band.label}
+              </span>
+            ))}
+            <TargetLegend />
           </div>
 
-          <ul className="skill-gap__list">
-            {skills.map(({ topic, score }) => {
-              const value = Math.max(0, Math.min(100, Math.round(score)));
-              const { color, label } = skillBand(value);
+          <ul className="sd-skills__list">
+            {rows.map((row) => (
+              <li className="sd-skill" key={row.topic} data-band={row.band.id}>
+                <span className="sd-skill__topic">{row.topic}</span>
 
-              return (
-                <li key={topic} className="skill-row">
-                  <span className="skill-row__topic">{topic}</span>
-
-                  <div
-                    className="skill-row__bar"
-                    role="progressbar"
-                    aria-valuenow={value}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`${topic}: ${label}`}
-                  >
-                    <div
-                      className="skill-row__fill"
-                      style={{ width: `${mounted ? value : 0}%`, backgroundColor: color }}
-                    />
-                  </div>
-
-                  <span className="skill-row__meta">
-                    <span className="skill-row__score" style={{ color }}>
-                      {value}%
-                    </span>
-                    <span className="skill-row__level" style={{ color }}>
-                      {label}
-                    </span>
+                <div className="sd-skill__plot">
+                  <Meter
+                    value={row.score}
+                    band={row.band}
+                    label={`${row.topic}: ${row.score} percent, ${row.band.label}`}
+                  />
+                  <span className="sd-tip" role="tooltip">
+                    <strong>{row.topic}</strong>
+                    {row.score}% · <span className="sd-tip__band">{row.band.label}</span>
+                    <br />
+                    {row.gap > 0
+                      ? `${row.gap} points below the passing mark`
+                      : `${row.score - TARGET} points above the passing mark`}
                   </span>
-                </li>
-              );
-            })}
-          </ul>
+                </div>
 
-          {focus ? (
-            <p className="skill-gap__focus">
-              <span className="skill-gap__focus-dot" aria-hidden="true" />
-              Focus area: <strong>{focus.topic}</strong> is your lowest skill (
-              {Math.round(focus.score)}%). A little practice here goes a long way.
-            </p>
-          ) : null}
+                <span className="sd-skill__value">
+                  <span className="sd-skill__score">{row.score}%</span>
+                  <BandChip band={row.band} />
+                </span>
+              </li>
+            ))}
+          </ul>
         </>
+      ) : (
+        <div className="sd-table-wrap">
+          <table className="sd-table">
+            <caption className="sd-sr-only">
+              Topic scores for this course, weakest first
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Topic</th>
+                <th scope="col" className="sd-table__num">
+                  Score
+                </th>
+                <th scope="col">Level</th>
+                <th scope="col" className="sd-table__num">
+                  Gap to {TARGET}%
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.topic}>
+                  <td>{row.topic}</td>
+                  <td className="sd-table__num">{row.score}%</td>
+                  <td>
+                    <BandChip band={row.band} />
+                  </td>
+                  <td className="sd-table__num">{row.gap > 0 ? `${row.gap}` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {focus && focus.gap > 0 ? (
+        <div className="sd-callout" data-band={focus.band.id}>
+          <span className="sd-callout__icon">
+            <BandIcon band={focus.band.id} size={18} />
+          </span>
+          <p className="sd-callout__body">
+            Start with <strong>{focus.topic}</strong> — at {focus.score}% it is your lowest
+            topic and sits {focus.gap} {focus.gap === 1 ? "point" : "points"} under the{" "}
+            {TARGET}% passing mark. Closing this one gap moves your course score more than
+            any other.
+          </p>
+        </div>
+      ) : (
+        <div className="sd-callout" data-band={BANDS.strong.id}>
+          <span className="sd-callout__icon">
+            <BandIcon band={BANDS.strong.id} size={18} />
+          </span>
+          <p className="sd-callout__body">
+            Every topic in this course is at or above the passing mark. Your weakest is{" "}
+            <strong>{focus.topic}</strong> at {focus.score}% — the one to keep an eye on.
+          </p>
+        </div>
       )}
     </section>
   );

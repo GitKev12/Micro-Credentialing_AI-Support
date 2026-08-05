@@ -283,235 +283,8 @@ a {
   gap: 1.75rem;
 }
 
-.student-body {
-  display: flex;
-  align-items: stretch;
-  gap: 1.75rem;
-}
-
-.student-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1.75rem;
-}
-
-/* ── Top section: course performance ──────────────────── */
-
-.course-top {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.75rem;
-  padding: 30px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-}
-
-.course-top__title {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.course-top__pill {
-  padding: 0.35rem 1rem;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-text, var(--accent));
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.course-top__value {
-  margin: 0;
-  font-size: 2.4rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.course-top__band {
-  padding: 0.2rem 0.7rem;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-}
-
-.course-top__bar {
-  width: min(420px, 100%);
-  height: 12px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  overflow: hidden;
-}
-
-.course-top__bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.7s ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .course-top__bar-fill {
-    transition: none;
-  }
-}
-
-/* ── Dashboard: course selection ──────────────────────── */
-
-.dash-courses {
-  padding: 30px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-}
-
-.dash-courses__title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.dash-courses__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.dash-search {
-  position: relative;
-  flex: 0 1 260px;
-}
-
-.dash-search__icon {
-  position: absolute;
-  top: 50%;
-  left: 0.85rem;
-  transform: translateY(-50%);
-  color: var(--muted);
-  pointer-events: none;
-}
-
-.dash-search__input {
-  width: 100%;
-  padding: 0.6rem 0.9rem 0.6rem 2.4rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.9rem;
-}
-
-.dash-search__input:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.dash-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.dash-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.dash-tab:hover {
-  background: var(--accent-soft);
-}
-
-.dash-tab.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.dash-tab__count {
-  padding: 0 0.4rem;
-  border-radius: 999px;
-  background: rgba(120, 130, 160, 0.18);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.dash-tab.is-active .dash-tab__count {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.dash-courses__empty {
-  margin: 0;
-  padding: 2.5rem 1rem;
-  text-align: center;
-  color: var(--muted);
-}
-
-.dash-more-wrap {
-  margin-top: 1.5rem;
-  text-align: center;
-}
-
-.dash-more {
-  padding: 0.6rem 1.5rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--accent-text, var(--accent));
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: background 0.15s ease;
-}
-
-.dash-more:hover {
-  background: var(--accent-soft);
-}
-
-.dash-more:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.dash-courses__grid {
-  display: grid;
-  /* Up to 2 large columns; cards stretch to fill the row. */
-  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
-  gap: 1.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
+/* Only the learning-modules reader still uses this button; the dashboard
+   moved to .sd-btn (see pages/student/student.css). */
 .dash-back {
   align-self: flex-start;
   display: inline-flex;
@@ -536,373 +309,6 @@ a {
 .dash-back:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-/* ── Skill Gap Analysis ───────────────────────────────── */
-
-.skill-gap {
-  padding: 30px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-}
-
-.skill-gap__title {
-  margin: 0 0 1.25rem;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.skill-gap__head {
-  display: grid;
-  grid-template-columns: 110px 1fr 72px;
-  gap: 1rem;
-  padding: 0 1rem 0.5rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.skill-gap__head span:last-child {
-  text-align: right;
-}
-
-.skill-gap__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.skill-row {
-  display: grid;
-  grid-template-columns: 110px 1fr 72px;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 14px;
-  background: var(--accent-soft);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.skill-row:hover {
-  transform: scale(1.02);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
-}
-
-.skill-row__topic {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.skill-row__bar {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(120, 120, 140, 0.18);
-  overflow: hidden;
-}
-
-.skill-row__fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.7s ease;
-}
-
-.skill-row__meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.2;
-}
-
-.skill-row__score {
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.skill-row__level {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.9;
-}
-
-.skill-gap__focus {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 1.25rem 0 0;
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
-  background: var(--accent-soft);
-  color: var(--ink);
-  font-size: 0.9rem;
-}
-
-.skill-gap__focus strong {
-  font-weight: 700;
-}
-
-.skill-gap__focus-dot {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #d64545;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skill-row,
-  .skill-row__fill {
-    transition: none;
-  }
-
-  .skill-row:hover {
-    transform: none;
-  }
-}
-
-@media (max-width: 480px) {
-  .skill-gap__head,
-  .skill-row {
-    grid-template-columns: 80px 1fr 64px;
-    gap: 0.6rem;
-  }
-}
-
-/* ── Student left panel ───────────────────────────────── */
-
-.student-sidebar {
-  flex: 0 0 260px;
-  width: 260px;
-  align-self: flex-start;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.35rem;
-  padding: 1.75rem 1.25rem;
-  min-height: 380px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 1.25rem;
-}
-
-.student-sidebar__avatar {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--accent-soft);
-  background: var(--accent-soft);
-  margin-bottom: 0.5rem;
-  transition: transform 0.25s ease, border-color 0.25s ease;
-}
-
-.student-sidebar__avatar:hover {
-  transform: scale(1.04);
-  border-color: var(--accent);
-}
-
-.student-sidebar__name {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.student-sidebar__number {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.student-sidebar__logout {
-  margin-top: auto;
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1rem;
-  border: 1px solid rgba(200, 45, 45, 0.35);
-  border-radius: 999px;
-  background: rgba(200, 45, 45, 0.1);
-  color: #c82d2d;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.student-sidebar__logout:hover {
-  background: #c82d2d;
-  border-color: #c82d2d;
-  color: #fff;
-}
-
-.student-sidebar__logout:focus-visible {
-  outline: 2px solid #c82d2d;
-  outline-offset: 2px;
-}
-
-.student-sidebar__logout-icon {
-  flex-shrink: 0;
-}
-
-@media (max-width: 720px) {
-  .student-body {
-    flex-direction: column;
-  }
-
-  .student-sidebar {
-    flex-basis: auto;
-    width: 100%;
-  }
-}
-
-.student-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-}
-
-.student-nav__welcome {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.student-nav__welcome span {
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.student-nav__profile-menu {
-  position: relative;
-}
-
-.student-nav__profile {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.35rem 0.4rem 0.35rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.student-nav__profile:hover {
-  border-color: var(--accent);
-}
-
-.student-nav__profile-label {
-  font-weight: 700;
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-.student-nav__dropdown {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  z-index: 20;
-  min-width: 12rem;
-  margin: 0;
-  padding: 0.4rem;
-  list-style: none;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-}
-
-.student-nav__dropdown-item {
-  display: block;
-  width: 100%;
-  padding: 0.6rem 0.75rem;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
-.student-nav__dropdown-item:hover {
-  background: var(--accent-soft);
-}
-
-.student-nav__dropdown-item--danger {
-  color: #9a2838;
-}
-
-.student-nav__dropdown-item--danger:hover {
-  background: rgba(154, 40, 56, 0.1);
-}
-
-/* Dark mode: the muted red is unreadable on the near-black surface, so brighten it. */
-[data-theme="dark"] .student-nav__dropdown-item--danger {
-  color: #f87171;
-}
-
-.student-nav__dropdown-item--toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.theme-switch {
-  position: relative;
-  flex-shrink: 0;
-  width: 2.2rem;
-  height: 1.2rem;
-  border-radius: 999px;
-  background: var(--border);
-  transition: background 0.15s ease;
-}
-
-.theme-switch.is-on {
-  background: var(--accent);
-}
-
-.theme-switch__thumb {
-  position: absolute;
-  top: 0.15rem;
-  left: 0.15rem;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.15s ease;
-}
-
-.theme-switch.is-on .theme-switch__thumb {
-  transform: translateX(1rem);
 }
 
 .profile-avatar {
@@ -937,7 +343,7 @@ a {
 }
 
 .student-courses__title {
-  margin: 0 0 1.25rem;
+  margin: 0 0 0.35rem;
   font-size: 1.15rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -945,10 +351,23 @@ a {
   color: var(--muted);
 }
 
-/* Dark mode: --muted is too dim for these headings on the near-black surface. */
-[data-theme="dark"] .student-courses__title,
-[data-theme="dark"] .student-nav__welcome {
+/* Dark mode: --muted is too dim for this heading on the near-black surface. */
+[data-theme="dark"] .student-courses__title {
   color: #b7c0db;
+}
+
+/* Enrollment tally under the heading — the page's answer to "where am I?". */
+.student-courses__summary {
+  margin: 0 0 1.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* No tally to show (loading, or nobody is enrolled): the heading keeps the
+   full gap it had before the tally existed. */
+.student-courses__title + .student-courses__list,
+.student-courses__title + .student-courses__empty {
+  margin-top: 1.25rem;
 }
 
 .student-courses__status {
@@ -1027,34 +446,6 @@ a {
     0 0 28px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-/* Dashboard course cards use a 16:9 widescreen ratio instead of a fixed height. */
-.course-card--stat {
-  height: auto;
-  aspect-ratio: 16 / 9;
-}
-
-/* Refit the internals for the shorter widescreen tile so nothing crowds. */
-.course-card--stat .course-card__icon {
-  top: 24%;
-  font-size: 2.1rem;
-}
-
-.course-card--stat .course-card__overlay {
-  padding: 14px 16px;
-}
-
-.course-card--stat .course-card__name {
-  font-size: 0.98rem;
-}
-
-.course-card--stat .course-card__progress {
-  margin-top: 0.4rem;
-}
-
-.course-card--stat .course-card__cta {
-  margin-top: 0.35rem;
-}
-
 .course-card__image {
   position: absolute;
   inset: 0;
@@ -1075,68 +466,6 @@ a {
 
 .course-card:hover .course-card__name {
   transform: translateY(-2px);
-}
-
-/* Enriched stat-card pieces (dashboard course cards). */
-.course-card__icon {
-  position: absolute;
-  top: 30%;
-  left: 0;
-  right: 0;
-  transform: translateY(-50%);
-  text-align: center;
-  font-size: 3.25rem;
-  line-height: 1;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
-  transition: transform 0.3s ease;
-}
-
-.course-card:hover .course-card__icon {
-  transform: translateY(-50%) scale(1.08);
-}
-
-.course-card__badge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 1;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  font-size: 0.85rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
-}
-
-.course-card__progress {
-  height: 6px;
-  margin-top: 0.55rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.28);
-  overflow: hidden;
-}
-
-.course-card__progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.7s ease;
-}
-
-.course-card__cta {
-  margin-top: 0.5rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .course-card__icon,
-  .course-card:hover .course-card__icon,
-  .course-card__progress-fill {
-    transition: none;
-  }
 }
 
 /* Stretched clickable layer over the whole card. */
@@ -1243,6 +572,98 @@ a {
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
 }
 
+/* On the shorter "Your Courses" tiles the progress row takes the third line. */
+.student-courses__list .course-card__desc {
+  -webkit-line-clamp: 2;
+}
+
+/* ── Course status + lesson progress ─────────────────────────
+   These sit on the card's dark scrim, which is the same in both
+   themes, so the colours here are fixed rather than tokenised.
+   Status never rides on colour alone: the chip spells the state
+   out and the bar is labelled with the counts underneath it. */
+
+.course-card__status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.3em 0.7em;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(4px);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.course-card__status-dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.course-card[data-status="completed"] .course-card__status {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #86efac;
+}
+
+.course-card[data-status="in-progress"] .course-card__status {
+  border-color: rgba(251, 191, 63, 0.5);
+  color: #fcd34d;
+}
+
+.course-card[data-status="not-started"] .course-card__status {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.course-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+
+.course-card__track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.26);
+  overflow: hidden;
+}
+
+.course-card__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.9);
+  transition: width 0.4s ease;
+}
+
+.course-card[data-status="completed"] .course-card__fill {
+  background: #4ade80;
+}
+
+.course-card[data-status="in-progress"] .course-card__fill {
+  background: #fbbf3f;
+}
+
+.course-card__progress-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
 @media (max-width: 640px) {
   .app-shell {
     width: min(100% - 1.25rem, 100%);
@@ -1252,26 +673,19 @@ a {
   .login-screen {
     padding: 1rem;
   }
-
-  .student-nav {
-    flex-wrap: wrap;
-    justify-content: center;
-    text-align: center;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .course-card,
   .course-card__image,
   .course-card__name,
-  .student-sidebar__avatar {
+  .course-card__fill {
     transition: none;
   }
 
   .course-card:hover,
   .course-card:hover .course-card__image,
-  .course-card:hover .course-card__name,
-  .student-sidebar__avatar:hover {
+  .course-card:hover .course-card__name {
     transform: none;
   }
 
@@ -1287,9 +701,14 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* Full-viewport reader: exact 100vw, flattened card, fills the screen height. */
-  margin: -2rem calc(50% - 50vw) 0;
-  min-height: 100vh;
+  /* Full-viewport reader: exact 100vw, flattened card, fills the screen height.
+     The negative margins swallow .app-shell's 2rem top and 4rem bottom padding
+     so the page is exactly one viewport tall and the document never scrolls —
+     the rail and the reader each scroll inside themselves instead. */
+  margin: -2rem calc(50% - 50vw) -4rem;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -1390,40 +809,43 @@ a {
 }
 
 /* Master-detail: narrow module list (left) + wider viewer (right). */
+/* min-height:0 on every flex child in this chain is what lets the panes
+   shrink to the locked page height instead of growing past it. */
 .modules-layout {
   display: flex;
   align-items: stretch;
   gap: 1.25rem;
-  flex: 1 0 auto;
-  padding: 0 1.5rem;
+  flex: 1;
+  min-height: 0;
+  padding: 0 1.5rem 1.25rem;
 }
 
 .modules-layout__aside {
   flex: 0 0 240px;
   max-width: 240px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
+/* The scrolling part of the rail: progress and the "Lessons" heading stay
+   pinned above it. */
+.modules-layout__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for the last row's focus ring and shadow. */
+  padding: 2px 2px 0.75rem;
+  margin: -2px -2px 0;
+}
+
 .modules-layout__main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-/* Assessments: their own full-width container below the reader. */
-.modules-assessments {
-  padding: 1.5rem;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.modules-assessments__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 0.75rem;
 }
 
 /* Module rows double as selectable buttons in the left list. */
@@ -1455,7 +877,8 @@ a {
   flex-direction: column;
   gap: 0.85rem;
   flex: 1;
-  min-height: 60vh;
+  min-height: 0;
+  overflow: hidden;
   padding: 1.1rem;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -1500,8 +923,8 @@ a {
 
 .module-viewer__text {
   flex: 1;
-  min-height: 60vh;
-  max-height: 75vh;
+  /* Height comes from the locked page now, not a vh guess. */
+  min-height: 0;
   overflow-y: auto;
   padding: 1.1rem 1.25rem;
   border: 1px solid var(--border);
@@ -1597,43 +1020,9 @@ a {
   transition: width 0.5s ease;
 }
 
-.module-row__num {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 1.9rem;
-  height: 1.9rem;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface-strong);
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.module-row__num.is-done {
-  border-color: transparent;
-  background: #2e9e5b;
-  color: #fff;
-}
-
-.module-row--button.is-complete .module-row__title {
-  color: var(--muted);
-}
-
 .module-row--button[disabled] {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.modules-lock-note {
-  margin: 0 0 0.5rem;
-  padding: 0.55rem 0.8rem;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 0.8rem;
 }
 
 /* Auto-completion status chip — looks like an action pill but is inert. */
@@ -1790,119 +1179,47 @@ ol.lesson-reader__list li::marker {
   color: var(--muted);
 }
 
-/* ── Chapter sections dropdown ────────────────────────── */
+/* The lesson rail's rows and section disclosure now live in
+   pages/student/student.css as .sd-lesson-*.
 
-.module-row--split {
-  padding: 0;
-  cursor: default;
-  overflow: hidden;
-}
+   There is no scroll-margin-top here any more: jumping to a section no
+   longer goes through scrollIntoView (which scrolled the page as well as
+   the reader), so the gap above the heading is applied by the scroll code
+   in LearningModules.jsx instead. */
 
-.module-row__select {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 0.9rem;
-  min-width: 0;
-  padding: 0.85rem 0.5rem 0.85rem 1.1rem;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.module-row__toggle {
-  flex-shrink: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.85rem;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  cursor: pointer;
-}
-
-.module-row__toggle:hover {
-  color: var(--accent-text, var(--accent));
-}
-
-.module-row__toggle:focus-visible,
-.module-row__select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.module-row__chev {
-  display: block;
-  width: 18px;
-  height: 18px;
-  transition: transform 0.15s ease;
-}
-
-.module-row__chev.is-open {
-  transform: rotate(180deg);
-}
-
-.module-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  margin: 0.35rem 0 0.4rem;
-  padding: 0 0 0 1.6rem;
-  list-style: none;
-}
-
-.module-sections__link {
-  width: 100%;
-  padding: 0.4rem 0.7rem;
-  border: 0;
-  border-left: 2px solid var(--border);
-  border-radius: 0 8px 8px 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.8rem;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.module-sections__link:hover {
-  border-left-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent-text, var(--accent));
-}
-
-.module-sections__link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.module-sections__status {
-  padding: 0.35rem 0.7rem;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.lesson-reader__section {
-  scroll-margin-top: 0.75rem;
-}
-
-/* Stack the two panes on small screens. */
+/* Stack the two panes on small screens — and give the page its scroll back.
+   Two stacked panes inside a locked viewport leaves each of them a few
+   centimetres tall, so below this width the document scrolls normally and
+   the panes size to their content. */
 @media (max-width: 720px) {
+  .modules-page {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
   .modules-layout {
     flex-direction: column;
+    min-height: 0;
   }
 
   .modules-layout__aside {
     flex-basis: auto;
     max-width: none;
     width: 100%;
+  }
+
+  .modules-layout__scroll {
+    overflow-y: visible;
+  }
+
+  .module-viewer {
+    overflow: visible;
+  }
+
+  .module-viewer__text {
+    max-height: 70vh;
   }
 }
 

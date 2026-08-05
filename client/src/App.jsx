@@ -14,6 +14,7 @@ import ReviewPage from "./pages/assessor/ReviewPage";
 import CredentialsPage from "./pages/assessor/CredentialsPage";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
+import AchievementsPage from "./pages/student/AchievementsPage";
 import StudentCourses from "./pages/student/components/StudentCourses";
 import LearningModules from "./pages/student/LearningModules";
 import ProtectedRoute from "./auth/components/ProtectedRoute";
@@ -37,6 +38,8 @@ function App() {
         >
           <Route index element={<StudentCourses />} />
           <Route path="dashboard" element={<StudentDashboard />} />
+          <Route path="certifications" element={<AchievementsPage view="certifications" />} />
+          <Route path="badges" element={<AchievementsPage view="badges" />} />
           <Route path="courses/:courseId/modules" element={<LearningModules />} />
         </Route>
         <Route
