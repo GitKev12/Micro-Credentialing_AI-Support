@@ -127,11 +127,13 @@ function LessonNav({
                     </p>
 
                     {quizzes.map((quiz) => {
-                      // A module's quiz opens once that module is finished —
-                      // the per-module counterpart of the old rule, which kept
-                      // every quiz locked until the whole course was done.
-                      const locked = !done;
+                      // A module's quiz opens once that module is finished.
+                      // The server decides and sends `locked` with a reason;
+                      // `done` is only the fallback if that field is absent,
+                      // since the rail must never be the thing enforcing it.
+                      const locked = quiz.locked ?? !done;
                       const open = String(selectedAssessmentId) === String(quiz.id);
+                      const passed = quiz.result?.passed;
 
                       return (
                         <button
@@ -143,16 +145,27 @@ function LessonNav({
                           aria-current={open ? "true" : undefined}
                           title={
                             locked
-                              ? `Finish ${module.title} to unlock this assessment`
+                              ? (quiz.reason ??
+                                `Finish ${module.title} to unlock this assessment`)
                               : undefined
                           }
                         >
                           <span className="sd-lesson__quiz-icon">
-                            {locked ? <LockIcon size={14} /> : <QuizIcon size={15} />}
+                            {locked ? (
+                              <LockIcon size={14} />
+                            ) : passed ? (
+                              <CheckIcon size={14} />
+                            ) : (
+                              <QuizIcon size={15} />
+                            )}
                           </span>
                           <span className="sd-lesson__quiz-title">{quiz.title}</span>
                           {locked ? (
                             <span className="sd-lesson__quiz-tag">Locked</span>
+                          ) : quiz.result ? (
+                            <span className="sd-lesson__quiz-tag">
+                              {quiz.result.score}/{quiz.result.total}
+                            </span>
                           ) : null}
                         </button>
                       );

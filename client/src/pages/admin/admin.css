@@ -45,6 +45,7 @@
   --brand-text: var(--maroon-700);
   --brand-strong: var(--maroon-900);
   --brand-soft: var(--maroon-700-23);
+  --brand-hover: rgba(130, 43, 32, 0.09);
   --action: var(--teal-700);
   --text-body: var(--gray-700);
   --text-muted: var(--gray-600);
@@ -93,6 +94,7 @@
   --brand-text: #b7c0db;
   --brand-strong: #0e1730;
   --brand-soft: #0e1730;
+  --brand-hover: rgba(150, 175, 240, 0.12);
   --maroon-700-23: #0e1730;
 
   /* Neutrals resolve onto the navy ramp. */
@@ -191,16 +193,19 @@
 
 .admin-sidebar {
   position: relative;
-  width: 280px;
+  width: 272px;
   flex-shrink: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 0 28px;
-  border-radius: 0 16px 16px 0;
-  background: var(--brand);
-  box-shadow: var(--shadow-sidebar);
+  padding: 32px 0 24px;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  background: var(--surface);
+  /* Right edge only, so it still reads as the boundary with .admin-main
+     instead of an all-around outline. box-shadow (not border) so it
+     follows the rounded corners. */
+  box-shadow: 2px 0 0 0 var(--brand), var(--shadow-sidebar);
   transition: width 0.2s ease;
 }
 
@@ -209,7 +214,7 @@
 /* Straddles the sidebar's right edge, below the corner curve. */
 .admin-sidebar__toggle {
   position: absolute;
-  top: 56px;
+  top: 20px;
   right: -14px;
   z-index: 2;
   display: inline-flex;
@@ -220,16 +225,20 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--surface);
-  color: var(--brand-text);
+  background: var(--brand);
+  color: var(--white);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
 .admin-sidebar__toggle:hover {
-  background: var(--surface-raised);
-  transform: scale(1.08);
+  filter: brightness(1.08);
+}
+
+.admin-sidebar__toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .admin-sidebar--collapsed {
@@ -238,7 +247,7 @@
 
 .admin-sidebar--collapsed .admin-sidebar__top {
   gap: 20px;
-  margin-top: 28px;
+  margin-top: 8px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__avatar {
@@ -263,12 +272,12 @@
 
 .admin-sidebar--collapsed .admin-nav-item {
   justify-content: center;
-  padding: 11px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__signout {
-  align-self: center;
-  margin-left: 0;
   padding: 9px;
   border-radius: 50%;
 }
@@ -277,7 +286,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 34px;
+  gap: 32px;
   width: 100%;
 }
 
@@ -285,12 +294,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
 }
 
 .admin-sidebar__avatar {
-  width: 112px;
-  height: 112px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   background: var(--surface);
   box-shadow: var(--shadow-avatar);
@@ -303,15 +312,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 2px;
   text-align: center;
 }
 
 .admin-sidebar__name {
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.35;
-  color: var(--off-white);
+  letter-spacing: -0.01em;
+  color: var(--brand-text);
 }
 
 .admin-sidebar__id {
@@ -319,16 +330,15 @@
   font-weight: 400;
   font-size: 13px;
   line-height: 1.5;
-  opacity: 0.82;
-  color: var(--off-white);
+  color: var(--text-muted);
 }
 
 .admin-sidebar__nav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 216px;
-  margin-top: 4px;
+  gap: 4px;
+  width: 100%;
+  padding-inline: 16px;
 }
 
 .admin-nav-item {
@@ -338,11 +348,11 @@
   width: 100%;
   padding: 11px 16px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--off-white);
+  color: var(--brand-text);
   font-family: var(--font-ui);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 15px;
   line-height: 1.3;
   text-align: left;
@@ -351,12 +361,17 @@
 }
 
 .admin-nav-item:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--brand-hover);
+}
+
+.admin-nav-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
 }
 
 .admin-nav-item.is-active {
-  background: var(--surface);
-  color: var(--brand-text);
+  background: var(--brand);
+  color: var(--white);
   font-weight: 600;
 }
 
@@ -366,34 +381,32 @@
 
 /* Dark-mode switch, directly above Sign Out. */
 .admin-sidebar__theme {
+  outline: 2px solid var(--brand);
   margin-top: auto;
-  align-self: flex-start;
-  margin-left: 32px;
-  margin-bottom: 10px;
+  width: calc(100% - 32px);
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 9px;
-  padding: 9px 14px 9px 12px;
+  gap: 12px;
+  padding: 8px 12px;
   border: none;
-  border-radius: var(--radius-xl);
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--off-white);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .admin-sidebar__theme:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--brand-hover);
 }
 
 .admin-sidebar--collapsed .admin-sidebar__theme {
-  align-self: center;
-  margin-left: 0;
-  padding: 9px;
-  border-radius: 50%;
+  width: auto;
+  padding: 8px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__theme span,
@@ -404,48 +417,57 @@
 .admin-theme-switch {
   position: relative;
   flex-shrink: 0;
-  width: 32px;
-  height: 18px;
+  width: 34px;
+  height: 19px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--gray-400);
   transition: background 0.18s ease;
 }
 
 .admin-theme-switch.is-on {
-  background: var(--white);
+  background: var(--brand);
 }
 
 .admin-theme-switch__thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: 2.5px;
+  left: 2.5px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--brand);
+  background: var(--white);
   transition: transform 0.18s ease;
 }
 
 .admin-theme-switch.is-on .admin-theme-switch__thumb {
-  transform: translateX(14px);
+  transform: translateX(15px);
 }
 
 .admin-sidebar__signout {
-  align-self: flex-start;
-  margin-left: 32px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 16px 9px 12px;
+  gap: 8px;
+  padding: 10px 16px;
   border: none;
   border-radius: var(--radius-xl);
-  background: var(--surface-raised);
-  color: var(--brand-text);
+  background: var(--brand);
+  color: var(--white);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
   cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.admin-sidebar__signout:hover {
+  filter: brightness(1.08);
+}
+
+.admin-sidebar__signout:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* ── Page header ────────────────────────────────────────── */
@@ -976,6 +998,10 @@
 }
 
 .admin-course-card__desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin: 0 0 14px;
   min-height: 44px;
   font-weight: 300;
@@ -1104,6 +1130,53 @@
 }
 
 /* ── Table of Specification ─────────────────────────────── */
+
+/* One tab per course blueprint. Scrolls sideways rather than wrapping, so the
+   row stays one line however many courses exist. */
+.admin-tos-courses {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 18px;
+  padding-bottom: 4px;
+}
+
+.admin-tos-course {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: var(--gray-100);
+  color: var(--text-body);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-tos-course:hover {
+  background: var(--gray-200);
+}
+
+.admin-tos-course.is-active {
+  background: var(--brand);
+  color: var(--white);
+}
+
+.admin-tos-course__code {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-tos-course__name {
+  font-size: 12px;
+  opacity: 0.8;
+}
 
 .admin-tos-card {
   overflow: hidden;
@@ -1328,7 +1401,7 @@
   .admin-sidebar {
     width: 100%;
     padding: 24px 0;
-    border-radius: 0 0 16px 16px;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   }
 
   /* Stacked layout: collapsing doesn't apply — hide the toggle and undo
@@ -1339,7 +1412,7 @@
 
   .admin-sidebar--collapsed {
     width: 100%;
-    border-radius: 0 0 16px 16px;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   }
 
   .admin-sidebar--collapsed .admin-sidebar__who {
@@ -1357,18 +1430,12 @@
   }
 
   .admin-sidebar--collapsed .admin-sidebar__avatar svg {
-    width: 78px;
-    height: 78px;
-  }
-
-  .admin-sidebar__avatar {
-    width: 96px;
-    height: 96px;
+    width: 56px;
+    height: 56px;
   }
 
   .admin-sidebar__signout {
     margin: 20px 0 0;
-    align-self: center;
   }
 
   .admin-main {

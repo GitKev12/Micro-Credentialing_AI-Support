@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { toAssessmentSummary } from "../assessments/assessments.format.js";
 import { extractPdfFigures, extractPdfText, extractPdfTextViaOcr, stripStyleMarkers } from "./modules.ocr.js";
 import {
   buildLessonBlocks,
@@ -68,13 +69,12 @@ function toPublicModule(module) {
 }
 
 function toPublicAssessment(assessment) {
+  // The canonical shape lives in assessments.format.js — id, moduleId, scope,
+  // itemCount and the scoring fields all come from there, so a quiz reads the
+  // same whichever endpoint served it. `status` and `dueDate` are scheduling
+  // fields this collection carries but the format does not describe.
   return {
-    id: assessment._id,
-    // One quiz per module (see assessors.controller.js) — the student rail
-    // groups assessments by this to show each inside its own module.
-    moduleId: assessment.moduleId ?? assessment.module_id ?? null,
-    title: assessment.title ?? assessment.name ?? "",
-    description: assessment.description ?? "",
+    ...toAssessmentSummary(assessment),
     status: assessment.status ?? "open",
     dueDate: assessment.dueDate ?? assessment.due_date ?? null
   };

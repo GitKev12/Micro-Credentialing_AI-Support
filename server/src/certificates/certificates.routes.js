@@ -5,6 +5,12 @@ import {
   getStudentCertificates,
   previewCertificateTemplate
 } from "./certificates.controller.js";
+import {
+  requireAuth,
+  requireDownloadAuth,
+  requireRole,
+  requireSelfOrRole
+} from "../middleware/auth.js";
 
 // Mounted at /api, so these resolve to:
 //   GET /api/students/:id/certificates                  — issued certificates
@@ -13,9 +19,33 @@ import {
 //   GET /api/certificates/template/layout               — the detected fields
 const router = Router();
 
-router.get("/students/:id/certificates", getStudentCertificates);
-router.get("/students/:id/certificates/:certificateId/file", getStudentCertificateFile);
-router.get("/certificates/template/preview", previewCertificateTemplate);
-router.get("/certificates/template/layout", getCertificateTemplateLayout);
+router.get(
+  "/students/:id/certificates",
+  requireAuth,
+  requireSelfOrRole("id", "assessor", "admin"),
+  getStudentCertificates
+);
+
+// Opened in a tab by the browser, so this one takes ?token= (see tokens.js).
+router.get(
+  "/students/:id/certificates/:certificateId/file",
+  requireDownloadAuth,
+  requireSelfOrRole("id", "assessor", "admin"),
+  getStudentCertificateFile
+);
+
+// Template introspection is an authoring concern, not a student-facing one.
+router.get(
+  "/certificates/template/preview",
+  requireDownloadAuth,
+  requireRole("assessor", "admin"),
+  previewCertificateTemplate
+);
+router.get(
+  "/certificates/template/layout",
+  requireAuth,
+  requireRole("assessor", "admin"),
+  getCertificateTemplateLayout
+);
 
 export default router;

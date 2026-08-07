@@ -1,4 +1,4 @@
-import api from "./api";
+import api, { withAuthToken } from "./api";
 
 /**
  * Certifications and badges for the Student Dashboard.
@@ -37,5 +37,7 @@ export async function fetchStudentAchievements(studentId) {
 /** The stamped PDF — opened in a tab rather than fetched, so the browser's own
  *  PDF viewer handles it. */
 export function certificateFileUrl(studentId, certificateId) {
-  return `${api.defaults.baseURL}/students/${studentId}/certificates/${certificateId}/file`;
+  return withAuthToken(
+    `${api.defaults.baseURL}/students/${studentId}/certificates/${certificateId}/file`
+  );
 }

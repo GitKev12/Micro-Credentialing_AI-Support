@@ -1,4 +1,4 @@
-import api from "./api";
+import api, { withAuthToken } from "./api";
 
 /**
  * Course data helpers.
@@ -26,5 +26,5 @@ export async function fetchStudentCourses(studentId) {
 }
 
 export function courseImageUrl(courseId) {
-  return `${api.defaults.baseURL}/courses/${courseId}/image`;
+  return withAuthToken(`${api.defaults.baseURL}/courses/${courseId}/image`);
 }

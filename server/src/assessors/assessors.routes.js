@@ -11,6 +11,7 @@ import {
   releaseConfident,
   saveReview
 } from "./assessors.controller.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 
 // Mounted at /api/assessors. :assessorId accepts the Mongo id or the ASS###
 // number, so the client can pass whichever the auth session carries.
@@ -27,6 +28,15 @@ import {
 //   GET  /:assessorId/credentials                           — approved grades awaiting issue
 //   POST /:assessorId/credentials/:submissionId/issue       — issue the micro-credential
 const router = Router();
+
+// Grading, review and credential issuing are staff work.
+//
+// This guards the *role*, not the individual: because :assessorId accepts
+// either the Mongo id or the ASS### number, matching it against the session id
+// would reject half the client's own calls. One assessor can therefore still
+// read another's queue — a narrower problem than the open API this replaces,
+// and one to close once the client settles on a single id form.
+router.use(requireAuth, requireRole("assessor", "admin"));
 
 router.get("/:assessorId/overview", getOverview);
 

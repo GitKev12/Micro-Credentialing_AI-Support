@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getStoredSession } from "../../auth/services/authService";
 import {
-  fetchCourseAssessments,
   fetchCourseModules,
   fetchCourseProgress,
   fetchModuleSections,
@@ -11,7 +10,12 @@ import {
   moduleFileUrl,
   setModuleCompleted
 } from "../../services/learningModules";
+// Student-scoped rather than the course-wide list in learningModules: a quiz's
+// lock state and result only exist relative to who is asking.
+import { fetchCourseAssessments } from "../../services/assessments";
 import LessonNav from "./components/LessonNav";
+import QuizRunner from "./components/QuizRunner";
+import { LockIcon, QuizIcon } from "./components/icons";
 
 // Breathing room left above a section heading when jumping to it.
 const SECTION_SCROLL_MARGIN = 12;
@@ -198,7 +202,7 @@ function LearningModules() {
 
     Promise.all([
       fetchCourseModules(courseId).catch(() => []),
-      fetchCourseAssessments(courseId).catch(() => []),
+      fetchCourseAssessments(studentId, courseId).catch(() => []),
       fetchCourseProgress(studentId, courseId).catch(() => [])
     ])
       .then(([moduleList, assessmentList, completedList]) => {
@@ -309,14 +313,18 @@ function LearningModules() {
     );
   };
 
-  // Assessments are stored one quiz per module, so the rail groups them by
-  // their module and shows each inside that module's dropdown.
+  // Lesson quizzes are stored one per module, so the rail groups them by their
+  // module and shows each inside that module's dropdown. The course's single
+  // final assessment belongs to no lesson and sits at the foot of the rail.
   const assessmentsByModule = assessments.reduce((groups, assessment) => {
+    if (assessment.scope === "final") return groups;
     const key = String(assessment.moduleId ?? "");
     if (!key) return groups;
     (groups[key] ??= []).push(assessment);
     return groups;
   }, {});
+
+  const finalAssessment = assessments.find((assessment) => assessment.scope === "final") ?? null;
 
   const completedCount = modules.filter((module) => isCompleted(module.id)).length;
   const progressPercent = modules.length
@@ -366,6 +374,16 @@ function LearningModules() {
   const openAssessment = (assessment) => {
     setSelected({ type: "assessment", item: assessment });
     setActiveSection(null);
+  };
+
+  /**
+   * A submitted quiz can unlock the final, so the rail's lock states are
+   * re-read rather than patched locally — the gate is the server's call.
+   */
+  const refreshAssessments = () => {
+    fetchCourseAssessments(studentId, courseId)
+      .then(setAssessments)
+      .catch(() => {});
   };
 
   // Reading to the end of a lesson (and finishing its exercise, when the
@@ -492,6 +510,52 @@ function LearningModules() {
                 onOpenAssessment={openAssessment}
               />
             )}
+
+            {/* One per course, below every lesson: the last thing in the rail
+                because it is the last thing you sit. It stays shut until all
+                lessons are read and all lesson quizzes passed — the server
+                decides that and sends the reason with it. */}
+            {finalAssessment ? (
+              <div className="sd-final">
+                <p className="sd-final__label">Final assessment</p>
+
+                <button
+                  type="button"
+                  className={`sd-final__btn${
+                    String(selectedAssessmentId) === String(finalAssessment.id)
+                      ? " is-open-item"
+                      : ""
+                  }`}
+                  disabled={finalAssessment.locked}
+                  onClick={() => openAssessment(finalAssessment)}
+                  aria-current={
+                    String(selectedAssessmentId) === String(finalAssessment.id)
+                      ? "true"
+                      : undefined
+                  }
+                  title={finalAssessment.locked ? finalAssessment.reason : undefined}
+                >
+                  <span className="sd-final__icon">
+                    {finalAssessment.locked ? <LockIcon size={15} /> : <QuizIcon size={16} />}
+                  </span>
+
+                  <span className="sd-final__text">
+                    <span className="sd-final__title">{finalAssessment.title}</span>
+                    <span className="sd-final__state">
+                      {finalAssessment.result
+                        ? `Scored ${finalAssessment.result.score} of ${finalAssessment.result.total}`
+                        : finalAssessment.locked
+                          ? finalAssessment.reason
+                          : `${finalAssessment.itemCount} questions · pass ${finalAssessment.passMark}`}
+                    </span>
+                  </span>
+
+                  {finalAssessment.locked ? (
+                    <span className="sd-final__tag">Locked</span>
+                  ) : null}
+                </button>
+              </div>
+            ) : null}
           </div>
         </aside>
 
@@ -620,17 +684,18 @@ function LearningModules() {
             <div className="module-viewer">
               <div className="module-viewer__head">
                 <h3 className="module-viewer__title">{selected.item.title}</h3>
-                {/* Assessment-taking flow isn't built yet — placeholder action. */}
-                <button type="button" className="module-row__action" disabled>
-                  Take
-                </button>
+                {selected.item.scope === "final" ? (
+                  <span className="module-row__action module-viewer__complete">
+                    Final assessment
+                  </span>
+                ) : null}
               </div>
-              {selected.item.description ? (
-                <p className="module-viewer__desc">{selected.item.description}</p>
-              ) : null}
-              <p className="student-courses__status">
-                The assessment-taking flow isn&apos;t available yet.
-              </p>
+
+              <QuizRunner
+                studentId={studentId}
+                assessment={selected.item}
+                onSubmitted={refreshAssessments}
+              />
             </div>
           )}
         </div>

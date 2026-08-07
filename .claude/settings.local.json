@@ -56,7 +56,10 @@
       "Read(//home/kevkharl/**)",
       "Read(//home/kevkharl/.local/share/blesh/**)",
       "Bash(grep -n \"^\\\\/\\\\* \" styles.css)",
-      "Bash(node tmp-inspect-db.mjs)"
+      "Bash(node tmp-inspect-db.mjs)",
+      "PowerShell(foreach \\($port in 5000,5173,5174,5175\\) { $c = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { $p = Get-Process -Id \\($c.OwningProcess | Select-Object -First 1\\) -ErrorAction SilentlyContinue; \"port $port : LISTENING \\($\\($p.ProcessName\\) pid $\\($p.Id\\)\\)\" } else { \"port $port : not listening\" } })",
+      "PowerShell(foreach \\($c in 'winget','scoop','choco','npm','git','render'\\) { $cmd = Get-Command $c -ErrorAction SilentlyContinue; if \\($cmd\\) { \"$c -> $\\($cmd.Source\\)\" } else { \"$c -> NOT FOUND\" } })",
+      "PowerShell(\"Arch: $env:PROCESSOR_ARCHITECTURE\"; \"User: $env:USERNAME\"; \"LocalAppData: $env:LOCALAPPDATA\")"
     ]
   }
 }

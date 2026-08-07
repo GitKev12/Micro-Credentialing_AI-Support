@@ -14,6 +14,7 @@ import {
   unassignCourse,
   unenrollStudent
 } from "./admin.controller.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 
 // Mounted at /api/admin, so these resolve to:
 //   GET    /api/admin/profile
@@ -30,6 +31,10 @@ import {
 //   GET    /api/admin/table-of-specification           — blueprint
 //   PUT    /api/admin/table-of-specification           — save blueprint
 const router = Router();
+
+// Every route below manages accounts and enrolment, so the whole router is
+// admin-only. Nothing here is safe to expose to a signed-in student.
+router.use(requireAuth, requireRole("admin"));
 
 router.get("/profile", getAdminProfile);
 

@@ -71,12 +71,15 @@ export async function unassignCourse(assessorId, courseId) {
 
 /* ---- Table of Specification ---- */
 
+// One blueprint per course, so both calls deal in the whole set. The save
+// names the course it applies to; without that the server has nothing to key
+// the write on.
 export async function fetchTableOfSpecification() {
   const { data } = await api.get("/admin/table-of-specification");
-  return data.tableOfSpecification;
+  return Array.isArray(data.blueprints) ? data.blueprints : [];
 }
 
 export async function saveTableOfSpecification(blueprint) {
   const { data } = await api.put("/admin/table-of-specification", blueprint);
-  return data.tableOfSpecification;
+  return Array.isArray(data.blueprints) ? data.blueprints : [];
 }

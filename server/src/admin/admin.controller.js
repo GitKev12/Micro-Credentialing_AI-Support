@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
+import { syncAssessor, syncAssessorsForCourse } from "./enrollment.sync.js";
 
 /**
  * Admin console endpoints — courses, students, assessors and the Table of
@@ -243,6 +245,9 @@ export async function enrollStudent(request, response) {
     return response.status(404).json({ message: "Student not found." });
   }
 
+  // The course's assessors now have one more student on their roster.
+  await syncAssessorsForCourse(course._id);
+
   return getStudent(request, response);
 }
 
@@ -256,6 +261,11 @@ export async function unenrollStudent(request, response) {
   if (result.matchedCount === 0) {
     return response.status(404).json({ message: "Student not found." });
   }
+
+  // Run after the pull, so the recomputed roster reflects the course they left
+  // — while keeping them on any assessor who also teaches a course they remain
+  // enrolled in.
+  await syncAssessorsForCourse(request.params.courseId);
 
   return getStudent(request, response);
 }
@@ -327,6 +337,9 @@ export async function assignCourse(request, response) {
     return response.status(404).json({ message: "Assessor not found." });
   }
 
+  // Taking on a course means taking on everyone already enrolled in it.
+  await syncAssessor(request.params.id);
+
   return getAssessor(request, response);
 }
 
@@ -340,6 +353,10 @@ export async function unassignCourse(request, response) {
   if (result.matchedCount === 0) {
     return response.status(404).json({ message: "Assessor not found." });
   }
+
+  // Dropping a course drops its students, unless another of their courses
+  // keeps them on this assessor's roster.
+  await syncAssessor(request.params.id);
 
   return getAssessor(request, response);
 }
@@ -358,39 +375,68 @@ function publicTosRow(row) {
   LEVELS.forEach((level) => {
     clean[level] = toCount(row?.[level]);
   });
+  // The row's item count is the sum of its levels — carried so callers don't
+  // each re-derive the one number the row exists to state.
+  clean.items = LEVELS.reduce((sum, level) => sum + clean[level], 0);
+
+  // `course` holds the coverage topic — a lesson title, which anyone may
+  // retype here. The moduleId says which lesson that row actually covers, and
+  // is preserved rather than rebuilt: a save round-trips rows through the
+  // admin form, and anything dropped here is lost from the blueprint.
+  if (row?.moduleId) clean.moduleId = String(row.moduleId);
+
   return clean;
 }
 
+function publicTos(doc) {
+  return {
+    id: asId(doc._id),
+    courseId: doc.courseId ? String(doc.courseId) : null,
+    courseCode: doc.courseCode ?? "",
+    examination: doc.examination ?? "",
+    rows: Array.isArray(doc.rows) ? doc.rows.map(publicTosRow) : [],
+    // What the rows mean for quiz generation, derived rather than stored so it
+    // can never drift from the rows beside it.
+    blueprint: blueprintFromTos(doc)
+  };
+}
+
+/**
+ * Every course's blueprint — one document per course, its rows being that
+ * course's lessons.
+ *
+ * These endpoints once read a single document with no course filter, so with
+ * several stored the screen showed, and a save overwrote, whichever happened
+ * to sort first. Both are keyed on courseId now.
+ */
 export async function getTableOfSpecification(_request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  // The collection may not exist yet — respond with an empty blueprint rather
-  // than failing, same "abang" behaviour as the student endpoints.
+  // The collection may not exist yet — respond with an empty list rather than
+  // failing, same "abang" behaviour as the student endpoints.
   if (!(await collectionExists(TOS_COLLECTION))) {
-    return response.json({
-      tableOfSpecification: { examination: "", rows: [] },
-      pending: true
-    });
+    return response.json({ blueprints: [], pending: true });
   }
 
-  const doc = await collection(TOS_COLLECTION).findOne({}, { sort: { updatedAt: -1 } });
+  const docs = await collection(TOS_COLLECTION).find({}).toArray();
+  const blueprints = docs
+    .map(publicTos)
+    .sort((left, right) => left.examination.localeCompare(right.examination, "en"));
 
-  return response.json({
-    tableOfSpecification: {
-      id: doc ? asId(doc._id) : null,
-      examination: doc?.examination ?? "",
-      rows: Array.isArray(doc?.rows) ? doc.rows.map(publicTosRow) : []
-    },
-    pending: !doc
-  });
+  return response.json({ blueprints, pending: blueprints.length === 0 });
 }
 
 export async function saveTableOfSpecification(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const { examination, rows } = request.body ?? {};
+  const { courseId, examination, rows } = request.body ?? {};
   if (!Array.isArray(rows)) {
     return response.status(400).json({ message: "rows must be an array." });
+  }
+  // Without this a save has no course to land on, and would fall back to
+  // overwriting an arbitrary one — the failure this endpoint used to have.
+  if (!courseId) {
+    return response.status(400).json({ message: "courseId is required." });
   }
 
   const payload = {
@@ -399,13 +445,11 @@ export async function saveTableOfSpecification(request, response) {
     updatedAt: new Date()
   };
 
-  const existing = await collection(TOS_COLLECTION).findOne({}, { sort: { updatedAt: -1 } });
-
-  if (existing) {
-    await collection(TOS_COLLECTION).updateOne({ _id: existing._id }, { $set: payload });
-  } else {
-    await collection(TOS_COLLECTION).insertOne({ ...payload, createdAt: new Date() });
-  }
+  await collection(TOS_COLLECTION).updateOne(
+    { courseId: String(courseId) },
+    { $set: payload, $setOnInsert: { courseId: String(courseId), createdAt: new Date() } },
+    { upsert: true }
+  );
 
   return getTableOfSpecification(request, response);
 }

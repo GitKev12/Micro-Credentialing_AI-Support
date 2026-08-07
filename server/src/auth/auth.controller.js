@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
+import { signAuthToken } from "./tokens.js";
 
 const roleCollections = {
   student: "Student",
@@ -23,11 +24,6 @@ const passwordFields = ["password", "passwordHash", "hashedPassword"];
 
 function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
-}
-
-function createToken(account, role) {
-  const issuedAt = new Date().toISOString();
-  return Buffer.from(`${role}:${account._id}:${issuedAt}`).toString("base64");
 }
 
 function hashSha256(value) {
@@ -128,7 +124,7 @@ export async function loginUser(request, response) {
 
   return response.json({
     message: "Login successful.",
-    token: createToken(result.account, result.role),
+    token: signAuthToken(result.account, result.role),
     user: toPublicUser(result.account, result.role),
     redirectTo: roleRoutes[result.role]
   });
@@ -152,7 +148,7 @@ export async function loginAdmin(request, response) {
 
   return response.json({
     message: "Login successful.",
-    token: createToken(account, "admin"),
+    token: signAuthToken(account, "admin"),
     user: toPublicUser(account, "admin"),
     redirectTo: roleRoutes.admin
   });

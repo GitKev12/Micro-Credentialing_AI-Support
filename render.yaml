@@ -1,0 +1,60 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Two services, because the server does not serve the client build: the API is
+# a Node web service, the client a static site. Deploy with:
+#
+#   render blueprint launch
+#
+# Values marked `sync: false` are deliberately not in this file — Render will
+# prompt for them, and they must never be committed.
+
+services:
+  # ── API ────────────────────────────────────────────────────────────────────
+  - type: web
+    name: capstone-api
+    runtime: node
+    # `free` sleeps after 15 minutes idle and caps memory at 512 MB. The OCR
+    # path (tesseract.js + pdfjs + canvas, rendering at ~180 DPI in-request)
+    # will very likely be OOM-killed there — move to `starter` before relying
+    # on certificate or module OCR in production.
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm --workspace server run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      # Signs session tokens. Render generates it once and keeps it; rotating
+      # it invalidates every signed-in session, which is the intended lever.
+      - key: AUTH_SECRET
+        generateValue: true
+      # Comma-separated list of origins allowed to call this API. Set it to the
+      # client service's URL — leaving it unset reflects any origin back.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.5
+
+  # ── Client ─────────────────────────────────────────────────────────────────
+  - type: web
+    name: capstone-client
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./client/dist
+    envVars:
+      # Vite inlines this at build time, so it has to be set before the build
+      # runs — a value added afterwards changes nothing. Point it at the API
+      # service's URL with the /api suffix, e.g.
+      #   https://capstone-api.onrender.com/api
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      # React Router owns the paths; without this every deep link 404s on
+      # refresh because no such file exists on disk.
+      - type: rewrite
+        source: /*
+        destination: /index.html

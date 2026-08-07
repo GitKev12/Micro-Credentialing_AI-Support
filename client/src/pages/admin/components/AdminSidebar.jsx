@@ -62,7 +62,7 @@ function AdminSidebar({ name, idNumber }) {
       <div className="admin-sidebar__top">
         <div className="admin-sidebar__identity">
           <div className="admin-sidebar__avatar">
-            <UserIcon size={78} color="var(--brand)" />
+            <UserIcon size={56} color="var(--brand)" />
           </div>
           <div className="admin-sidebar__who">
             <span className="admin-sidebar__name">{name}</span>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchCourse, fetchCourses } from "../../services/admin";
 import { ChevronRightIcon } from "./components/icons";
-import { AdminButton, BackLink, PageHeader, SearchField } from "./components/ui";
+import { BackLink, PageHeader, SearchField } from "./components/ui";
 
 function CourseManagement() {
   const [courses, setCourses] = useState([]);
@@ -96,7 +96,6 @@ function CourseManagement() {
       <PageHeader
         title="Courses Management"
         subtitle="Select a course to review its learning modules"
-        action={<AdminButton>+ New Course</AdminButton>}
       />
 
       <SearchField

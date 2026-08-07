@@ -33,19 +33,29 @@ function toNumber(value) {
 }
 
 function TableOfSpecification() {
+  // One blueprint per course, edited one at a time. `rows` is the working copy
+  // of the selected course's table; `blueprints` keeps the rest untouched so
+  // switching away and back does not lose an unsaved edit.
+  const [blueprints, setBlueprints] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
   const [exam, setExam] = useState("");
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("loading");
   const [saveState, setSaveState] = useState("idle");
 
+  const selected = blueprints.find((entry) => entry.courseId === selectedId) ?? null;
+
   useEffect(() => {
     let active = true;
 
     fetchTableOfSpecification()
-      .then((blueprint) => {
+      .then((list) => {
         if (!active) return;
-        setExam(blueprint.examination ?? "");
-        setRows(blueprint.rows ?? []);
+        setBlueprints(list);
+        const first = list[0] ?? null;
+        setSelectedId(first?.courseId ?? null);
+        setExam(first?.examination ?? "");
+        setRows(first?.rows ?? []);
         setStatus("ready");
       })
       .catch(() => {
@@ -56,6 +66,21 @@ function TableOfSpecification() {
       active = false;
     };
   }, []);
+
+  const selectCourse = (courseId) => {
+    // Keep the edits made to the course being left, so a switch is not a loss.
+    setBlueprints((list) =>
+      list.map((entry) =>
+        entry.courseId === selectedId ? { ...entry, examination: exam, rows } : entry
+      )
+    );
+
+    const next = blueprints.find((entry) => entry.courseId === courseId);
+    setSelectedId(courseId);
+    setExam(next?.examination ?? "");
+    setRows(next?.rows ?? []);
+    setSaveState("idle");
+  };
 
   const updateCell = (index, key, value) => {
     setSaveState("idle");
@@ -73,11 +98,20 @@ function TableOfSpecification() {
   };
 
   const save = async () => {
+    if (!selectedId) return;
+
     setSaveState("saving");
     try {
-      const blueprint = await saveTableOfSpecification({ examination: exam, rows });
-      setExam(blueprint.examination ?? "");
-      setRows(blueprint.rows ?? []);
+      const list = await saveTableOfSpecification({
+        courseId: selectedId,
+        examination: exam,
+        rows
+      });
+      setBlueprints(list);
+
+      const saved = list.find((entry) => entry.courseId === selectedId);
+      setExam(saved?.examination ?? "");
+      setRows(saved?.rows ?? []);
       setSaveState("saved");
     } catch (_error) {
       setSaveState("error");
@@ -87,6 +121,14 @@ function TableOfSpecification() {
   const rowItems = (row) => LEVELS.reduce((sum, level) => sum + (row[level.key] || 0), 0);
   const totalHours = rows.reduce((sum, row) => sum + (row.hours || 0), 0);
   const grandTotal = rows.reduce((sum, row) => sum + rowItems(row), 0);
+
+  // Each row states one quiz's worth of items. When every row agrees, that is
+  // the size of every generated quiz; when they differ there is no single
+  // figure to show and generation follows each row instead.
+  const perRowItems = rows.map(rowItems);
+  const uniformItems =
+    perRowItems.length > 0 && perRowItems.every((n) => n === perRowItems[0]);
+  const itemsPerQuiz = uniformItems ? perRowItems[0] : null;
 
   const saveLabel = {
     idle: "Save Blueprint",
@@ -118,19 +160,39 @@ function TableOfSpecification() {
     <div className="admin-main__inner admin-main__inner--wide">
       <PageHeader
         title="Table of Specification"
-        subtitle="One assessment blueprint covering all available courses"
+        subtitle="One assessment blueprint per course — its rows are that course's lessons"
         action={
-          <AdminButton onClick={save} disabled={saveState === "saving"}>
+          <AdminButton onClick={save} disabled={saveState === "saving" || !selectedId}>
             {saveLabel}
           </AdminButton>
         }
       />
 
+      {/* Each course keeps its own blueprint, so the table below shows one at
+          a time and the save applies only to the course selected here. */}
+      <div className="admin-tos-courses" role="tablist" aria-label="Course blueprints">
+        {blueprints.map((entry) => (
+          <button
+            key={entry.courseId ?? entry.id}
+            type="button"
+            role="tab"
+            aria-selected={entry.courseId === selectedId}
+            className={`admin-tos-course${entry.courseId === selectedId ? " is-active" : ""}`}
+            onClick={() => selectCourse(entry.courseId)}
+          >
+            <span className="admin-tos-course__code">{entry.courseCode || "—"}</span>
+            <span className="admin-tos-course__name">{entry.examination}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="admin-tos-card">
         <div className="admin-tos-summary">
           <div>
-            <div className="admin-tos-summary__label">Scope</div>
-            <div className="admin-tos-summary__value">All Courses · {rows.length}</div>
+            <div className="admin-tos-summary__label">Course</div>
+            <div className="admin-tos-summary__value">
+              {selected?.courseCode || "—"} · {rows.length} lessons
+            </div>
           </div>
           <div>
             <div className="admin-tos-summary__label">Examination</div>
@@ -151,6 +213,12 @@ function TableOfSpecification() {
             </div>
           </div>
           <div>
+            <div className="admin-tos-summary__label">Items per Quiz</div>
+            <div className="admin-tos-summary__value admin-tos-summary__value--brand">
+              {itemsPerQuiz ?? "varies"}
+            </div>
+          </div>
+          <div>
             <div className="admin-tos-summary__label">Contact Hours</div>
             <div className="admin-tos-summary__value admin-tos-summary__value--brand">
               {totalHours}
@@ -162,7 +230,10 @@ function TableOfSpecification() {
           <table className="admin-tos-table">
             <thead>
               <tr>
-                <th className="is-course">Course</th>
+                {/* One row per lesson of the selected course. The coverage
+                    label is editable; the lesson it points at is held in the
+                    row's moduleId, which renaming must not disturb. */}
+                <th className="is-course">Coverage</th>
                 <th>Hours</th>
                 <th>% Weight</th>
                 {LEVELS.map((level) => (
@@ -180,7 +251,7 @@ function TableOfSpecification() {
                       className="tos-cell"
                       style={{ fontWeight: 500 }}
                       value={row.course}
-                      aria-label={`Course name, row ${index + 1}`}
+                      aria-label={`Coverage topic, row ${index + 1}`}
                       onChange={(event) => updateCell(index, "course", event.target.value)}
                     />
                   </td>
@@ -229,8 +300,9 @@ function TableOfSpecification() {
                 <tr>
                   <td colSpan={LEVELS.length + 5} style={{ textAlign: "center", padding: 24 }}>
                     <span className="admin-empty-note">
-                      No blueprint saved yet. Add a course row, or seed the collection with
-                      <code> npm run seed:tos</code>.
+                      No blueprint saved yet. Build one per course from the official spreadsheet
+                      with
+                      <code> node scripts/import-tos.mjs &lt;file.xlsx&gt; --all-courses --write</code>.
                     </span>
                   </td>
                 </tr>

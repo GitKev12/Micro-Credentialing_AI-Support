@@ -2060,6 +2060,309 @@ body:has(.student-app) {
   }
 }
 
+/* ─────────────── Final assessment (foot of the lesson rail) ─────────────── */
+
+/* Separated from the lesson list by more than the lessons are from each other,
+   because it is a different kind of thing — the course's one exam, not another
+   chapter. */
+.sd-final {
+  margin-top: var(--sd-4);
+  padding-top: var(--sd-3);
+  border-top: 2px solid var(--sd-border-strong);
+}
+
+.sd-final__label {
+  margin: 0 0 var(--sd-2);
+  padding-left: var(--sd-1);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+}
+
+.sd-final__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-2);
+  width: 100%;
+  padding: var(--sd-3);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-surface);
+  color: var(--sd-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sd-final__btn:hover:not(:disabled),
+.sd-final__btn.is-open-item {
+  border-color: var(--sd-brand);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+}
+
+.sd-final__btn:disabled {
+  border-style: dashed;
+  background: transparent;
+  color: var(--sd-muted);
+  cursor: not-allowed;
+}
+
+.sd-final__icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--sd-muted);
+}
+
+.sd-final__btn:hover:not(:disabled) .sd-final__icon,
+.sd-final__btn.is-open-item .sd-final__icon {
+  color: inherit;
+}
+
+.sd-final__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sd-final__title {
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-semibold);
+}
+
+/* The lock reason lands here and can run long, so it wraps rather than
+   truncating — being told what is left is the point of showing it. */
+.sd-final__state {
+  font-size: var(--sd-fs-micro);
+  color: var(--sd-muted);
+}
+
+.sd-final__tag {
+  flex-shrink: 0;
+  padding: 2px var(--sd-1);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-band);
+  font-size: var(--sd-fs-micro);
+  color: var(--sd-band-text);
+}
+
+/* ───────────────────────── Quiz runner (viewer pane) ────────────────────── */
+
+.sd-quiz {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-4);
+}
+
+.sd-quiz__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sd-3);
+  font-size: var(--sd-fs-micro);
+  color: var(--sd-muted);
+}
+
+.sd-quiz__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-1);
+}
+
+.sd-quiz__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-quiz__item {
+  padding: var(--sd-3);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-surface);
+}
+
+.sd-quiz__q {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sd-2);
+  margin: 0 0 var(--sd-3);
+  font-size: var(--sd-fs-body);
+  color: var(--sd-ink);
+}
+
+.sd-quiz__n {
+  flex-shrink: 0;
+  min-width: 1.6em;
+  height: 1.6em;
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  text-align: center;
+  line-height: 1.6em;
+}
+
+/* Says which kind of item this is without changing how it is answered — both
+   types are the same radio group underneath. */
+.sd-quiz__type {
+  padding: 1px var(--sd-1);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-band);
+  font-size: var(--sd-fs-micro);
+  color: var(--sd-band-text);
+  white-space: nowrap;
+}
+
+.sd-quiz__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-2);
+}
+
+.sd-quiz__choice {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-2);
+  padding: var(--sd-2) var(--sd-3);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-sm);
+  font-size: var(--sd-fs-meta);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sd-quiz__choice:hover:not(:has(input:disabled)) {
+  border-color: var(--sd-brand);
+  background: var(--sd-brand-wash);
+}
+
+.sd-quiz__choice.is-picked {
+  border-color: var(--sd-brand);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-weight: var(--sd-fw-medium);
+}
+
+.sd-quiz__choice:has(input:disabled) {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.sd-quiz__choice input {
+  flex-shrink: 0;
+  accent-color: var(--sd-brand);
+}
+
+.sd-quiz__choice-text {
+  flex: 1;
+}
+
+.sd-quiz__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-3);
+  padding-top: var(--sd-3);
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-quiz__progress {
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+.sd-quiz__result {
+  padding: var(--sd-4);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-md);
+  text-align: center;
+}
+
+.sd-quiz__result.is-passed {
+  border-color: var(--sd-good);
+  background: var(--sd-good-inverse);
+}
+
+.sd-quiz__result.is-failed {
+  border-color: var(--sd-crit);
+  background: var(--sd-crit-inverse);
+}
+
+.sd-quiz__score {
+  margin: 0;
+  font-size: var(--sd-fs-stat);
+  font-weight: var(--sd-fw-bold);
+  color: var(--sd-ink);
+}
+
+.sd-quiz__score span {
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-regular);
+  color: var(--sd-muted);
+}
+
+.sd-quiz__verdict {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sd-1);
+  margin: var(--sd-1) 0 0;
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-semibold);
+}
+
+.sd-quiz__result.is-passed .sd-quiz__verdict {
+  color: var(--sd-good-text);
+}
+
+.sd-quiz__result.is-failed .sd-quiz__verdict {
+  color: var(--sd-crit-text);
+}
+
+.sd-quiz__note,
+.sd-quiz__error {
+  margin: var(--sd-2) 0 0;
+  font-size: var(--sd-fs-micro);
+  color: var(--sd-muted);
+}
+
+.sd-quiz__error {
+  color: var(--sd-crit-text);
+}
+
+.sd-quiz__locked {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-2);
+  padding: var(--sd-4);
+  border: 1px dashed var(--sd-border-strong);
+  border-radius: var(--sd-r-md);
+  color: var(--sd-muted);
+}
+
+.sd-quiz__locked-icon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .sd-quiz__actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sd-2);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .student-app *,
   .student-app *::before,
