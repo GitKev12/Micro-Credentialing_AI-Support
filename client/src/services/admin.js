@@ -37,6 +37,22 @@ export async function fetchStudent(studentId) {
   return data.student;
 }
 
+// The states an account can be in. Mirrors STATUSES on the server, which
+// rejects anything outside the list.
+export const STATUSES = ["Active", "Inactive", "On Leave"];
+
+/** Patches program / year / status. Send only the fields being changed. */
+export async function updateStudent(studentId, changes) {
+  const { data } = await api.patch(`/admin/students/${studentId}`, changes);
+  return data.student;
+}
+
+/** Patches status. */
+export async function updateAssessor(assessorId, changes) {
+  const { data } = await api.patch(`/admin/assessors/${assessorId}`, changes);
+  return data.assessor;
+}
+
 export async function enrollStudent(studentId, courseId) {
   const { data } = await api.post(`/admin/students/${studentId}/courses`, { courseId });
   return data.student;

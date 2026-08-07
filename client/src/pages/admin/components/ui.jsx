@@ -41,9 +41,16 @@ export function SearchField({ value, onChange, placeholder, label }) {
   );
 }
 
+const STATUS_TONE = {
+  Active: "positive",
+  "On Leave": "warning",
+  Inactive: "neutral"
+};
+
 export function StatusPill({ label = "Active" }) {
+  const tone = STATUS_TONE[label] ?? "neutral";
   return (
-    <span className="admin-pill">
+    <span className={`admin-pill admin-pill--${tone}`}>
       <span className="admin-pill__dot" aria-hidden="true" />
       {label}
     </span>

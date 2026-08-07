@@ -106,11 +106,11 @@ function CourseManagement() {
       />
 
       {status === "loading" ? (
-        <p className="admin-empty-note">Loading courses…</p>
+        <div className="admin-state-card">Loading courses…</div>
       ) : status === "error" ? (
-        <p className="admin-empty-note">
+        <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.
-        </p>
+        </div>
       ) : (
         <>
           <div className="admin-course-grid">
@@ -126,7 +126,13 @@ function CourseManagement() {
                   <div className="admin-course-card__title">{course.title}</div>
                 </div>
                 <div className="admin-course-card__body">
-                  <p className="admin-course-card__desc">{course.description}</p>
+                  <p
+                    className={`admin-course-card__desc${
+                      course.description ? "" : " is-empty"
+                    }`}
+                  >
+                    {course.description || "No description added yet."}
+                  </p>
                   <div className="admin-course-card__meta">
                     <span>
                       <strong className="admin-strong-brand">{course.moduleCount}</strong> modules

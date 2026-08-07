@@ -140,14 +140,21 @@
   background: rgba(150, 175, 240, 0.07);
 }
 
-/* The teal "Active" pill keeps its meaning but lifts off the dark surface. */
-[data-theme="dark"] .admin-app .admin-pill {
+/* Status pills keep their meaning but lift off the dark surface. The dot
+   paints with currentColor, so it follows each tone automatically. */
+[data-theme="dark"] .admin-app .admin-pill--positive {
   background: rgba(95, 211, 196, 0.14);
   color: #5fd3c4;
 }
 
-[data-theme="dark"] .admin-app .admin-pill__dot {
-  background: #5fd3c4;
+[data-theme="dark"] .admin-app .admin-pill--warning {
+  background: rgba(245, 166, 35, 0.16);
+  color: #f2b84b;
+}
+
+[data-theme="dark"] .admin-app .admin-pill--neutral {
+  background: rgba(150, 175, 240, 0.12);
+  color: var(--gray-600);
 }
 
 /* ── Shell ──────────────────────────────────────────────── */
@@ -155,17 +162,17 @@
 .admin-app {
   display: flex;
   align-items: stretch;
+  width: 100%;
   /* Exactly one viewport tall: the sidebar always fits the screen and only
-     .admin-main scrolls. Hiding overflow-x also kills the sliver of
-     horizontal scroll the 100vw-wide breakout margin causes on Windows. */
+     .admin-main scrolls. AppLayout skips the centred .app-shell for /admin
+     routes (see layouts/AppLayout.jsx), so this is just a plain full-width
+     block — no vw-based breakout margin, which used to leave a stray
+     horizontal scrollbar whenever the page's own scrollbar was reserved. */
   height: 100vh;
   overflow: hidden;
   background: var(--surface-sunken);
   font-family: var(--font-ui);
   color: var(--text-body);
-  /* Break out of AppLayout's centred .app-shell: the admin console is
-     a full-viewport screen with its own sidebar. */
-  margin: -2rem calc(50% - 50vw) -4rem;
 }
 
 /* Links inside the console are styled as buttons/nav pills — never underlined. */
@@ -563,6 +570,11 @@
   background: var(--surface);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-inset-field);
+  transition: box-shadow 0.15s ease;
+}
+
+.admin-search:focus-within {
+  box-shadow: var(--ring-focus);
 }
 
 .admin-search__icon {
@@ -625,7 +637,8 @@
   transition: background 0.15s ease;
 }
 
-.admin-table tbody tr:hover {
+.admin-table tbody tr:hover,
+.admin-table tbody tr:has(.admin-table__open:focus-visible) {
   background: var(--surface-sunken);
 }
 
@@ -642,7 +655,26 @@
 
 .admin-table__chevron {
   text-align: right;
+}
+
+.admin-table__open {
+  display: inline-flex;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
   color: var(--brand-text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-table__open:hover {
+  background: var(--maroon-700-23);
+}
+
+.admin-table__open:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
 }
 
 .admin-person {
@@ -690,8 +722,6 @@
   gap: 6px;
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(2, 110, 120, 0.12);
-  color: var(--teal-700);
   font-family: var(--font-label);
   font-size: 13px;
   font-weight: 500;
@@ -701,7 +731,22 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--teal-700);
+  background: currentColor;
+}
+
+.admin-pill--positive {
+  background: rgba(2, 110, 120, 0.12);
+  color: var(--teal-700);
+}
+
+.admin-pill--warning {
+  background: rgba(217, 138, 15, 0.12);
+  color: #a26708;
+}
+
+.admin-pill--neutral {
+  background: var(--gray-150);
+  color: var(--gray-600);
 }
 
 /* ── Back link ──────────────────────────────────────────── */
@@ -711,14 +756,20 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 16px;
-  padding: 0;
+  padding: 2px 4px;
   border: none;
+  border-radius: var(--radius-xs);
   background: none;
   color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
   font-size: 15px;
   cursor: pointer;
+}
+
+.admin-back:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
 }
 
 /* ── Detail identity block ──────────────────────────────── */
@@ -808,6 +859,26 @@
   color: var(--text-muted);
 }
 
+/* Full-page loading/error state — list screens before there is a table or
+   grid to hold the message. */
+.admin-state-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 15px;
+}
+
+.admin-state-card--error {
+  color: var(--brand-text);
+}
+
 /* ── Assignment rows (enrolled courses / assigned classes) ─ */
 
 .admin-assign-list {
@@ -858,6 +929,11 @@
   background: rgba(130, 43, 32, 0.35);
 }
 
+.admin-chip-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
 .admin-assign-form {
   display: flex;
   gap: 8px;
@@ -876,6 +952,12 @@
   font-family: var(--font-ui);
   font-size: 15px;
   color: var(--admin-ink);
+  transition: box-shadow 0.15s ease;
+}
+
+.admin-select:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
 }
 
 /* ── Stat tiles ─────────────────────────────────────────── */
@@ -971,6 +1053,12 @@
   box-shadow: var(--shadow-card-hover);
 }
 
+.admin-course-card:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  box-shadow: var(--ring-focus), var(--shadow-card-hover);
+}
+
 .admin-course-card__head {
   padding: 16px 20px;
   background: var(--brand);
@@ -1008,6 +1096,11 @@
   font-size: 15px;
   line-height: 1.5;
   color: var(--text-muted);
+}
+
+.admin-course-card__desc.is-empty {
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .admin-course-card__meta {
@@ -1159,6 +1252,11 @@
 
 .admin-tos-course:hover {
   background: var(--gray-200);
+}
+
+.admin-tos-course:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
 }
 
 .admin-tos-course.is-active {
@@ -1346,6 +1444,11 @@
   background: var(--maroon-700-23);
 }
 
+.admin-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
 .admin-tos-foot {
   display: flex;
   align-items: center;
@@ -1372,6 +1475,11 @@
 
 .admin-ghost-btn:hover {
   background: var(--gray-200);
+}
+
+.admin-ghost-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
 }
 
 .admin-tos-hint {

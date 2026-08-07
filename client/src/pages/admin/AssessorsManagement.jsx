@@ -78,7 +78,7 @@ function AssessorsManagement() {
     const term = query.trim().toLowerCase();
     if (!term) return assessors;
     return assessors.filter((assessor) =>
-      `${assessor.name} ${assessor.assessorNumber ?? ""} ${assessor.department ?? ""}`
+      `${assessor.name} ${assessor.assessorNumber ?? ""} ${assessor.email ?? ""}`
         .toLowerCase()
         .includes(term)
     );
@@ -107,8 +107,7 @@ function AssessorsManagement() {
                   <StatusPill label={selected.status} />
                 </div>
                 <p className="admin-identity__meta">
-                  {[selected.assessorNumber, selected.department].filter(Boolean).join(" · ") ||
-                    selected.email}
+                  {[selected.assessorNumber, selected.email].filter(Boolean).join(" · ")}
                 </p>
               </div>
             </div>
@@ -208,18 +207,17 @@ function AssessorsManagement() {
       />
 
       {status === "loading" ? (
-        <p className="admin-empty-note">Loading assessors…</p>
+        <div className="admin-state-card">Loading assessors…</div>
       ) : status === "error" ? (
-        <p className="admin-empty-note">
+        <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.
-        </p>
+        </div>
       ) : (
         <div className="admin-table-card">
           <table className="admin-table">
             <thead>
               <tr>
                 <th>Assessor</th>
-                <th>Department</th>
                 <th className="is-center">Courses</th>
                 <th className="is-center">Students</th>
                 <th>Status</th>
@@ -240,7 +238,6 @@ function AssessorsManagement() {
                       </div>
                     </div>
                   </td>
-                  <td>{assessor.department ?? "—"}</td>
                   <td className="is-center">{assessor.assigned.length}</td>
                   <td className="is-center">
                     <strong className="admin-strong-brand">{assessor.students}</strong>
@@ -249,7 +246,17 @@ function AssessorsManagement() {
                     <StatusPill label={assessor.status} />
                   </td>
                   <td className="admin-table__chevron">
-                    <ChevronRightIcon />
+                    <button
+                      type="button"
+                      className="admin-table__open"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openAssessor(assessor.id);
+                      }}
+                      aria-label={`Open ${assessor.name}`}
+                    >
+                      <ChevronRightIcon />
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -29,7 +29,7 @@ function AdminLayout() {
   const idNumber = profile?.idNumber || session?.identifier || "";
 
   return (
-    <div className="admin-app">
+    <div className="admin-app entity-enter">
       <AdminSidebar name={name} idNumber={idNumber} />
       <main className="admin-main">
         <Outlet />

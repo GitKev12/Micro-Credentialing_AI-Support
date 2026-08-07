@@ -208,11 +208,11 @@ function StudentsManagement() {
       />
 
       {status === "loading" ? (
-        <p className="admin-empty-note">Loading students…</p>
+        <div className="admin-state-card">Loading students…</div>
       ) : status === "error" ? (
-        <p className="admin-empty-note">
+        <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.
-        </p>
+        </div>
       ) : (
         <div className="admin-table-card">
           <table className="admin-table">
@@ -247,7 +247,17 @@ function StudentsManagement() {
                     <StatusPill label={student.status} />
                   </td>
                   <td className="admin-table__chevron">
-                    <ChevronRightIcon />
+                    <button
+                      type="button"
+                      className="admin-table__open"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openStudent(student.id);
+                      }}
+                      aria-label={`Open ${student.name}`}
+                    >
+                      <ChevronRightIcon />
+                    </button>
                   </td>
                 </tr>
               ))}

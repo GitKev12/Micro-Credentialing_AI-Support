@@ -12,7 +12,9 @@ import {
   listStudents,
   saveTableOfSpecification,
   unassignCourse,
-  unenrollStudent
+  unenrollStudent,
+  updateAssessor,
+  updateStudent
 } from "./admin.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
@@ -43,11 +45,13 @@ router.get("/courses/:id", getCourse);
 
 router.get("/students", listStudents);
 router.get("/students/:id", getStudent);
+router.patch("/students/:id", updateStudent);
 router.post("/students/:id/courses", enrollStudent);
 router.delete("/students/:id/courses/:courseId", unenrollStudent);
 
 router.get("/assessors", listAssessors);
 router.get("/assessors/:id", getAssessor);
+router.patch("/assessors/:id", updateAssessor);
 router.post("/assessors/:id/courses", assignCourse);
 router.delete("/assessors/:id/courses/:courseId", unassignCourse);
 

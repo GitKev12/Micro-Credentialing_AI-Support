@@ -4,6 +4,14 @@ import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
 import { syncAssessor, syncAssessorsForCourse } from "./enrollment.sync.js";
 
 /**
+ * Enrolment states an account can be in. Kept here rather than free text so
+ * the pill on the admin screens only ever shows something it knows how to
+ * render, and a typo cannot invent a fourth state.
+ */
+export const STATUSES = ["Active", "Inactive", "On Leave"];
+const DEFAULT_STATUS = "Active";
+
+/**
  * Admin console endpoints — courses, students, assessors and the Table of
  * Specification.
  *
@@ -188,10 +196,11 @@ function publicStudent(student, courses) {
     studentNumber: student.student_id ?? null,
     name: studentName(student),
     email: student.email ?? null,
-    // Not stored on the Student document yet.
     program: student.program ?? null,
     year: student.year ?? null,
-    status: student.status ?? "Active",
+    // "Active" only for a document written before the field existed; every
+    // record carries its own from here on, and the admin can change it.
+    status: student.status ?? DEFAULT_STATUS,
     enrolled
   };
 }
@@ -224,6 +233,74 @@ export async function getStudent(request, response) {
   return response.json({
     student: { ...publicStudent(student, courses), progress, credentials }
   });
+}
+
+/**
+ * Builds a $set from only the fields a request actually sent, so a form that
+ * edits one value cannot blank the others by omitting them.
+ */
+function pickUpdates(body, allowed) {
+  const updates = {};
+
+  for (const field of allowed) {
+    if (!(field in (body ?? {}))) continue;
+
+    if (field === "status") {
+      const value = String(body.status ?? "").trim();
+      // An unknown status would render as a pill the UI has no meaning for.
+      if (!STATUSES.includes(value)) continue;
+      updates.status = value;
+      continue;
+    }
+
+    updates[field] = String(body[field] ?? "").trim();
+  }
+
+  return updates;
+}
+
+/** PATCH /api/admin/students/:id — program, year and status. */
+export async function updateStudent(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const updates = pickUpdates(request.body, ["program", "year", "status"]);
+  if (Object.keys(updates).length === 0) {
+    return response.status(400).json({
+      message: `Send at least one of program, year or status (status must be one of: ${STATUSES.join(", ")}).`
+    });
+  }
+
+  const result = await collection(STUDENTS_COLLECTION).updateOne(
+    { _id: { $in: idCandidates(request.params.id) } },
+    { $set: updates }
+  );
+  if (result.matchedCount === 0) {
+    return response.status(404).json({ message: "Student not found." });
+  }
+
+  return getStudent(request, response);
+}
+
+/** PATCH /api/admin/assessors/:id — status. */
+export async function updateAssessor(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const updates = pickUpdates(request.body, ["status"]);
+  if (Object.keys(updates).length === 0) {
+    return response.status(400).json({
+      message: `status must be one of: ${STATUSES.join(", ")}.`
+    });
+  }
+
+  const result = await collection(ASSESSORS_COLLECTION).updateOne(
+    { _id: { $in: idCandidates(request.params.id) } },
+    { $set: updates }
+  );
+  if (result.matchedCount === 0) {
+    return response.status(404).json({ message: "Assessor not found." });
+  }
+
+  return getAssessor(request, response);
 }
 
 export async function enrollStudent(request, response) {
@@ -289,8 +366,7 @@ function publicAssessor(assessor, courses) {
     name: assessor.full_name ?? assessor.name ?? assessor.email ?? "Unnamed assessor",
     email: assessor.email ?? null,
     // Not stored on the Assessor document yet.
-    department: assessor.department ?? null,
-    status: assessor.status ?? "Active",
+    status: assessor.status ?? DEFAULT_STATUS,
     students: (assessor.assigned_students ?? []).length,
     assigned
   };
