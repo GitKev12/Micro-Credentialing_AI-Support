@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists } from "../lib/mongo.js";
 import { getEnvironmentConfig } from "../config/env.js";
-import { estimateCost, getPricing, readApiUsage } from "../integrations/openai/usage.log.js";
+import { readApiUsage } from "../integrations/openai/usage.log.js";
 
 /**
  * What the API has cost so far.
@@ -198,11 +198,7 @@ export async function getApiUsage(request, response) {
     generatedAt: new Date().toISOString(),
     model: getEnvironmentConfig().openAiModel,
     windowDays: days,
-    pricing: getPricing(),
-    totals: {
-      ...totals,
-      cost: estimateCost(totals.inputTokens, totals.outputTokens)
-    },
+    totals,
     daily: [...byDay.values()],
     byCourse: [...byCourse.values()].sort((a, b) => b.totalTokens - a.totalTokens),
     recent: rows.slice(0, 25).map((row) => ({
@@ -229,11 +225,7 @@ export async function getApiUsage(request, response) {
       ? {
           averageTokensPerCall: averageTokens,
           remainingCalls: lessonsRemaining,
-          estimatedTokens: averageTokens * lessonsRemaining,
-          estimatedCost: estimateCost(
-            Math.round(averageTokens * lessonsRemaining * (totals.inputTokens / (totals.totalTokens || 1))),
-            Math.round(averageTokens * lessonsRemaining * (totals.outputTokens / (totals.totalTokens || 1)))
-          )
+          estimatedTokens: averageTokens * lessonsRemaining
         }
       : null,
     credits: await readCredits()

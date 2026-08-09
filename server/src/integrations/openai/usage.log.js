@@ -19,38 +19,6 @@ export const USAGE_COLLECTION = "ApiUsage";
 const collection = () => mongoose.connection.collection(USAGE_COLLECTION);
 
 /**
- * What a token costs, if anyone has said.
- *
- * Deliberately unset by default. Prices change and are not discoverable from
- * the API, so guessing one would put an authoritative-looking number on a
- * dashboard that nobody had checked. Unset means the dashboard reports tokens
- * and says plainly that it cannot price them.
- */
-export function getPricing() {
-  const input = Number(process.env.OPENAI_PRICE_INPUT_PER_1M);
-  const output = Number(process.env.OPENAI_PRICE_OUTPUT_PER_1M);
-  const configured = input > 0 && output > 0;
-
-  return {
-    configured,
-    currency: process.env.OPENAI_PRICE_CURRENCY || "USD",
-    inputPerMillion: configured ? input : null,
-    outputPerMillion: configured ? output : null
-  };
-}
-
-/** Cost of a token count at the configured rate, or null when unpriced. */
-export function estimateCost(inputTokens, outputTokens) {
-  const pricing = getPricing();
-  if (!pricing.configured) return null;
-
-  const input = ((Number(inputTokens) || 0) / 1_000_000) * pricing.inputPerMillion;
-  const output = ((Number(outputTokens) || 0) / 1_000_000) * pricing.outputPerMillion;
-
-  return { input, output, total: input + output, currency: pricing.currency };
-}
-
-/**
  * Records one call. Never throws: a spend log that can break the thing it is
  * logging is worse than a gap in the log, so a failure here is swallowed after
  * being written to the server output.

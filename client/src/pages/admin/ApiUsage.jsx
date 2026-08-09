@@ -35,14 +35,6 @@ function compact(value) {
 
 const exact = (value) => (Number(value) || 0).toLocaleString();
 
-function money(cost) {
-  if (!cost) return null;
-  const amount = Number(cost.total) || 0;
-  const currency = cost.currency ?? "USD";
-  const digits = amount > 0 && amount < 1 ? 4 : 2;
-  return `${currency === "USD" ? "$" : ""}${amount.toFixed(digits)}${currency === "USD" ? "" : ` ${currency}`}`;
-}
-
 function shortDay(iso) {
   const [, month, day] = String(iso).split("-");
   return `${Number(month)}/${Number(day)}`;
@@ -248,7 +240,6 @@ function ApiUsage() {
     );
   }
 
-  const cost = money(totals.cost);
   const nothingYet = totals.calls === 0;
 
   return (
@@ -302,15 +293,6 @@ function ApiUsage() {
         <div className="usage-tiles">
           <Tile label="Sent to the model" value={compact(totals.inputTokens)} sub={`${exact(totals.inputTokens)} tokens`} />
           <Tile label="Written back" value={compact(totals.outputTokens)} sub={`${exact(totals.outputTokens)} tokens`} />
-          <Tile
-            label="Estimated cost"
-            value={cost ?? "—"}
-            sub={
-              cost
-                ? `at ${data.pricing.inputPerMillion}/${data.pricing.outputPerMillion} per million`
-                : "Set OPENAI_PRICE_INPUT_PER_1M and OPENAI_PRICE_OUTPUT_PER_1M to price this"
-            }
-          />
           <Tile
             label="Questions stored"
             value={exact(data.corpus.questionsStored)}
@@ -435,8 +417,7 @@ function ApiUsage() {
               Finishing the remaining {data.projection.remainingCalls} lesson
               {data.projection.remainingCalls === 1 ? "" : "s"} would take roughly{" "}
               <b>{compact(data.projection.estimatedTokens)}</b> more tokens, going by the{" "}
-              {compact(data.projection.averageTokensPerCall)} average so far
-              {money(data.projection.estimatedCost) ? ` (about ${money(data.projection.estimatedCost)})` : ""}.
+              {compact(data.projection.averageTokensPerCall)} average so far.
             </p>
           ) : null}
         </section>
