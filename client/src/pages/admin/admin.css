@@ -1570,4 +1570,451 @@
   .admin-course-card:hover {
     transform: none;
   }
+
+  .usage-live.is-on .usage-live__dot {
+    animation: none;
+  }
+}
+
+/* ── API usage dashboard ─────────────────────────────────
+   Two series: tokens sent to the model, and tokens it wrote back. The hues come
+   from the maroon-red and teal families already in this interface, stepped once
+   per theme so each clears the colour-blind separation and contrast gates on
+   the surface it actually sits on (worst adjacent CVD dE 15.1 light / 14.7
+   dark, against a floor of 8). Identity is carried by the legend and the
+   tooltip as well, never by hue alone. */
+.admin-app {
+  --usage-input: #d1462f;
+  --usage-output: #0ea5a5;
+  --usage-grid: var(--gray-200);
+  --usage-axis: var(--gray-400);
+}
+
+[data-theme="dark"] .admin-app {
+  --usage-input: #dd5f45;
+  --usage-output: #1fa3ab;
+  --usage-grid: rgba(150, 175, 240, 0.14);
+  --usage-axis: rgba(150, 175, 240, 0.3);
+}
+
+.admin-table th.is-right,
+.admin-table td.is-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nothing in these tables opens a detail screen. */
+.admin-app .usage-inner-table tbody tr,
+.admin-app .usage-mini-table tbody tr,
+.admin-app .usage-recent tbody tr {
+  cursor: default;
+}
+
+.usage-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.usage-range {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--gray-100);
+  border-radius: 10px;
+}
+
+.usage-range__btn {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.usage-range__btn.is-active {
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--brand-text);
+  box-shadow: 0 1px 3px var(--shadow-tint);
+}
+
+.usage-live {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 13px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.usage-live__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gray-400);
+}
+
+.usage-live.is-on {
+  color: var(--text-body);
+}
+
+.usage-live.is-on .usage-live__dot {
+  background: #0ca30c;
+  animation: usage-pulse 2s ease-in-out infinite;
+}
+
+@keyframes usage-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.usage-updated {
+  margin: -8px 0 18px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.usage-hero {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 2.4fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.usage-hero__figure,
+.usage-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.usage-hero__label,
+.usage-tile__label {
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* The one number the page leads with. Proportional figures on purpose:
+   tabular-nums pads every digit to the width of a zero, which reads loose at
+   display sizes. Tabular is for the columns below, where digits must line up. */
+.usage-hero__value {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--admin-ink);
+}
+
+.usage-hero__sub,
+.usage-tile__sub {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.usage-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+}
+
+.usage-tile__value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.usage-chart {
+  margin-bottom: 16px;
+}
+
+.usage-chart__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.usage-chart__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.usage-chart__sub {
+  margin: 2px 0 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.usage-chart__right {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.usage-legend {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-body);
+}
+
+.usage-legend li {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.usage-legend__key {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+.usage-legend__key--input {
+  background: var(--usage-input);
+}
+
+.usage-legend__key--output {
+  background: var(--usage-output);
+}
+
+.usage-tablebtn {
+  padding: 6px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.usage-chart__plot {
+  position: relative;
+}
+
+.usage-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.usage-chart__grid {
+  stroke: var(--usage-grid);
+  stroke-width: 1;
+}
+
+.usage-chart__baseline {
+  stroke: var(--usage-axis);
+  stroke-width: 1;
+}
+
+.usage-chart__tick {
+  fill: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-chart__value {
+  fill: var(--text-body);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.usage-chart__input {
+  fill: var(--usage-input);
+}
+
+.usage-chart__output {
+  fill: var(--usage-output);
+}
+
+.usage-chart__hit {
+  fill: transparent;
+}
+
+.usage-chart__band.is-hovered .usage-chart__hit {
+  fill: var(--brand-hover);
+}
+
+.usage-tooltip {
+  position: absolute;
+  top: 8px;
+  min-width: 178px;
+  padding: 10px 12px;
+  transform: translateX(-50%);
+  background: var(--surface-raised);
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px var(--shadow-tint);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--text-body);
+  pointer-events: none;
+}
+
+.usage-tooltip__date {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.usage-tooltip__row {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin: 0 0 3px;
+}
+
+.usage-tooltip__row b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-tooltip__total {
+  margin: 7px 0 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--gray-200);
+  color: var(--text-muted);
+}
+
+.usage-empty {
+  margin: 0;
+  padding: 34px 0;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.usage-inner-table {
+  padding: 0;
+  box-shadow: none;
+}
+
+.usage-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.usage-panel__figure {
+  margin: 12px 0 6px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.usage-panel__figure--muted {
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+.usage-panel__note {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.usage-panel__note--divided {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.usage-mini-table th,
+.usage-mini-table td {
+  padding: 9px 10px;
+}
+
+.usage-mini-table th:first-child,
+.usage-mini-table td:first-child {
+  padding-left: 0;
+}
+
+/* The word carries the meaning; colour only supports it. */
+.usage-outcome {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-body);
+}
+
+.usage-outcome--created {
+  background: rgba(12, 163, 12, 0.14);
+  color: #0a7c0a;
+}
+
+.usage-outcome--rejected {
+  background: rgba(236, 131, 90, 0.18);
+  color: #a2492a;
+}
+
+.usage-outcome--failed {
+  background: rgba(208, 59, 59, 0.16);
+  color: #a52c2c;
+}
+
+[data-theme="dark"] .admin-app .usage-outcome--created {
+  color: #4ec94e;
+}
+
+[data-theme="dark"] .admin-app .usage-outcome--rejected {
+  color: #f0a07c;
+}
+
+[data-theme="dark"] .admin-app .usage-outcome--failed {
+  color: #ef7d7d;
+}
+
+.usage-outcome__why {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 980px) {
+  .usage-hero,
+  .usage-split {
+    grid-template-columns: 1fr;
+  }
 }

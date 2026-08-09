@@ -5,6 +5,7 @@ import CourseManagement from "./pages/admin/CourseManagement";
 import StudentsManagement from "./pages/admin/StudentsManagement";
 import AssessorsManagement from "./pages/admin/AssessorsManagement";
 import TableOfSpecification from "./pages/admin/TableOfSpecification";
+import ApiUsage from "./pages/admin/ApiUsage";
 import AssessorLayout from "./pages/assessor/AssessorLayout";
 import ClassesPage from "./pages/assessor/ClassesPage";
 import RosterPage from "./pages/assessor/RosterPage";
@@ -71,6 +72,7 @@ function App() {
           <Route path="students" element={<StudentsManagement />} />
           <Route path="assessors" element={<AssessorsManagement />} />
           <Route path="table-of-specification" element={<TableOfSpecification />} />
+          <Route path="api-usage" element={<ApiUsage />} />
         </Route>
       </Routes>
     </AppLayout>

@@ -154,3 +154,13 @@ export function UploadIcon({ size = 26 }) {
     </svg>
   );
 }
+
+/** API usage — a small column chart, matching the dashboard it links to. */
+export function UsageIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 20h16" {...stroke} />
+      <path d="M7 20v-5M12 20V7M17 20v-9" {...stroke} />
+    </svg>
+  );
+}

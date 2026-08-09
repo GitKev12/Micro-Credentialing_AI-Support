@@ -19,6 +19,7 @@ import {
   updateAssessor,
   updateStudent
 } from "./admin.controller.js";
+import { getApiUsage } from "./usage.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 // Mounted at /api/admin, so these resolve to:
@@ -38,6 +39,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
 //   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
 //   POST   /api/admin/assessments/final                — assemble the final { courseId, dryRun? }
+//   GET    /api/admin/api-usage?days=30                — token spend, from our own log
 const router = Router();
 
 // Every route below manages accounts and enrolment, so the whole router is
@@ -69,5 +71,9 @@ router.put("/table-of-specification", saveTableOfSpecification);
 router.get("/assessments/status", getAssessmentGenerationStatus);
 router.post("/assessments/generate", generateAssessments);
 router.post("/assessments/final", generateFinalAssessment);
+
+// Reads the spend log, not OpenAI. Refreshing it costs nothing, which is the
+// point of a monitor.
+router.get("/api-usage", getApiUsage);
 
 export default router;

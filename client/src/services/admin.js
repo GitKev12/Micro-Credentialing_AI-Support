@@ -53,6 +53,15 @@ export async function updateAssessor(assessorId, changes) {
   return data.assessor;
 }
 
+/**
+ * Token spend, read from the server's own log — this makes no call to OpenAI
+ * and costs nothing, so it is safe to poll.
+ */
+export async function fetchApiUsage(days = 30) {
+  const { data } = await api.get(`/admin/api-usage`, { params: { days } });
+  return data;
+}
+
 export async function enrollStudent(studentId, courseId) {
   const { data } = await api.post(`/admin/students/${studentId}/courses`, { courseId });
   return data.student;

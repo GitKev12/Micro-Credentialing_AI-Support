@@ -4,6 +4,7 @@ import { hashSeed, sample, seededRandom } from "../lib/random.js";
 import { loadLessonBlueprint, loadQuizBlueprint } from "./assessments.blueprint.js";
 import { ITEM_TYPES, TOS_LEVELS, normalizeItem, validateAssessment } from "./assessments.format.js";
 import { generateAssessmentItems } from "../integrations/openai/openai.client.js";
+import { recordApiUsage } from "../integrations/openai/usage.log.js";
 
 /**
  * Writing quizzes into the Assessment collection.
@@ -261,14 +262,33 @@ export async function generateModuleAssessment({
     };
   }
 
-  const generated = await generateAssessmentItems({
-    courseTitle: course?.title ?? course?.courseCode ?? "",
+  // Everything from here on is paid for, so every exit below records what it
+  // cost — including the ones that store nothing.
+  const spend = {
+    kind: "assessment-generation",
+    courseId,
+    courseCode: course?.courseCode ?? null,
+    moduleId,
     moduleTitle: lesson.title ?? blueprintRow.coverage,
-    sourceText,
-    itemCount: bankSize,
-    distribution: blueprintRow.distribution,
-    model
-  });
+    itemsRequested: bankSize
+  };
+
+  let generated;
+  try {
+    generated = await generateAssessmentItems({
+      courseTitle: course?.title ?? course?.courseCode ?? "",
+      moduleTitle: lesson.title ?? blueprintRow.coverage,
+      sourceText,
+      itemCount: bankSize,
+      distribution: blueprintRow.distribution,
+      model
+    });
+  } catch (error) {
+    // A call that errors may still have been billed, and the operator needs to
+    // see that it happened even though the token count is unknown.
+    await recordApiUsage({ ...spend, outcome: "failed", error: error.message });
+    return { status: "error", reason: "generation-failed", moduleId: asId(moduleId), message: error.message };
+  }
 
   const items = mapGeneratedItems(generated.items);
   const document = buildAssessmentDocument({
@@ -281,10 +301,21 @@ export async function generateModuleAssessment({
     usage: generated.usage
   });
 
+  const billed = {
+    ...spend,
+    model: generated.model,
+    inputTokens: generated.usage?.inputTokens,
+    outputTokens: generated.usage?.outputTokens,
+    totalTokens: generated.usage?.totalTokens,
+    itemsUsable: items.length
+  };
+
   const check = validateAssessment(document);
   if (!check.valid) {
-    // Nothing is stored. The call is already paid for, so the problems are
-    // returned in full — a retry should be aimed, not repeated blindly.
+    // Nothing is stored, but it was still paid for — which is exactly the spend
+    // the Assessment collection alone would never show.
+    await recordApiUsage({ ...billed, outcome: "rejected" });
+
     return {
       status: "rejected",
       moduleId: asId(moduleId),
@@ -297,6 +328,8 @@ export async function generateModuleAssessment({
 
   try {
     const inserted = await collection(ASSESSMENTS_COLLECTION).insertOne(document);
+    await recordApiUsage({ ...billed, outcome: "created" });
+
     return {
       status: "created",
       assessmentId: asId(inserted.insertedId),
@@ -307,8 +340,11 @@ export async function generateModuleAssessment({
       usage: generated.usage
     };
   } catch (error) {
-    // The unique index caught a lesson two operators generated at once.
+    // The unique index caught a lesson two operators generated at once. The
+    // call still happened, so it is still logged — the money was spent even
+    // though the loser's document was thrown away.
     if (error?.code === 11000) {
+      await recordApiUsage({ ...billed, outcome: "discarded-duplicate" });
       return { status: "skipped", reason: "already-exists", moduleId: asId(moduleId) };
     }
     throw error;

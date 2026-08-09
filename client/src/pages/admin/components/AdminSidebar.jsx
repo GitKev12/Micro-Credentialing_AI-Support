@@ -12,6 +12,7 @@ import {
   StudentsIcon,
   SunIcon,
   TosIcon,
+  UsageIcon,
   UserIcon
 } from "./icons";
 
@@ -19,7 +20,8 @@ const NAV_ITEMS = [
   { to: "/admin/courses", label: "Courses", Icon: CoursesIcon },
   { to: "/admin/students", label: "Students", Icon: StudentsIcon },
   { to: "/admin/assessors", label: "Assessors", Icon: AssessorsIcon },
-  { to: "/admin/table-of-specification", label: "Table of Specification", Icon: TosIcon }
+  { to: "/admin/table-of-specification", label: "Table of Specification", Icon: TosIcon },
+  { to: "/admin/api-usage", label: "API Usage", Icon: UsageIcon }
 ];
 
 const COLLAPSED_KEY = "adminSidebarCollapsed";
