@@ -10,11 +10,10 @@ import { readApiUsage } from "../integrations/openai/usage.log.js";
  * Opening this dashboard makes no call to OpenAI and consumes no tokens — which
  * matters, because a monitor you are afraid to refresh is not a monitor.
  *
- * The one thing it cannot show from here is the account's remaining balance.
- * That lives behind OpenAI's organization endpoints, which a project key
- * (sk-proj-…) is refused by: they need an Admin key with the api.usage.read
- * scope. Rather than pretend, the balance panel reports why it is empty, and
- * fills itself in if OPENAI_ADMIN_KEY is ever set.
+ * The one exception is `billed`, which asks OpenAI what it has charged over the
+ * same window. That call needs an Admin key (OPENAI_ADMIN_KEY) — a project key
+ * is refused — and it still cannot report a remaining balance, because no
+ * endpoint exposes one. It reports spend, and says so.
  */
 
 const ASSESSMENTS_COLLECTION = "Assessment";
@@ -55,64 +54,106 @@ function emptyDays(days) {
 }
 
 /**
- * The account balance, when it is knowable.
- *
- * Only attempted when an Admin key is configured — a project key is refused,
- * and trying anyway would put a permission error in front of the operator on
- * every page load for something they never asked for.
+ * Cached per window, because the dashboard polls every five seconds and this is
+ * the one thing on the page that leaves the building. OpenAI buckets cost by
+ * the day, so a figure a few minutes stale is the same figure — and without
+ * this, a dashboard left open would call their API twelve times a minute for as
+ * long as it stayed open.
  */
-async function readCredits() {
+const spendCache = new Map();
+const SPEND_TTL_MS = 5 * 60 * 1000;
+
+async function readSpend(days) {
+  const cached = spendCache.get(days);
+  if (cached && Date.now() - cached.at < SPEND_TTL_MS) {
+    return { ...cached.value, cached: true, cachedAt: new Date(cached.at).toISOString() };
+  }
+
+  const value = await fetchSpend(days);
+
+  // Only successes are cached. A failure should be retried on the next refresh,
+  // not held on screen for five minutes.
+  if (value.available) spendCache.set(days, { at: Date.now(), value });
+
+  return { ...value, cached: false };
+}
+
+/**
+ * What OpenAI has billed over a window.
+ *
+ * Two things worth knowing about their endpoint. It reports **spend, not a
+ * remaining balance** — nothing exposes prepaid credit left, so a panel headed
+ * "balance" showing this figure would be misnaming the number it holds. And it
+ * pages: one bucket per day, so a long window has to be followed to the end or
+ * the total silently drops its oldest days.
+ *
+ * Only attempted when an Admin key is configured. A project key is refused with
+ * a permissions error, and calling anyway would put that error in front of the
+ * operator on every page load.
+ */
+async function fetchSpend(days) {
   const adminKey = process.env.OPENAI_ADMIN_KEY;
 
   if (!adminKey) {
     return {
       available: false,
       reason:
-        "Needs an OpenAI Admin key. A project key (sk-proj-…) is refused by the organization usage and cost endpoints, which require the api.usage.read scope. Set OPENAI_ADMIN_KEY in server/.env to fill this in.",
-      spendToDate: null
+        "Needs an OpenAI Admin key. A project key (sk-proj-…) is refused by the organization cost endpoint, which requires the api.usage.read scope. Set OPENAI_ADMIN_KEY in server/.env to fill this in.",
+      spend: null
     };
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-  const startTime = Math.floor(startOfMonth.getTime() / 1000);
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+  since.setHours(0, 0, 0, 0);
+
+  const headers = { Authorization: `Bearer ${adminKey}` };
+  const base = `https://api.openai.com/v1/organization/costs?start_time=${Math.floor(since.getTime() / 1000)}&limit=180`;
+
+  let spend = 0;
+  let currency = null;
+  let buckets = 0;
+  let url = base;
 
   try {
-    const response = await fetch(
-      `https://api.openai.com/v1/organization/costs?start_time=${startTime}&limit=31`,
-      { headers: { Authorization: `Bearer ${adminKey}` } }
-    );
+    // Bounded: a runaway cursor must not turn a dashboard refresh into an
+    // unbounded loop against someone else's API.
+    for (let page = 0; page < 5 && url; page += 1) {
+      const response = await fetch(url, { headers });
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      return {
-        available: false,
-        reason: body?.error?.message ?? `OpenAI answered ${response.status}.`,
-        spendToDate: null
-      };
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        return {
+          available: false,
+          reason: body?.error?.message ?? `OpenAI answered ${response.status}.`,
+          spend: null
+        };
+      }
+
+      const body = await response.json();
+
+      for (const bucket of body.data ?? []) {
+        buckets += 1;
+        for (const row of bucket.results ?? []) {
+          spend += Number(row?.amount?.value) || 0;
+          currency = currency ?? row?.amount?.currency ?? null;
+        }
+      }
+
+      url = body.has_more && body.next_page ? `${base}&page=${encodeURIComponent(body.next_page)}` : null;
     }
-
-    const body = await response.json();
-    const spend = (body.data ?? []).reduce((sum, bucket) => {
-      const amounts = (bucket.results ?? []).reduce(
-        (inner, row) => inner + (row.amount?.value ?? 0),
-        0
-      );
-      return sum + amounts;
-    }, 0);
 
     return {
       available: true,
-      // OpenAI reports spend, not a remaining balance — prepaid credit left is
-      // not exposed by the API at all. Say which one this is.
-      spendToDate: spend,
-      currency: body.data?.[0]?.results?.[0]?.amount?.currency ?? "usd",
-      since: startOfMonth.toISOString(),
+      spend,
+      currency: currency ?? "usd",
+      since: since.toISOString(),
+      days,
+      buckets,
       reason: null
     };
   } catch (error) {
-    return { available: false, reason: error.message, spendToDate: null };
+    return { available: false, reason: error.message, spend: null };
   }
 }
 
@@ -228,6 +269,6 @@ export async function getApiUsage(request, response) {
           estimatedTokens: averageTokens * lessonsRemaining
         }
       : null,
-    credits: await readCredits()
+    billed: await readSpend(days)
   });
 }

@@ -393,22 +393,24 @@ function ApiUsage() {
 
       <div className="usage-split">
         <section className="admin-card usage-panel">
-          <h2 className="usage-chart__title">Account balance</h2>
-          {data.credits.available ? (
+          <h2 className="usage-chart__title">Billed by OpenAI</h2>
+          {data.billed.available ? (
             <>
               <p className="usage-panel__figure">
-                {data.credits.currency === "usd" ? "$" : ""}
-                {Number(data.credits.spendToDate).toFixed(2)}
+                {data.billed.currency === "usd" ? "$" : ""}
+                {Number(data.billed.spend).toFixed(2)}
+                {data.billed.currency === "usd" ? "" : ` ${String(data.billed.currency).toUpperCase()}`}
               </p>
               <p className="usage-panel__note">
-                Spent this month, from OpenAI. This is spend, not remaining credit — the API does
-                not expose a prepaid balance.
+                Charged over the last {data.billed.days} days — the same window as the chart, read
+                from your OpenAI account. This is what has been <b>spent</b>, not credit remaining:
+                OpenAI exposes no endpoint for a prepaid balance, so no dashboard can show one.
               </p>
             </>
           ) : (
             <>
               <p className="usage-panel__figure usage-panel__figure--muted">Not available</p>
-              <p className="usage-panel__note">{data.credits.reason}</p>
+              <p className="usage-panel__note">{data.billed.reason}</p>
             </>
           )}
 
