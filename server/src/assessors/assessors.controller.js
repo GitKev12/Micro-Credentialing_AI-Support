@@ -115,9 +115,18 @@ function openFlags(result) {
   ).length;
 }
 
+/**
+ * What a paper is worth. `itemCount` is the caller's best guess at its length,
+ * used only when the assessment does not say — and a bank-backed assessment
+ * always says, because counting the bank instead of the paper drawn from it
+ * would inflate every total on these screens several times over.
+ */
 function reviewConfig(assessment, itemCount) {
   const pointsPerItem = assessment?.pointsPerItem ?? 5;
-  const total = assessment?.totalPoints ?? pointsPerItem * itemCount;
+  const perAttempt = Number(assessment?.itemsPerAttempt) > 0
+    ? Number(assessment.itemsPerAttempt)
+    : itemCount;
+  const total = assessment?.totalPoints ?? pointsPerItem * perAttempt;
   const passMark = assessment?.passMark ?? Math.ceil(total * 0.8);
   return { pointsPerItem, total, passMark };
 }
@@ -125,6 +134,22 @@ function reviewConfig(assessment, itemCount) {
 function credentialName(assessment) {
   if (assessment?.credentialName) return assessment.credentialName;
   return assessment?.title ? `${assessment.title} Credential` : "Course Credential";
+}
+
+/**
+ * The questions this submission actually contained.
+ *
+ * An Assessment may hold a bank several times longer than the paper drawn from
+ * it, so `assessment.items` is the wrong thing to count or to display. The
+ * submission records what was served; the two older shapes are the fallbacks
+ * for results written before it did.
+ */
+function servedItemIds(result, assessment) {
+  if (result?.servedItemIds?.length) return result.servedItemIds.map(asId);
+  if (assessment?.items?.length) {
+    return assessment.items.map((item, index) => asId(item.id ?? index + 1));
+  }
+  return (result?.answers ?? []).map((answer) => asId(answer.itemId));
 }
 
 /** The AI's verdict for an item — a flagged item falls back to its best guess. */
@@ -138,9 +163,7 @@ function computedScore(result, assessment) {
   const aiByItem = new Map(
     (result.aiGrading?.items ?? []).map((item) => [asId(item.itemId), item])
   );
-  const itemIds = assessment?.items?.length
-    ? assessment.items.map((item, index) => asId(item.id ?? index + 1))
-    : (result.answers ?? []).map((answer) => asId(answer.itemId));
+  const itemIds = servedItemIds(result, assessment);
   const { pointsPerItem } = reviewConfig(assessment, itemIds.length);
 
   return itemIds.reduce((sum, itemId) => {
@@ -391,9 +414,14 @@ async function reviewPayload(result, course) {
     (result.aiGrading?.items ?? []).map((item) => [asId(item.itemId), item])
   );
 
-  const sourceItems =
+  // Only the questions this student was given. Reviewing the whole bank would
+  // show the assessor twenty-four questions against eight answers, and mark
+  // the sixteen nobody was asked as wrong.
+  const served = new Set(servedItemIds(result, assessment));
+  const sourceItems = (
     assessment?.items ??
-    (result.answers ?? []).map((answer, index) => ({ id: answer.itemId, n: index + 1 }));
+    (result.answers ?? []).map((answer, index) => ({ id: answer.itemId, n: index + 1 }))
+  ).filter((item, index) => served.has(asId(item.id ?? index + 1)));
 
   const items = sourceItems.map((item, index) => {
     const id = asId(item.id ?? index + 1);

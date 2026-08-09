@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
+import {
+  assembleFinalAssessment,
+  ensureAssessmentIndexes,
+  generateModuleAssessment,
+  getGenerationStatus
+} from "../assessments/assessments.generate.js";
 import { syncAssessor, syncAssessorsForCourse } from "./enrollment.sync.js";
 
 /**
@@ -528,6 +534,84 @@ export async function saveTableOfSpecification(request, response) {
   );
 
   return getTableOfSpecification(request, response);
+}
+
+/* ──────────────────── Assessment generation ──────────────────── */
+
+/**
+ * Authoring endpoints, not student ones.
+ *
+ * Generating is the only thing in this system that spends money, so it is
+ * reachable from exactly one place — this admin-only router — and never from a
+ * route a student can call. Every one of them takes `dryRun`, which reports
+ * what would happen and what it would roughly cost without calling the model.
+ */
+export async function getAssessmentGenerationStatus(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const courseId = request.query.courseId;
+  if (!courseId) return response.status(400).json({ message: "courseId is required." });
+
+  return response.json(await getGenerationStatus(courseId));
+}
+
+/**
+ * POST /api/admin/assessments/generate
+ * Body: { courseId, moduleId?, dryRun?, bankMultiplier? }
+ *
+ * With a moduleId, one lesson. Without, every lesson in the course that still
+ * needs a quiz — skipping, rather than failing on, the ones that have no text.
+ */
+export async function generateAssessments(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const { courseId, moduleId, dryRun = false, bankMultiplier } = request.body ?? {};
+  if (!courseId) return response.status(400).json({ message: "courseId is required." });
+
+  await ensureAssessmentIndexes();
+
+  const options = { courseId, dryRun: Boolean(dryRun), bankMultiplier: Number(bankMultiplier) || undefined };
+
+  if (moduleId) {
+    return response.json({ results: [await generateModuleAssessment({ ...options, moduleId })] });
+  }
+
+  const status = await getGenerationStatus(courseId);
+  const results = [];
+
+  // One lesson at a time on purpose. These calls are slow and paid for, and a
+  // failure halfway through should leave the lessons before it stored.
+  for (const row of status.rows ?? []) {
+    results.push(await generateModuleAssessment({ ...options, moduleId: row.moduleId }));
+  }
+
+  return response.json({ results, summary: summariseResults(results) });
+}
+
+/** POST /api/admin/assessments/final — Body: { courseId, dryRun? } */
+export async function generateFinalAssessment(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const { courseId, dryRun = false } = request.body ?? {};
+  if (!courseId) return response.status(400).json({ message: "courseId is required." });
+
+  await ensureAssessmentIndexes();
+
+  return response.json({ result: await assembleFinalAssessment({ courseId, dryRun: Boolean(dryRun) }) });
+}
+
+function summariseResults(results) {
+  const counts = {};
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  for (const result of results) {
+    counts[result.status] = (counts[result.status] ?? 0) + 1;
+    inputTokens += result.usage?.inputTokens ?? result.estimatedInputTokens ?? 0;
+    outputTokens += result.usage?.outputTokens ?? 0;
+  }
+
+  return { counts, inputTokens, outputTokens };
 }
 
 /* ─────────────────────────── Profile ─────────────────────────── */

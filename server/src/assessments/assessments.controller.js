@@ -207,7 +207,9 @@ export async function getAssessmentForStudent(request, response) {
   const summary = toAssessmentSummary(doc);
 
   return response.json({
-    assessment: toStudentAssessment(doc),
+    // studentId decides which questions of the bank this student is given, and
+    // it has to be the same id grading uses — see selectItemsFor.
+    assessment: toStudentAssessment(doc, { studentId }),
     result: resultSummary(state.resultByAssessment.get(asId(doc._id)), summary)
   });
 }
@@ -250,7 +252,7 @@ export async function submitAssessment(request, response) {
     });
   }
 
-  const graded = gradeSubmission(doc, answers);
+  const graded = gradeSubmission(doc, answers, { studentId });
 
   const record = {
     assessmentId: doc._id,
@@ -258,6 +260,9 @@ export async function submitAssessment(request, response) {
     courseId: doc.courseId ?? null,
     studentId: String(studentId),
     submittedAt: new Date(),
+    // The questions this student was actually given. Without it the assessor
+    // console would review the whole bank and mark the unasked ones wrong.
+    servedItemIds: graded.servedItemIds,
     answers: answers.map((answer) => ({
       itemId: String(answer?.itemId ?? ""),
       choice: String(answer?.choice ?? "")

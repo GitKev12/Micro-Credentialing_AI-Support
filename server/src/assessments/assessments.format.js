@@ -2,8 +2,8 @@
  * The shape of a quiz, and the rules for reading and scoring one.
  *
  * No quizzes are seeded here. This module defines the format the AI generator
- * will write into the Assessment collection, and the only place that decides
- * what a student is allowed to see of it.
+ * writes into the Assessment collection, and the only place that decides what
+ * a student is allowed to see of it.
  *
  * ── Assessment document ────────────────────────────────────────────────────
  *   {
@@ -13,7 +13,9 @@
  *     title, description,
  *     credentialName?,     // defaults to "<title> Credential"
  *     pointsPerItem,       // default 5, matching reviewConfig in assessors
- *     totalPoints,         // default pointsPerItem * items.length
+ *     itemsPerAttempt,     // how many of `items` one student sits; all of them
+ *                          // when unset
+ *     totalPoints,         // default pointsPerItem * itemsPerAttempt
  *     passMark,            // default 80% of totalPoints, rounded up
  *     source: {            // which Table of Specification row this came from
  *       tosRow,            // the TOS row's `course` label
@@ -22,6 +24,15 @@
  *     },
  *     items: [ … ]
  *   }
+ *
+ * ── Banks ──────────────────────────────────────────────────────────────────
+ * `items` is a bank, not a paper. The generator is asked for several times the
+ * questions a quiz needs, because the cost of generating is dominated by the
+ * model *reading* the lesson — which it does once whether it then writes eight
+ * questions or twenty-four. `itemsPerAttempt` is how many of them any one
+ * student sits, and every function below that reports a total or a mark counts
+ * that many rather than the size of the bank. Get this wrong and a student who
+ * answers all eight questions correctly scores 40 out of 120.
  *
  * ── Items ──────────────────────────────────────────────────────────────────
  * Two types, because those are the two the generator produces from a TOS row:
@@ -39,6 +50,8 @@
  * single shape to handle, and "true/false" stays a property of the item rather
  * than a second code path through everything that touches a quiz.
  */
+
+import { hashSeed, sample, seededRandom, shuffled } from "../lib/random.js";
 
 export const ITEM_TYPES = ["multiple-choice", "true-false"];
 
@@ -128,9 +141,15 @@ export function normalizeAssessment(doc) {
   const pointsPerItem = Number(doc.pointsPerItem) > 0
     ? Number(doc.pointsPerItem)
     : DEFAULT_POINTS_PER_ITEM;
+
+  // A quiz written before banks existed has no itemsPerAttempt, and sits its
+  // whole list — so leaving it unset keeps the old behaviour exactly.
+  const requested = Math.floor(Number(doc.itemsPerAttempt));
+  const itemsPerAttempt = requested > 0 ? Math.min(requested, items.length) : items.length;
+
   const totalPoints = Number(doc.totalPoints) > 0
     ? Number(doc.totalPoints)
-    : pointsPerItem * items.length;
+    : pointsPerItem * itemsPerAttempt;
 
   // "final" when the document says so, or when it belongs to no single lesson.
   const moduleId = doc.moduleId ?? doc.module_id ?? null;
@@ -144,6 +163,7 @@ export function normalizeAssessment(doc) {
     title: text(doc.title ?? doc.name),
     description: text(doc.description),
     pointsPerItem,
+    itemsPerAttempt,
     totalPoints,
     passMark: Number(doc.passMark) > 0
       ? Number(doc.passMark)
@@ -154,32 +174,66 @@ export function normalizeAssessment(doc) {
 }
 
 /**
+ * The questions one student sits, drawn from the bank.
+ *
+ * Seeded by who is sitting it, so the draw is the same on every visit: a
+ * reload must not cost a student their answers, and must not let them keep
+ * refreshing until an easier paper comes up. Two students get different
+ * papers; one student gets the same one all week.
+ *
+ * Grading calls this too, with the same student, which is how the mark is
+ * counted against the paper that was actually shown.
+ */
+export function selectItemsFor(assessment, studentId) {
+  if (!assessment) return [];
+
+  const random = seededRandom(hashSeed(String(studentId ?? ""), String(assessment.id)));
+  return sample(assessment.items, assessment.itemsPerAttempt, random);
+}
+
+/**
  * What the student is allowed to receive.
  *
  * `key` is removed here and nowhere else — this is the boundary. Sending the
  * answer key to the browser would make every quiz self-solving, so no route
- * may serve a raw Assessment document.
+ * may serve a raw Assessment document. The bank is trimmed here for the same
+ * reason: the questions a student was not given are as good as an answer key
+ * if they can read them.
+ *
+ * Order is re-drawn on every call, questions and choices both. It is free, it
+ * is what makes the quiz look shuffled, and it cannot affect the mark because
+ * answers come back keyed by item id. Note the choices are shuffled *after*
+ * normalizeItem has assigned their ids — shuffling raw choices would hand the
+ * id of the right answer to whichever option happened to land in its place.
  */
-export function toStudentAssessment(doc) {
+export function toStudentAssessment(doc, { studentId = "", shuffle = true } = {}) {
   const assessment = normalizeAssessment(doc);
   if (!assessment) return null;
 
-  const { items, ...rest } = assessment;
+  const { items: _bank, ...rest } = assessment;
+  const drawn = selectItemsFor(assessment, studentId);
+  const ordered = shuffle ? shuffled(drawn) : drawn;
 
   return {
     ...rest,
-    itemCount: items.length,
-    items: items.map(({ key: _key, ...item }) => item)
+    itemCount: ordered.length,
+    items: ordered.map(({ key: _key, ...item }) => ({
+      ...item,
+      choices: shuffle ? shuffled(item.choices) : item.choices
+    }))
   };
 }
 
-/** The list-row form: enough to render a rail entry, without the questions. */
+/**
+ * The list-row form: enough to render a rail entry, without the questions.
+ * `itemCount` is the length of the paper, not of the bank behind it.
+ */
 export function toAssessmentSummary(doc) {
   const assessment = normalizeAssessment(doc);
   if (!assessment) return null;
 
-  const { items, ...rest } = assessment;
-  return { ...rest, itemCount: items.length };
+  const { items: _items, ...rest } = assessment;
+  return { ...rest, itemCount: assessment.itemsPerAttempt };
 }
 
 /**
@@ -190,8 +244,14 @@ export function toAssessmentSummary(doc) {
  * are still written in the `aiGrading` shape the assessor console already
  * reads, with `source: "auto"` recording that a rule marked it, not a model.
  */
-export function gradeSubmission(assessmentDoc, answers) {
+export function gradeSubmission(assessmentDoc, answers, { studentId = "" } = {}) {
   const assessment = normalizeAssessment(assessmentDoc);
+
+  // The paper this student was given, re-derived rather than trusted from the
+  // submission. A client that could name its own questions could name the
+  // eight it liked the look of.
+  const served = selectItemsFor(assessment, studentId);
+
   const chosenByItem = new Map(
     (Array.isArray(answers) ? answers : []).map((answer) => [
       String(answer?.itemId),
@@ -199,7 +259,7 @@ export function gradeSubmission(assessmentDoc, answers) {
     ])
   );
 
-  const items = assessment.items.map((item) => {
+  const items = served.map((item) => {
     const chosen = chosenByItem.get(String(item.id)) ?? "";
     return {
       itemId: item.id,
@@ -217,7 +277,10 @@ export function gradeSubmission(assessmentDoc, answers) {
     score,
     total: assessment.totalPoints,
     passMark: assessment.passMark,
-    passed: score >= assessment.passMark
+    passed: score >= assessment.passMark,
+    // Recorded on the submission so the assessor console reviews the paper the
+    // student sat, not the bank it came from.
+    servedItemIds: served.map((item) => item.id)
   };
 }
 
@@ -246,6 +309,14 @@ export function validateAssessment(doc) {
       problems.push(`item ${index + 1} is unusable (missing question, choices, or a key that matches a choice).`);
     }
   });
+
+  // A bank that cannot fill one paper is worth catching here: normalizeAssessment
+  // would quietly shrink the quiz instead, and the shrinking is invisible.
+  const usable = raw.map(normalizeItem).filter(Boolean).length;
+  const wanted = Math.floor(Number(doc.itemsPerAttempt));
+  if (wanted > 0 && usable < wanted) {
+    problems.push(`itemsPerAttempt is ${wanted} but only ${usable} item(s) survived normalisation.`);
+  }
 
   return { valid: problems.length === 0, problems };
 }

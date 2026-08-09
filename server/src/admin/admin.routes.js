@@ -2,7 +2,10 @@ import { Router } from "express";
 import {
   assignCourse,
   enrollStudent,
+  generateAssessments,
+  generateFinalAssessment,
   getAdminProfile,
+  getAssessmentGenerationStatus,
   getAssessor,
   getCourse,
   getStudent,
@@ -32,6 +35,9 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   DELETE /api/admin/assessors/:id/courses/:courseId  — unassign
 //   GET    /api/admin/table-of-specification           — blueprint
 //   PUT    /api/admin/table-of-specification           — save blueprint
+//   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
+//   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
+//   POST   /api/admin/assessments/final                — assemble the final { courseId, dryRun? }
 const router = Router();
 
 // Every route below manages accounts and enrolment, so the whole router is
@@ -57,5 +63,11 @@ router.delete("/assessors/:id/courses/:courseId", unassignCourse);
 
 router.get("/table-of-specification", getTableOfSpecification);
 router.put("/table-of-specification", saveTableOfSpecification);
+
+// The only routes in the system that can spend money. Admin-only, like the
+// rest of this router, and every one of them accepts dryRun.
+router.get("/assessments/status", getAssessmentGenerationStatus);
+router.post("/assessments/generate", generateAssessments);
+router.post("/assessments/final", generateFinalAssessment);
 
 export default router;
