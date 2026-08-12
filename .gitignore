@@ -5,6 +5,15 @@ dist/
 
 server/.env
 server/.cache/
+
+# Per-machine Claude Code tool approvals. Untracked on purpose: the saved
+# commands keep whatever arguments they were approved with, which has already
+# included a database connection string once.
+.claude/settings.local.json
+
+# Written by scripts/hash-passwords.mjs --write, and holds exactly what that
+# script exists to remove from the database. Meant to be deleted, not kept.
+plaintext-passwords-backup-*.json
 client/.env
 client/.env.local
 client/.env.development.local
