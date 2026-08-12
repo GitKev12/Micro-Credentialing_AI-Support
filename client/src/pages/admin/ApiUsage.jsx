@@ -246,7 +246,7 @@ function ApiUsage() {
     <>
       <PageHeader
         title="API Usage"
-        subtitle={`Model ${data.model} · read from this server's own log, so refreshing costs nothing.`}
+        subtitle={`Model: ${data.model}`}
         action={
           <div className="usage-controls">
             <div className="usage-range" role="group" aria-label="Time range">
@@ -403,8 +403,7 @@ function ApiUsage() {
               </p>
               <p className="usage-panel__note">
                 Charged over the last {data.billed.days} days — the same window as the chart, read
-                from your OpenAI account. This is what has been <b>spent</b>, not credit remaining:
-                OpenAI exposes no endpoint for a prepaid balance, so no dashboard can show one.
+                from your OpenAI account. This is what has been <b>spent</b>, not credit remaining.
               </p>
             </>
           ) : (

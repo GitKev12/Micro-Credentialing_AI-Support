@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { signAuthToken } from "./tokens.js";
 
@@ -26,9 +26,20 @@ function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function hashSha256(value) {
-  return crypto.createHash("sha256").update(String(value)).digest("hex");
-}
+/**
+ * Passwords are bcrypt hashes, and only bcrypt hashes.
+ *
+ * They used to be stored as the plaintext the account was created with, and
+ * this function accepted `stored === submitted` — so the database held every
+ * password in readable form and anyone who could read a document could sign in
+ * as its owner. `scripts/hash-passwords.mjs` converted the existing rows.
+ *
+ * There is deliberately no fallback to the old comparison. Leaving one in would
+ * mean a row that was missed still logs in on plaintext, which is the hole this
+ * closes; a stale row failing to log in is the louder and safer failure, and is
+ * fixed by re-running the script.
+ */
+const BCRYPT_PATTERN = /^\$2[aby]\$\d{2}\$/;
 
 function buildIdentifierQuery(identifier, role) {
   const fields = identifierFieldsByRole[role] ?? [];
@@ -51,10 +62,9 @@ function getStoredPassword(account) {
   return "";
 }
 
-function isPasswordValid(password, storedPassword) {
-  if (!storedPassword) return false;
-  const submitted = String(password);
-  return storedPassword === submitted || storedPassword === hashSha256(submitted);
+async function isPasswordValid(password, storedPassword) {
+  if (!storedPassword || !BCRYPT_PATTERN.test(storedPassword)) return false;
+  return bcrypt.compare(String(password), storedPassword);
 }
 
 function toPublicUser(account, role) {
@@ -118,7 +128,7 @@ export async function loginUser(request, response) {
   const result = await findFirstAccountByRoles(identifier, ["student", "assessor"]);
   const storedPassword = getStoredPassword(result?.account);
 
-  if (!result || !isPasswordValid(password, storedPassword)) {
+  if (!result || !(await isPasswordValid(password, storedPassword))) {
     return response.status(401).json({ message: "Invalid student or assessor login credentials." });
   }
 
@@ -142,7 +152,7 @@ export async function loginAdmin(request, response) {
   const account = await findAccountByRole(identifier, "admin");
   const storedPassword = getStoredPassword(account);
 
-  if (!account || !isPasswordValid(password, storedPassword)) {
+  if (!account || !(await isPasswordValid(password, storedPassword))) {
     return response.status(401).json({ message: "Invalid admin login credentials." });
   }
 
