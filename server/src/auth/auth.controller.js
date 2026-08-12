@@ -27,19 +27,27 @@ function normalize(value) {
 }
 
 /**
- * Passwords are bcrypt hashes, and only bcrypt hashes.
+ * Passwords are moving from plaintext to bcrypt, and this reads both.
  *
- * They used to be stored as the plaintext the account was created with, and
- * this function accepted `stored === submitted` — so the database held every
- * password in readable form and anyone who could read a document could sign in
- * as its owner. `scripts/hash-passwords.mjs` converted the existing rows.
+ * Every account used to store the password as readable text, compared here with
+ * `stored === submitted` — so anyone who could read a document could sign in as
+ * its owner. `scripts/hash-passwords.mjs` rewrites those rows as bcrypt hashes.
  *
- * There is deliberately no fallback to the old comparison. Leaving one in would
- * mean a row that was missed still logs in on plaintext, which is the hole this
- * closes; a stale row failing to log in is the louder and safer failure, and is
- * fixed by re-running the script.
+ * Accepting both is what makes the changeover safe to do in either order. An
+ * earlier version of this file accepted bcrypt only, and shipping it before the
+ * script had run locked every account out of the system at once: the code
+ * demanded a hash and the database had none. Which of the two lands first is
+ * not something this file gets to assume.
+ *
+ * The plaintext branch is temporary and is the vulnerability it describes.
+ * Delete it — and `looksHashed` with it — once the script reports every row
+ * hashed, which is the point at which this becomes bcrypt-only for real.
  */
 const BCRYPT_PATTERN = /^\$2[aby]\$\d{2}\$/;
+
+function looksHashed(storedPassword) {
+  return BCRYPT_PATTERN.test(storedPassword);
+}
 
 function buildIdentifierQuery(identifier, role) {
   const fields = identifierFieldsByRole[role] ?? [];
@@ -63,8 +71,13 @@ function getStoredPassword(account) {
 }
 
 async function isPasswordValid(password, storedPassword) {
-  if (!storedPassword || !BCRYPT_PATTERN.test(storedPassword)) return false;
-  return bcrypt.compare(String(password), storedPassword);
+  if (!storedPassword) return false;
+
+  if (looksHashed(storedPassword)) {
+    return bcrypt.compare(String(password), storedPassword);
+  }
+
+  return storedPassword === String(password);
 }
 
 function toPublicUser(account, role) {
