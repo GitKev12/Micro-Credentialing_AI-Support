@@ -3,11 +3,16 @@ import { CheckIcon, ChevronDownIcon, LockIcon, QuizIcon } from "./icons";
 /**
  * The lesson list in the learning-modules rail.
  *
- * Each module is a disclosure group: the row, then a panel holding that
- * module's sections and its assessment. The assessment used to live in a
- * separate full-width block under the reader, which put a module's quiz a
- * whole page away from the lesson it belongs to — the Assessment collection
- * stores one generated quiz per module, so it belongs with its module.
+ * Each module is a disclosure group: the row, an expandable panel holding that
+ * module's sections, and then its quiz. The quiz used to live in a separate
+ * full-width block under the reader, which put a module's quiz a whole page
+ * away from the lesson it belongs to — the Assessment collection stores one
+ * generated quiz per module, so it belongs with its module.
+ *
+ * The quiz sits outside the panel, not in it, so it is on screen without the
+ * lesson being expanded. It is drawn even before a quiz has been generated:
+ * the server sends a locked placeholder row for any lesson without one, which
+ * is what makes the course's shape legible from the start.
  *
  * The panel and the row share one bordered group. An earlier version rendered
  * the section list as a sibling of the row, so it floated in the gap between
@@ -119,59 +124,68 @@ function LessonNav({
                     })}
                   </ul>
                 )}
+              </div>
+            ) : null}
 
-                {quizzes.length ? (
-                  <div className="sd-lesson__quizzes">
-                    <p className="sd-lesson__group-label">
-                      {quizzes.length === 1 ? "Assessment" : "Assessments"}
-                    </p>
+            {/* Outside the panel, so a lesson's quiz is visible without
+                expanding it — the rail is meant to show the shape of the
+                whole course at a glance, and a quiz nobody can see is a quiz
+                nobody knows to work towards. */}
+            {quizzes.length ? (
+              <div className="sd-lesson__quizzes">
+                {quizzes.map((quiz, quizIndex) => {
+                  // A module's quiz opens once that module is finished.
+                  // The server decides and sends `locked` with a reason;
+                  // `done` is only the fallback if that field is absent,
+                  // since the rail must never be the thing enforcing it.
+                  const locked = quiz.locked ?? !done;
+                  const open = String(selectedAssessmentId) === String(quiz.id);
+                  const passed = quiz.result?.passed;
 
-                    {quizzes.map((quiz) => {
-                      // A module's quiz opens once that module is finished.
-                      // The server decides and sends `locked` with a reason;
-                      // `done` is only the fallback if that field is absent,
-                      // since the rail must never be the thing enforcing it.
-                      const locked = quiz.locked ?? !done;
-                      const open = String(selectedAssessmentId) === String(quiz.id);
-                      const passed = quiz.result?.passed;
+                  // Numbered off the lesson, not off a running count, so
+                  // "Quiz 3" always belongs to lesson 03 however the quizzes
+                  // themselves were generated. The suffix only appears in the
+                  // case a lesson carries more than one.
+                  const number =
+                    quizzes.length > 1
+                      ? `${index + 1}.${quizIndex + 1}`
+                      : String(index + 1);
 
-                      return (
-                        <button
-                          key={quiz.id}
-                          type="button"
-                          className={`sd-lesson__quiz${open ? " is-open-item" : ""}`}
-                          disabled={locked}
-                          onClick={() => onOpenAssessment(quiz)}
-                          aria-current={open ? "true" : undefined}
-                          title={
-                            locked
-                              ? (quiz.reason ??
-                                `Finish ${module.title} to unlock this assessment`)
-                              : undefined
-                          }
-                        >
-                          <span className="sd-lesson__quiz-icon">
-                            {locked ? (
-                              <LockIcon size={14} />
-                            ) : passed ? (
-                              <CheckIcon size={14} />
-                            ) : (
-                              <QuizIcon size={15} />
-                            )}
-                          </span>
-                          <span className="sd-lesson__quiz-title">{quiz.title}</span>
-                          {locked ? (
-                            <span className="sd-lesson__quiz-tag">Locked</span>
-                          ) : quiz.result ? (
-                            <span className="sd-lesson__quiz-tag">
-                              {quiz.result.score}/{quiz.result.total}
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
+                  return (
+                    <button
+                      key={quiz.id}
+                      type="button"
+                      className={`sd-lesson__quiz${open ? " is-open-item" : ""}`}
+                      disabled={locked}
+                      onClick={() => onOpenAssessment(quiz)}
+                      aria-current={open ? "true" : undefined}
+                      title={
+                        locked
+                          ? (quiz.reason ??
+                            `Finish ${module.title} to unlock this assessment`)
+                          : (quiz.title || undefined)
+                      }
+                    >
+                      <span className="sd-lesson__quiz-icon">
+                        {locked ? (
+                          <LockIcon size={14} />
+                        ) : passed ? (
+                          <CheckIcon size={14} />
+                        ) : (
+                          <QuizIcon size={15} />
+                        )}
+                      </span>
+                      <span className="sd-lesson__quiz-title">Quiz {number}</span>
+                      {locked ? (
+                        <span className="sd-lesson__quiz-tag">Locked</span>
+                      ) : quiz.result ? (
+                        <span className="sd-lesson__quiz-tag">
+                          {quiz.result.score}/{quiz.result.total}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             ) : null}
           </li>

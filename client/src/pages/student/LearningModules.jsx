@@ -210,11 +210,17 @@ function LearningModules() {
         setModules(moduleList);
         setAssessments(assessmentList);
         setCompletedIds(completedList.map(String));
-        // Open the first lesson by default so the viewer isn't empty.
+        // Open the first lesson by default so the viewer isn't empty. Falling
+        // back to a quiz, only one that can actually be opened: the list now
+        // includes locked placeholders for quizzes not yet generated, and
+        // auto-opening one would put a 404 in the viewer on arrival.
         if (moduleList.length > 0) {
           setSelected({ type: "lesson", item: moduleList[0] });
-        } else if (assessmentList.length > 0) {
-          setSelected({ type: "assessment", item: assessmentList[0] });
+        } else {
+          const openable = assessmentList.find(
+            (assessment) => !assessment.locked && !assessment.placeholder
+          );
+          if (openable) setSelected({ type: "assessment", item: openable });
         }
       })
       .finally(() => {
@@ -540,7 +546,11 @@ function LearningModules() {
                   </span>
 
                   <span className="sd-final__text">
-                    <span className="sd-final__title">{finalAssessment.title}</span>
+                    {/* A placeholder row carries no title, since there is no
+                        generated paper behind it to have been named. */}
+                    <span className="sd-final__title">
+                      {finalAssessment.title || "Final assessment"}
+                    </span>
                     <span className="sd-final__state">
                       {finalAssessment.result
                         ? `Scored ${finalAssessment.result.score} of ${finalAssessment.result.total}`

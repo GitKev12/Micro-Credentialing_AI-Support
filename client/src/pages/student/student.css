@@ -1765,9 +1765,15 @@ body:has(.student-app) {
 .sd-lesson__panel {
   padding: var(--sd-2) var(--sd-3) var(--sd-3) var(--sd-3);
   border-top: 1px solid var(--sd-border);
-  border-radius: 0 0 var(--sd-r-md) var(--sd-r-md);
   background: var(--sd-surface-2);
   animation: sd-panel-in 0.2s ease both;
+}
+
+/* The quiz block now sits below the panel, so whichever of the two ends the
+   group is the one that rounds off the lesson's bottom corners. */
+.sd-lesson__panel:last-child,
+.sd-lesson__quizzes:last-child {
+  border-radius: 0 0 var(--sd-r-md) var(--sd-r-md);
 }
 
 @keyframes sd-panel-in {
@@ -1851,20 +1857,12 @@ body:has(.student-app) {
    sits outside the section spine and carries a rule above it, so it
    reads as a different kind of thing from a section link. */
 
+/* A direct child of the lesson group rather than of its panel, so it shows
+   whether or not the lesson is expanded. */
 .sd-lesson__quizzes {
-  margin-top: var(--sd-2);
-  padding-top: var(--sd-2);
+  padding: var(--sd-2) var(--sd-3);
   border-top: 1px solid var(--sd-border);
-}
-
-.sd-lesson__group-label {
-  margin: 0 0 var(--sd-1);
-  padding-left: var(--sd-1);
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-semibold);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--sd-muted);
+  background: var(--sd-surface-2);
 }
 
 .sd-lesson__quiz {

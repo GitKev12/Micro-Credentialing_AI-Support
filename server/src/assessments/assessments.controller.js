@@ -140,10 +140,48 @@ function resultSummary(result, summary) {
 }
 
 /**
+ * A row for a quiz that does not exist yet.
+ *
+ * The rail is built entirely from what this endpoint returns, so before any
+ * quizzes are generated it had nothing to draw and a course looked as though it
+ * had no assessments at all. A placeholder keeps the shape of the course
+ * visible — the student can see a quiz is coming for each lesson, and where the
+ * final sits — without pretending there is a paper to sit.
+ *
+ * It is always locked, and it carries no id that resolves to a document, so the
+ * two endpoints that serve questions answer 404 if one is ever clicked through.
+ * `placeholder: true` is what the rail keys off to skip the score line.
+ */
+function placeholderRow(courseId, { scope, moduleId = null }) {
+  return {
+    id: `placeholder:${scope}:${asId(moduleId ?? courseId)}`,
+    courseId: courseId ?? null,
+    moduleId: scope === "final" ? null : moduleId,
+    scope,
+    title: "",
+    description: "",
+    pointsPerItem: 0,
+    itemsPerAttempt: 0,
+    itemCount: 0,
+    totalPoints: 0,
+    passMark: 0,
+    source: null,
+    placeholder: true,
+    locked: true,
+    reason:
+      scope === "final"
+        ? "The final assessment has not been prepared yet."
+        : "This quiz has not been prepared yet.",
+    result: null
+  };
+}
+
+/**
  * GET /api/students/:studentId/courses/:courseId/assessments
  *
  * The rail's source of truth: every quiz in the course, each with its lock
- * state and the student's own result.
+ * state and the student's own result. Lessons with no quiz yet, and a course
+ * with no final yet, get a locked placeholder so the rail is never empty.
  */
 export async function getCourseAssessmentsForStudent(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
@@ -162,6 +200,24 @@ export async function getCourseAssessmentsForStudent(request, response) {
       };
     })
     .filter(Boolean);
+
+  // Placeholders are added after the real rows, and never join `state`, so the
+  // final's gate still counts only quizzes that actually exist. Were they
+  // counted, an ungenerated course would report 68 quizzes left to pass.
+  const coveredModuleIds = new Set(
+    assessments
+      .filter((row) => row.scope === "lesson")
+      .map((row) => asId(row.moduleId))
+  );
+
+  state.modules.forEach((module) => {
+    if (coveredModuleIds.has(asId(module._id))) return;
+    assessments.push(placeholderRow(courseId, { scope: "lesson", moduleId: module._id }));
+  });
+
+  if (!assessments.some((row) => row.scope === "final")) {
+    assessments.push(placeholderRow(courseId, { scope: "final" }));
+  }
 
   // Lesson quizzes in lesson order, the final last — the rail renders them in
   // the order it receives.
