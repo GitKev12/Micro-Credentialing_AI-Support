@@ -487,6 +487,10 @@ export async function markModuleComplete(request, response) {
       { upsert: true }
     );
 
+  // Finishing the lesson unlocks its quiz. It deliberately does not write it:
+  // the questions cost a model call, and a lesson read by someone who never
+  // opens the quiz should cost nothing. Writing happens when the student
+  // presses "Take the Quiz" — see prepareLessonAssessment.
   return response.json({ completed: true, moduleId: record.moduleId });
 }
 

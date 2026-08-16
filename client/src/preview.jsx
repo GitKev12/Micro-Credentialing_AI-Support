@@ -150,17 +150,14 @@ const ASSESSMENTS = [
   { id: "a4", moduleId: "m5", title: "Async data quiz", status: "open" }
 ];
 
-// Students list — includes two with no enrolments and a non-Active status,
-// so the row flags and pills are both on screen.
+// Students list — includes two with no enrolments, so the "None" row flag is
+// on screen.
 const ADMIN_STUDENTS = [
   {
     id: "s1",
     studentNumber: "2021-TSU-0417",
     name: "Kevin Kharl Manalo",
     email: "kevin@tsu.edu.ph",
-    program: "BS Computer Science",
-    year: "4th Year",
-    status: "Active",
     enrolled: [
       { id: "ac1", code: "CS 101", title: "Introduction to Computing" },
       { id: "ac2", code: "IT 214", title: "Web Systems and Technologies" },
@@ -172,9 +169,6 @@ const ADMIN_STUDENTS = [
     studentNumber: "2022-TSU-0138",
     name: "Andrea Lim",
     email: "andrea@tsu.edu.ph",
-    program: "BS Information Technology",
-    year: "3rd Year",
-    status: "Active",
     enrolled: [{ id: "ac2", code: "IT 214", title: "Web Systems and Technologies" }]
   },
   {
@@ -182,9 +176,6 @@ const ADMIN_STUDENTS = [
     studentNumber: "2023-TSU-0562",
     name: "Miguel Santos",
     email: "miguel@tsu.edu.ph",
-    program: "BS Computer Science",
-    year: "2nd Year",
-    status: "On Leave",
     enrolled: []
   },
   {
@@ -192,9 +183,6 @@ const ADMIN_STUDENTS = [
     studentNumber: "2021-TSU-0904",
     name: "Rina Ocampo",
     email: "rina@tsu.edu.ph",
-    program: null,
-    year: null,
-    status: "Inactive",
     enrolled: []
   }
 ];

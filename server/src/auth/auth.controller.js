@@ -26,29 +26,6 @@ function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-/**
- * Passwords are moving from plaintext to bcrypt, and this reads both.
- *
- * Every account used to store the password as readable text, compared here with
- * `stored === submitted` — so anyone who could read a document could sign in as
- * its owner. `scripts/hash-passwords.mjs` rewrites those rows as bcrypt hashes.
- *
- * Accepting both is what makes the changeover safe to do in either order. An
- * earlier version of this file accepted bcrypt only, and shipping it before the
- * script had run locked every account out of the system at once: the code
- * demanded a hash and the database had none. Which of the two lands first is
- * not something this file gets to assume.
- *
- * The plaintext branch is temporary and is the vulnerability it describes.
- * Delete it — and `looksHashed` with it — once the script reports every row
- * hashed, which is the point at which this becomes bcrypt-only for real.
- */
-const BCRYPT_PATTERN = /^\$2[aby]\$\d{2}\$/;
-
-function looksHashed(storedPassword) {
-  return BCRYPT_PATTERN.test(storedPassword);
-}
-
 function buildIdentifierQuery(identifier, role) {
   const fields = identifierFieldsByRole[role] ?? [];
   return {
@@ -70,14 +47,22 @@ function getStoredPassword(account) {
   return "";
 }
 
+/**
+ * Bcrypt only.
+ *
+ * Every account once stored its password as readable text, compared here with
+ * `stored === submitted`, so anyone who could read a document could sign in as
+ * its owner. `scripts/hash-passwords.mjs` has rewritten every row as a hash and
+ * that branch is gone — a document whose password field is not a hash no longer
+ * authenticates anything, which is the correct answer for a row that should not
+ * exist.
+ *
+ * bcrypt.compare returns false rather than throwing on a malformed hash, so a
+ * bad row fails the login instead of failing the request.
+ */
 async function isPasswordValid(password, storedPassword) {
   if (!storedPassword) return false;
-
-  if (looksHashed(storedPassword)) {
-    return bcrypt.compare(String(password), storedPassword);
-  }
-
-  return storedPassword === String(password);
+  return bcrypt.compare(String(password), storedPassword);
 }
 
 function toPublicUser(account, role) {

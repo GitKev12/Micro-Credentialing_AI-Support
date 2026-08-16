@@ -392,6 +392,29 @@ function LearningModules() {
       .catch(() => {});
   };
 
+  /**
+   * A quiz has just been written, so the placeholder standing in for it is
+   * replaced by the real row — in the rail and in what is open on screen.
+   *
+   * Patched rather than re-fetched: the student is mid-flow and about to answer
+   * questions, and swapping the row under them from a second request would be a
+   * chance for the panel to flicker or reset.
+   */
+  const replacePlaceholder = (moduleId, created) => {
+    const real = { ...created, placeholder: false, needsGeneration: false, locked: false };
+
+    setAssessments((rows) =>
+      rows.map((row) =>
+        row.placeholder && String(row.moduleId) === String(moduleId) ? real : row
+      )
+    );
+    setSelected((current) =>
+      current?.type === "assessment" && String(current.item?.moduleId) === String(moduleId)
+        ? { type: "assessment", item: real }
+        : current
+    );
+  };
+
   // Reading to the end of a lesson (and finishing its exercise, when the
   // module has one) marks it complete automatically.
   const markLessonComplete = async (moduleId) => {
@@ -705,6 +728,7 @@ function LearningModules() {
                 studentId={studentId}
                 assessment={selected.item}
                 onSubmitted={refreshAssessments}
+                onGenerated={replacePlaceholder}
               />
             </div>
           )}

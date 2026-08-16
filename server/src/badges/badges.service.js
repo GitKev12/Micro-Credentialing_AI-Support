@@ -42,9 +42,7 @@ function courseTitleOf(course) {
  * outstanding.
  */
 export async function passedLessonQuizzes(studentId, student) {
-  const passed = new Map();
-
-  if (!(await collectionExists(RESULTS_COLLECTION))) return passed;
+  if (!(await collectionExists(RESULTS_COLLECTION))) return new Map();
 
   const studentKeys = [
     ...idCandidates(studentId),
@@ -54,7 +52,7 @@ export async function passedLessonQuizzes(studentId, student) {
   const results = await collection(RESULTS_COLLECTION)
     .find({ studentId: { $in: studentKeys } })
     .toArray();
-  if (results.length === 0) return passed;
+  if (results.length === 0) return new Map();
 
   // The quiz behind each submission: the pass mark and the scope live on the
   // assessment, not on the result.
@@ -63,13 +61,33 @@ export async function passedLessonQuizzes(studentId, student) {
         .find({ _id: { $in: results.flatMap((result) => idCandidates(result.assessmentId)) } })
         .toArray()
     : [];
-  const assessmentById = new Map(assessments.map((entry) => [String(entry._id), entry]));
+
+  return passedFromResults(
+    results,
+    new Map(assessments.map((entry) => [String(entry._id), entry]))
+  );
+}
+
+/**
+ * The same question asked of submissions already in hand.
+ *
+ * The admin's student list counts badges for every student at once, and going
+ * back to the database per student to do it would be one round trip per row.
+ * It hands its submissions here instead — so the list and the badge wall run
+ * the identical rule, which is the whole reason this module exists.
+ */
+export function passedFromResults(results, assessmentById) {
+  const passed = new Map();
 
   for (const result of results) {
     const assessment = assessmentById.get(String(result.assessmentId));
     if (!assessment) continue;
 
+    // A row too malformed to normalize would otherwise throw here, and one bad
+    // assessment would take down every badge count on the page.
     const summary = toAssessmentSummary(assessment);
+    if (!summary) continue;
+
     // The final exam earns the certificate, not a badge — badges are one per
     // lesson, and the final belongs to no single lesson.
     if (summary.scope !== "lesson") continue;

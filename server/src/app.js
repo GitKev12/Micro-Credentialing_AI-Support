@@ -51,4 +51,48 @@ app.use("/api", certificateRoutes);
 app.use("/api", moduleRoutes);
 app.use("/api", assessmentRoutes);
 
+/**
+ * An unknown /api path is a JSON 404, not Express's HTML one.
+ *
+ * Scoped to /api so anything else served from this app keeps whatever handling
+ * it already had. A client that asked for JSON and got a page of markup cannot
+ * tell a wrong URL from a broken server.
+ */
+app.use("/api", (_request, response) => {
+  response.status(404).json({ message: "No such endpoint." });
+});
+
+/**
+ * The one place an unexpected failure becomes a response.
+ *
+ * Express 5 forwards a rejected async handler here on its own, so nothing
+ * hangs — but with no handler of our own it lands on the built-in one, which
+ * answers with an HTML error page. Every screen in this project reads
+ * `error.response.data.message`, which is undefined for markup, so a real cause
+ * was being thrown away and shown as a generic "try again".
+ *
+ * The message is only returned outside production: it can carry a driver error
+ * or a file path, which helps while developing and helps an attacker in the
+ * open. The stack is logged either way, because that is the copy we need.
+ */
+// eslint-disable-next-line no-unused-vars -- Express identifies the error
+// handler by its four parameters; dropping `next` would make it ordinary
+// middleware and the built-in HTML handler would take over again.
+app.use((error, _request, response, _next) => {
+  const status = Number(error?.status ?? error?.statusCode) || 500;
+
+  if (status >= 500) console.error(error);
+
+  // A body that failed to parse is the caller's mistake, not ours, and it is
+  // worth naming — "Unexpected token in JSON" tells them exactly what to fix.
+  const isClientFault = status < 500;
+  const exposeMessage = isClientFault || process.env.NODE_ENV !== "production";
+
+  response.status(status).json({
+    message:
+      (exposeMessage && error?.message) ||
+      "Something went wrong on the server. Please try again."
+  });
+});
+
 export default app;

@@ -73,22 +73,6 @@ export function SearchField({ value, onChange, placeholder, label, hint }) {
   );
 }
 
-const STATUS_TONE = {
-  Active: "positive",
-  "On Leave": "warning",
-  Inactive: "neutral"
-};
-
-export function StatusPill({ label = "Active" }) {
-  const tone = STATUS_TONE[label] ?? "neutral";
-  return (
-    <span className={`admin-pill admin-pill--${tone}`}>
-      <span className="admin-pill__dot" aria-hidden="true" />
-      {label}
-    </span>
-  );
-}
-
 /**
  * Select built as a listbox rather than a native <select>.
  *
@@ -297,6 +281,175 @@ export function AdminSelect({
         </ul>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * A labelled field for the create and edit forms.
+ *
+ * The label is a real <label> bound by id rather than a styled div, so clicking
+ * it focuses the input and a screen reader reads the two as one thing. `hint`
+ * is where a field explains itself — a password rule, or what an empty value
+ * will mean — which is worth more beneath the box than in a tooltip.
+ */
+export function AdminField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  hint,
+  disabled = false,
+  required = false,
+  autoComplete = "off"
+}) {
+  const id = useId();
+
+  return (
+    <div className="admin-field">
+      <label className="admin-field__label" htmlFor={id}>
+        {label}
+        {required ? <span className="admin-field__required"> *</span> : null}
+      </label>
+      <input
+        id={id}
+        className="admin-input"
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete={autoComplete}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hint ? <p className="admin-field__hint">{hint}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Centred dialog for the forms and the delete confirmations.
+ *
+ * Escape closes it and the backdrop click closes it, because a dialog that can
+ * only be dismissed by finding the right button is a trap on a small screen.
+ * Nothing here traps focus: that needs more than this component is, and the
+ * forms it holds are short enough that tabbing past them is not the hazard a
+ * half-built focus trap would be.
+ */
+export function AdminModal({ title, subtitle, onClose, children, footer, tone = "" }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="admin-modal" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
+      <div
+        className={`admin-modal__panel admin-modal__panel--form${tone ? ` ${tone}` : ""}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal__head">
+          <div>
+            <h2 className="admin-modal__title">{title}</h2>
+            {subtitle ? <p className="admin-modal__meta">{subtitle}</p> : null}
+          </div>
+          <button
+            type="button"
+            className="admin-modal__close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="admin-modal__body">{children}</div>
+
+        {footer ? <div className="admin-modal__foot">{footer}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The confirmation for anything that destroys records.
+ *
+ * `losses` is the list of what goes, read from the server before the dialog can
+ * be agreed to — null while that is still loading, which is why the confirm
+ * button waits for it. Agreeing to a deletion whose cost has not arrived is
+ * agreeing to nothing in particular, and these deletions take student records
+ * with them.
+ */
+export function ConfirmDeleteModal({
+  title,
+  subject,
+  losses,
+  keeps = [],
+  busy = false,
+  confirmLabel = "Delete",
+  onCancel,
+  onConfirm
+}) {
+  return (
+    <AdminModal
+      title={title}
+      subtitle={subject}
+      tone="admin-modal__panel--danger"
+      onClose={busy ? () => {} : onCancel}
+      footer={
+        <>
+          <button
+            type="button"
+            className="admin-chip-btn admin-chip-btn--quiet"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <AdminButton
+            variant="admin-btn--compact admin-btn--danger"
+            disabled={busy || !losses}
+            onClick={onConfirm}
+          >
+            {busy ? "Deleting…" : confirmLabel}
+          </AdminButton>
+        </>
+      }
+    >
+      {!losses ? (
+        <p className="admin-empty-note">Checking what this would remove…</p>
+      ) : (
+        <>
+          {losses.length > 0 ? (
+            <>
+              <p className="admin-modal__lead">This will also permanently delete:</p>
+              <ul className="admin-loss-list">
+                {losses.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="admin-modal__lead">Nothing else depends on this.</p>
+          )}
+
+          {keeps.length > 0 ? (
+            <>
+              <p className="admin-modal__lead">What stays:</p>
+              <ul className="admin-loss-list admin-loss-list--keep">
+                {keeps.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+
+          <p className="admin-empty-note">This cannot be undone.</p>
+        </>
+      )}
+    </AdminModal>
   );
 }
 

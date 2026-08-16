@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { gradeSubmission, toAssessmentSummary, toStudentAssessment } from "./assessments.format.js";
+import { ensureFinalAssessment, ensureLessonAssessment } from "./assessments.autogen.js";
 
 /**
  * Taking a quiz: what is unlocked, what the questions are, and what a
@@ -14,6 +15,14 @@ import { gradeSubmission, toAssessmentSummary, toStudentAssessment } from "./ass
  *   lesson quiz — opens once that lesson is marked complete.
  *   final       — opens once every lesson is complete *and* every lesson quiz
  *                 has been passed, since a passed quiz is what earns a badge.
+ *
+ * There is no schedule anywhere in this: a quiz opens for one student the
+ * moment that student finishes reading, and stays shut for everyone else.
+ *
+ * Unlocking and writing are separate on purpose. Finishing a lesson opens the
+ * quiz but writes nothing; the questions are produced when the student presses
+ * "Take the Quiz" — see `prepareLessonAssessment`. A lesson that is read and
+ * then set aside therefore costs nothing at all.
  */
 
 const ASSESSMENTS_COLLECTION = "Assessment";
@@ -143,16 +152,17 @@ function resultSummary(result, summary) {
  * A row for a quiz that does not exist yet.
  *
  * The rail is built entirely from what this endpoint returns, so before any
- * quizzes are generated it had nothing to draw and a course looked as though it
+ * quizzes are written it had nothing to draw and a course looked as though it
  * had no assessments at all. A placeholder keeps the shape of the course
  * visible — the student can see a quiz is coming for each lesson, and where the
  * final sits — without pretending there is a paper to sit.
  *
- * It is always locked, and it carries no id that resolves to a document, so the
- * two endpoints that serve questions answer 404 if one is ever clicked through.
- * `placeholder: true` is what the rail keys off to skip the score line.
+ * It carries no id that resolves to a document, so the two endpoints that serve
+ * questions answer 404 if one is ever opened directly — a row whose quiz is
+ * ready to be written has to go through `POST .../modules/:moduleId/assessment`
+ * instead. `placeholder: true` is what the rail keys off to skip the score line.
  */
-function placeholderRow(courseId, { scope, moduleId = null }) {
+function placeholderRow(courseId, { scope, moduleId = null, reason = null, needsGeneration = false }) {
   return {
     id: `placeholder:${scope}:${asId(moduleId ?? courseId)}`,
     courseId: courseId ?? null,
@@ -167,11 +177,24 @@ function placeholderRow(courseId, { scope, moduleId = null }) {
     passMark: 0,
     source: null,
     placeholder: true,
-    locked: true,
-    reason:
-      scope === "final"
-        ? "The final assessment has not been prepared yet."
-        : "This quiz has not been prepared yet.",
+    /**
+     * The lesson is finished and this quiz is the student's to take — it just
+     * has not been written yet, and will be the moment they ask for it.
+     *
+     * Kept separate from `locked` because the two mean opposite things to the
+     * person reading them: locked is "you have something to finish first",
+     * this is "press the button when you are ready".
+     */
+    needsGeneration,
+    locked: !needsGeneration,
+    // A row the student may act on has nothing to explain. The fallback is for
+    // the locked ones, where the reason is the whole point of the row.
+    reason: needsGeneration
+      ? null
+      : (reason ??
+        (scope === "final"
+          ? "The final assessment has not been prepared yet."
+          : "This quiz has not been prepared yet.")),
     result: null
   };
 }
@@ -210,12 +233,33 @@ export async function getCourseAssessmentsForStudent(request, response) {
       .map((row) => asId(row.moduleId))
   );
 
+  /**
+   * A lesson this student has finished, with no quiz behind it, is theirs to
+   * take whenever they choose — the questions are written when they press the
+   * button, not now. Reading this rail costs nothing and writes nothing, which
+   * is the point: browsing a course must never spend anything.
+   */
   state.modules.forEach((module) => {
     if (coveredModuleIds.has(asId(module._id))) return;
-    assessments.push(placeholderRow(courseId, { scope: "lesson", moduleId: module._id }));
+
+    const lessonDone = state.completedModuleIds.has(asId(module._id));
+
+    assessments.push(
+      placeholderRow(courseId, {
+        scope: "lesson",
+        moduleId: module._id,
+        needsGeneration: lessonDone,
+        reason: lessonDone ? null : "Finish this lesson to unlock its quiz."
+      })
+    );
   });
 
   if (!assessments.some((row) => row.scope === "final")) {
+    // Free — the final is drawn from the lesson banks and makes no model call —
+    // so it is attempted whenever every lesson quiz is in place.
+    if (state.modules.length > 0 && coveredModuleIds.size === state.modules.length) {
+      ensureFinalAssessment({ courseId }).catch(() => {});
+    }
     assessments.push(placeholderRow(courseId, { scope: "final" }));
   }
 
@@ -232,6 +276,89 @@ export async function getCourseAssessmentsForStudent(request, response) {
   return response.json({
     assessments,
     pending: state.assessments.length === 0
+  });
+}
+
+/**
+ * POST /api/students/:studentId/modules/:moduleId/assessment
+ *
+ * "Take the Quiz" — the one call in the student app that can spend money, and
+ * the only place a quiz is ever written.
+ *
+ * Deliberately not on lesson completion. A student who finishes a lesson and
+ * stops there costs nothing; a lesson finished by thirty students who never
+ * open the quiz costs nothing. The first student who says they are ready is who
+ * causes the questions to exist, and everyone after them is handed the same
+ * paper for free.
+ *
+ * The gate is checked here too, not just in the client. Otherwise a student
+ * could spend a model call on a lesson they had not read.
+ */
+export async function prepareLessonAssessment(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const { studentId, moduleId } = request.params;
+
+  const module = await collection(MODULES_COLLECTION).findOne({
+    _id: { $in: idCandidates(moduleId) }
+  });
+  if (!module) return response.status(404).json({ message: "Lesson not found." });
+
+  const courseId = asId(module.courseId ?? "");
+  const state = await loadCourseState(studentId, courseId);
+
+  // Same gate as the quiz itself: the lesson has to be read first.
+  if (!state.completedModuleIds.has(asId(module._id))) {
+    return response.status(423).json({
+      message: "Finish this lesson to unlock its quiz.",
+      locked: true
+    });
+  }
+
+  // Someone may have written it since the rail was drawn — a classmate, or this
+  // student in another tab. Nothing to pay for.
+  const existing = state.assessments.find(
+    (doc) =>
+      toAssessmentSummary(doc)?.scope === "lesson" && asId(doc.moduleId) === asId(module._id)
+  );
+  if (existing) {
+    return response.json({
+      assessment: { ...toAssessmentSummary(existing), locked: false, generated: false },
+      generated: false
+    });
+  }
+
+  const result = await ensureLessonAssessment({ courseId, moduleId: module._id });
+
+  if (result.status === "created" || result.status === "skipped") {
+    const written = await collection(ASSESSMENTS_COLLECTION).findOne({
+      courseId: { $in: idCandidates(courseId) },
+      moduleId: { $in: idCandidates(module._id) }
+    });
+
+    if (written) {
+      return response.json({
+        assessment: { ...toAssessmentSummary(written), locked: false },
+        generated: result.status === "created"
+      });
+    }
+  }
+
+  // Nothing was written and nothing exists. Say which of the handful of reasons
+  // it was, because "try again" is wrong advice for most of them.
+  const reasons = {
+    "no-source-text": "This lesson's text has not been prepared yet, so its quiz cannot be written.",
+    "no-blueprint-row": "This lesson has no entry in the course blueprint, so there is nothing to write.",
+    "no-blueprint": "This course has no assessment blueprint yet.",
+    "recently-failed": "That did not work a moment ago. Try again shortly.",
+    "auto-generation-disabled": "Quiz generation is switched off on this server."
+  };
+
+  return response.status(503).json({
+    message:
+      reasons[result.reason] ??
+      "Your quiz could not be prepared just now. Please try again shortly.",
+    reason: result.reason ?? "unknown"
   });
 }
 

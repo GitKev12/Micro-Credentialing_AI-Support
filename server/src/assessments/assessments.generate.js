@@ -11,6 +11,10 @@ import {
 } from "./assessments.format.js";
 import { generateAssessmentItems } from "../integrations/openai/openai.client.js";
 import { recordApiUsage } from "../integrations/openai/usage.log.js";
+// The same cleaner the lesson reader uses, so the model reads what the student
+// reads rather than the raw PDF behind it.
+import { buildLessonBlocks } from "../modules/modules.format.js";
+import { stripStyleMarkers } from "../modules/modules.ocr.js";
 
 /**
  * Writing quizzes into the Assessment collection.
@@ -130,11 +134,35 @@ export function mapGeneratedItems(rawItems) {
 
 const PAGE_MARKER = /^\s*\d+\s*\/\s*\d+\s*$/;
 
-/** The lesson's text, with the page furniture taken out and a length cap. */
-export function toSourceText(textRecord, maxChars = MAX_SOURCE_CHARS) {
-  const pages = Array.isArray(textRecord?.pages) ? textRecord.pages : [];
+/**
+ * The reader's blocks flattened back to plain text.
+ *
+ * Headings keep a blank line before them so the model can see where one part of
+ * the lesson ends and the next begins; lists keep their bullets, because "these
+ * are four separate things" is information a question can be built on. The
+ * inline italic markers the extractor leaves behind are dropped — they mean
+ * something to the client's renderer and nothing to a model.
+ */
+function blocksToText(blocks) {
+  const lines = [];
 
-  const body = pages
+  for (const block of blocks) {
+    if (block.type === "heading") lines.push(`\n${stripStyleMarkers(block.text ?? "")}`);
+    else if (block.type === "paragraph" || block.type === "code") {
+      lines.push(stripStyleMarkers(block.text ?? ""));
+    } else if (block.type === "term") {
+      lines.push(`${stripStyleMarkers(block.term ?? "")} — ${stripStyleMarkers(block.text ?? "")}`);
+    } else if (block.type === "list") {
+      (block.items ?? []).forEach((item) => lines.push(`- ${stripStyleMarkers(item)}`));
+    }
+  }
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** The old behaviour: raw pages with the "3/22" page markers taken out. */
+function rawPageText(pages) {
+  return pages
     .map((page) =>
       String(page?.text ?? "")
         .split("\n")
@@ -144,6 +172,37 @@ export function toSourceText(textRecord, maxChars = MAX_SOURCE_CHARS) {
     )
     .filter(Boolean)
     .join("\n\n");
+}
+
+/**
+ * The lesson the model is asked to write questions from — the same text the
+ * student reads, not the raw PDF dump.
+ *
+ * This used to strip page markers and nothing else, so every call also sent the
+ * module's cover page, the developers' names and email addresses, and the course
+ * outline. That is material the prompt then invites questions about, since it
+ * says every question must be answerable from the lesson text alone; and on the
+ * longest lessons it was consuming the character budget that real content
+ * needed. `buildLessonBlocks` already removes exactly this — it is what the
+ * lesson reader shows a student — so the generator now reads through it.
+ *
+ * Falls back to the raw text if the formatter yields nothing. A lesson whose
+ * layout defeats the heuristics is still worth a quiz, and the old behaviour is
+ * a worse source rather than a broken one.
+ */
+export function toSourceText(textRecord, maxChars = MAX_SOURCE_CHARS) {
+  const pages = Array.isArray(textRecord?.pages) ? textRecord.pages : [];
+  if (pages.length === 0) return "";
+
+  let body = "";
+  try {
+    body = blocksToText(buildLessonBlocks(pages));
+  } catch (_error) {
+    // A formatter that throws on an odd module must not stop its quiz.
+    body = "";
+  }
+
+  if (body.length < 200) body = rawPageText(pages);
 
   return body.length > maxChars ? body.slice(0, maxChars) : body;
 }

@@ -4,8 +4,11 @@ import api from "./api";
  * Admin console API.
  *
  * Backed by /api/admin (server/src/admin). Every list reads live data from
- * MainSystemDB; a few display fields (student program/year, assessor
- * department) are not stored yet and arrive as null.
+ * MainSystemDB.
+ *
+ * Nothing here carries a degree batch — no program, no year, no account
+ * status. This is a micro-credentialing system, so what it reports is work
+ * done and credentials earned.
  */
 
 export async function fetchAdminProfile() {
@@ -23,6 +26,31 @@ export async function fetchCourses() {
 export async function fetchCourse(courseId) {
   const { data } = await api.get(`/admin/courses/${courseId}`);
   return data.course;
+}
+
+export async function createCourse(course) {
+  const { data } = await api.post("/admin/courses", course);
+  return data.course;
+}
+
+/** Send only the fields being changed. */
+export async function updateCourse(courseId, changes) {
+  const { data } = await api.patch(`/admin/courses/${courseId}`, changes);
+  return data.course;
+}
+
+/**
+ * What withdrawing a course would take with it — lessons, submissions,
+ * completions, the blueprint, and how many people it would be withdrawn from.
+ */
+export async function fetchCourseImpact(courseId) {
+  const { data } = await api.get(`/admin/courses/${courseId}/impact`);
+  return data.impact ?? {};
+}
+
+export async function deleteCourse(courseId) {
+  const { data } = await api.delete(`/admin/courses/${courseId}`);
+  return data.removed ?? {};
 }
 
 /* ---- Learning modules ---- */
@@ -52,6 +80,16 @@ export async function createCourseModule(courseId, file, { title, onProgress } =
 }
 
 /**
+ * What deleting a module would take with it — `{ assessments, completions,
+ * figures }` — read before the confirmation rather than reported after it.
+ * A completion is a student's record that they did the work.
+ */
+export async function fetchModuleImpact(moduleId) {
+  const { data } = await api.get(`/admin/modules/${moduleId}/impact`);
+  return data.impact ?? {};
+}
+
+/**
  * Removes a module, its file, and everything derived from it. Resolves to
  * `{ title, assessments, completions, figures }` — what actually went with it.
  */
@@ -62,6 +100,12 @@ export async function deleteCourseModule(moduleId) {
 
 /* ---- Students ---- */
 
+/**
+ * The student list. Each row carries an `activity`:
+ * { lessonsDone, lessonsTotal, badgesEarned, badgesTotal, pending,
+ *   lastActive: { at, kind } } — what the student has actually done, as
+ * opposed to what they were enrolled in.
+ */
 export async function fetchStudents() {
   const { data } = await api.get("/admin/students");
   return data.students ?? [];
@@ -80,20 +124,21 @@ export async function fetchStudent(studentId) {
   return data.student;
 }
 
-// The states an account can be in. Mirrors STATUSES on the server, which
-// rejects anything outside the list.
-export const STATUSES = ["Active", "Inactive", "On Leave"];
+// The shortest password the API will store. Mirrors MIN_PASSWORD_LENGTH on the
+// server, so a too-short one is refused here rather than after a round trip.
+export const MIN_PASSWORD_LENGTH = 8;
 
-/** Patches program / year / status. Send only the fields being changed. */
+/**
+ * Patches names, email, student number or password. Send only the fields being
+ * changed; an omitted or empty password is left alone.
+ *
+ * There is no create or delete for accounts. Provisioning them is outside this
+ * system, so the console corrects records rather than adding to or removing
+ * from the roster.
+ */
 export async function updateStudent(studentId, changes) {
   const { data } = await api.patch(`/admin/students/${studentId}`, changes);
   return data.student;
-}
-
-/** Patches status. */
-export async function updateAssessor(assessorId, changes) {
-  const { data } = await api.patch(`/admin/assessors/${assessorId}`, changes);
-  return data.assessor;
 }
 
 /**
@@ -117,13 +162,35 @@ export async function unenrollStudent(studentId, courseId) {
 
 /* ---- Assessors ---- */
 
+/**
+ * The assessor list, plus the coverage check the list screen warns with.
+ *
+ * Resolves to { assessors, coverage } — `coverage.unassigned` are courses no
+ * assessor is assigned to, `coverage.shared` are courses more than one is.
+ * Each assessor carries a `workload`: { toGrade, flagged, released,
+ * credentials, oldestWaiting, lastGraded }.
+ */
 export async function fetchAssessors() {
   const { data } = await api.get("/admin/assessors");
-  return data.assessors ?? [];
+  return {
+    assessors: data.assessors ?? [],
+    coverage: data.coverage ?? { unassigned: [], shared: [] }
+  };
 }
 
+/**
+ * One assessor's record. Beyond the list fields it carries `classes` — the
+ * assigned courses each with its own students, backlog, releases and
+ * credentials.
+ */
 export async function fetchAssessor(assessorId) {
   const { data } = await api.get(`/admin/assessors/${assessorId}`);
+  return data.assessor;
+}
+
+/** Patches name, email, ID number or password. Send only what is changing. */
+export async function updateAssessor(assessorId, changes) {
+  const { data } = await api.patch(`/admin/assessors/${assessorId}`, changes);
   return data.assessor;
 }
 

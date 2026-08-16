@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  createCourse,
   createCourseModule,
+  deleteCourse,
   deleteCourseModule,
   fetchCourse,
+  fetchCourseImpact,
   fetchCourses,
+  fetchModuleImpact,
+  updateCourse,
   MAX_MODULE_BYTES
 } from "../../services/admin";
 import { moduleFileUrl } from "../../services/learningModules";
 import { ChevronRightIcon, TrashIcon, UploadIcon } from "./components/icons";
-import { AdminButton, BackLink, PageHeader, SearchField } from "./components/ui";
+import {
+  AdminButton,
+  AdminField,
+  AdminModal,
+  BackLink,
+  ConfirmDeleteModal,
+  PageHeader,
+  SearchField
+} from "./components/ui";
 
 /** "2.4 MB" — the size as an admin would say it, or nothing if unrecorded. */
 function fileSizeLabel(bytes) {
@@ -24,6 +37,83 @@ function moduleMeta(module) {
 
 function errorMessage(error, fallback) {
   return error?.response?.data?.message || fallback;
+}
+
+/** "1 lesson" / "3 lessons" — a count that reads as English. */
+function plural(count, word, suffix = "s") {
+  return `${count} ${word}${count === 1 ? "" : suffix}`;
+}
+
+/**
+ * What withdrawing a course destroys, and what survives it.
+ *
+ * The distinction is the point of the dialog: lessons and submissions go, but a
+ * student is not the course's to delete — they are unenrolled and keep their
+ * account. Saying only the first half would make this look like it removes
+ * people.
+ */
+function courseLosses(impact) {
+  if (!impact) return null;
+  if (impact.unknown) {
+    return [
+      "its lessons, with their files and quizzes",
+      "any completions and submissions recorded in it",
+      "its Table of Specification blueprint"
+    ];
+  }
+
+  return [
+    impact.modules ? `${plural(impact.modules, "lesson")}, with their files and quizzes` : "",
+    impact.completions ? plural(impact.completions, "lesson completion") : "",
+    impact.submissions ? plural(impact.submissions, "quiz submission") : "",
+    impact.blueprints ? "its Table of Specification blueprint" : ""
+  ].filter(Boolean);
+}
+
+function courseKeeps(impact) {
+  if (!impact || impact.unknown) return [];
+
+  return [
+    impact.enrolled
+      ? `${plural(impact.enrolled, "student")} — unenrolled, but their account and records stay`
+      : "",
+    impact.assessors
+      ? `${plural(impact.assessors, "assessor")} — unassigned, but their account stays`
+      : ""
+  ].filter(Boolean);
+}
+
+/** "a, b and c" — an English list, not a comma-separated dump. */
+function listWords(items) {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * What removing this lesson would destroy, named before the admin agrees to it.
+ *
+ * The confirm used to say "this module and its quiz". Deleting a module also
+ * deletes every completion recorded against it — a student's evidence that they
+ * did the work — and that was reported afterwards, in the success message.
+ * Being told after the fact is not consent, so the counts are read first and
+ * spelled out here.
+ */
+function impactLabel(impact) {
+  if (!impact) return "Checking what this would remove…";
+  // The count failed. Name the categories anyway: silence would read as
+  // "nothing else will be lost", which is the one thing we cannot claim.
+  if (impact.unknown) return "Remove this module, its quiz and any completion records?";
+
+  const losses = [
+    impact.assessments ? `${impact.assessments} quiz${impact.assessments === 1 ? "" : "zes"}` : "",
+    impact.completions
+      ? `${impact.completions} completion record${impact.completions === 1 ? "" : "s"}`
+      : "",
+    impact.figures ? `${impact.figures} figure${impact.figures === 1 ? "" : "s"}` : ""
+  ].filter(Boolean);
+
+  if (losses.length === 0) return "Remove this module? Nothing else depends on it.";
+  return `Remove this module, ${listWords(losses)}? This cannot be undone.`;
 }
 
 /**
@@ -103,6 +193,83 @@ function ModulePreview({ module, onClose }) {
         <iframe className="admin-modal__frame" src={url} title={`${module.title} preview`} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Create or rename a course.
+ *
+ * One form for both: the fields are identical and the only difference is
+ * whether it opens empty, so two nearly-identical components would be two
+ * places to fix the next time a field is added.
+ */
+function CourseForm({ course, busy, error, onCancel, onSave }) {
+  const editing = Boolean(course);
+  const [code, setCode] = useState(course?.code ?? "");
+  const [title, setTitle] = useState(course?.title ?? "");
+  const [description, setDescription] = useState(course?.description ?? "");
+
+  const ready = code.trim() && title.trim();
+
+  return (
+    <AdminModal
+      title={editing ? "Edit course" : "New course"}
+      subtitle={editing ? course.code : "Courses hold the lessons students work through"}
+      onClose={onCancel}
+      footer={
+        <>
+          <button
+            type="button"
+            className="admin-chip-btn admin-chip-btn--quiet"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <AdminButton
+            variant="admin-btn--compact"
+            disabled={busy || !ready}
+            onClick={() =>
+              onSave({ code: code.trim(), title: title.trim(), description: description.trim() })
+            }
+          >
+            {busy ? "Saving…" : editing ? "Save changes" : "Create course"}
+          </AdminButton>
+        </>
+      }
+    >
+      {error ? (
+        <p className="admin-notice admin-notice--error" role="status">
+          {error}
+        </p>
+      ) : null}
+
+      <AdminField
+        label="Course code"
+        value={code}
+        onChange={setCode}
+        placeholder="e.g. CC2"
+        required
+        hint={
+          editing
+            ? "Renaming this also moves any lesson that was filed under the old code."
+            : "How lessons, badges and blueprints find this course."
+        }
+      />
+      <AdminField
+        label="Course title"
+        value={title}
+        onChange={setTitle}
+        placeholder="e.g. Computer Programming 2"
+        required
+      />
+      <AdminField
+        label="Description"
+        value={description}
+        onChange={setDescription}
+        placeholder="What this course covers"
+      />
+    </AdminModal>
   );
 }
 
@@ -202,9 +369,20 @@ function CourseManagement() {
   // "yes, remove", and whether an add or remove is currently in flight.
   const [preview, setPreview] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // What that module's removal would destroy, fetched when the confirm opens.
+  // Null while it is still loading, so the confirm can hold its tongue rather
+  // than claim there is nothing to lose before it has looked.
+  const [impact, setImpact] = useState(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [notice, setNotice] = useState(null);
+
+  // The course itself, rather than its lessons: which form is open ("new", or
+  // the course being edited), and the withdrawal waiting on its impact count.
+  const [courseForm, setCourseForm] = useState(null);
+  const [formError, setFormError] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [courseImpact, setCourseImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -242,6 +420,60 @@ function CourseManagement() {
     setPreview(null);
     setConfirming(null);
     setNotice(null);
+  };
+
+  const saveCourse = async (values) => {
+    setBusy(true);
+    setFormError(null);
+    try {
+      if (courseForm === "new") {
+        const created = await createCourse(values);
+        setCourses((list) => [...list, created]);
+        setNotice({ tone: "ok", text: `“${created.title}” was created.` });
+      } else {
+        const saved = await updateCourse(courseForm.id, values);
+        setCourses((list) => list.map((c) => (c.id === saved.id ? { ...c, ...saved } : c)));
+        setSelected((course) => (course ? { ...course, ...saved } : course));
+        setNotice({ tone: "ok", text: `“${saved.title}” was updated.` });
+      }
+      setCourseForm(null);
+    } catch (error) {
+      // Stays inside the form: the code clash and the missing title are both
+      // things the admin fixes in a field they are still looking at.
+      setFormError(errorMessage(error, "Couldn't save this course. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const askToDeleteCourse = (course) => {
+    setDeleting(course);
+    setCourseImpact(null);
+    fetchCourseImpact(course.id)
+      .then(setCourseImpact)
+      .catch(() => setCourseImpact({ unknown: true }));
+  };
+
+  const removeCourse = async () => {
+    setBusy(true);
+    try {
+      const removed = await deleteCourse(deleting.id);
+      setCourses((list) => list.filter((c) => c.id !== deleting.id));
+      setDeleting(null);
+      setCourseImpact(null);
+      closeCourse();
+      setNotice({
+        tone: "ok",
+        text: `“${removed.title}” was withdrawn, along with ${removed.modules} lesson${
+          removed.modules === 1 ? "" : "s"
+        }.`
+      });
+    } catch (error) {
+      setNotice({ tone: "error", text: errorMessage(error, "Couldn't withdraw this course.") });
+      setDeleting(null);
+    } finally {
+      setBusy(false);
+    }
   };
 
   /** Keeps the course card's module count in step with the detail screen. */
@@ -290,6 +522,23 @@ function CourseManagement() {
     }
   };
 
+  /**
+   * Opens the confirmation, then fills in what it would cost.
+   *
+   * The counts are fetched rather than assumed: "and its quiz" was true of some
+   * modules and badly incomplete for others, and the difference is whether any
+   * student has worked through it.
+   */
+  const askToRemove = (module) => {
+    setConfirming(module.id);
+    setImpact(null);
+    fetchModuleImpact(module.id)
+      .then(setImpact)
+      // A failed count must not read as "nothing will be lost". The confirm
+      // falls back to naming the categories without numbers.
+      .catch(() => setImpact({ unknown: true }));
+  };
+
   const removeModule = async (module) => {
     setBusy(true);
     setNotice(null);
@@ -297,6 +546,7 @@ function CourseManagement() {
       const removed = await deleteCourseModule(module.id);
       setModules((selected.modules ?? []).filter((entry) => entry.id !== module.id));
       setConfirming(null);
+      setImpact(null);
 
       // Say what else went with it — a quiz costs money to generate again, and
       // completions are a student's record, so neither should vanish silently.
@@ -340,6 +590,31 @@ function CourseManagement() {
               ? `${selected.code} · ${modules.length} ${modules.length === 1 ? "module" : "modules"}`
               : "Loading course…"
           }
+          action={
+            detailStatus === "ready" ? (
+              <div className="admin-header__actions">
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--quiet"
+                  disabled={busy}
+                  onClick={() => {
+                    setFormError(null);
+                    setCourseForm(selected);
+                  }}
+                >
+                  Edit course
+                </button>
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--danger"
+                  disabled={busy}
+                  onClick={() => askToDeleteCourse(selected)}
+                >
+                  Withdraw
+                </button>
+              </div>
+            ) : null
+          }
         />
 
         {notice ? (
@@ -366,13 +641,14 @@ function CourseManagement() {
 
                   {confirming === module.id ? (
                     <div className="admin-module-row__actions">
-                      <span className="admin-module-row__warn">
-                        Remove this module and its quiz?
-                      </span>
+                      <span className="admin-module-row__warn">{impactLabel(impact)}</span>
+                      {/* Held back until the counts are in: agreeing to a
+                          removal whose cost is still loading is agreeing to
+                          nothing in particular. */}
                       <button
                         type="button"
                         className="admin-chip-btn"
-                        disabled={busy}
+                        disabled={busy || !impact}
                         onClick={() => removeModule(module)}
                       >
                         Yes, remove
@@ -381,7 +657,10 @@ function CourseManagement() {
                         type="button"
                         className="admin-chip-btn admin-chip-btn--quiet"
                         disabled={busy}
-                        onClick={() => setConfirming(null)}
+                        onClick={() => {
+                          setConfirming(null);
+                          setImpact(null);
+                        }}
                       >
                         Cancel
                       </button>
@@ -400,7 +679,7 @@ function CourseManagement() {
                         type="button"
                         className="admin-chip-btn admin-chip-btn--icon"
                         disabled={busy}
-                        onClick={() => setConfirming(module.id)}
+                        onClick={() => askToRemove(module)}
                         aria-label={`Remove ${module.title}`}
                       >
                         <TrashIcon />
@@ -424,6 +703,32 @@ function CourseManagement() {
         ) : null}
 
         {preview ? <ModulePreview module={preview} onClose={() => setPreview(null)} /> : null}
+
+        {courseForm ? (
+          <CourseForm
+            course={courseForm === "new" ? null : courseForm}
+            busy={busy}
+            error={formError}
+            onCancel={() => setCourseForm(null)}
+            onSave={saveCourse}
+          />
+        ) : null}
+
+        {deleting ? (
+          <ConfirmDeleteModal
+            title="Withdraw this course?"
+            subject={`${deleting.code} · ${deleting.title}`}
+            losses={courseLosses(courseImpact)}
+            keeps={courseKeeps(courseImpact)}
+            busy={busy}
+            confirmLabel="Withdraw course"
+            onCancel={() => {
+              setDeleting(null);
+              setCourseImpact(null);
+            }}
+            onConfirm={removeCourse}
+          />
+        ) : null}
       </div>
     );
   }
@@ -433,7 +738,25 @@ function CourseManagement() {
       <PageHeader
         title="Courses Management"
         subtitle="Select a course to add, preview or remove its learning modules"
+        action={
+          <AdminButton
+            onClick={() => {
+              setFormError(null);
+              setCourseForm("new");
+            }}
+          >
+            New course
+          </AdminButton>
+        }
       />
+
+      {/* A withdrawal closes the detail screen, so its result has to land
+          here — the notice inside the detail view would never be seen. */}
+      {notice ? (
+        <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
+          {notice.text}
+        </p>
+      ) : null}
 
       <SearchField
         value={query}
@@ -527,6 +850,17 @@ function CourseManagement() {
           ) : null}
         </>
       )}
+
+      {/* "New course" is a list-screen action, so its form belongs here too. */}
+      {courseForm === "new" ? (
+        <CourseForm
+          course={null}
+          busy={busy}
+          error={formError}
+          onCancel={() => setCourseForm(null)}
+          onSave={saveCourse}
+        />
+      ) : null}
     </div>
   );
 }

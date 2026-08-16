@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
-import { idCandidates } from "../lib/mongo.js";
+import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { syncAllAssessors } from "./enrollment.sync.js";
 
 /**
  * Adding and removing a course's learning modules.
@@ -26,13 +27,18 @@ import { idCandidates } from "../lib/mongo.js";
  */
 
 const ASSESSMENTS_COLLECTION = "Assessment";
+const ASSESSORS_COLLECTION = "Assessor";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
 const MODULE_TEXT_COLLECTION = "ModuleText";
 const PROGRESS_COLLECTION = "ModuleProgress";
+const RESULTS_COLLECTION = "StudentResult";
+const STUDENTS_COLLECTION = "Student";
+const TOS_COLLECTION = "TableOfSpecification";
 
 const MODULES_BUCKET = "LearningModule";
 const FIGURES_BUCKET = "ModuleFigure";
+const COURSE_IMAGE_BUCKET = "CourseImage";
 
 /**
  * The largest lesson file the API will take. Generous for a scanned chapter,
@@ -190,12 +196,18 @@ export async function createCourseModule(request, response) {
 }
 
 /**
- * DELETE /api/admin/modules/:moduleId
+ * GET /api/admin/modules/:moduleId/impact
  *
- * Reports what went with the lesson, so the console can tell the admin what
- * they actually removed instead of only that something was removed.
+ * What deleting this lesson would take with it, counted before anything is
+ * touched.
+ *
+ * The delete already reported this — afterwards. That is the wrong end of the
+ * decision: a completion record is a student's evidence that they did the work,
+ * and being told afterwards that thirty of them are gone is not consent. The
+ * same counts, read before the confirmation, are what makes the confirmation
+ * mean something.
  */
-export async function deleteCourseModule(request, response) {
+export async function getModuleImpact(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   const module = await collection(MODULES_COLLECTION).findOne({
@@ -203,6 +215,42 @@ export async function deleteCourseModule(request, response) {
   });
   if (!module) return response.status(404).json({ message: "Learning module not found." });
 
+  const byModule = { moduleId: { $in: idCandidates(module._id) } };
+
+  const [assessments, completions, figures] = await Promise.all([
+    collection(ASSESSMENTS_COLLECTION).countDocuments(byModule),
+    collection(PROGRESS_COLLECTION).countDocuments(byModule),
+    bucketFor(FIGURES_BUCKET)
+      .find({ "metadata.moduleId": asId(module._id) })
+      .toArray()
+      .then((files) => files.length)
+  ]);
+
+  return response.json({
+    impact: {
+      id: asId(module._id),
+      title: module.title ?? module.fileName ?? "Untitled module",
+      assessments,
+      completions,
+      figures
+    }
+  });
+}
+
+/**
+ * DELETE /api/admin/modules/:moduleId
+ *
+ * Reports what went with the lesson, so the console can tell the admin what
+ * they actually removed instead of only that something was removed.
+ */
+/**
+ * Removes one lesson and everything derived from it.
+ *
+ * Split out of the endpoint because deleting a course is this, once per lesson,
+ * and a second copy of the cascade is a second chance to forget one of the five
+ * places a module leaves something behind.
+ */
+async function purgeModule(module) {
   const moduleKey = asId(module._id);
   const byModule = { moduleId: { $in: idCandidates(module._id) } };
 
@@ -230,13 +278,262 @@ export async function deleteCourseModule(request, response) {
 
   await collection(MODULES_COLLECTION).deleteOne({ _id: module._id });
 
+  return {
+    figures: figureFiles.length,
+    assessments: quizzes.deletedCount ?? 0,
+    completions: completions.deletedCount ?? 0
+  };
+}
+
+export async function deleteCourseModule(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const module = await collection(MODULES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.moduleId) }
+  });
+  if (!module) return response.status(404).json({ message: "Learning module not found." });
+
+  const removed = await purgeModule(module);
+
   return response.json({
     removed: {
-      id: moduleKey,
+      id: asId(module._id),
       title: module.title ?? module.fileName ?? "Untitled module",
-      figures: figureFiles.length,
-      assessments: quizzes.deletedCount ?? 0,
-      completions: completions.deletedCount ?? 0
+      ...removed
+    }
+  });
+}
+
+/* ─────────────────────────── Courses ─────────────────────────── */
+
+/**
+ * The catalog itself.
+ *
+ * A course could not be created from the console at all — every one of them
+ * began as a hand-written document — and could not be renamed or withdrawn
+ * either. These are the endpoints behind that, and they live beside the module
+ * writes because removing a course is removing its lessons, which is work this
+ * file already knows how to do.
+ */
+
+/** The course as the admin list renders it. */
+function publicCourse(course, counts = {}) {
+  return {
+    id: asId(course._id),
+    code: courseCode(course),
+    title: course.courseName ?? course.title ?? course.name ?? "",
+    description: course.description ?? "",
+    hasImage: Boolean(course.imageFileId),
+    moduleCount: counts.moduleCount ?? 0,
+    studentCount: counts.studentCount ?? 0
+  };
+}
+
+/** POST /api/admin/courses — { code, title, description } */
+export async function createCourse(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const body = request.body ?? {};
+  const code = String(body.code ?? "").trim();
+  const title = String(body.title ?? "").trim();
+
+  if (!code) return response.status(400).json({ message: "A course code is required." });
+  if (!title) return response.status(400).json({ message: "A course title is required." });
+
+  // Codes are how modules, blueprints and badges find their course when they
+  // were not stored with an id, so two courses sharing one would quietly pull
+  // each other's material.
+  const existing = await collection(COURSES_COLLECTION).findOne({
+    $or: [{ courseCode: code }, { code }]
+  });
+  if (existing) {
+    return response.status(409).json({ message: `A course with the code "${code}" already exists.` });
+  }
+
+  const document = {
+    courseCode: code,
+    courseName: title,
+    description: String(body.description ?? "").trim(),
+    createdAt: new Date()
+  };
+
+  const { insertedId } = await collection(COURSES_COLLECTION).insertOne(document);
+
+  return response
+    .status(201)
+    .json({ course: publicCourse({ ...document, _id: insertedId }) });
+}
+
+/** PATCH /api/admin/courses/:id — { code?, title?, description? } */
+export async function updateCourse(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  const body = request.body ?? {};
+  const updates = {};
+
+  if ("title" in body) {
+    const title = String(body.title ?? "").trim();
+    if (!title) return response.status(400).json({ message: "A course title is required." });
+    updates.courseName = title;
+  }
+
+  if ("description" in body) updates.description = String(body.description ?? "").trim();
+
+  if ("code" in body) {
+    const code = String(body.code ?? "").trim();
+    if (!code) return response.status(400).json({ message: "A course code is required." });
+
+    if (code !== courseCode(course)) {
+      const clash = await collection(COURSES_COLLECTION).findOne({
+        _id: { $ne: course._id },
+        $or: [{ courseCode: code }, { code }]
+      });
+      if (clash) {
+        return response.status(409).json({ message: `A course with the code "${code}" already exists.` });
+      }
+
+      // Modules, badges and blueprints written without a courseId find their
+      // course by code. Renaming the code without carrying them across would
+      // strand exactly those rows.
+      await collection(MODULES_COLLECTION).updateMany(
+        { courseCode: courseCode(course) },
+        { $set: { courseCode: code, subject: code } }
+      );
+      updates.courseCode = code;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return response.status(400).json({ message: "Send at least one of code, title or description." });
+  }
+
+  await collection(COURSES_COLLECTION).updateOne({ _id: course._id }, { $set: updates });
+
+  return response.json({ course: publicCourse({ ...course, ...updates }) });
+}
+
+/** Everything that hangs off a course, counted or collected. */
+async function courseContents(course) {
+  const modules = await collection(MODULES_COLLECTION).find(courseModuleFilter(course)).toArray();
+  const byCourse = { courseId: { $in: idCandidates(course._id) } };
+
+  const countIn = async (name, filter) =>
+    (await collectionExists(name)) ? collection(name).countDocuments(filter) : 0;
+
+  const enrolled = await collection(STUDENTS_COLLECTION).countDocuments({
+    enrolledCourses: { $in: idCandidates(course._id) }
+  });
+
+  const assessors = await collection(ASSESSORS_COLLECTION).countDocuments({
+    assigned_courses: { $in: idCandidates(course._id) }
+  });
+
+  const [submissions, completions, blueprints] = await Promise.all([
+    countIn(RESULTS_COLLECTION, byCourse),
+    countIn(PROGRESS_COLLECTION, byCourse),
+    countIn(TOS_COLLECTION, { courseId: asId(course._id) })
+  ]);
+
+  return { modules, enrolled, assessors, submissions, completions, blueprints };
+}
+
+/** GET /api/admin/courses/:id/impact — what withdrawing this course destroys. */
+export async function getCourseImpact(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  const contents = await courseContents(course);
+
+  return response.json({
+    impact: {
+      id: asId(course._id),
+      title: course.courseName ?? course.title ?? "",
+      modules: contents.modules.length,
+      enrolled: contents.enrolled,
+      assessors: contents.assessors,
+      submissions: contents.submissions,
+      completions: contents.completions,
+      blueprints: contents.blueprints
+    }
+  });
+}
+
+/**
+ * DELETE /api/admin/courses/:id
+ *
+ * The heaviest thing in the console, so it reports every category it touched.
+ * Enrolments and assignments are withdrawn rather than deleted — the student
+ * and the assessor are not the course's to remove.
+ */
+export async function deleteCourse(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  const contents = await courseContents(course);
+  const byCourse = { courseId: { $in: idCandidates(course._id) } };
+
+  // Lessons first, each taking its file, figures, text, quiz and completions.
+  for (const module of contents.modules) {
+    await purgeModule(module);
+  }
+
+  const removeMany = async (name, filter) => {
+    if (!(await collectionExists(name))) return 0;
+    const result = await collection(name).deleteMany(filter);
+    return result.deletedCount ?? 0;
+  };
+
+  // The final exam and any submission that survived its lesson being removed.
+  const assessments = await removeMany(ASSESSMENTS_COLLECTION, byCourse);
+  const submissions = await removeMany(RESULTS_COLLECTION, byCourse);
+  await removeMany(PROGRESS_COLLECTION, byCourse);
+  const blueprints = await removeMany(TOS_COLLECTION, { courseId: asId(course._id) });
+
+  // The people keep their accounts; they simply are not in this course now.
+  const enrolments = await collection(STUDENTS_COLLECTION).updateMany(
+    { enrolledCourses: { $in: idCandidates(course._id) } },
+    { $pull: { enrolledCourses: { $in: idCandidates(course._id) } } }
+  );
+  const assignments = await collection(ASSESSORS_COLLECTION).updateMany(
+    { assigned_courses: { $in: idCandidates(course._id) } },
+    { $pull: { assigned_courses: { $in: idCandidates(course._id) } } }
+  );
+
+  if (course.imageFileId) {
+    await bucketFor(COURSE_IMAGE_BUCKET)
+      .delete(course.imageFileId)
+      .catch(() => {});
+  }
+
+  await collection(COURSES_COLLECTION).deleteOne({ _id: course._id });
+
+  // Rosters are derived from enrolment, and the enrolment just changed.
+  await syncAllAssessors();
+
+  return response.json({
+    removed: {
+      id: asId(course._id),
+      title: course.courseName ?? course.title ?? "",
+      modules: contents.modules.length,
+      assessments,
+      submissions,
+      completions: contents.completions,
+      blueprints,
+      unenrolled: enrolments.modifiedCount ?? 0,
+      unassigned: assignments.modifiedCount ?? 0
     }
   });
 }

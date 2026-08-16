@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
 import { defaultPassMark } from "../assessments/assessments.format.js";
 import { issueCertificate } from "../certificates/certificates.service.js";
+import { aiStatusOf, isReleased, openFlags } from "./grading.js";
 
 /**
  * Assessor console endpoints — classes, roster, grading queue, submission
@@ -102,18 +103,6 @@ async function resultsForCourses(courses) {
   return collection(RESULTS_COLLECTION)
     .find({ courseId: { $in: manyCandidates(courses.map((course) => course._id)) } })
     .toArray();
-}
-
-const isReleased = (result) => result.review?.status === "released";
-
-const aiStatusOf = (result) => result.aiGrading?.status ?? "unavailable";
-
-/** Flagged items the assessor has not yet overridden. */
-function openFlags(result) {
-  const overrides = result.review?.overrides ?? {};
-  return (result.aiGrading?.items ?? []).filter(
-    (item) => item.verdict === "flagged" && !overrides[asId(item.itemId)]
-  ).length;
 }
 
 /**

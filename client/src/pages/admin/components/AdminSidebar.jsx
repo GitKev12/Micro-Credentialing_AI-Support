@@ -16,6 +16,13 @@ import {
   UserIcon
 } from "./icons";
 
+// Ordered the way the work runs: build the catalog, enrol the people, write the
+// blueprint, then watch what the API cost.
+//
+// There is no "generate quizzes" screen. A quiz becomes available to a student
+// when that student finishes reading its lesson — there is no class schedule
+// and no release date an admin would be setting, so a screen for choosing when
+// quizzes appear would describe a system this is not.
 const NAV_ITEMS = [
   { to: "/admin/courses", label: "Courses", Icon: CoursesIcon },
   { to: "/admin/students", label: "Students", Icon: StudentsIcon },
@@ -103,16 +110,19 @@ function AdminSidebar({ name, idNumber }) {
           <span className="admin-theme-switch__thumb" />
         </span>
       </button>
-
-      <button
-        type="button"
-        className="admin-sidebar__signout"
-        onClick={handleSignOut}
-        title={collapsed ? "Sign Out" : undefined}
+      <div
+        className="admin-sidebar__signout-wrap"
       >
-        <SignOutIcon size={20} />
-        <span>Sign Out</span>
-      </button>
+        <button
+          type="button"
+          className="admin-sidebar__signout"
+          onClick={handleSignOut}
+          title={collapsed ? "Sign Out" : undefined}
+        >
+          <SignOutIcon size={20} />
+          <span>Sign Out</span>
+        </button>
+      </div>
     </aside>
   );
 }

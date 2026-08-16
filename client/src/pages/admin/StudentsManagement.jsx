@@ -4,19 +4,22 @@ import {
   fetchCourses,
   fetchStudent,
   fetchStudents,
-  unenrollStudent
+  unenrollStudent,
+  updateStudent,
+  MIN_PASSWORD_LENGTH
 } from "../../services/admin";
 import { ChevronRightIcon, UserIcon } from "./components/icons";
 import {
   AdminButton,
+  AdminField,
+  AdminModal,
   AdminSelect,
   Avatar,
   BackLink,
   PageHeader,
   ProgressRow,
   SearchField,
-  StatTile,
-  StatusPill
+  StatTile
 } from "./components/ui";
 
 function formatDate(value) {
@@ -48,6 +51,105 @@ function lastActiveLabel(lastActive) {
 const CATEGORY_ALL = "all";
 const CATEGORY_NONE = "none";
 
+const EMPTY_ACTIVITY = {
+  lessonsDone: 0,
+  lessonsTotal: 0,
+  badgesEarned: 0,
+  badgesTotal: 0,
+  pending: 0,
+  lastActive: { at: null, kind: null }
+};
+
+
+/**
+ * Correct an existing student's details.
+ *
+ * Editing only — this console does not create accounts, so there is no blank
+ * version of this form. An empty password box means "keep the current one"
+ * rather than "clear it", and says so: a form that silently blanked a password
+ * because a name was being fixed would lock someone out without ever saying it
+ * had.
+ */
+function StudentForm({ student, busy, error, onCancel, onSave }) {
+  const [firstName, setFirstName] = useState(student?.name?.split(" ")[0] ?? "");
+  const [lastName, setLastName] = useState(
+    student?.name?.split(" ").slice(1).join(" ") ?? ""
+  );
+  const [email, setEmail] = useState(student?.email ?? "");
+  const [studentNumber, setStudentNumber] = useState(student?.studentNumber ?? "");
+  const [password, setPassword] = useState("");
+
+  const passwordOk = password === "" || password.length >= MIN_PASSWORD_LENGTH;
+  const ready = firstName.trim() && lastName.trim() && email.trim() && passwordOk;
+
+  return (
+    <AdminModal
+      title="Edit student"
+      subtitle={student.name}
+      onClose={onCancel}
+      footer={
+        <>
+          <button
+            type="button"
+            className="admin-chip-btn admin-chip-btn--quiet"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <AdminButton
+            variant="admin-btn--compact"
+            disabled={busy || !ready}
+            onClick={() =>
+              onSave({
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+                email: email.trim(),
+                studentNumber: studentNumber.trim(),
+                ...(password ? { password } : {})
+              })
+            }
+          >
+            {busy ? "Saving…" : "Save changes"}
+          </AdminButton>
+        </>
+      }
+    >
+      {error ? (
+        <p className="admin-notice admin-notice--error" role="status">
+          {error}
+        </p>
+      ) : null}
+
+      <AdminField label="First name" value={firstName} onChange={setFirstName} required />
+      <AdminField label="Last name" value={lastName} onChange={setLastName} required />
+      <AdminField
+        label="Email"
+        type="email"
+        value={email}
+        onChange={setEmail}
+        required
+        hint="Also how they sign in."
+      />
+      <AdminField
+        label="Student number"
+        value={studentNumber}
+        onChange={setStudentNumber}
+        placeholder="e.g. 202300007"
+      />
+      {/* No program or year. A degree batch is not what a micro-credential is
+          awarded against, so the form does not collect one. */}
+      <AdminField
+        label="New password"
+        type="password"
+        value={password}
+        onChange={setPassword}
+        autoComplete="new-password"
+        hint={`Leave blank to keep their current password. Otherwise at least ${MIN_PASSWORD_LENGTH} characters.`}
+      />
+    </AdminModal>
+  );
+}
 
 function StudentsManagement() {
   const [students, setStudents] = useState([]);
@@ -66,6 +168,10 @@ function StudentsManagement() {
   // module, and a failed write used to leave no trace at all.
   const [confirming, setConfirming] = useState(null);
   const [notice, setNotice] = useState(null);
+
+  // The student whose details are being corrected, if any.
+  const [form, setForm] = useState(null);
+  const [formError, setFormError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -119,6 +225,24 @@ function StudentsManagement() {
     }
   };
 
+  const saveStudent = async (values) => {
+    setBusy(true);
+    setFormError(null);
+    try {
+      const saved = await updateStudent(form.id, values);
+      setStudents((list) => list.map((s) => (s.id === saved.id ? { ...s, ...saved } : s)));
+      setSelected((student) => (student ? { ...student, ...saved } : student));
+      setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
+      setForm(null);
+    } catch (error) {
+      // Kept in the form: a taken email or a short password is fixed in the
+      // field the admin is still looking at.
+      setFormError(error?.response?.data?.message || "Couldn't save this student. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /**
    * The options behind the category dropdown, with how many students each
    * holds. One control whatever the catalog does — six courses and sixty read
@@ -149,6 +273,11 @@ function StudentsManagement() {
       { id: CATEGORY_NONE, label: "Not enrolled in any course", meta: `${unenrolled}` }
     ];
   }, [students, courses]);
+
+  const unenrolled = useMemo(
+    () => students.filter((student) => (student.enrolled ?? []).length === 0).length,
+    [students]
+  );
 
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -205,17 +334,28 @@ function StudentsManagement() {
                 <UserIcon size={46} color="var(--brand)" />
               </div>
               <div>
-                <div className="admin-identity__row">
-                  <h1 className="admin-identity__name">{selected.name}</h1>
-                  <StatusPill label={selected.status} />
-                </div>
-                {/* The year belongs to the degree batch rather than to a
+                <h1 className="admin-identity__name">{selected.name}</h1>
+                {/* A degree batch belongs to a registrar, not to a
                     micro-credential record — the student number and a way to
                     reach them are what this screen actually needs. */}
                 <p className="admin-identity__meta">
                   {[selected.studentNumber, selected.email].filter(Boolean).join(" · ")}
                 </p>
                 <p className="admin-identity__meta">{lastActiveLabel(selected.lastActive)}</p>
+              </div>
+
+              <div className="admin-identity__actions">
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--quiet"
+                  disabled={busy}
+                  onClick={() => {
+                    setFormError(null);
+                    setForm(selected);
+                  }}
+                >
+                  Edit details
+                </button>
               </div>
             </div>
 
@@ -401,6 +541,16 @@ function StudentsManagement() {
             </div>
           </>
         )}
+
+        {form ? (
+          <StudentForm
+            student={form}
+            busy={busy}
+            error={formError}
+            onCancel={() => setForm(null)}
+            onSave={saveStudent}
+          />
+        ) : null}
       </div>
     );
   }
@@ -452,13 +602,17 @@ function StudentsManagement() {
               <tr>
                 <th>Student</th>
                 <th className="is-center">Courses</th>
-                <th>Status</th>
+                <th className="is-center">Lessons</th>
+                <th className="is-center">Badges</th>
+                <th>Last active</th>
                 <th aria-label="Open" />
               </tr>
             </thead>
             <tbody>
               {visible.map((student) => {
                 const courseCount = student.enrolled?.length ?? 0;
+                const activity = student.activity ?? EMPTY_ACTIVITY;
+                const seen = formatDate(activity.lastActive?.at);
 
                 return (
                   <tr key={student.id} onClick={() => openStudent(student.id)}>
@@ -487,10 +641,9 @@ function StudentsManagement() {
                       </div>
                     </td>
                     {/* A bare "0" disappears in a column of counts, and an
-                        unenrolled student is the row worth acting on. Marked
-                        with weight and colour rather than a pill: the Status
-                        column next door owns the pill vocabulary here, and two
-                        amber pills side by side read as one smear. */}
+                        unenrolled student is the row worth acting on, so it is
+                        marked with weight and colour rather than left to be
+                        read off as a digit. */}
                     <td className="is-center">
                       {courseCount > 0 ? (
                         <span className="admin-count">{courseCount}</span>
@@ -498,8 +651,41 @@ function StudentsManagement() {
                         <span className="admin-count admin-count--none">None</span>
                       )}
                     </td>
+                    {/* Lessons and badges both read "x of y": the numerator on
+                        its own cannot say whether nought is a student who has
+                        not started or a course with nothing in it yet. */}
+                    <td className="is-center">
+                      {activity.lessonsTotal > 0 ? (
+                        <span className="admin-count">
+                          {activity.lessonsDone} of {activity.lessonsTotal}
+                        </span>
+                      ) : (
+                        <span className="admin-cell__quiet">—</span>
+                      )}
+                    </td>
+                    <td className="is-center">
+                      {activity.badgesTotal > 0 ? (
+                        <span className="admin-count">
+                          {activity.badgesEarned} of {activity.badgesTotal}
+                        </span>
+                      ) : (
+                        <span className="admin-cell__quiet">—</span>
+                      )}
+                    </td>
+                    {/* Enrolment says a student was signed up. This says
+                        whether they ever turned up, which is the row worth
+                        acting on and the one the list could not show. */}
                     <td>
-                      <StatusPill label={student.status} />
+                      {seen ? (
+                        <>
+                          <span className="admin-cell__quiet">{seen}</span>
+                          <span className="admin-cell__sub">
+                            {activity.lastActive.kind === "quiz" ? "quiz" : "lesson"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="admin-count admin-count--none">Never</span>
+                      )}
                     </td>
                     <td className="admin-table__chevron" aria-hidden="true">
                       <span className="admin-table__cue">
@@ -514,7 +700,7 @@ function StudentsManagement() {
                   {/* A filtered-to-nothing table says something different from
                       a search that missed, and an admin needs to know which
                       of the two they are looking at. */}
-                  <td colSpan={4}>
+                  <td colSpan={6}>
                     {query.trim()
                       ? "No students match your search."
                       : category === CATEGORY_NONE
@@ -527,6 +713,7 @@ function StudentsManagement() {
           </table>
         </div>
       )}
+
     </div>
   );
 }
