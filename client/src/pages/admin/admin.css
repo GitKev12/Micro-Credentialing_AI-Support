@@ -155,7 +155,7 @@
      routes (see layouts/AppLayout.jsx), so this is just a plain full-width
      block — no vw-based breakout margin, which used to leave a stray
      horizontal scrollbar whenever the page's own scrollbar was reserved. */
-  height: 100vh;
+  height: calc(100 * var(--vh));
   overflow: hidden;
   background: var(--surface-sunken);
   font-family: var(--font-ui);
@@ -1256,7 +1256,7 @@
      exactly would wrap every option onto three lines. */
   min-width: 100%;
   width: max-content;
-  max-width: min(420px, 80vw);
+  max-width: min(420px, calc(80 * var(--vw)));
   max-height: 264px;
   margin: 0;
   padding: 6px;
@@ -2077,7 +2077,7 @@
   display: flex;
   flex-direction: column;
   width: min(980px, 100%);
-  height: min(88vh, 100%);
+  height: min(calc(88 * var(--vh)), 100%);
   overflow: hidden;
   background: var(--surface);
   border-radius: var(--radius-md);
@@ -2089,7 +2089,7 @@
 .admin-modal__panel--form {
   width: min(520px, 100%);
   height: auto;
-  max-height: min(88vh, 100%);
+  max-height: min(calc(88 * var(--vh)), 100%);
 }
 
 .admin-modal__body {
@@ -2211,7 +2211,7 @@
     flex-direction: column;
     /* Stacked layout: let the page scroll naturally again. */
     height: auto;
-    min-height: 100vh;
+    min-height: calc(100 * var(--vh));
     overflow: visible;
   }
 

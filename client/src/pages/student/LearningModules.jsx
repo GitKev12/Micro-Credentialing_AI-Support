@@ -276,8 +276,17 @@ function LearningModules() {
     // reader pane and dragged the page behind it along too. Scrolling the
     // pane directly leaves the rest of the page where the student left it.
     if (reader && target) {
+      // The app renders at --app-zoom (see styles.css), and the two coordinate
+      // spaces disagree under it: getBoundingClientRect() reports scaled
+      // pixels while scrollTop counts unscaled ones. Dividing the measured gap
+      // by the element's zoom puts it back in scrollTop's units, so the jump
+      // lands on the heading instead of ~10% short of it.
+      const zoom =
+        reader.currentCSSZoom ??
+        (Number(getComputedStyle(document.documentElement).zoom) || 1);
       const offset =
-        target.getBoundingClientRect().top - reader.getBoundingClientRect().top;
+        (target.getBoundingClientRect().top - reader.getBoundingClientRect().top) /
+        zoom;
       reader.scrollTo({
         top: reader.scrollTop + offset - SECTION_SCROLL_MARGIN,
         behavior: "smooth"
