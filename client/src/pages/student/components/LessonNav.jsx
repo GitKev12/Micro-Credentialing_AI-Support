@@ -176,7 +176,12 @@ function LessonNav({
                         )}
                       </span>
                       <span className="sd-lesson__quiz-title">Quiz {number}</span>
-                      {locked ? (
+                      {/* A quiz waiting to be written is open, not locked —
+                          "Locked" would tell a student who has finished reading
+                          that they still have something to do first. */}
+                      {quiz.needsGeneration ? (
+                        <span className="sd-lesson__quiz-tag">Ready</span>
+                      ) : locked ? (
                         <span className="sd-lesson__quiz-tag">Locked</span>
                       ) : quiz.result ? (
                         <span className="sd-lesson__quiz-tag">

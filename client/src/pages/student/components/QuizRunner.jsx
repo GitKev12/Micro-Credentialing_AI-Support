@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchAssessment, submitAssessment } from "../../../services/assessments";
+import {
+  fetchAssessment,
+  prepareLessonAssessment,
+  submitAssessment
+} from "../../../services/assessments";
 import { CheckIcon, LockIcon, QuizIcon } from "./icons";
 
 /**
@@ -12,24 +16,44 @@ import { CheckIcon, LockIcon, QuizIcon } from "./icons";
  * The answer key never reaches this component. Marks come back from the
  * submit call, so a correct/incorrect breakdown is only available after the
  * paper is handed in.
+ *
+ * A quiz whose questions have not been written yet opens on an offer rather
+ * than on a paper. Finishing the lesson unlocks the quiz but writes nothing —
+ * writing costs a model call, so it waits for the student to say they are
+ * actually ready. Choosing to come back later costs nothing at all.
  */
-function QuizRunner({ studentId, assessment, onSubmitted }) {
-  const [state, setState] = useState({ status: "loading" });
+function QuizRunner({ studentId, assessment, onSubmitted, onGenerated }) {
+  const incomingId = assessment?.id ?? null;
+  const moduleId = assessment?.moduleId ?? null;
+  const needsGeneration = Boolean(assessment?.needsGeneration);
+
+  // The id of the quiz that actually exists. Null until a quiz that has to be
+  // written has been — the placeholder's id resolves to no document.
+  const [resolvedId, setResolvedId] = useState(needsGeneration ? null : incomingId);
+  const [state, setState] = useState(
+    needsGeneration ? { status: "offer" } : { status: "loading" }
+  );
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
-  const assessmentId = assessment?.id;
+  const assessmentId = resolvedId;
+
+  // Opening a different quiz starts it over, offer and all.
+  useEffect(() => {
+    setResolvedId(needsGeneration ? null : incomingId);
+    setState(needsGeneration ? { status: "offer" } : { status: "loading" });
+    setAnswers({});
+    setResult(null);
+    setError("");
+  }, [incomingId, needsGeneration]);
 
   useEffect(() => {
     if (!studentId || !assessmentId) return undefined;
 
     let active = true;
     setState({ status: "loading" });
-    setAnswers({});
-    setResult(null);
-    setError("");
 
     fetchAssessment(studentId, assessmentId)
       .then((data) => {
@@ -50,6 +74,44 @@ function QuizRunner({ studentId, assessment, onSubmitted }) {
       active = false;
     };
   }, [studentId, assessmentId]);
+
+  /**
+   * "Take the Quiz" — the press that writes the questions.
+   *
+   * A failure returns to the offer with a note rather than to an error screen:
+   * the student has lost nothing and the button is still the right next move.
+   */
+  const takeQuiz = async () => {
+    if (!moduleId || state.status === "generating") return;
+
+    setState({ status: "generating" });
+    setError("");
+
+    try {
+      const response = await prepareLessonAssessment(studentId, moduleId);
+
+      if (response.locked) {
+        setState({ status: "locked", message: response.message });
+        return;
+      }
+      if (response.unavailable || !response.assessment?.id) {
+        setState({
+          status: "offer",
+          notice: response.message ?? "Your quiz could not be prepared. Try again."
+        });
+        return;
+      }
+
+      // Hand the real row up so the rail stops showing a placeholder.
+      onGenerated?.(moduleId, response.assessment);
+      setResolvedId(response.assessment.id);
+    } catch (_error) {
+      setState({
+        status: "offer",
+        notice: "Your quiz could not be prepared just now. Try again."
+      });
+    }
+  };
 
   const items = state.assessment?.items ?? [];
   const answeredCount = useMemo(
@@ -86,6 +148,41 @@ function QuizRunner({ studentId, assessment, onSubmitted }) {
       setSubmitting(false);
     }
   };
+
+  // The quiz is the student's to take; it just has not been written yet.
+  if (state.status === "offer") {
+    return (
+      <div className="sd-quiz__offer">
+        <span className="sd-quiz__offer-icon">
+          <QuizIcon size={22} />
+        </span>
+        <h3 className="sd-quiz__offer-title">Ready for the quiz?</h3>
+        <p className="sd-quiz__offer-text">
+          Your questions are written the moment you start, so take it when you have
+          the time. Coming back later costs you nothing.
+        </p>
+
+        {state.notice ? <p className="sd-quiz__offer-note">{state.notice}</p> : null}
+
+        <button type="button" className="sd-quiz__offer-btn" onClick={takeQuiz}>
+          Take the Quiz
+        </button>
+      </div>
+    );
+  }
+
+  if (state.status === "generating") {
+    return (
+      <div className="sd-quiz__offer">
+        <span className="sd-quiz__offer-spinner" aria-hidden="true" />
+        <h3 className="sd-quiz__offer-title">Generating your quiz…</h3>
+        <p className="sd-quiz__offer-text">
+          This takes a few moments. Keep this page open — your questions are being
+          written from the lesson you just read.
+        </p>
+      </div>
+    );
+  }
 
   if (state.status === "loading") {
     return <p className="student-courses__status">Loading quiz…</p>;
