@@ -16,7 +16,7 @@
  *     itemsPerAttempt,     // how many of `items` one student sits; all of them
  *                          // when unset
  *     totalPoints,         // default pointsPerItem * itemsPerAttempt
- *     passMark,            // default 80% of totalPoints, rounded up
+ *     passMark,            // default 60% of totalPoints, rounded up (TSU)
  *     source: {            // which Table of Specification row this came from
  *       tosRow,            // the TOS row's `course` label
  *       level,             // one of the six TOS levels
@@ -70,7 +70,25 @@ const TRUE_FALSE_CHOICES = [
 ];
 
 const DEFAULT_POINTS_PER_ITEM = 5;
-const DEFAULT_PASS_RATIO = 0.8;
+
+/**
+ * The passing mark, as a share of an assessment's total points.
+ *
+ * 60% is TSU's standard passing percentage, set by memorandum — it is a policy
+ * figure, not a tuning knob, so it lives here alone and everything that needs
+ * it imports it. It used to be written 0.8 in three separate files, which is
+ * exactly how a rule ends up meaning three different things.
+ *
+ * An assessment that carries its own `passMark` still wins: a stored value is
+ * a decision someone made about that paper, and this is only the default for
+ * papers that never said.
+ */
+export const DEFAULT_PASS_RATIO = 0.6;
+
+/** The default pass mark for a paper worth `totalPoints`, rounded up. */
+export function defaultPassMark(totalPoints) {
+  return Math.ceil(Number(totalPoints || 0) * DEFAULT_PASS_RATIO);
+}
 
 const text = (value) => String(value ?? "").trim();
 
@@ -165,9 +183,7 @@ export function normalizeAssessment(doc) {
     pointsPerItem,
     itemsPerAttempt,
     totalPoints,
-    passMark: Number(doc.passMark) > 0
-      ? Number(doc.passMark)
-      : Math.ceil(totalPoints * DEFAULT_PASS_RATIO),
+    passMark: Number(doc.passMark) > 0 ? Number(doc.passMark) : defaultPassMark(totalPoints),
     source: doc.source ?? null,
     items
   };

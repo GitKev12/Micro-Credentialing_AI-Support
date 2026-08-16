@@ -2,7 +2,13 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { hashSeed, sample, seededRandom } from "../lib/random.js";
 import { loadLessonBlueprint, loadQuizBlueprint } from "./assessments.blueprint.js";
-import { ITEM_TYPES, TOS_LEVELS, normalizeItem, validateAssessment } from "./assessments.format.js";
+import {
+  ITEM_TYPES,
+  TOS_LEVELS,
+  defaultPassMark,
+  normalizeItem,
+  validateAssessment
+} from "./assessments.format.js";
 import { generateAssessmentItems } from "../integrations/openai/openai.client.js";
 import { recordApiUsage } from "../integrations/openai/usage.log.js";
 
@@ -37,7 +43,16 @@ const TEXT_COLLECTION = "ModuleText";
 
 const DEFAULT_BANK_MULTIPLIER = 3;
 const DEFAULT_POINTS_PER_ITEM = 5;
-const DEFAULT_PASS_RATIO = 0.8;
+
+/**
+ * How long a final assessment is, whatever the blueprint adds up to.
+ *
+ * The imported Tables of Specification each described a 60-item examination,
+ * so the final took the blueprint's whole total and matched it. Lesson quizzes
+ * are a fixed length now, which makes that total grow with the number of
+ * lessons — this keeps the final the paper it was meant to be.
+ */
+const FINAL_ASSESSMENT_ITEMS = 60;
 
 // Roughly four characters to a token. Only used to report an estimate before
 // spending, so it does not need to be exact.
@@ -177,7 +192,7 @@ export function buildAssessmentDocument({
     pointsPerItem,
     itemsPerAttempt: perAttempt,
     totalPoints,
-    passMark: Math.ceil(totalPoints * DEFAULT_PASS_RATIO),
+    passMark: defaultPassMark(totalPoints),
     source: {
       tosRow: blueprintRow?.coverage ?? null,
       distribution: blueprintRow?.distribution ?? null,
@@ -399,7 +414,13 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
     });
   });
 
-  const wanted = blueprint.totalItems;
+  // The final is one sitting, not the sum of the course's lesson quizzes. It
+  // used to be exactly `blueprint.totalItems`, which was the same 60 in every
+  // imported blueprint — but that number now follows lesson count, so a
+  // fifteen-lesson course would set a 150-question paper. Capped at the length
+  // an examination is actually written to be; the blueprint still decides the
+  // mix of levels, and shorter blueprints still give a shorter paper.
+  const wanted = Math.min(blueprint.totalItems, FINAL_ASSESSMENT_ITEMS);
   if (pool.length < wanted) {
     return {
       status: "skipped",
@@ -417,12 +438,42 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
     else unlevelled.push(item);
   }
 
-  const wantedByLevel = {};
+  // The blueprint's mix of levels, scaled to the length of the paper. Summing
+  // the rows outright would ask for one item per item in the whole blueprint,
+  // which is the number the cap above just stopped the paper from being.
+  const blueprintByLevel = {};
   for (const level of TOS_LEVELS) {
-    wantedByLevel[level] = blueprint.rows.reduce(
+    blueprintByLevel[level] = blueprint.rows.reduce(
       (sum, row) => sum + (row.distribution?.[level] ?? 0),
       0
     );
+  }
+  const blueprintItems = TOS_LEVELS.reduce((sum, level) => sum + blueprintByLevel[level], 0);
+
+  const wantedByLevel = {};
+  if (blueprintItems === 0 || blueprintItems === wanted) {
+    Object.assign(wantedByLevel, blueprintByLevel);
+  } else {
+    // Whole questions only, and they must add up to `wanted`: floor each level,
+    // then hand the leftovers to the levels with the largest fractions.
+    const exact = TOS_LEVELS.map((level) => (blueprintByLevel[level] / blueprintItems) * wanted);
+    const counts = exact.map(Math.floor);
+    let remaining = wanted - counts.reduce((sum, n) => sum + n, 0);
+
+    const order = TOS_LEVELS.map((level, index) => ({ index, fraction: exact[index] - counts[index] }))
+      .filter((entry) => blueprintByLevel[TOS_LEVELS[entry.index]] > 0)
+      .sort((a, b) => b.fraction - a.fraction);
+
+    let cursor = 0;
+    while (remaining > 0 && order.length > 0) {
+      counts[order[cursor % order.length].index] += 1;
+      remaining -= 1;
+      cursor += 1;
+    }
+
+    TOS_LEVELS.forEach((level, index) => {
+      wantedByLevel[level] = counts[index];
+    });
   }
 
   // The final gets a bank too, or every student would sit the identical paper —

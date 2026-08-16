@@ -4,7 +4,16 @@ import {
   saveTableOfSpecification
 } from "../../services/admin";
 import { TrashIcon } from "./components/icons";
-import { AdminButton, PageHeader } from "./components/ui";
+import { AdminButton, AdminSelect, PageHeader } from "./components/ui";
+
+/**
+ * A blueprint is identified by its course, but the collection allows a
+ * document with no courseId, and two of those would collide on `null`. Its own
+ * _id is the stable fallback — the save still posts the courseId.
+ */
+function blueprintKey(entry) {
+  return entry.courseId ?? entry.id;
+}
 
 // Bloom's taxonomy columns, in the order the blueprint lists them.
 const LEVELS = [
@@ -43,7 +52,7 @@ function TableOfSpecification() {
   const [status, setStatus] = useState("loading");
   const [saveState, setSaveState] = useState("idle");
 
-  const selected = blueprints.find((entry) => entry.courseId === selectedId) ?? null;
+  const selected = blueprints.find((entry) => blueprintKey(entry) === selectedId) ?? null;
 
   useEffect(() => {
     let active = true;
@@ -53,7 +62,7 @@ function TableOfSpecification() {
         if (!active) return;
         setBlueprints(list);
         const first = list[0] ?? null;
-        setSelectedId(first?.courseId ?? null);
+        setSelectedId(first ? blueprintKey(first) : null);
         setExam(first?.examination ?? "");
         setRows(first?.rows ?? []);
         setStatus("ready");
@@ -67,16 +76,18 @@ function TableOfSpecification() {
     };
   }, []);
 
-  const selectCourse = (courseId) => {
-    // Keep the edits made to the course being left, so a switch is not a loss.
+  const selectCourse = (key) => {
+    if (key === selectedId) return;
+
+    // Keep the edits made to the blueprint being left, so a switch is not a loss.
     setBlueprints((list) =>
       list.map((entry) =>
-        entry.courseId === selectedId ? { ...entry, examination: exam, rows } : entry
+        blueprintKey(entry) === selectedId ? { ...entry, examination: exam, rows } : entry
       )
     );
 
-    const next = blueprints.find((entry) => entry.courseId === courseId);
-    setSelectedId(courseId);
+    const next = blueprints.find((entry) => blueprintKey(entry) === key);
+    setSelectedId(key);
     setExam(next?.examination ?? "");
     setRows(next?.rows ?? []);
     setSaveState("idle");
@@ -98,18 +109,18 @@ function TableOfSpecification() {
   };
 
   const save = async () => {
-    if (!selectedId) return;
+    if (!selected?.courseId) return;
 
     setSaveState("saving");
     try {
       const list = await saveTableOfSpecification({
-        courseId: selectedId,
+        courseId: selected.courseId,
         examination: exam,
         rows
       });
       setBlueprints(list);
 
-      const saved = list.find((entry) => entry.courseId === selectedId);
+      const saved = list.find((entry) => blueprintKey(entry) === selectedId);
       setExam(saved?.examination ?? "");
       setRows(saved?.rows ?? []);
       setSaveState("saved");
@@ -162,28 +173,45 @@ function TableOfSpecification() {
         title="Table of Specification"
         subtitle="One assessment blueprint per course — its rows are that course's lessons"
         action={
-          <AdminButton onClick={save} disabled={saveState === "saving" || !selectedId}>
+          <AdminButton onClick={save} disabled={saveState === "saving" || !selected?.courseId}>
             {saveLabel}
           </AdminButton>
         }
       />
 
       {/* Each course keeps its own blueprint, so the table below shows one at
-          a time and the save applies only to the course selected here. */}
-      <div className="admin-tos-courses" role="tablist" aria-label="Course blueprints">
-        {blueprints.map((entry) => (
-          <button
-            key={entry.courseId ?? entry.id}
-            type="button"
-            role="tab"
-            aria-selected={entry.courseId === selectedId}
-            className={`admin-tos-course${entry.courseId === selectedId ? " is-active" : ""}`}
-            onClick={() => selectCourse(entry.courseId)}
-          >
-            <span className="admin-tos-course__code">{entry.courseCode || "—"}</span>
-            <span className="admin-tos-course__name">{entry.examination}</span>
-          </button>
-        ))}
+          a time and the save applies only to the blueprint chosen here.
+
+          This was a horizontal strip of tabs. One tab per course meant the
+          strip grew with the catalog until it scrolled sideways, and a
+          side-scrolling tab row hides exactly what you are looking for: the
+          course that is off-screen. A dropdown is a fixed size whatever the
+          catalog does, and it has room to say how full each blueprint is —
+          which is the thing that decides where the work is. */}
+      <div className="admin-toolbar">
+        <div className="admin-toolbar__filter admin-toolbar__filter--wide">
+          <AdminSelect
+            value={selectedId}
+            onChange={selectCourse}
+            label="Blueprint to edit"
+            placeholder={blueprints.length === 0 ? "No blueprints yet" : "Choose a blueprint…"}
+            disabled={blueprints.length === 0}
+            options={blueprints.map((entry) => ({
+              value: blueprintKey(entry),
+              label: entry.examination || entry.courseCode || "Untitled blueprint",
+              meta: [
+                entry.courseCode || "No code",
+                entry.rows.length === 0
+                  ? "empty"
+                  : `${entry.rows.length} ${entry.rows.length === 1 ? "row" : "rows"}`
+              ].join(" · ")
+            }))}
+          />
+        </div>
+
+        <span className="admin-tos-count">
+          {blueprints.length} {blueprints.length === 1 ? "blueprint" : "blueprints"}
+        </span>
       </div>
 
       <div className="admin-tos-card">

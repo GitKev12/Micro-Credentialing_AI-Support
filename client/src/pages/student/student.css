@@ -1173,12 +1173,129 @@ body:has(.student-app) {
 /* ===========================================================
    Badges
 
-   Locked tiles stay on the board with the count that would open
-   them, so the grid reads as a map rather than a trophy shelf.
-   Earned ones carry a brand-washed glyph; locked ones drop to
-   the recessed surface and desaturate their glyph — the state is
-   also written out underneath, never colour alone.
+   One tile per lesson, grouped by course. The artwork is the
+   course's own, served on the badge itself, so a group reads as
+   a set at a glance. Unearned tiles stay on the board with what
+   they ask for written underneath — the grid is a map of the
+   course, not a trophy shelf. Earned ones carry the artwork at
+   full colour; unearned ones drop to the recessed surface and
+   desaturate it, and the state is always written out too, never
+   colour alone.
    =========================================================== */
+
+/* The front of the screen: one card per course, holding its artwork, what it
+   is, and how many badges it carries. The badges themselves are one click
+   inside — dozens of tiles at once say less than six cards do. */
+.sd-badge-courses {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: var(--sd-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-badge-course__open {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-3);
+  width: 100%;
+  padding: var(--sd-4);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.sd-badge-course__open:hover {
+  border-color: var(--sd-border-strong);
+  background: var(--sd-brand-wash);
+  transform: translateY(-1px);
+}
+
+.sd-badge-course__open:focus-visible {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: 2px;
+}
+
+.sd-badge-course__art {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+}
+
+.sd-badge-course__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sd-badge-course__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sd-badge-course__title {
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-badge-course__count {
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-badge-course__count strong {
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-badge-course__chevron {
+  flex-shrink: 0;
+  color: var(--sd-muted);
+}
+
+/* Inside one course: the breadcrumb back out, then that course's set. */
+.sd-badge-back {
+  margin-bottom: var(--sd-3);
+}
+
+.sd-badge-group__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sd-3);
+  margin-bottom: var(--sd-3);
+}
+
+.sd-badge-group__title {
+  margin: 0;
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-badge-group__count {
+  margin: 0;
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .sd-badges {
   display: grid;
@@ -1216,6 +1333,21 @@ body:has(.student-app) {
   line-height: 1;
 }
 
+/* Course artwork brings its own shape and colour, so it gets room and no
+   pill behind it. */
+.sd-badge__glyph--art {
+  width: 68px;
+  height: 68px;
+  border-radius: 0;
+  background: none;
+}
+
+.sd-badge__art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 /* Unearned: greyed rather than hidden, so the shape is still legible. */
 .sd-badge[data-earned="no"] .sd-badge__glyph {
   background: transparent;
@@ -1224,18 +1356,28 @@ body:has(.student-app) {
   opacity: 0.65;
 }
 
+/* The artwork is the outline itself — a dashed ring around it would only
+   fight with the hexagon. */
+.sd-badge[data-earned="no"] .sd-badge__glyph--art {
+  border: none;
+  opacity: 0.45;
+}
+
+/* Which chapter this badge belongs to, above its title. */
+.sd-badge__lesson {
+  margin: 0;
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+}
+
 .sd-badge__name {
   margin: 0;
   font-size: var(--sd-fs-body);
   font-weight: var(--sd-fw-semibold);
   color: var(--sd-ink);
-}
-
-.sd-badge__desc {
-  margin: 0;
-  font-size: var(--sd-fs-label);
-  line-height: 1.45;
-  color: var(--sd-muted);
 }
 
 .sd-badge__state {
@@ -1248,34 +1390,10 @@ body:has(.student-app) {
   color: var(--sd-good-text);
 }
 
-.sd-badge__progress {
-  display: flex;
-  align-items: center;
-  gap: var(--sd-2);
-  margin-top: var(--sd-2);
-}
-
-.sd-badge__track {
-  flex: 1;
-  height: 5px;
-  border-radius: var(--sd-r-pill);
-  background: color-mix(in srgb, var(--sd-ink) 12%, transparent);
-  overflow: hidden;
-}
-
-.sd-badge__fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--sd-brand);
-}
-
-.sd-badge__count {
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-semibold);
+/* What it asks for, in the muted voice — it is a requirement, not a result. */
+.sd-badge__state--locked {
+  font-weight: var(--sd-fw-medium);
   color: var(--sd-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 /* ===========================================================

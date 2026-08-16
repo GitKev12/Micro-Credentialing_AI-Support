@@ -85,7 +85,9 @@ function ReviewPage() {
     [review]
   );
 
-  const { pointsPerItem: PTS = 5, total: TOTAL = 50, passMark: PASS = 40 } =
+  // Fallbacks for a review whose config never arrived. PASS is 60% of TOTAL —
+  // TSU's standard passing percentage, the same rule the server applies.
+  const { pointsPerItem: PTS = 5, total: TOTAL = 50, passMark: PASS = 30 } =
     review?.reviewConfig ?? {};
   const isManual = review?.aiStatus === "unavailable";
 

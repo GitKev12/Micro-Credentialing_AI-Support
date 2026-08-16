@@ -9,6 +9,7 @@ import {
 import { ChevronRightIcon, UserIcon } from "./components/icons";
 import {
   AdminButton,
+  AdminSelect,
   Avatar,
   BackLink,
   PageHeader,
@@ -142,18 +143,18 @@ function AssessorsManagement() {
                 </div>
 
                 <div className="admin-assign-form">
-                  <select
-                    className="admin-select"
+                  <AdminSelect
                     value={coursePick}
-                    aria-label="Course to assign"
-                    onChange={(event) => setCoursePick(event.target.value)}
-                  >
-                    {courses.map((course) => (
-                      <option value={course.id} key={course.id}>
-                        {course.title}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setCoursePick}
+                    label="Course to assign"
+                    disabled={busy || courses.length === 0}
+                    placeholder="Choose a course…"
+                    options={courses.map((course) => ({
+                      value: course.id,
+                      label: course.title,
+                      meta: course.code
+                    }))}
+                  />
                   <AdminButton
                     variant="admin-btn--compact"
                     disabled={busy || !coursePick}
@@ -204,6 +205,7 @@ function AssessorsManagement() {
         onChange={setQuery}
         placeholder="Search assessors…"
         label="Search assessors"
+        hint={`${visible.length} of ${assessors.length}`}
       />
 
       {status === "loading" ? (

@@ -10,8 +10,127 @@ import api from "./services/api";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import LearningModules from "./pages/student/LearningModules";
+import AdminLayout from "./pages/admin/AdminLayout";
+import CourseManagement from "./pages/admin/CourseManagement";
+import StudentsManagement from "./pages/admin/StudentsManagement";
+import TableOfSpecification from "./pages/admin/TableOfSpecification";
+
+const LEVEL_KEYS = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
+
+function tosRow(course, hours, spread) {
+  const row = { course, hours };
+  LEVEL_KEYS.forEach((key, i) => {
+    row[key] = spread[i] ?? 0;
+  });
+  return row;
+}
+
+// Enough blueprints that the old tab strip would have scrolled sideways, plus
+// one with no rows so the "empty" marker in the dropdown is on screen.
+const TOS_BLUEPRINTS = [
+  {
+    id: "t1",
+    courseId: "ac1",
+    courseCode: "CS 101",
+    examination: "Final Examination",
+    rows: [
+      tosRow("Number systems", 6, [4, 3, 2, 1, 0, 0]),
+      tosRow("Boolean logic", 4, [3, 2, 2, 1, 1, 1]),
+      tosRow("Algorithmic thinking", 8, [2, 3, 3, 1, 1, 0])
+    ]
+  },
+  {
+    id: "t2",
+    courseId: "ac2",
+    courseCode: "IT 214",
+    examination: "Midterm Examination",
+    rows: [
+      tosRow("Markup and semantics", 5, [4, 3, 2, 1, 0, 0]),
+      tosRow("Styling and layout", 7, [3, 3, 3, 2, 1, 0])
+    ]
+  },
+  {
+    id: "t3",
+    courseId: "ac3",
+    courseCode: "CS 226",
+    examination: "Prelim Examination",
+    rows: []
+  },
+  {
+    id: "t4",
+    courseId: "ac4",
+    courseCode: "IA 301",
+    examination: "Comprehensive Assessment for Enterprise Security",
+    rows: [tosRow("Threat modelling", 6, [2, 2, 3, 2, 1, 1])]
+  },
+  {
+    id: "t5",
+    courseId: "ac6",
+    courseCode: "DB 205",
+    examination: "Final Examination",
+    rows: [
+      tosRow("Normalisation", 6, [3, 3, 2, 2, 0, 0]),
+      tosRow("Query planning", 5, [2, 2, 3, 2, 1, 0])
+    ]
+  }
+];
 import { applyStoredTheme } from "./services/theme";
 import "./styles.css";
+
+// Admin course list — a spread that exercises every state the card has:
+// long and short titles, a missing description, and courses with no modules.
+const ADMIN_COURSES = [
+  {
+    id: "ac1",
+    code: "CS 101",
+    title: "Introduction to Computing",
+    description:
+      "Foundations of computer systems, number representation and the basics of algorithmic thinking.",
+    moduleCount: 12,
+    studentCount: 48
+  },
+  {
+    id: "ac2",
+    code: "IT 214",
+    title: "Web Systems and Technologies",
+    description: "Client and server architecture, markup, styling and the request lifecycle.",
+    moduleCount: 8,
+    studentCount: 31
+  },
+  {
+    id: "ac3",
+    code: "CS 226",
+    title: "Data Structures and Algorithms",
+    description: "",
+    moduleCount: 0,
+    studentCount: 27
+  },
+  {
+    id: "ac4",
+    code: "IA 301",
+    title: "Information Assurance and Security Management for Enterprise Systems",
+    description:
+      "Threat modelling, access control and the policy side of keeping an organisation's data intact.",
+    moduleCount: 5,
+    studentCount: 19
+  },
+  {
+    id: "ac5",
+    code: "HCI 240",
+    title: "Human Computer Interaction",
+    description: "Heuristic evaluation, prototyping and usability testing.",
+    moduleCount: 0,
+    studentCount: 0
+  },
+  {
+    id: "ac6",
+    code: "DB 205",
+    title: "Database Management Systems",
+    description: "Relational modelling, normalisation and query planning.",
+    moduleCount: 14,
+    studentCount: 52
+  }
+];
 
 const MODULES = [
   { id: "m1", title: "Introduction to Markup", subject: "WEBSYS" },
@@ -30,6 +149,65 @@ const ASSESSMENTS = [
   { id: "a3", moduleId: "m3", title: "Flexbox and Grid quiz", status: "open" },
   { id: "a4", moduleId: "m5", title: "Async data quiz", status: "open" }
 ];
+
+// Students list — includes two with no enrolments and a non-Active status,
+// so the row flags and pills are both on screen.
+const ADMIN_STUDENTS = [
+  {
+    id: "s1",
+    studentNumber: "2021-TSU-0417",
+    name: "Kevin Kharl Manalo",
+    email: "kevin@tsu.edu.ph",
+    program: "BS Computer Science",
+    year: "4th Year",
+    status: "Active",
+    enrolled: [
+      { id: "ac1", code: "CS 101", title: "Introduction to Computing" },
+      { id: "ac2", code: "IT 214", title: "Web Systems and Technologies" },
+      { id: "ac6", code: "DB 205", title: "Database Management Systems" }
+    ]
+  },
+  {
+    id: "s2",
+    studentNumber: "2022-TSU-0138",
+    name: "Andrea Lim",
+    email: "andrea@tsu.edu.ph",
+    program: "BS Information Technology",
+    year: "3rd Year",
+    status: "Active",
+    enrolled: [{ id: "ac2", code: "IT 214", title: "Web Systems and Technologies" }]
+  },
+  {
+    id: "s3",
+    studentNumber: "2023-TSU-0562",
+    name: "Miguel Santos",
+    email: "miguel@tsu.edu.ph",
+    program: "BS Computer Science",
+    year: "2nd Year",
+    status: "On Leave",
+    enrolled: []
+  },
+  {
+    id: "s4",
+    studentNumber: "2021-TSU-0904",
+    name: "Rina Ocampo",
+    email: "rina@tsu.edu.ph",
+    program: null,
+    year: null,
+    status: "Inactive",
+    enrolled: []
+  }
+];
+
+const ADMIN_PROGRESS = {
+  s1: [
+    { label: "Introduction to Computing", pct: 100, completed: 12, total: 12 },
+    { label: "Web Systems and Technologies", pct: 38, completed: 3, total: 8 },
+    // total 0 exercises the "No modules yet" branch, which used to read 0%.
+    { label: "Database Management Systems", pct: 0, completed: 0, total: 0 }
+  ],
+  s2: [{ label: "Web Systems and Technologies", pct: 63, completed: 5, total: 8 }]
+};
 
 const SECTIONS = {
   m1: [
@@ -165,9 +343,50 @@ window.localStorage.setItem(
   })
 );
 
+function withProgress(student) {
+  const progress = ADMIN_PROGRESS[student.id] ?? [];
+  return {
+    ...student,
+    progress,
+    credentials: progress.filter((row) => row.total > 0 && row.pct === 100).length
+  };
+}
+
 // Route each request to its fixture, with a short delay so loading and
 // skeleton states are actually visible while looking at the page.
 const ROUTES = [
+  [/\/admin\/courses$/, () => ({ courses: ADMIN_COURSES })],
+  [
+    /\/admin\/courses\/([^/]+)$/,
+    (m) => ({
+      course: { ...ADMIN_COURSES.find((c) => c.id === m[1]), modules: [] }
+    })
+  ],
+  [/\/admin\/profile$/, () => ({ admin: { name: "Kevin Kharl Manalo", idNumber: "ADM-0042" } })],
+  [/\/admin\/table-of-specification$/, () => ({ blueprints: TOS_BLUEPRINTS })],
+  [/\/admin\/students$/, () => ({ students: ADMIN_STUDENTS })],
+  // Enrol (POST .../courses) and unenrol (DELETE .../courses/:id), mutating
+  // the fixture so the confirm flow and the notices behave like the real API.
+  [
+    /\/admin\/students\/([^/]+)\/courses(?:\/([^/]+))?$/,
+    (m, config) => {
+      const student = ADMIN_STUDENTS.find((s) => s.id === m[1]);
+      if (m[2]) {
+        student.enrolled = student.enrolled.filter((c) => c.id !== m[2]);
+      } else {
+        const { courseId } = JSON.parse(config.data ?? "{}");
+        const course = ADMIN_COURSES.find((c) => c.id === courseId);
+        if (course && !student.enrolled.some((c) => c.id === course.id)) {
+          student.enrolled = [
+            ...student.enrolled,
+            { id: course.id, code: course.code, title: course.title }
+          ];
+        }
+      }
+      return { student: withProgress(student) };
+    }
+  ],
+  [/\/admin\/students\/([^/]+)$/, (m) => ({ student: withProgress(ADMIN_STUDENTS.find((s) => s.id === m[1])) })],
   [/\/skill-gap$/, () => ({ courses: COURSES })],
   [/\/courses\/[^/]+\/modules$/, () => ({ modules: MODULES })],
   [/\/courses\/[^/]+\/assessments$/, () => ({ assessments: ASSESSMENTS })],
@@ -204,7 +423,7 @@ api.defaults.adapter = async (config) => {
   await new Promise((resolve) => setTimeout(resolve, 350));
 
   return {
-    data: hit ? hit[1](match) : {},
+    data: hit ? hit[1](match, config) : {},
     status: 200,
     statusText: "OK",
     headers: {},
@@ -214,18 +433,38 @@ api.defaults.adapter = async (config) => {
 
 applyStoredTheme();
 
+function previewRoute() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("tos")) return 4;
+  if (params.get("students")) return 3;
+  if (params.get("admin")) return 2;
+  if (params.get("modules")) return 1;
+  return 0;
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    {/* Swap to "/student/courses/c1/modules" to look at the lesson rail. */}
+    {/* ?modules=1 lesson rail · ?admin=1 course grid · ?students=1 students */}
     <MemoryRouter
-      initialEntries={["/student/dashboard", "/student/courses/c1/modules"]}
-      initialIndex={Number(new URLSearchParams(window.location.search).get("modules") ?? 0)}
+      initialEntries={[
+        "/student/dashboard",
+        "/student/courses/c1/modules",
+        "/admin/courses",
+        "/admin/students",
+        "/admin/table-of-specification"
+      ]}
+      initialIndex={previewRoute()}
     >
       <div className="app-shell">
         <Routes>
           <Route path="/student" element={<StudentLayout />}>
             <Route path="dashboard" element={<StudentDashboard />} />
             <Route path="courses/:courseId/modules" element={<LearningModules />} />
+          </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="courses" element={<CourseManagement />} />
+            <Route path="students" element={<StudentsManagement />} />
+            <Route path="table-of-specification" element={<TableOfSpecification />} />
           </Route>
         </Routes>
       </div>

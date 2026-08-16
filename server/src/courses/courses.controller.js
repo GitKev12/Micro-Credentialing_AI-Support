@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { buildStudentBadges } from "../badges/badges.service.js";
 import { listIssuedCertificates } from "../certificates/certificates.service.js";
 
 /**
@@ -278,118 +279,16 @@ export async function getStudentSkillGap(request, response) {
 /**
  * Two different kinds of recognition, kept apart on purpose.
  *
- * A certification is the formal thing: a micro-credential an assessor
- * released after approving a final grade (StudentResult.credential), so it
- * names a course and an assessment and carries an issue date. Nothing the
- * student does alone can produce one.
+ * A certification is the formal thing: a micro-credential an assessor released
+ * after approving a final grade (StudentResult.credential), so it names a
+ * course and an assessment and carries an issue date.
  *
- * A badge is the informal thing: a milestone this endpoint derives from work
- * already recorded — lessons read, courses finished. Nobody awards it and it
- * appears the moment the underlying rows say so, which is what lets the
- * section show something real while the assessment pipeline is still empty.
- *
- * Locked badges ship alongside earned ones with their current/target counts:
- * the section is meant to show what is reachable, not only what is held.
+ * A badge is the lesson-level thing, and this endpoint does not build it —
+ * badges/badges.service.js owns that. The admin console asks the same
+ * question of the same catalog, and the two must never answer differently.
  */
-const BADGE_CATALOGUE = [
-  {
-    id: "first-steps",
-    name: "First Steps",
-    icon: "🌱",
-    description: "Finish your first lesson."
-  },
-  {
-    id: "halfway",
-    name: "Halfway There",
-    // No variation selector in any glyph here — VS16 renders inconsistently
-    // across the platforms this runs on.
-    icon: "🚩",
-    description: "Reach the midpoint of a course."
-  },
-  {
-    id: "scholar",
-    name: "Scholar",
-    icon: "📚",
-    description: "Finish 10 lessons."
-  },
-  {
-    id: "finisher",
-    name: "Course Finisher",
-    icon: "🎓",
-    description: "Finish every lesson in a course."
-  },
-  {
-    id: "certified",
-    name: "Certified",
-    icon: "🏅",
-    description: "Earn your first micro-credential."
-  }
-];
 
 const isoDate = (value) => (value ? new Date(value).toISOString() : null);
-
-/** The date a count-based badge was actually reached: its Nth completion. */
-function nthCompletionDate(completions, n) {
-  return completions.length >= n ? isoDate(completions[n - 1].completedAt) : null;
-}
-
-function buildBadges({ completions, index, certifications }) {
-  const perCourse = new Map();
-  for (const completion of completions) {
-    if (!perCourse.has(completion.courseId)) perCourse.set(completion.courseId, []);
-    perCourse.get(completion.courseId).push(completion);
-  }
-
-  // The earliest date any one course crossed a share of its lessons. Both
-  // milestones are dated from the completion that crossed the line rather
-  // than from the newest row, so a badge never post-dates its own reason.
-  const crossedAt = (share) => {
-    const dates = [];
-    for (const [courseId, rows] of perCourse) {
-      const total = index.get(courseId)?.total ?? 0;
-      if (!total) continue;
-
-      const needed = Math.ceil(total * share);
-      if (rows.length >= needed && needed > 0) dates.push(rows[needed - 1].completedAt);
-    }
-    return dates.length
-      ? isoDate(dates.map((date) => new Date(date ?? 0)).sort((a, b) => a - b)[0])
-      : null;
-  };
-
-  const coursesAt = (share) =>
-    [...perCourse.entries()].filter(([courseId, rows]) => {
-      const total = index.get(courseId)?.total ?? 0;
-      return total > 0 && rows.length >= Math.ceil(total * share);
-    }).length;
-
-  const issued = certifications.filter((entry) => entry.status === "issued");
-  const measures = {
-    "first-steps": { current: Math.min(completions.length, 1), target: 1, at: nthCompletionDate(completions, 1) },
-    halfway: { current: Math.min(coursesAt(0.5), 1), target: 1, at: crossedAt(0.5) },
-    scholar: { current: Math.min(completions.length, 10), target: 10, at: nthCompletionDate(completions, 10) },
-    finisher: { current: Math.min(coursesAt(1), 1), target: 1, at: crossedAt(1) },
-    certified: { current: Math.min(issued.length, 1), target: 1, at: issued[0]?.issuedAt ?? null }
-  };
-
-  return BADGE_CATALOGUE.map((badge) => {
-    const { current, target, at } = measures[badge.id];
-    const earned = current >= target;
-
-    return {
-      ...badge,
-      earned,
-      earnedAt: earned ? at : null,
-      current,
-      target
-    };
-  }).sort((a, b) => {
-    if (a.earned !== b.earned) return a.earned ? -1 : 1;
-    if (a.earned) return new Date(b.earnedAt ?? 0) - new Date(a.earnedAt ?? 0);
-    // Locked ones lead with whatever is closest to falling.
-    return b.current / b.target - a.current / a.target;
-  });
-}
 
 async function buildCertifications(studentId, student, courses) {
   if (!(await collectionExists(RESULTS_COLLECTION))) return [];
@@ -459,8 +358,8 @@ export async function getStudentAchievements(request, response) {
   }
 
   const { student, courses } = await loadEnrollment(studentId);
-  const { index, completions } = await buildProgressIndex(studentId, student, courses);
   const certifications = await buildCertifications(studentId, student, courses);
+  const badges = await buildStudentBadges(studentId, student, courses);
 
   // The stamped PDF for each release, matched to its credential so the card
   // can offer the download. A credential without one still lists — the record
@@ -475,6 +374,6 @@ export async function getStudentAchievements(request, response) {
       ...entry,
       document: documentBySubmission.get(String(entry.id)) ?? null
     })),
-    badges: buildBadges({ completions, index, certifications })
+    badges
   });
 }

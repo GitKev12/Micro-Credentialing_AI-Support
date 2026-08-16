@@ -16,10 +16,16 @@ import api, { withAuthToken } from "./api";
  * the credential — null when none was generated, which the card treats as "the
  * record stands, the sheet just isn't there".
  *
- * A badge is a milestone the server derives from work already recorded —
- * lessons read, courses finished. Locked ones arrive too, with the counts
- * that would unlock them:
- *   { id, name, description, icon, earned, earnedAt, current, target }
+ * A badge is the lesson-level recognition, read from the Badge catalog: one
+ * badge per lesson, its name being that lesson's title and its icon being the
+ * course's own artwork (a data: URI — `iconType` says whether to render it as
+ * an image or as a plain glyph). It is earned by passing that lesson's quiz.
+ * Unearned ones arrive too, so the wall shows the whole course:
+ *   { id, moduleId, name, lessonTitle, description, icon, iconType,
+ *     courseId, courseCode, courseTitle, order, earnedBy,
+ *     earned, earnedAt, current, target }
+ *
+ * They arrive grouped by course and ordered by chapter within it.
  *
  * Both lists are empty (never an error) until the underlying collections have
  * data, so this is always safe to call.

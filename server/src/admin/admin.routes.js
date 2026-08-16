@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import {
   assignCourse,
   enrollStudent,
@@ -19,6 +19,11 @@ import {
   updateAssessor,
   updateStudent
 } from "./admin.controller.js";
+import {
+  createCourseModule,
+  deleteCourseModule,
+  MAX_MODULE_BYTES
+} from "./modules.controller.js";
 import { getApiUsage } from "./usage.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
@@ -26,6 +31,8 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/profile
 //   GET    /api/admin/courses                          — list + module/student counts
 //   GET    /api/admin/courses/:id                      — course detail + modules
+//   POST   /api/admin/courses/:id/modules              — add a lesson (PDF body)
+//   DELETE /api/admin/modules/:moduleId                — remove a lesson
 //   GET    /api/admin/students                         — list
 //   GET    /api/admin/students/:id                     — detail + progress
 //   POST   /api/admin/students/:id/courses             — enroll   { courseId }
@@ -48,8 +55,33 @@ router.use(requireAuth, requireRole("admin"));
 
 router.get("/profile", getAdminProfile);
 
+/**
+ * The lesson file is the request body, not a form field — see
+ * `createCourseModule`. Any content type is buffered, because the PDF check
+ * that matters reads the file's first bytes rather than the label the browser
+ * put on them; the limit is what stops an oversized upload from becoming an
+ * oversized buffer. Body-parser rejects that with an HTML error page by
+ * default, so it is answered here in the JSON every other route speaks.
+ */
+const lessonFileBody = express.raw({ type: () => true, limit: MAX_MODULE_BYTES });
+
+function readLessonFile(request, response, next) {
+  lessonFileBody(request, response, (error) => {
+    if (error?.type === "entity.too.large") {
+      return response.status(413).json({
+        message: `That file is too large — the limit is ${Math.round(
+          MAX_MODULE_BYTES / (1024 * 1024)
+        )} MB.`
+      });
+    }
+    return next(error);
+  });
+}
+
 router.get("/courses", listCourses);
 router.get("/courses/:id", getCourse);
+router.post("/courses/:id/modules", readLessonFile, createCourseModule);
+router.delete("/modules/:moduleId", deleteCourseModule);
 
 router.get("/students", listStudents);
 router.get("/students/:id", getStudent);

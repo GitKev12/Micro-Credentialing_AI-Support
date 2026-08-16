@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
+import { defaultPassMark } from "../assessments/assessments.format.js";
 import { issueCertificate } from "../certificates/certificates.service.js";
 
 /**
@@ -127,7 +128,7 @@ function reviewConfig(assessment, itemCount) {
     ? Number(assessment.itemsPerAttempt)
     : itemCount;
   const total = assessment?.totalPoints ?? pointsPerItem * perAttempt;
-  const passMark = assessment?.passMark ?? Math.ceil(total * 0.8);
+  const passMark = assessment?.passMark ?? defaultPassMark(total);
   return { pointsPerItem, total, passMark };
 }
 

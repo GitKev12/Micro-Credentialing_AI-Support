@@ -49,6 +49,9 @@
   --action: var(--teal-700);
   --text-body: var(--gray-700);
   --text-muted: var(--gray-600);
+  /* Readable amber for "nothing here yet" — used by the warning pill and by
+     the bare counts that say the same thing without pill chrome. */
+  --warning-text: #96600a;
 
   /* ---- Typography ----
      The storyboards mix Poppins/Rubik/Mulish; we use the project's own
@@ -108,6 +111,7 @@
   --off-white: #e4e9f7;
 
   --teal-700: #2f8f95;
+  --warning-text: #f2b84b;
   --shadow-tint: rgba(255, 255, 255, 0.04);
   --shadow-sidebar: 0 0 26px 4px rgba(0, 0, 0, 0.4);
   --shadow-avatar: 0 4px 18px 6px rgba(0, 0, 0, 0.35);
@@ -559,27 +563,51 @@
 
 /* ── Search field ───────────────────────────────────────── */
 
+/* ── Search / filter field ──────────────────────────────── */
+
 .admin-search {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 340px;
-  height: 44px;
-  padding: 8px 16px;
+  gap: 12px;
   margin-bottom: 22px;
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-inset-field);
-  transition: box-shadow 0.15s ease;
 }
 
-.admin-search:focus-within {
+/* min() rather than a hard 340px, so it shrinks with the viewport instead of
+   forcing a horizontal scroll on a narrow one. */
+.admin-search__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(360px, 100%);
+  height: 44px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Was a solid mid-grey 1px inset ring at full strength, which read heavier
+   than any other resting control on these screens. A hairline that darkens
+   on hover carries the same affordance with less ink. */
+.admin-search__field:hover {
+  border-color: var(--gray-600);
+}
+
+.admin-search__field:focus-within {
+  border-color: var(--action);
   box-shadow: var(--ring-focus);
 }
 
 .admin-search__icon {
   flex-shrink: 0;
   color: var(--gray-600);
+  transition: color 0.15s ease;
+}
+
+.admin-search__field:focus-within .admin-search__icon {
+  color: var(--action);
 }
 
 .admin-search__input {
@@ -593,10 +621,59 @@
   color: var(--admin-ink);
 }
 
+.admin-search__input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Suppress the browser's own search decorations — the clear button below
+   replaces them with one that looks the same everywhere. */
+.admin-search__input::-webkit-search-decoration,
+.admin-search__input::-webkit-search-cancel-button,
+.admin-search__input::-webkit-search-results-button,
+.admin-search__input::-webkit-search-results-decoration {
+  appearance: none;
+  display: none;
+}
+
+.admin-search__clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-150);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-search__clear:hover {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.admin-search__clear:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+.admin-search__hint {
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* ── Table (list screens) ───────────────────────────────── */
 
+/* No padding: 6px of it held the table off the card edge, so the header's
+   tinted strip floated inside the card with square corners of its own
+   against the card's rounded ones. Flush to the edge, the card's own
+   border-radius + overflow:hidden round the header for free. */
 .admin-table-card {
-  padding: 6px;
   overflow: hidden;
   background: var(--surface);
   border-radius: var(--radius-md);
@@ -637,8 +714,14 @@
   transition: background 0.15s ease;
 }
 
+/* The last divider would otherwise sit hard against the card's bottom edge. */
+.admin-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
 .admin-table tbody tr:hover,
-.admin-table tbody tr:has(.admin-table__open:focus-visible) {
+.admin-table tbody tr:has(.admin-table__open:focus-visible),
+.admin-table tbody tr:has(.admin-person__link:focus-visible) {
   background: var(--surface-sunken);
 }
 
@@ -681,10 +764,55 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Makes the name column ask for enough width that ordinary full names sit
+     on one line — without it the cell shrinks and breaks them mid-name. */
+  min-width: 190px;
 }
 
 .admin-person__name {
   font-weight: 500;
+}
+
+/* The row's keyboard entry point. Styled as text rather than as a button,
+   because it is the name — the affordance is the row, and the chevron. */
+.admin-person__link {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--admin-ink);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-person__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.admin-person__link:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Chevron on a student row is now decoration — the name carries the action,
+   so a second tab stop per row would be noise. */
+.admin-table__cue {
+  display: inline-flex;
+  padding: 6px;
+  color: var(--brand-text);
+}
+
+.admin-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-count--none {
+  color: var(--warning-text);
+  font-weight: 600;
 }
 
 .admin-person__id {
@@ -739,9 +867,12 @@
   color: var(--teal-700);
 }
 
+/* --warning-text is one step darker than the storyboard's #a26708, which
+   measured 4.18:1 on this pill's own tinted background — under the 4.5 floor
+   for 13px text. It clears at 4.72:1 and is the smallest step that does. */
 .admin-pill--warning {
   background: rgba(217, 138, 15, 0.12);
-  color: #a26708;
+  color: var(--warning-text);
 }
 
 .admin-pill--neutral {
@@ -802,7 +933,9 @@
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 28px;
-  color: var(--text-body);
+  /* The page's <h1> was --text-body, a step below the ink every other heading
+     on these screens uses. */
+  color: var(--admin-ink);
 }
 
 .admin-identity__meta {
@@ -814,9 +947,13 @@
 
 /* ── Cards / panels ─────────────────────────────────────── */
 
+/* minmax(0, …) rather than a bare 1fr: a bare fr track floors at the item's
+   min-content width, and the enrol <select> here is as wide as its longest
+   course title. That pushed the second column past the viewport edge and
+   clipped it. */
 .admin-grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   margin-top: 20px;
   align-items: start;
@@ -824,10 +961,11 @@
 
 .admin-grid-detail {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
+
 
 .admin-card {
   padding: 24px;
@@ -892,10 +1030,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 11px 12px 11px 16px;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
+}
+
+/* flex:1 keeps the title claiming the leftover width so the Remove button
+   stays on its line; min-width:0 lets a long title wrap inside that space
+   instead of shoving the button onto a row of its own. */
+.admin-assign-row > div:first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 .admin-assign-row__title {
@@ -910,6 +1057,21 @@
   font-family: var(--font-label);
   font-size: 13px;
   color: var(--text-muted);
+  /* A course code is one token — "DB 205" must not break after "DB". */
+  white-space: nowrap;
+}
+
+/* "Remove this?" confirmation, matching the module rows on the Course
+   Management screen. It takes a line of its own — the question plus two
+   buttons will not sit beside a course title in a half-width card, and
+   trying squeezed the title until its code broke mid-word. */
+.admin-assign-row__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .admin-chip-btn {
@@ -934,6 +1096,52 @@
   box-shadow: var(--ring-focus);
 }
 
+/* ── List toolbar (category + search) ───────────────────── */
+
+/* The category dropdown and the search field share one row: pick a category,
+   then type within it. A dropdown rather than a row of chips because it holds
+   any number of courses without growing sideways. */
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.admin-toolbar__filter {
+  width: 260px;
+  flex-shrink: 0;
+}
+
+.admin-toolbar__search {
+  flex: 1;
+  min-width: 240px;
+}
+
+/* The search field carries its own bottom margin for the screens that use it
+   alone; inside the toolbar the row owns the spacing. */
+.admin-toolbar__search .admin-search {
+  margin-bottom: 0;
+}
+
+/* "3 of 8" on the right of a badge row. A modifier on .admin-count rather
+   than its own class, so it keeps the tabular figures every count in the
+   console uses. It reads as a fact, not a control — hence no button chrome —
+   and only takes the brand colour once there is something to count. */
+.admin-count--badges {
+  flex-shrink: 0;
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.admin-count--badges[data-earned="yes"] {
+  color: var(--brand-text);
+}
+
 .admin-assign-form {
   display: flex;
   gap: 8px;
@@ -941,23 +1149,176 @@
   border-top: 1px solid var(--gray-150);
 }
 
+/* ── Select (custom listbox — see AdminSelect in components/ui.jsx) ──
+   The popup is ours because a native <select> hands its list to the OS,
+   which ignores this interface's radii, dark theme and type, and can only
+   render one flat line per option. */
+
 .admin-select {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+
+.admin-select__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   height: 42px;
   padding: 0 12px;
-  border: none;
+  border: 1px solid var(--gray-400);
   border-radius: var(--radius-xs);
   background: var(--surface);
-  box-shadow: var(--shadow-inset-field);
   font-family: var(--font-ui);
   font-size: 15px;
   color: var(--admin-ink);
-  transition: box-shadow 0.15s ease;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.admin-select:focus-visible {
+.admin-select__trigger:hover:not(:disabled) {
+  border-color: var(--gray-600);
+}
+
+.admin-select__trigger:focus-visible {
   outline: none;
+  border-color: var(--action);
   box-shadow: var(--ring-focus);
+}
+
+.admin-select.is-open .admin-select__trigger {
+  border-color: var(--action);
+}
+
+.admin-select__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.admin-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-select__value.is-placeholder {
+  color: var(--text-muted);
+}
+
+.admin-select__caret {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--gray-600);
+  transition: transform 0.18s ease;
+}
+
+.admin-select.is-open .admin-select__caret {
+  transform: rotate(180deg);
+}
+
+.admin-select__list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  /* At least as wide as the trigger, but free to grow to its content — the
+     trigger is narrow and course titles are long, so matching its width
+     exactly would wrap every option onto three lines. */
+  min-width: 100%;
+  width: max-content;
+  max-width: min(420px, 80vw);
+  max-height: 264px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-card-hover);
+  animation: admin-select-in 0.14s ease both;
+}
+
+.admin-select__list[data-placement="top"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: admin-select-in-up;
+}
+
+@keyframes admin-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes admin-select-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.admin-select__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+/* One highlight, driven by the keyboard and mirrored by the pointer, so
+   hovering and arrowing never light up two different rows at once. */
+.admin-select__option.is-active {
+  background: var(--brand-hover);
+}
+
+.admin-select__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-select__option-meta {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.admin-select__option-label {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--admin-ink);
+}
+
+.admin-select__option[aria-selected="true"] .admin-select__option-label {
+  font-weight: 600;
+}
+
+.admin-select__tick {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--action);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-select__list {
+    animation: none;
+  }
+
+  .admin-select__caret {
+    transition: none;
+  }
 }
 
 /* ── Stat tiles ─────────────────────────────────────────── */
@@ -975,12 +1336,16 @@
   background: var(--surface-sunken);
 }
 
+/* Ink, not brand. These are counts that mean neither good nor bad; the brand
+   colour is reserved for actions, so spending it here made a figure look like
+   a link. */
 .admin-stat__value {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 34px;
   line-height: 1;
-  color: var(--brand-text);
+  color: var(--admin-ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-stat__label {
@@ -1006,8 +1371,17 @@
   color: var(--text-body);
 }
 
+.admin-progress__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .admin-progress__pct {
+  flex-shrink: 0;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-progress__track {
@@ -1032,19 +1406,14 @@
 }
 
 .admin-course-card {
-  /* Buttons center their content by default — as a flex column the head
-     stays pinned to the top when the grid stretches the card. */
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  padding: 0;
-  overflow: hidden;
-  border: none;
-  text-align: left;
+  gap: 14px;
+  padding: 18px;
   background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  cursor: pointer;
   transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
 
@@ -1053,36 +1422,87 @@
   box-shadow: var(--shadow-card-hover);
 }
 
-.admin-course-card:focus-visible {
-  outline: none;
-  transform: translateY(-2px);
-  box-shadow: var(--ring-focus), var(--shadow-card-hover);
+/* The control is the title button, but the ring belongs on the card, whose
+   bounds are the button's actual hit area. Keyed to :focus-visible so a
+   mouse click doesn't paint a keyboard affordance.
+
+   Both rules are inside @supports together: without :has() the card cannot
+   take the ring, so the button must keep the UA outline it would otherwise
+   have given up — never trade a working focus indicator for none. */
+@supports selector(:has(*)) {
+  .admin-course-card:has(.admin-course-card__open:focus-visible) {
+    box-shadow: var(--ring-focus), var(--shadow-card-hover);
+  }
+
+  .admin-course-card__open:focus-visible {
+    outline: none;
+  }
 }
 
-.admin-course-card__head {
-  padding: 16px 20px;
-  background: var(--brand);
-  color: #fff;
+.admin-course-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* Identity mark in place of the old full-width maroon band: same brand
+   presence, a fraction of the area, and it differs per course. */
+.admin-course-card__mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-family: var(--font-label);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.admin-course-card__ident {
+  flex: 1;
+  min-width: 0;
 }
 
 .admin-course-card__code {
+  margin: 0 0 2px;
   font-family: var(--font-label);
-  font-size: 13px;
-  opacity: 0.85;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .admin-course-card__title {
+  margin: 0;
   font-family: var(--font-display);
+  font-size: 17px;
   font-weight: 600;
-  font-size: 20px;
-  line-height: 1.25;
+  line-height: 1.3;
+  color: var(--admin-ink);
 }
 
-.admin-course-card__body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  padding: 16px 20px 18px;
+.admin-course-card__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Stretches the title's hit area over the whole card without nesting the
+   card's content inside the button. */
+.admin-course-card__open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
 }
 
 .admin-course-card__desc {
@@ -1090,36 +1510,71 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin: 0 0 14px;
-  min-height: 44px;
+  margin: 0;
   font-weight: 300;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--text-muted);
 }
 
+/* Was italic at 0.7 opacity, which flattened to 2.79:1 on the light surface
+   and 3.71:1 on the dark one — both under the 4.5 floor, on the line shown
+   by every course that has no description. Full-strength muted measures
+   4.97:1 and still reads as secondary; the italic carries the rest. */
 .admin-course-card__desc.is-empty {
   font-style: italic;
-  opacity: 0.7;
 }
 
-.admin-course-card__meta {
+.admin-course-card__foot {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 12px;
+  /* Pins the footer to the bottom so a row of cards lines up even when one
+     has no description — the old card reserved 44px of blank space for a
+     description that might not exist. */
   margin-top: auto;
-  font-size: 14px;
-  color: var(--text-body);
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-150);
+}
+
+.admin-course-card__stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* The count is the figure; brand colour belongs to the action, not to a
+   number that means neither good nor bad. */
+.admin-course-card__stat strong {
+  color: var(--admin-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-course-card__sep {
+  color: var(--gray-400);
 }
 
 .admin-course-card__manage {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
   color: var(--brand-text);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.admin-course-card__manage svg {
+  transition: transform 0.18s ease;
+}
+
+.admin-course-card:hover .admin-course-card__manage svg {
+  transform: translateX(2px);
 }
 
 /* ── Module rows (Course detail) ────────────────────────── */
@@ -1155,6 +1610,73 @@
   padding: 5px 10px;
 }
 
+/* Preview sits beside Remove, so it is deliberately the quieter of the two —
+   the maroon chip reads as the destructive one. */
+.admin-chip-btn--quiet {
+  background: var(--gray-100);
+  color: var(--text-body);
+  text-decoration: none;
+}
+
+.admin-chip-btn--quiet:hover {
+  background: var(--gray-200);
+}
+
+.admin-chip-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-module-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-module-row__main .admin-assign-row__meta {
+  margin-left: 0;
+}
+
+.admin-module-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-module-row__warn {
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-body);
+}
+
+/* Result of an add or a remove, shown above the card that did it. */
+.admin-notice {
+  margin: 0 0 16px;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+.admin-notice--ok {
+  background: var(--surface-sunken);
+  color: var(--text-body);
+}
+
+.admin-notice--error {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+/* The add panel stacks under the module list instead of sitting in a grid,
+   so it carries the gap itself. Kept to its own modifier — a rule on adjacent
+   cards would also push the second column of every `admin-grid-2` down. */
+.admin-card--stacked {
+  margin-top: 18px;
+}
+
 /* ── Upload panel ───────────────────────────────────────── */
 
 .admin-field {
@@ -1182,8 +1704,11 @@
   color: var(--admin-ink);
 }
 
+/* A button, so it is reachable by keyboard as well as by drop — the real file
+   input behind it is hidden and clicked on its behalf. */
 .admin-dropzone {
   display: flex;
+  width: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -1192,15 +1717,45 @@
   padding: 20px 14px;
   border: 1.5px dashed var(--gray-400);
   border-radius: var(--radius-sm);
+  background: transparent;
   text-align: center;
   color: var(--text-muted);
   font-family: var(--font-ui);
+  font-size: 14px;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.admin-dropzone:hover {
+.admin-dropzone:hover,
+.admin-dropzone.is-dragging {
   border-color: var(--brand);
+}
+
+.admin-dropzone.is-dragging {
+  background: var(--brand-hover);
+}
+
+.admin-dropzone:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.admin-dropzone[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Off-screen but still in the accessibility tree — the file input the
+   dropzone drives. */
+.admin-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .admin-dropzone__icon {
@@ -1226,54 +1781,18 @@
 
 /* One tab per course blueprint. Scrolls sideways rather than wrapping, so the
    row stays one line however many courses exist. */
-.admin-tos-courses {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin-bottom: 18px;
-  padding-bottom: 4px;
+/* The blueprint picker (was .admin-tos-course* — a side-scrolling tab strip,
+   replaced by the toolbar dropdown). Exam names run long, so this filter is
+   wider than the one on the list screens. */
+.admin-toolbar__filter--wide {
+  width: 340px;
 }
 
-.admin-tos-course {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex-shrink: 0;
-  padding: 8px 16px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-xs);
-  background: var(--gray-100);
-  color: var(--text-body);
-  font-family: var(--font-ui);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.admin-tos-course:hover {
-  background: var(--gray-200);
-}
-
-.admin-tos-course:focus-visible {
-  outline: none;
-  box-shadow: var(--ring-focus);
-}
-
-.admin-tos-course.is-active {
-  background: var(--brand);
-  color: var(--white);
-}
-
-.admin-tos-course__code {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.admin-tos-course__name {
-  font-size: 12px;
-  opacity: 0.8;
+.admin-tos-count {
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .admin-tos-card {
@@ -1488,6 +2007,91 @@
   color: var(--text-muted);
 }
 
+/* ── Module preview ─────────────────────────────────────── */
+
+.admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(16, 24, 40, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.admin-modal__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(980px, 100%);
+  height: min(88vh, 100%);
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.admin-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--gray-150);
+}
+
+.admin-modal__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--text-body);
+}
+
+.admin-modal__meta {
+  margin: 4px 0 0;
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.admin-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-modal__close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-100);
+  color: var(--text-body);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-modal__close:hover {
+  background: var(--gray-200);
+}
+
+.admin-modal__close:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+/* The browser's own PDF viewer renders here — no library, and identical to
+   what the file looks like when a student opens it. */
+.admin-modal__frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: var(--surface-sunken);
+}
+
 /* ── Responsive ─────────────────────────────────────────── */
 
 @media (max-width: 1080px) {
@@ -1556,6 +2160,11 @@
   }
 
   .admin-search {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .admin-search__field {
     width: 100%;
   }
 }
@@ -1568,6 +2177,12 @@
   }
 
   .admin-course-card:hover {
+    transform: none;
+  }
+
+  .admin-course-card__manage svg,
+  .admin-course-card:hover .admin-course-card__manage svg {
+    transition: none;
     transform: none;
   }
 

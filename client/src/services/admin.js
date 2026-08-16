@@ -25,6 +25,41 @@ export async function fetchCourse(courseId) {
   return data.course;
 }
 
+/* ---- Learning modules ---- */
+
+// Mirrors MAX_MODULE_BYTES on the server, so an oversized file is refused here
+// rather than after uploading every byte of it.
+export const MAX_MODULE_BYTES = 40 * 1024 * 1024;
+
+/**
+ * Adds a learning module (a lesson PDF) to a course.
+ *
+ * The file is the request body rather than a multipart form: the API reads it
+ * with express.raw(), which needs no parser, and the two text fields ride on
+ * the query string. `onProgress` receives 0–100 while the file uploads.
+ */
+export async function createCourseModule(courseId, file, { title, onProgress } = {}) {
+  const { data } = await api.post(`/admin/courses/${courseId}/modules`, file, {
+    headers: { "Content-Type": file.type || "application/pdf" },
+    params: { title: title ?? "", fileName: file.name },
+    onUploadProgress: (event) => {
+      if (!onProgress) return;
+      const total = event.total ?? file.size;
+      if (total) onProgress(Math.round((event.loaded / total) * 100));
+    }
+  });
+  return data.module;
+}
+
+/**
+ * Removes a module, its file, and everything derived from it. Resolves to
+ * `{ title, assessments, completions, figures }` — what actually went with it.
+ */
+export async function deleteCourseModule(moduleId) {
+  const { data } = await api.delete(`/admin/modules/${moduleId}`);
+  return data.removed ?? {};
+}
+
 /* ---- Students ---- */
 
 export async function fetchStudents() {
@@ -32,6 +67,14 @@ export async function fetchStudents() {
   return data.students ?? [];
 }
 
+/**
+ * One student's record. Beyond the list fields it carries what the detail
+ * screen is open to answer:
+ *   progress   — completed lessons per enrolled course
+ *   badges     — { earned, total, latest, courses: [{ code, title, earned, total }] }
+ *   lastActive — { at, kind: "lesson" | "quiz" }, null when they never started
+ *   assessors  — who is assigned to the courses they are enrolled in
+ */
 export async function fetchStudent(studentId) {
   const { data } = await api.get(`/admin/students/${studentId}`);
   return data.student;

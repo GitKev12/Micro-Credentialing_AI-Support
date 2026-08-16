@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { buildStudentBadges, summarizeBadges } from "../badges/badges.service.js";
 import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
 import {
   assembleFinalAssessment,
@@ -37,6 +38,7 @@ const ASSESSORS_COLLECTION = "Assessor";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
+const RESULTS_COLLECTION = "StudentResult";
 const STUDENTS_COLLECTION = "Student";
 const TOS_COLLECTION = "TableOfSpecification";
 
@@ -143,7 +145,8 @@ export async function getCourse(request, response) {
         id: asId(module._id),
         title: module.title ?? module.fileName ?? "Untitled module",
         fileName: module.fileName ?? "",
-        fileSize: module.fileSize ?? null
+        fileSize: module.fileSize ?? null,
+        uploadDate: module.uploadDate ?? null
       }))
     }
   });
@@ -222,6 +225,83 @@ export async function listStudents(_request, response) {
   return response.json({ students: students.map((s) => publicStudent(s, courses)) });
 }
 
+/** The documents behind a student's enrolment, in the order they were added. */
+function enrolledCourses(student, courses) {
+  return (student.enrolledCourses ?? [])
+    .map((courseId) => courses.get(asId(courseId)))
+    .filter(Boolean);
+}
+
+/**
+ * When this student was last seen working: the newest lesson completion or
+ * quiz submission on their record.
+ *
+ * Enrolment says a student was signed up; this says whether they ever turned
+ * up — which is the question an admin opens a record to ask, and which nothing
+ * else on the screen answers.
+ */
+async function lastActivityFor(student) {
+  const studentKeys = idCandidates(student._id);
+
+  const newest = async (name, dateField) => {
+    if (!(await collectionExists(name))) return null;
+    const [row] = await collection(name)
+      .find({ studentId: { $in: studentKeys } })
+      .sort({ [dateField]: -1 })
+      .limit(1)
+      .toArray();
+    return row?.[dateField] ? new Date(row[dateField]) : null;
+  };
+
+  const [lesson, quiz] = await Promise.all([
+    newest(PROGRESS_COLLECTION, "completedAt"),
+    newest(RESULTS_COLLECTION, "submittedAt")
+  ]);
+
+  if (!lesson && !quiz) return { at: null, kind: null };
+
+  // Whichever happened last, named — "a quiz two months ago" and "a lesson
+  // yesterday" mean different things about the same student.
+  const quizIsNewer = quiz && (!lesson || quiz > lesson);
+  return {
+    at: (quizIsNewer ? quiz : lesson).toISOString(),
+    kind: quizIsNewer ? "quiz" : "lesson"
+  };
+}
+
+/**
+ * The assessors responsible for this student — the ones assigned to a course
+ * they are enrolled in. Answers "who grades them?", which the roster on the
+ * assessor's own screen states from the other direction.
+ */
+async function assessorsFor(student, courses) {
+  const enrolledIds = new Set((student.enrolledCourses ?? []).map(asId));
+  if (enrolledIds.size === 0) return [];
+
+  const assessors = await collection(ASSESSORS_COLLECTION).find().toArray();
+
+  return assessors
+    .map((assessor) => ({
+      assessor,
+      shared: (assessor.assigned_courses ?? [])
+        .filter((courseId) => enrolledIds.has(asId(courseId)))
+        .map((courseId) => courses.get(asId(courseId)))
+        .filter(Boolean)
+    }))
+    .filter((entry) => entry.shared.length > 0)
+    .map(({ assessor, shared }) => ({
+      id: asId(assessor._id),
+      name: assessor.full_name ?? assessor.name ?? assessor.email ?? "Unnamed assessor",
+      email: assessor.email ?? null,
+      courses: shared.map((course) => ({
+        id: asId(course._id),
+        code: courseCode(course),
+        title: courseTitle(course)
+      }))
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "en"));
+}
+
 export async function getStudent(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
@@ -231,13 +311,29 @@ export async function getStudent(request, response) {
   if (!student) return response.status(404).json({ message: "Student not found." });
 
   const courses = await courseMap();
-  const progress = await progressForStudent(student, courses);
+  const enrolled = enrolledCourses(student, courses);
+
+  const [progress, badgeList, lastActive, assessors] = await Promise.all([
+    progressForStudent(student, courses),
+    // Counted from the same catalog the student's own badge wall reads, so the
+    // two screens can never disagree about what someone holds.
+    buildStudentBadges(student._id, student, enrolled),
+    lastActivityFor(student),
+    assessorsFor(student, courses)
+  ]);
 
   // A micro-credential is awarded when every module of a course is done.
   const credentials = progress.filter((row) => row.total > 0 && row.pct === 100).length;
 
   return response.json({
-    student: { ...publicStudent(student, courses), progress, credentials }
+    student: {
+      ...publicStudent(student, courses),
+      progress,
+      credentials,
+      badges: summarizeBadges(badgeList),
+      lastActive,
+      assessors
+    }
   });
 }
 

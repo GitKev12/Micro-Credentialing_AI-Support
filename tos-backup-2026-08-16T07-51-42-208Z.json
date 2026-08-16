@@ -1,0 +1,888 @@
+[
+  {
+    "_id": "6a759bef0e88e3e28d4ecfc1",
+    "examination": "Computer Programming 2",
+    "courseId": "6a4ca6c19123a0203a3682d1",
+    "courseCode": "CC2",
+    "rows": [
+      {
+        "course": "Creating Java Programs",
+        "moduleId": "6a4b64bba6cbd0b379f1664d",
+        "hours": 2,
+        "remember": 1,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Using Data",
+        "moduleId": "6a4b64c2a6cbd0b379f16651",
+        "hours": 2,
+        "remember": 1,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Using Methods, Classes and Objects",
+        "moduleId": "6a4b64c3a6cbd0b379f16655",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 3,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "More Object Concepts",
+        "moduleId": "6a4b64c5a6cbd0b379f16659",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 3,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Making Decisions",
+        "moduleId": "6a4b64c6a6cbd0b379f1665d",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Looping",
+        "moduleId": "6a4b64c7a6cbd0b379f16661",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Characters, Strings, and the StringBuilder",
+        "moduleId": "6a4b64c8a6cbd0b379f16665",
+        "hours": 2,
+        "remember": 0,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Arrays",
+        "moduleId": "6a4b64c9a6cbd0b379f16669",
+        "hours": 2,
+        "remember": 0,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      }
+    ],
+    "levelWeights": {
+      "remember": 0.1,
+      "understand": 0.2,
+      "apply": 0,
+      "analyze": 0.3,
+      "evaluate": 0.4,
+      "create": 0
+    },
+    "source": {
+      "file": "FT-SAM-TOS.xlsx",
+      "distributionFrom": "SAM - System Administration and Maintenance",
+      "importedAt": "2026-08-07T08:48:47.477Z"
+    },
+    "createdAt": "2026-08-07T08:48:47.477Z",
+    "updatedAt": "2026-08-07T08:48:47.477Z"
+  },
+  {
+    "_id": "6a759bef0e88e3e28d4ecfc2",
+    "examination": "Enterprise Architecture",
+    "courseId": "6a4ca6c19123a0203a3682d2",
+    "courseCode": "EA",
+    "rows": [
+      {
+        "course": "Service-Oriented Architecture",
+        "moduleId": "6a4b64caa6cbd0b379f1666f",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Business Continuity, Risk Management and Audit Compliance",
+        "moduleId": "6a4b64caa6cbd0b379f16672",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Enterprise Data Models, Information Architecture and Data Integration",
+        "moduleId": "6a4b64cba6cbd0b379f16675",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Content Management",
+        "moduleId": "6a4b64cba6cbd0b379f16678",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Enterprise Architecture Frameworks",
+        "moduleId": "6a4b64cea6cbd0b379f1667f",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Systems Integration and Enterprise Resource Software",
+        "moduleId": "6a4b64cea6cbd0b379f16682",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Monitoring and Metrics for Infrastructure and Business Processes",
+        "moduleId": "6a4b64cea6cbd0b379f16685",
+        "hours": 2,
+        "remember": 0,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Green Computing and Virtualization of Storage and Systems",
+        "moduleId": "6a4b64cfa6cbd0b379f16688",
+        "hours": 2,
+        "remember": 0,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "The Role of Open-Source Software",
+        "moduleId": "6a4b64cfa6cbd0b379f1668b",
+        "hours": 2,
+        "remember": 0,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      }
+    ],
+    "levelWeights": {
+      "remember": 0.1,
+      "understand": 0.2,
+      "apply": 0,
+      "analyze": 0.3,
+      "evaluate": 0.4,
+      "create": 0
+    },
+    "source": {
+      "file": "FT-SAM-TOS.xlsx",
+      "distributionFrom": "SAM - System Administration and Maintenance",
+      "importedAt": "2026-08-07T08:48:47.477Z"
+    },
+    "createdAt": "2026-08-07T08:48:47.477Z",
+    "updatedAt": "2026-08-07T08:48:47.477Z"
+  },
+  {
+    "_id": "6a759bef0e88e3e28d4ecfc6",
+    "examination": "Principles of Systems Thinking",
+    "courseId": "6a4ca6c29123a0203a3682d6",
+    "courseCode": "ITTSM ELECT 5",
+    "rows": [
+      {
+        "course": "Systems Development: Design, Implementation, Maintenance, and Review",
+        "moduleId": "6a4b64d6a6cbd0b379f166ba",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "The Personal and Social Impact of Computers",
+        "moduleId": "6a4b64d8a6cbd0b379f166c0",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Information and Decision Support Systems",
+        "moduleId": "6a4b64daa6cbd0b379f166c9",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Knowledge Management and Specialized Information Systems",
+        "moduleId": "6a4b64dba6cbd0b379f166d1",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Systems Development: Investigation and Analysis",
+        "moduleId": "6a4b64dea6cbd0b379f166d8",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 3,
+        "create": 0
+      },
+      {
+        "course": "Introduction to Systems Thinking",
+        "moduleId": "6a4b64e0a6cbd0b379f166de",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Information Systems",
+        "moduleId": "6a4b64e4a6cbd0b379f166e5",
+        "hours": 2,
+        "remember": 0,
+        "understand": 2,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Information Systems in Organizations",
+        "moduleId": "6a4b64e8a6cbd0b379f166ec",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "The Internet, Intranets and Extranets",
+        "moduleId": "6a4b64eda6cbd0b379f166f6",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Electronic and Mobile Commerce",
+        "moduleId": "6a4b64eea6cbd0b379f166fd",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Enterprise Systems",
+        "moduleId": "6a4b64efa6cbd0b379f16703",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      }
+    ],
+    "levelWeights": {
+      "remember": 0.1,
+      "understand": 0.2,
+      "apply": 0,
+      "analyze": 0.3,
+      "evaluate": 0.4,
+      "create": 0
+    },
+    "source": {
+      "file": "FT-SAM-TOS.xlsx",
+      "distributionFrom": "SAM - System Administration and Maintenance",
+      "importedAt": "2026-08-07T08:48:47.477Z"
+    },
+    "createdAt": "2026-08-07T08:48:47.477Z",
+    "updatedAt": "2026-08-07T08:48:47.477Z"
+  },
+  {
+    "_id": "6a759bef0e88e3e28d4ecfc4",
+    "examination": "Module Service Culture",
+    "courseId": "6a4ca6c29123a0203a3682d5",
+    "courseCode": "MCS",
+    "rows": [
+      {
+        "course": "Customer Service",
+        "moduleId": "6a4b64d0a6cbd0b379f1668f",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Customer Retention and Measurement of Satisfaction",
+        "moduleId": "6a4b64d0a6cbd0b379f16692",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Technology and Customer Service",
+        "moduleId": "6a4b64d0a6cbd0b379f16695",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Excellence in Customer Service",
+        "moduleId": "6a4b64d1a6cbd0b379f16698",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "The Challenges of Customer Service",
+        "moduleId": "6a4b64d1a6cbd0b379f1669b",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Problem Solving",
+        "moduleId": "6a4b64d1a6cbd0b379f1669f",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Strategy for Formulating a Plan for Success",
+        "moduleId": "6a4b64d2a6cbd0b379f166a3",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Empowerment",
+        "moduleId": "6a4b64d2a6cbd0b379f166a6",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Communications in Customer Service",
+        "moduleId": "6a4b64d2a6cbd0b379f166aa",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Coping with Challenging Customers",
+        "moduleId": "6a4b64d3a6cbd0b379f166ae",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Motivation",
+        "moduleId": "6a4b64d3a6cbd0b379f166b1",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Leadership in Customer Service",
+        "moduleId": "6a4b64d4a6cbd0b379f166b4",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      }
+    ],
+    "levelWeights": {
+      "remember": 0.1,
+      "understand": 0.2,
+      "apply": 0,
+      "analyze": 0.3,
+      "evaluate": 0.4,
+      "create": 0
+    },
+    "source": {
+      "file": "FT-SAM-TOS.xlsx",
+      "distributionFrom": "SAM - System Administration and Maintenance",
+      "importedAt": "2026-08-07T08:48:47.477Z"
+    },
+    "createdAt": "2026-08-07T08:48:47.477Z",
+    "updatedAt": "2026-08-07T08:48:47.477Z"
+  },
+  {
+    "_id": "6a759bef0e88e3e28d4ecfc5",
+    "examination": "Object-Oriented Programming",
+    "courseId": "6a4ca6c19123a0203a3682d3",
+    "courseCode": "OOP",
+    "rows": [
+      {
+        "course": "Introduction of Object-Oriented Programming",
+        "moduleId": "6a4b64efa6cbd0b379f16706",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Code Reuse, Making Changes in Class Hierarchy",
+        "moduleId": "6a4b64f0a6cbd0b379f1670b",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Concepts of Interface, Inheritance Using Interface",
+        "moduleId": "6a4b64f1a6cbd0b379f16710",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Attributes and Methods in an Interface, Abstract Class and Interface",
+        "moduleId": "6a4b64f2a6cbd0b379f16714",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Polymorphism",
+        "moduleId": "6a4b64f2a6cbd0b379f1671a",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Modularity",
+        "moduleId": "6a4b64f3a6cbd0b379f1671e",
+        "hours": 2,
+        "remember": 1,
+        "understand": 0,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Java Programming Language: A Quick Tour",
+        "moduleId": "6a4b64f4a6cbd0b379f16722",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "UML and Constructors",
+        "moduleId": "6a4b64f4a6cbd0b379f16726",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Objects and Classes",
+        "moduleId": "6a4b64f5a6cbd0b379f1672d",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Message, Method, and More Object Concepts",
+        "moduleId": "6a4b64f7a6cbd0b379f16736",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Classification, Generalization and Specialization",
+        "moduleId": "6a4b64f7a6cbd0b379f1673a",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Abstract and Concrete Classes",
+        "moduleId": "6a4b64f8a6cbd0b379f1673e",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Introduction to Inheritance",
+        "moduleId": "6a4b64f8a6cbd0b379f16743",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      }
+    ],
+    "levelWeights": {
+      "remember": 0.1,
+      "understand": 0.2,
+      "apply": 0,
+      "analyze": 0.3,
+      "evaluate": 0.4,
+      "create": 0
+    },
+    "source": {
+      "file": "FT-SAM-TOS.xlsx",
+      "distributionFrom": "SAM - System Administration and Maintenance",
+      "importedAt": "2026-08-07T08:48:47.477Z"
+    },
+    "createdAt": "2026-08-07T08:48:47.477Z",
+    "updatedAt": "2026-08-07T08:48:47.477Z"
+  },
+  {
+    "_id": "6a759bef0e88e3e28d4ecfc3",
+    "examination": "Fundamentals of BPO",
+    "courseId": "6a4ca6c19123a0203a3682d4",
+    "courseCode": "TSM3",
+    "rows": [
+      {
+        "course": "Introduction to QMS and Process Improvement",
+        "moduleId": "6a4b64f9a6cbd0b379f16746",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Project Management - Project Reporting",
+        "moduleId": "6a4b64f9a6cbd0b379f16749",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Client Presentation Development and Delivery - Introduction",
+        "moduleId": "6a4b64f9a6cbd0b379f1674c",
+        "hours": 2,
+        "remember": 1,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Developing Course Title, Description and SMART Objectives",
+        "moduleId": "6a4b64faa6cbd0b379f1674f",
+        "hours": 2,
+        "remember": 1,
+        "understand": 0,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Developing Course Outline",
+        "moduleId": "6a4b64faa6cbd0b379f16752",
+        "hours": 2,
+        "remember": 1,
+        "understand": 0,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Developing Session Objectives",
+        "moduleId": "6a4b64fba6cbd0b379f16755",
+        "hours": 2,
+        "remember": 1,
+        "understand": 0,
+        "apply": 0,
+        "analyze": 2,
+        "evaluate": 1,
+        "create": 0
+      },
+      {
+        "course": "Content Development Suggestions",
+        "moduleId": "6a4b64fba6cbd0b379f16759",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Be Professional: Prepare, Manage Time, Respect",
+        "moduleId": "6a4b64fba6cbd0b379f1675c",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Manage the Questions, Keep It Interactive",
+        "moduleId": "6a4b64fca6cbd0b379f1675f",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Business Mapping and Notation",
+        "moduleId": "6a4b64fca6cbd0b379f16763",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "QMS in the BPO Industry",
+        "moduleId": "6a4b64fda6cbd0b379f16766",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Basic Quality Tools - Root Cause Analysis",
+        "moduleId": "6a4b64fea6cbd0b379f1676a",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Project Management: Introduction",
+        "moduleId": "6a4b64ffa6cbd0b379f1676d",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Project Management - Planning Process",
+        "moduleId": "6a4b64ffa6cbd0b379f16770",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      },
+      {
+        "course": "Project Management - Project Plan",
+        "moduleId": "6a4b6500a6cbd0b379f16773",
+        "hours": 2,
+        "remember": 0,
+        "understand": 1,
+        "apply": 0,
+        "analyze": 1,
+        "evaluate": 2,
+        "create": 0
+      }
+    ],
+    "levelWeights": {
+      "remember": 0.1,
+      "understand": 0.2,
+      "apply": 0,
+      "analyze": 0.3,
+      "evaluate": 0.4,
+      "create": 0
+    },
+    "source": {
+      "file": "FT-SAM-TOS.xlsx",
+      "distributionFrom": "SAM - System Administration and Maintenance",
+      "importedAt": "2026-08-07T08:48:47.477Z"
+    },
+    "createdAt": "2026-08-07T08:48:47.477Z",
+    "updatedAt": "2026-08-07T08:48:47.477Z"
+  }
+]
