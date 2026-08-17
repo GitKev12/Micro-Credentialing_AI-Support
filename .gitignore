@@ -14,6 +14,11 @@ server/.cache/
 # Written by scripts/hash-passwords.mjs --write, and holds exactly what that
 # script exists to remove from the database. Meant to be deleted, not kept.
 plaintext-passwords-backup-*.json
+
+# Written by scripts/resize-tos-quizzes.mjs --write before it overwrites the
+# blueprints. A rollback for one run on one machine's database, not something
+# the repository needs to carry.
+tos-backup-*.json
 client/.env
 client/.env.local
 client/.env.development.local
