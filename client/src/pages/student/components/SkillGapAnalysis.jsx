@@ -8,7 +8,7 @@ const VIEWS = [
   { id: "table", label: "Table", Icon: TableIcon }
 ];
 
-const LEGEND = [BANDS.strong, BANDS.developing, BANDS.focus];
+const LEGEND = [BANDS.strong, BANDS.weak];
 
 /**
  * Per-topic scores for one course.
@@ -25,13 +25,27 @@ function SkillGapAnalysis({ skills = [] }) {
   const rows = useMemo(
     () =>
       skills
-        .map((skill) => {
+        .map((skill, index) => {
           const score = toScore(skill.score);
-          return { topic: skill.topic, score, band: bandFor(score), gap: gapToTarget(score) };
+          return {
+            // Two lessons can share a title, so the key is the lesson itself
+            // and the position is only the last resort.
+            key: skill.moduleId ?? `${skill.topic}:${index}`,
+            topic: skill.topic,
+            score,
+            band: bandFor(score),
+            gap: gapToTarget(score),
+            // How the score was arrived at: correct out of the items the final
+            // asked of this lesson. Absent on anything not scored that way.
+            correct: Number.isFinite(skill.correct) ? skill.correct : null,
+            total: Number.isFinite(skill.total) ? skill.total : null
+          };
         })
         .sort((a, b) => a.score - b.score),
     [skills]
   );
+
+  const showItems = rows.some((row) => row.total !== null);
 
   const belowTarget = rows.filter((row) => row.gap > 0);
   const focus = rows[0];
@@ -41,8 +55,8 @@ function SkillGapAnalysis({ skills = [] }) {
       <section className="sd-card">
         <h2 className="sd-h3">Skill gap analysis</h2>
         <p className="sd-sub">
-          No topic scores for this course yet. They appear here once your assessments
-          are graded.
+          No topic scores for this course yet. They appear here once you have sat the
+          final exam, which is what measures every lesson at once.
         </p>
       </section>
     );
@@ -61,7 +75,7 @@ function SkillGapAnalysis({ skills = [] }) {
               ? `Every topic sits at or above the ${TARGET}% passing mark.`
               : `${belowTarget.length} of ${rows.length} ${
                   rows.length === 1 ? "topic is" : "topics are"
-                } below the ${TARGET}% passing mark.`}
+                } weak — under the ${TARGET}% passing mark.`}
           </p>
         </div>
 
@@ -96,7 +110,7 @@ function SkillGapAnalysis({ skills = [] }) {
 
           <ul className="sd-skills__list">
             {rows.map((row) => (
-              <li className="sd-skill" key={row.topic} data-band={row.band.id}>
+              <li className="sd-skill" key={row.key} data-band={row.band.id}>
                 <span className="sd-skill__topic">{row.topic}</span>
 
                 <div className="sd-skill__plot">
@@ -109,6 +123,11 @@ function SkillGapAnalysis({ skills = [] }) {
                     <strong>{row.topic}</strong>
                     {row.score}% · <span className="sd-tip__band">{row.band.label}</span>
                     <br />
+                    {row.total !== null
+                      ? `${row.correct} of ${row.total} ${
+                          row.total === 1 ? "question" : "questions"
+                        } correct · `
+                      : ""}
                     {row.gap > 0
                       ? `${row.gap} points below the passing mark`
                       : `${row.score - TARGET} points above the passing mark`}
@@ -132,6 +151,11 @@ function SkillGapAnalysis({ skills = [] }) {
             <thead>
               <tr>
                 <th scope="col">Topic</th>
+                {showItems ? (
+                  <th scope="col" className="sd-table__num">
+                    Correct
+                  </th>
+                ) : null}
                 <th scope="col" className="sd-table__num">
                   Score
                 </th>
@@ -143,8 +167,13 @@ function SkillGapAnalysis({ skills = [] }) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.topic}>
+                <tr key={row.key}>
                   <td>{row.topic}</td>
+                  {showItems ? (
+                    <td className="sd-table__num">
+                      {row.total !== null ? `${row.correct} / ${row.total}` : "—"}
+                    </td>
+                  ) : null}
                   <td className="sd-table__num">{row.score}%</td>
                   <td>
                     <BandChip band={row.band} />

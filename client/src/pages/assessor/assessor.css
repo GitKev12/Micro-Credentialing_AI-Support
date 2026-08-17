@@ -240,7 +240,20 @@
 /* ── Sidebar (light theme, collapsible) ─────────────────── */
 
 .assessor-rail {
-  position: relative;
+  /* Pinned to the screen rather than to the document: the console's lists run
+     far past one screen, and the rail scrolling away with them put the nav and
+     the sign-out button out of reach at the bottom of a long queue.
+
+     Three declarations, and all three are load-bearing. `align-self` opts the
+     rail out of the parent's `align-items: stretch`, which would otherwise make
+     it as tall as the whole document — leaving sticky nothing to slide within.
+     The height then fixes it to exactly one screen, and `top: 0` is the edge it
+     sticks to. Sticky (not fixed) keeps it in the flex row, so it still spends
+     its own width and .assessor-main needs no offset to sit beside it. */
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: calc(100 * var(--vh));
   flex-shrink: 0;
   width: var(--rail-w);
   display: flex;
@@ -371,6 +384,13 @@
   gap: var(--sp-1);
   width: 100%;
   padding-inline: var(--sp-4);
+  /* The rail is now a fixed screen-height box, so on a short viewport something
+     has to give. It is the nav that scrolls — never the rail itself, whose
+     collapse toggle sits outside its right edge and would be clipped the moment
+     it gained an overflow. min-height:0 lets this flex child shrink below its
+     content, which is what allows the scroll at all. */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .assessor-nav-item {
@@ -1068,6 +1088,82 @@
 
 .queue-grid {
   grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 92px 150px auto;
+}
+
+/* Inside a student's group the name is in the heading above, so the row drops
+   its person cell and gives the width back to the assessment title. */
+.queue-grid--grouped {
+  grid-template-columns: minmax(0, 1fr) 92px 150px auto;
+}
+
+/* ── To Grade: grouped by student ───────────────────────── */
+
+.queue-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+
+.queue-summary {
+  margin: 0 0 var(--sp-1);
+}
+
+.queue-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* The whole heading is the fold control, so it is a button reset back to a row
+   of content rather than something that looks pressable. */
+.queue-group__head {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 260px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.queue-group__head:hover {
+  background: var(--brand-hover);
+}
+
+.queue-group__chevron {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.queue-group__meta {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+.queue-group__tags {
+  justify-self: end;
+}
+
+/* Indented under their heading so a group reads as one block of work. */
+.queue-group__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-left: calc(16px + var(--sp-4));
+}
+
+/* The scope chip sits beside the assessment title. */
+.cell-title .chip {
+  margin-left: var(--sp-2);
+  vertical-align: middle;
 }
 
 .creds-grid {
@@ -1802,9 +1898,27 @@
 @media (max-width: 960px) {
   .roster-grid,
   .queue-grid,
+  .queue-grid--grouped,
   .creds-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-4);
+  }
+
+  /* The heading stacks, and the rows give up their indent — at this width it
+     costs more than the grouping it signals. */
+  .queue-group__head {
+    grid-template-columns: 16px minmax(0, 1fr);
+    row-gap: var(--sp-2);
+  }
+
+  .queue-group__meta,
+  .queue-group__tags {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .queue-group__rows {
+    padding-left: 0;
   }
 
   .row-head {
@@ -1832,6 +1946,11 @@
   }
 
   .assessor-rail {
+    /* Stacked layout: the rail is a bar across the top, so pinning it to a
+       screen's height would leave one nav bar and no room for the console. */
+    position: static;
+    height: auto;
+    align-self: auto;
     width: 100%;
     flex-direction: row;
     flex-wrap: wrap;
@@ -1863,6 +1982,7 @@
     flex-wrap: wrap;
     width: auto;
     padding: 0;
+    overflow: visible;
   }
 
   .assessor-rail__signout {

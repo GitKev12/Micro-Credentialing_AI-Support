@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import StudentSidebar from "./components/StudentSidebar";
 import CoursePerformance from "./components/CoursePerformance";
+import CourseCard from "./components/CourseCard";
 import SkillGapAnalysis from "./components/SkillGapAnalysis";
 import { BackIcon, BookIcon, SkillsIcon, TargetIcon } from "./components/icons";
 import { BandChip, EmptyState, Meter, StatTile, TargetLegend } from "./components/ui";
@@ -128,8 +129,8 @@ function StudentDashboard() {
         ) : courses.length === 0 ? (
           <section className="sd-card">
             <EmptyState image={noCoursesImage} title="No course analytics yet">
-              Your skill gap analysis appears here once your assessment results are in.
-              Nothing to do in the meantime — keep working through your modules.
+              Your skill gap analysis appears here once you have sat a course&apos;s final
+              exam. Nothing to do in the meantime — keep working through your modules.
             </EmptyState>
           </section>
         ) : (
@@ -268,6 +269,37 @@ function StudentDashboard() {
                 </ul>
               </section>
             ) : null}
+
+            {/* Every course, not just the five weakest topics' courses.
+                The focus list above is capped, so without this a course whose
+                topics all sit outside the top five has no way in at all — and
+                the course a student most wants to read about after passing is
+                exactly the one that stays off that list. */}
+            <section className="sd-card" aria-labelledby="sd-courses-title">
+              <header className="sd-section-head">
+                <div className="sd-section-head__text">
+                  <p className="sd-eyebrow">Full breakdown</p>
+                  <h2 className="sd-h3" id="sd-courses-title">
+                    Your courses
+                  </h2>
+                  <p className="sd-sub">
+                    One card per course — its overall score and the shape behind it.
+                    Open a card for the topic-by-topic analysis.
+                  </p>
+                </div>
+                <TargetLegend />
+              </header>
+
+              <ul className="sd-cc-grid">
+                {courses.map((course) => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    onOpen={() => setSelected(course)}
+                  />
+                ))}
+              </ul>
+            </section>
           </>
         )}
 

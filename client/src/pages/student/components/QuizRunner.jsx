@@ -22,7 +22,7 @@ import { CheckIcon, LockIcon, QuizIcon } from "./icons";
  * writing costs a model call, so it waits for the student to say they are
  * actually ready. Choosing to come back later costs nothing at all.
  */
-function QuizRunner({ studentId, assessment, onSubmitted, onGenerated }) {
+function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEarned }) {
   const incomingId = assessment?.id ?? null;
   const moduleId = assessment?.moduleId ?? null;
   const needsGeneration = Boolean(assessment?.needsGeneration);
@@ -142,6 +142,11 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated }) {
       setResult(response.result);
       if (response.alreadySubmitted) setError(response.message);
       onSubmitted?.(assessmentId, response.result);
+
+      // Only ever set on a lesson quiz this submission just passed, so the
+      // popup cannot fire for a paper that was already passed on an earlier
+      // visit — reopening a finished quiz loads its mark without submitting.
+      if (response.badge) onBadgeEarned?.(response.badge);
     } catch (_error) {
       setError("That submission did not go through. Try again.");
     } finally {

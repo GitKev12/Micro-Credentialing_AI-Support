@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges } from "../badges/badges.service.js";
+import { buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { listIssuedCertificates } from "../certificates/certificates.service.js";
 
 /**
@@ -16,22 +17,13 @@ import { listIssuedCertificates } from "../certificates/certificates.service.js"
  * and each Course document looks like (flexible — common field names accepted):
  *   { _id, courseCode, courseName, description, imageUrl }
  *
- * Expected course performance document shape (one per student per course),
- * powering the Student Dashboard's skill gap analysis:
- *   {
- *     studentId,
- *     courseId,
- *     title,
- *     icon,        // optional emoji shown on the card
- *     imageUrl,    // optional card backdrop
- *     status,      // "in-progress" | "completed"
- *     performance, // overall score, 0–100
- *     skills: [{ topic, score }]
- *   }
+ * Skill gap analysis used to wait on a CoursePerformance collection that nobody
+ * ever wrote to. It is computed from the student's final exams now — see
+ * skillgap.service.js — so there is no third collection to seed and no way for
+ * a stored figure to fall out of step with the grade it came from.
  */
 const STUDENTS_COLLECTION = "Student";
 const COURSES_COLLECTION = "Course";
-const PERFORMANCE_COLLECTION = "CoursePerformance";
 const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
 const RESULTS_COLLECTION = "StudentResult";
@@ -176,38 +168,6 @@ async function buildProgressIndex(studentId, student, courses) {
   return { index, completions };
 }
 
-function clampScore(value) {
-  const score = Number(value);
-  if (!Number.isFinite(score)) return 0;
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function normalizeStatus(status) {
-  const value = String(status ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
-  return value === "completed" ? "completed" : "in-progress";
-}
-
-function toSkillEntry(skill) {
-  return {
-    topic: skill?.topic ?? skill?.name ?? skill?.skill ?? "",
-    score: clampScore(skill?.score ?? skill?.value ?? skill?.percentage)
-  };
-}
-
-function toPublicPerformance(entry) {
-  const skills = Array.isArray(entry.skills) ? entry.skills : [];
-
-  return {
-    id: entry.courseId ?? entry.course_id ?? entry._id,
-    title: entry.title ?? entry.name ?? entry.course_name ?? "",
-    icon: entry.icon ?? null,
-    imageUrl: entry.imageUrl ?? entry.image_url ?? null,
-    status: normalizeStatus(entry.status),
-    performance: clampScore(entry.performance ?? entry.overallScore ?? entry.overall_score),
-    skills: skills.map(toSkillEntry).filter((skill) => skill.topic)
-  };
-}
-
 /**
  * The student and the courses they are enrolled in.
  *
@@ -257,21 +217,25 @@ export async function getStudentCourses(request, response) {
   });
 }
 
+/**
+ * The Student Dashboard's skill gap analysis.
+ *
+ * Computed from the final exams this student has sat rather than stored, so it
+ * can never disagree with the grade the assessor console shows — an assessor
+ * who overrules an item changes both at once. See skillgap.service.js for the
+ * formulas and for why only the final counts.
+ */
 export async function getStudentSkillGap(request, response) {
   const studentId = request.params.id;
 
-  // Same lookout behavior: no CoursePerformance collection yet means the
-  // dashboard gets an empty (pending) result instead of an error.
-  if (!(await collectionExists(PERFORMANCE_COLLECTION))) {
+  if (!(await collectionExists(COURSES_COLLECTION))) {
     return response.json({ courses: [], pending: true });
   }
 
-  const entries = await mongoose.connection
-    .collection(PERFORMANCE_COLLECTION)
-    .find({ $or: [{ studentId }, { student_id: studentId }] })
-    .toArray();
+  const { courses } = await loadEnrollment(studentId);
+  if (courses.length === 0) return response.json({ courses: [] });
 
-  return response.json({ courses: entries.map(toPublicPerformance) });
+  return response.json({ courses: await buildStudentSkillGap(studentId, courses) });
 }
 
 /* ────────────────── Certifications and badges ────────────────── */

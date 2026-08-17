@@ -2,9 +2,9 @@
  * Icon set for the student area — inline SVGs, everything painted with
  * `currentColor` so a single colour token drives icon and label together.
  *
- * The three band icons are load-bearing, not decoration: the status palette
- * says colour must never carry meaning alone, so each band pairs a distinct
- * silhouette (check / rising arrow / alert) with its word.
+ * The band icons are load-bearing, not decoration: the status palette says
+ * colour must never carry meaning alone, so each band pairs a distinct
+ * silhouette (check / alert) with its word.
  */
 
 const line = {
@@ -25,16 +25,7 @@ export function StrongIcon({ size = 14 }) {
   );
 }
 
-export function DevelopingIcon({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8.5 14.5l3-3 2 2 2.5-3" {...line} />
-    </svg>
-  );
-}
-
-export function FocusIcon({ size = 14 }) {
+export function WeakIcon({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 4.2L21 19.5H3L12 4.2z" {...line} />
@@ -46,13 +37,16 @@ export function FocusIcon({ size = 14 }) {
 
 const BAND_ICONS = {
   strong: StrongIcon,
-  developing: DevelopingIcon,
-  focus: FocusIcon
+  weak: WeakIcon
 };
 
-/** Picks the silhouette that belongs to a band id from performance.js. */
+/**
+ * Picks the silhouette that belongs to a band id from performance.js. An
+ * unknown band falls back to the alert, because a topic nobody could place is
+ * the one worth looking at, not the one worth a tick.
+ */
 export function BandIcon({ band, size = 14 }) {
-  const Icon = BAND_ICONS[band] ?? DevelopingIcon;
+  const Icon = BAND_ICONS[band] ?? WeakIcon;
   return <Icon size={size} />;
 }
 

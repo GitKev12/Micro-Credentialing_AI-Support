@@ -331,12 +331,22 @@ function queueRow(result, student, assessment, course) {
     name: studentName(student),
     sid: student?.student_id ?? null,
     assessment: assessment?.title ?? "Assessment",
+    // Which kind of paper this is. A final carries the course credential and a
+    // lesson quiz carries a badge, so they are not interchangeable work — the
+    // queue groups and orders by this, and could not tell them apart without
+    // it. Derived the same way toAssessmentSummary derives it: an assessment
+    // belonging to no single lesson is a final.
+    scope: assessment?.scope === "final" || !assessment?.moduleId ? "final" : "lesson",
     course: courseCode(course),
     submittedAt: result.submittedAt ?? null,
     aiStatus: aiStatusOf(result),
     ai: graded ? (result.aiGrading?.score ?? null) : null,
     flags: graded ? openFlags(result) : null,
     total: config.total,
+    // What the mark has to clear. The queue showed a score with nothing to read
+    // it against, so whether a submission passed — the thing that decides
+    // whether releasing it issues a credential — was only visible one click in.
+    passMark: config.passMark,
     pointsPerItem: config.pointsPerItem,
     reviewStatus: result.review?.status ?? "pending"
   };

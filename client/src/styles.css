@@ -928,6 +928,17 @@ a {
   line-height: 1.5;
 }
 
+/* The scrolling part of the viewer when what it holds is not a lesson —
+   a quiz or the final exam. The head stays pinned above it. */
+.module-viewer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for a choice's focus ring against the scroller's edge. */
+  padding: 2px 2px 0.5rem;
+  margin: -2px -2px 0;
+}
+
 /* ── Module viewer: OCR text mode ─────────────────────── */
 
 .module-viewer__tools {
@@ -1236,6 +1247,13 @@ ol.lesson-reader__list li::marker {
 
   .module-viewer__text {
     max-height: calc(70 * var(--vh));
+  }
+
+  /* The document scrolls down here, so the quiz should not trap it. */
+  .module-viewer__body {
+    overflow-y: visible;
+    padding: 2px;
+    margin: -2px;
   }
 }
 

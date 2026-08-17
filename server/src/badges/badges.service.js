@@ -113,6 +113,36 @@ export function passedFromResults(results, assessmentById) {
 }
 
 /**
+ * The badge one lesson's quiz earns, in the shape a card draws it.
+ *
+ * Read at the moment a quiz is passed, so the student can be told what they
+ * just won by name. It goes to the same catalog the badge wall reads, which is
+ * why the two can never disagree about a badge's title or its artwork — and why
+ * this returns null rather than inventing a badge for a lesson the catalog has
+ * no row for.
+ */
+export async function lessonBadgeFor(moduleId) {
+  if (!moduleId) return null;
+  if (!(await collectionExists(BADGES_COLLECTION))) return null;
+
+  const badge = await collection(BADGES_COLLECTION).findOne({
+    active: { $ne: false },
+    moduleId: { $in: idCandidates(moduleId) }
+  });
+  if (!badge) return null;
+
+  return {
+    id: String(badge._id),
+    // The badge's title is the lesson's name — the same field the wall shows.
+    name: badge.title ?? badge.lessonTitle ?? "Lesson badge",
+    icon: badge.icon ?? null,
+    iconType:
+      badge.iconType ?? (String(badge.icon ?? "").startsWith("data:") ? "svg" : "emoji"),
+    order: Number(badge.order ?? 0)
+  };
+}
+
+/**
  * Every badge in the student's own courses, earned ones marked.
  *
  * `courses` is the enrolment, already loaded by the caller — the catalog holds

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getStoredSession } from "../../auth/services/authService";
 import {
@@ -15,6 +15,7 @@ import {
 import { fetchCourseAssessments } from "../../services/assessments";
 import LessonNav from "./components/LessonNav";
 import QuizRunner from "./components/QuizRunner";
+import BadgeToast from "./components/BadgeToast";
 import { LockIcon, QuizIcon } from "./components/icons";
 
 // Breathing room left above a section heading when jumping to it.
@@ -188,6 +189,8 @@ function LearningModules() {
   // Section the rail keeps lit. Unlike pendingSection this survives the
   // scroll, so the list still shows where in the lesson you landed.
   const [activeSection, setActiveSection] = useState(null);
+  // The badge a quiz was just passed for, shown in the corner for five seconds.
+  const [earnedBadge, setEarnedBadge] = useState(null);
   // The scrollable reader pane — watched to auto-complete lessons.
   const readerRef = useRef(null);
 
@@ -395,6 +398,10 @@ function LearningModules() {
    * A submitted quiz can unlock the final, so the rail's lock states are
    * re-read rather than patched locally — the gate is the server's call.
    */
+  // Stable, so the toast's own five-second timer is not restarted by every
+  // unrelated re-render of this page.
+  const dismissBadge = useCallback(() => setEarnedBadge(null), []);
+
   const refreshAssessments = () => {
     fetchCourseAssessments(studentId, courseId)
       .then(setAssessments)
@@ -436,6 +443,11 @@ function LearningModules() {
       setCompletedIds((ids) =>
         ids.includes(String(moduleId)) ? ids : [...ids, String(moduleId)]
       );
+      // Lock states live in the assessments payload, not in completedIds, so
+      // this lesson's quiz stays shut until the rail is re-read — without it
+      // the student had to reload the page to see the quiz open. The final's
+      // lock counts finished lessons too, so it is re-read by the same call.
+      refreshAssessments();
     } catch (_error) {
       // Ignore — the next scroll event retries.
     } finally {
@@ -733,16 +745,26 @@ function LearningModules() {
                 ) : null}
               </div>
 
-              <QuizRunner
-                studentId={studentId}
-                assessment={selected.item}
-                onSubmitted={refreshAssessments}
-                onGenerated={replacePlaceholder}
-              />
+              {/* The viewer is a locked-height pane, so the paper needs its own
+                  scroller — the same job .module-viewer__text does for a
+                  lesson. Without it a long quiz is simply clipped. */}
+              <div className="module-viewer__body">
+                <QuizRunner
+                  studentId={studentId}
+                  assessment={selected.item}
+                  onSubmitted={refreshAssessments}
+                  onGenerated={replacePlaceholder}
+                  onBadgeEarned={setEarnedBadge}
+                />
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Fixed to the corner of the screen, so it is unaffected by where in the
+          reader or the rail the student happens to be scrolled. */}
+      {earnedBadge ? <BadgeToast badge={earnedBadge} onDone={dismissBadge} /> : null}
     </section>
   );
 }

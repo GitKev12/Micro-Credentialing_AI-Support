@@ -17,6 +17,38 @@ const LAYOUTS = [
 /** The AI's own verdict — a flagged item falls back to its best guess. Undefined when AI never scored the item. */
 const aiVerdict = (item) => (item.verdict === "flagged" ? item.aiGuess : item.verdict);
 
+const LEVEL_ORDER = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
+
+/**
+ * Where this paper came from, as one readable line.
+ *
+ * `assessment.source` is the record the generator wrote: the Table of
+ * Specification row it drew from, the spread of cognitive levels it was asked
+ * for, and the size of the bank it produced. It is an object, and this line
+ * used to render it directly — which throws ("Objects are not valid as a React
+ * child") and took the entire review screen down with it, so clicking Review
+ * landed on a blank page rather than on one missing caption.
+ *
+ * A string is still accepted, because assessments written before the generator
+ * recorded its provenance carry one.
+ */
+function sourceLine(source) {
+  if (!source) return null;
+  if (typeof source === "string") return source;
+
+  const parts = [];
+  if (source.tosRow) parts.push(`Table of Specification · ${source.tosRow}`);
+
+  const levels = LEVEL_ORDER.filter((level) => Number(source.distribution?.[level]) > 0).map(
+    (level) => `${level} ${source.distribution[level]}`
+  );
+  if (levels.length > 0) parts.push(levels.join(" · "));
+
+  if (Number(source.bankSize) > 0) parts.push(`drawn from ${source.bankSize} questions`);
+
+  return parts.length > 0 ? parts.join(" — ") : null;
+}
+
 function ReviewPage() {
   const navigate = useNavigate();
   const { submissionId } = useParams();
@@ -258,6 +290,7 @@ function ReviewPage() {
     );
 
   const focusItem = ITEMS[focusIdx];
+  const provenance = sourceLine(review.assessment.source);
 
   return (
     <>
@@ -272,9 +305,7 @@ function ReviewPage() {
         </div>
       </ScreenHeader>
 
-      {review.assessment.source ? (
-        <p className="assessor-meta review-source">{review.assessment.source}</p>
-      ) : null}
+      {provenance ? <p className="assessor-meta review-source">{provenance}</p> : null}
 
       <div className="assessor-body">
         <div className={isSplit ? "review-grid" : "review-grid--stacked"}>

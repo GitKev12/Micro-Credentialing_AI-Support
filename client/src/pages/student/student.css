@@ -40,10 +40,12 @@
   /* ---- Status palette (fixed — never themed, never a series) ----
      Fills are the marks; the -text steps are for type, because the
      fills themselves are too light to read as words on this surface.
-     Validated as a 3-band scale: worst adjacent pair ΔE 27.6 normal /
-     11.3 protan-deutan. Warning sits at 1.79:1 as a fill, which is
-     under 3:1 by design — the relief is the visible numeric label on
-     every mark plus the table view, and every band ships icon+label. */
+     Two bands are in use — weak and strong, split at the 60% passing
+     mark — so the only pair that has to be tellable apart is good
+     against critical, the widest one this palette holds. Warning is
+     kept defined for anything else that needs a caution fill; it is
+     no longer a band. Every band still ships icon + label + number,
+     so none of this rests on colour alone. */
   --sd-good: #0ca30c;
   --sd-warn: #fab219;
   --sd-crit: #d03b3b;
@@ -161,13 +163,7 @@
   --sd-band-inverse: var(--sd-good-inverse);
 }
 
-.student-app [data-band="developing"] {
-  --sd-band: var(--sd-warn);
-  --sd-band-text: var(--sd-warn-text);
-  --sd-band-inverse: var(--sd-warn-inverse);
-}
-
-.student-app [data-band="focus"] {
+.student-app [data-band="weak"] {
   --sd-band: var(--sd-crit);
   --sd-band-text: var(--sd-crit-text);
   --sd-band-inverse: var(--sd-crit-inverse);
@@ -1559,6 +1555,272 @@ body:has(.student-app) {
 .sd-tip__band {
   color: var(--sd-band-inverse);
   font-weight: var(--sd-fw-semibold);
+}
+
+/* ── Badge earned popup ─────────────────────────────────── */
+
+.sd-badge-toast {
+  position: fixed;
+  bottom: var(--sd-5);
+  left: var(--sd-5);
+  /* Above the reader and the rail, below nothing else — it is the only thing
+     on this page that floats over the layout. */
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sd-2);
+  width: max-content;
+  max-width: 16rem;
+  padding: var(--sd-4) var(--sd-5);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow-lift);
+  text-align: center;
+  animation: sd-badge-toast-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* In from the corner it lives in, so the motion points at where it came from. */
+@keyframes sd-badge-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sd-badge-toast__glyph {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.sd-badge-toast__art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sd-badge-toast__text {
+  margin: 0;
+  font-size: var(--sd-fs-body);
+  /* The whole line is bold, the badge's own name included. */
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.4;
+  color: var(--sd-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-badge-toast {
+    animation: none;
+  }
+}
+
+/* ── Course cards ───────────────────────────────────────── */
+
+.sd-cc-grid {
+  display: grid;
+  /* Cards, not a table of rows: the plot inside needs width to be a plot at
+     all, so the grid holds one card per ~19rem and reflows rather than
+     squeezing every course onto one line. */
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: var(--sd-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-cc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-3);
+  padding: var(--sd-5);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.sd-cc:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--sd-band) 40%, var(--sd-border));
+  box-shadow: var(--sd-shadow-lift);
+}
+
+/* The whole card opens the course. A transparent button laid over it keeps one
+   accessible control per card without nesting the plot inside a <button>. */
+.sd-cc__open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: none;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sd-cc__open:focus-visible {
+  outline: 2px solid var(--sd-band);
+  outline-offset: 2px;
+}
+
+.sd-cc__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sd-3);
+}
+
+.sd-cc__id {
+  min-width: 0;
+}
+
+/* The code leads: it is the short, stable name a student uses for the course. */
+.sd-cc__code {
+  margin: 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.02em;
+  color: var(--sd-ink);
+}
+
+.sd-cc__title {
+  margin: 2px 0 0;
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+}
+
+.sd-cc__figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sd-2);
+}
+
+.sd-cc__label {
+  margin: 0;
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+}
+
+/* A stat-tile value, not a hero figure — the view already has exactly one of
+   those, and proportional figures keep it from reading loose. */
+.sd-cc__value {
+  margin: 0;
+  font-size: var(--sd-fs-h2);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1;
+  color: var(--sd-ink);
+}
+
+.sd-cc__value small {
+  margin-left: 1px;
+  font-size: 0.5em;
+  font-weight: var(--sd-fw-medium);
+  color: var(--sd-muted);
+}
+
+.sd-cc__plot-label {
+  margin: var(--sd-2) 0 0;
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+}
+
+/* ── The per-topic column chart ─────────────────────────── */
+
+.sd-cc-chart {
+  position: relative;
+  /* Height is the plot only — there is no axis band to clip, since the topics
+     are named in the tooltip rather than under the columns. */
+  height: 74px;
+  /* Above the card's click overlay. The overlay covers the whole card, so
+     without this it swallows the pointer before it reaches a column and the
+     per-topic tooltips never fire — the chart's only way to name a topic. */
+  z-index: 2;
+}
+
+/* The passing mark: the same hairline the meters carry, run across the plot.
+   Solid and one step off the surface, so it never competes with the data. */
+.sd-cc-chart__target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--sd-muted);
+  opacity: 0.45;
+}
+
+.sd-cc-chart__plot {
+  display: flex;
+  align-items: flex-end;
+  /* Centred, because the columns are capped: a course with three topics would
+     otherwise draw three bars against the left edge and leave two-thirds of the
+     plot empty, which reads as a broken chart rather than a short one. */
+  justify-content: center;
+  /* Touching marks are separated by surface, not by a stroke. */
+  gap: 2px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-cc-col {
+  position: relative;
+  /* Grows to share the plot, but never past the cap — a column that fills its
+     slot stops being a mark and becomes a slab. */
+  flex: 1 1 0;
+  min-width: 10px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.sd-cc-col__bar {
+  width: 100%;
+  min-height: 2px;
+  /* Rounded at the data end, square where it meets the baseline. */
+  border-radius: 4px 4px 0 0;
+  background: var(--sd-band);
+  transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sd-cc-col:hover .sd-tip,
+.sd-cc-col:focus-within .sd-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.sd-cc__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-2);
+  flex-wrap: wrap;
+}
+
+.sd-cc__note {
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-cc,
+  .sd-cc-col__bar {
+    transition: none;
+  }
+
+  .sd-cc:hover {
+    transform: none;
+  }
 }
 
 /* ── Table view twin ────────────────────────────────────── */

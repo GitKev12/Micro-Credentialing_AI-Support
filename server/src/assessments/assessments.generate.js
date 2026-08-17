@@ -225,6 +225,8 @@ export function buildAssessmentDocument({
   blueprintRow,
   items,
   itemsPerAttempt,
+  itemsPerModule = null,
+  topics = null,
   scope = "lesson",
   model = null,
   usage = null
@@ -250,6 +252,10 @@ export function buildAssessmentDocument({
     credentialName: `${title} Credential`,
     pointsPerItem,
     itemsPerAttempt: perAttempt,
+    // A final says how its questions are divided between the lessons; a lesson
+    // quiz has one lesson and needs neither. See selectItemsFor.
+    itemsPerModule,
+    topics,
     totalPoints,
     passMark: defaultPassMark(totalPoints),
     source: {
@@ -428,6 +434,137 @@ export async function generateModuleAssessment({
 /* ───────────────────────── Assembling the final ───────────────────────── */
 
 /**
+ * Splits `total` whole items across `weights` in proportion, largest remainder
+ * first.
+ *
+ * "Share N whole things out in proportion" is the same problem twice over when
+ * a final is assembled — once across the lessons, once across the levels within
+ * a lesson — and both have to round the same way. Handing the leftovers to the
+ * largest fractions is what keeps it proportional rather than favouring
+ * whichever key happened to be listed first.
+ */
+function shareOut(weights, total) {
+  const keys = Object.keys(weights);
+  const counts = Object.fromEntries(keys.map((key) => [key, 0]));
+
+  const weightOf = (key) => Math.max(0, Number(weights[key]) || 0);
+  const sum = keys.reduce((running, key) => running + weightOf(key), 0);
+  if (!(sum > 0) || !(total > 0)) return counts;
+
+  const exact = {};
+  let assigned = 0;
+  for (const key of keys) {
+    exact[key] = (weightOf(key) / sum) * total;
+    counts[key] = Math.floor(exact[key]);
+    assigned += counts[key];
+  }
+
+  const order = keys
+    .filter((key) => weightOf(key) > 0)
+    .sort((left, right) => exact[right] - counts[right] - (exact[left] - counts[left]));
+
+  let remaining = total - assigned;
+  let cursor = 0;
+  while (remaining > 0 && order.length > 0) {
+    counts[order[cursor % order.length]] += 1;
+    remaining -= 1;
+    cursor += 1;
+  }
+
+  return counts;
+}
+
+/**
+ * How many of the final's questions each lesson gets.
+ *
+ * The blueprint already answers this — its rows are the lessons, and each row
+ * says how many items that lesson is worth — so the split follows the Table of
+ * Specification rather than inventing a rule. Two corrections on top of it:
+ *
+ * No lesson is asked for more questions than its bank holds, and every lesson
+ * has to appear at least once. Skill gap analysis reports one score per lesson,
+ * and a lesson that drew no questions has no score to report: its Skill Score
+ * would be 0/0, which is not a gap, it is a missing measurement.
+ *
+ * A course with more lessons than the paper has questions cannot satisfy that
+ * last rule, and the leftover lessons are returned at zero rather than pretended
+ * about — the caller reports them as unassessed.
+ */
+function allocateAcrossLessons(weights, capacity, total) {
+  const counts = shareOut(weights, total);
+  const lessons = Object.keys(counts);
+  const roomOf = (lesson) => Math.max(0, capacity[lesson] ?? 0);
+
+  for (const lesson of lessons) {
+    counts[lesson] = Math.min(counts[lesson], roomOf(lesson));
+  }
+
+  // Whatever the caps freed goes back to lessons that can still take it, so the
+  // paper stays the length it says it is.
+  let shortfall = total - lessons.reduce((sum, lesson) => sum + counts[lesson], 0);
+  while (shortfall > 0) {
+    const room = lessons.filter((lesson) => counts[lesson] < roomOf(lesson));
+    if (room.length === 0) break;
+
+    for (const lesson of room) {
+      if (shortfall === 0) break;
+      counts[lesson] += 1;
+      shortfall -= 1;
+    }
+  }
+
+  for (const lesson of lessons) {
+    if (counts[lesson] > 0 || roomOf(lesson) < 1) continue;
+
+    const donor = lessons
+      .filter((other) => counts[other] > 1)
+      .sort((left, right) => counts[right] - counts[left])[0];
+    if (!donor) break;
+
+    counts[donor] -= 1;
+    counts[lesson] = 1;
+  }
+
+  return counts;
+}
+
+/**
+ * `count` questions from one lesson's bank, following that lesson's TOS row for
+ * the mix of thinking levels and topping up from the rest of the bank when the
+ * lesson's questions skew to one level.
+ */
+function drawFromLesson(lessonItems, count, distribution, random) {
+  const take = Math.min(count, lessonItems.length);
+  if (take <= 0) return [];
+
+  const byLevel = new Map();
+  for (const item of lessonItems) {
+    const level = TOS_LEVELS.includes(item.level) ? item.level : "";
+    if (!byLevel.has(level)) byLevel.set(level, []);
+    byLevel.get(level).push(item);
+  }
+
+  const wantByLevel = shareOut(
+    Object.fromEntries(TOS_LEVELS.map((level) => [level, distribution?.[level] ?? 0])),
+    take
+  );
+
+  const drawn = [];
+  const used = new Set();
+  for (const level of TOS_LEVELS) {
+    for (const item of sample(byLevel.get(level) ?? [], wantByLevel[level], random)) {
+      drawn.push(item);
+      used.add(item.id);
+    }
+  }
+
+  const remaining = lessonItems.filter((item) => !used.has(item.id));
+  drawn.push(...sample(remaining, take - drawn.length, random));
+
+  return drawn;
+}
+
+/**
  * The final exam, built from the lesson banks — no model call at all.
  *
  * This is what the Table of Specification already describes: its rows are the
@@ -465,20 +602,56 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
     return { status: "skipped", reason: "no-lesson-quizzes" };
   }
 
+  // Every pooled question keeps the lesson it was written for. A final draws
+  // from all of them at once, and skill gap analysis reports one score per
+  // lesson — so the lesson has to travel with the question or a graded final is
+  // a single number with no way back to a topic.
+  //
+  // The id prefix is not that link. It only keeps ids unique across banks that
+  // each number their own questions from 1; `moduleId` is the lesson.
+  const rowByModule = new Map(
+    blueprint.rows.filter((row) => row.moduleId).map((row) => [asId(row.moduleId), row])
+  );
+
   const pool = [];
+  const poolByModule = new Map();
+
   lessonQuizzes.forEach((quiz, quizIndex) => {
+    // A quiz belonging to no lesson cannot be scored per topic, and the final
+    // is the only paper where that matters.
+    if (!quiz.moduleId) return;
+
+    const moduleId = asId(quiz.moduleId);
+    const topic = rowByModule.get(moduleId)?.coverage || quiz.title || "";
+    const lessonItems = [];
+
     (quiz.items ?? []).forEach((item) => {
       const normalized = normalizeItem(item, pool.length);
-      if (normalized) pool.push({ ...normalized, id: `m${quizIndex + 1}-${normalized.id}` });
+      if (!normalized) return;
+
+      const tagged = {
+        ...normalized,
+        id: `m${quizIndex + 1}-${normalized.id}`,
+        moduleId,
+        topic
+      };
+      pool.push(tagged);
+      lessonItems.push(tagged);
     });
+
+    if (lessonItems.length > 0) poolByModule.set(moduleId, lessonItems);
   });
+
+  if (poolByModule.size === 0) {
+    return { status: "skipped", reason: "no-lesson-items" };
+  }
 
   // The final is one sitting, not the sum of the course's lesson quizzes. It
   // used to be exactly `blueprint.totalItems`, which was the same 60 in every
   // imported blueprint — but that number now follows lesson count, so a
   // fifteen-lesson course would set a 150-question paper. Capped at the length
-  // an examination is actually written to be; the blueprint still decides the
-  // mix of levels, and shorter blueprints still give a shorter paper.
+  // an examination is actually written to be; the blueprint still decides how
+  // the paper is divided, and shorter blueprints still give a shorter paper.
   const wanted = Math.min(blueprint.totalItems, FINAL_ASSESSMENT_ITEMS);
   if (pool.length < wanted) {
     return {
@@ -490,74 +663,45 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
   }
 
   const random = seededRandom(hashSeed("final", asId(courseId)));
-  const byLevel = new Map(TOS_LEVELS.map((level) => [level, []]));
-  const unlevelled = [];
-  for (const item of pool) {
-    if (item.level && byLevel.has(item.level)) byLevel.get(item.level).push(item);
-    else unlevelled.push(item);
-  }
 
-  // The blueprint's mix of levels, scaled to the length of the paper. Summing
-  // the rows outright would ask for one item per item in the whole blueprint,
-  // which is the number the cap above just stopped the paper from being.
-  const blueprintByLevel = {};
-  for (const level of TOS_LEVELS) {
-    blueprintByLevel[level] = blueprint.rows.reduce(
-      (sum, row) => sum + (row.distribution?.[level] ?? 0),
-      0
-    );
-  }
-  const blueprintItems = TOS_LEVELS.reduce((sum, level) => sum + blueprintByLevel[level], 0);
+  const lessons = [...poolByModule.keys()];
+  const itemsPerModule = allocateAcrossLessons(
+    Object.fromEntries(lessons.map((id) => [id, rowByModule.get(id)?.items || 1])),
+    Object.fromEntries(lessons.map((id) => [id, poolByModule.get(id).length])),
+    wanted
+  );
 
-  const wantedByLevel = {};
-  if (blueprintItems === 0 || blueprintItems === wanted) {
-    Object.assign(wantedByLevel, blueprintByLevel);
-  } else {
-    // Whole questions only, and they must add up to `wanted`: floor each level,
-    // then hand the leftovers to the levels with the largest fractions.
-    const exact = TOS_LEVELS.map((level) => (blueprintByLevel[level] / blueprintItems) * wanted);
-    const counts = exact.map(Math.floor);
-    let remaining = wanted - counts.reduce((sum, n) => sum + n, 0);
-
-    const order = TOS_LEVELS.map((level, index) => ({ index, fraction: exact[index] - counts[index] }))
-      .filter((entry) => blueprintByLevel[TOS_LEVELS[entry.index]] > 0)
-      .sort((a, b) => b.fraction - a.fraction);
-
-    let cursor = 0;
-    while (remaining > 0 && order.length > 0) {
-      counts[order[cursor % order.length].index] += 1;
-      remaining -= 1;
-      cursor += 1;
-    }
-
-    TOS_LEVELS.forEach((level, index) => {
-      wantedByLevel[level] = counts[index];
-    });
-  }
+  // What each lesson is worth on the paper, kept in the readable form the skill
+  // gap report needs: its name, and the denominator of its Skill Score.
+  const topics = lessons.map((moduleId) => ({
+    moduleId,
+    topic: poolByModule.get(moduleId)[0]?.topic || "",
+    items: itemsPerModule[moduleId] ?? 0
+  }));
 
   // The final gets a bank too, or every student would sit the identical paper —
-  // there is no point drawing 64 questions from a pool of exactly 64. Take a
-  // multiple of the paper length, keeping the blueprint's mix of levels in the
-  // bank, and let each student draw their own 64 out of it.
+  // there is no point drawing 60 questions from a pool of exactly 60. Take a
+  // multiple of each lesson's quota, so the bank holds enough of every lesson
+  // for any student's paper to be fillable from it.
   const scale = Math.max(1, Math.min(DEFAULT_BANK_MULTIPLIER, Math.floor(pool.length / wanted)));
 
-  const picked = [];
-  const used = new Set();
-  for (const level of TOS_LEVELS) {
-    const drawn = sample(byLevel.get(level) ?? [], wantedByLevel[level] * scale, random);
-    for (const item of drawn) {
-      picked.push(item);
-      used.add(item.id);
-    }
-  }
-
-  // Top up from whatever is left, so a course whose questions skew to one level
-  // still fills a bank at least one paper long.
-  const remainder = pool.filter((item) => !used.has(item.id)).concat(unlevelled);
-  const topUp = sample(remainder, Math.max(0, wanted * scale - picked.length), random);
-  const items = picked
-    .concat(topUp)
+  const items = lessons
+    .flatMap((moduleId) =>
+      drawFromLesson(
+        poolByModule.get(moduleId),
+        (itemsPerModule[moduleId] ?? 0) * scale,
+        rowByModule.get(moduleId)?.distribution,
+        random
+      )
+    )
     .map((item, index) => ({ ...item, n: index + 1 }));
+
+  // Reported rather than assumed: the mix a bank actually came out with can
+  // differ from the blueprint when a lesson's questions skew to one level.
+  const byLevel = Object.fromEntries(TOS_LEVELS.map((level) => [level, 0]));
+  for (const item of items) {
+    if (TOS_LEVELS.includes(item.level)) byLevel[item.level] += 1;
+  }
 
   if (dryRun) {
     return {
@@ -566,16 +710,22 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
       pooled: pool.length,
       itemsPerAttempt: wanted,
       bankSize: items.length,
-      byLevel: wantedByLevel
+      byLevel,
+      topics,
+      // Named so the operator sees it before the paper is written, not after a
+      // student's skill gap report comes back with a lesson missing.
+      unassessedLessons: topics.filter((entry) => entry.items === 0).map((entry) => entry.topic)
     };
   }
 
   const document = buildAssessmentDocument({
     course,
     module: null,
-    blueprintRow: { coverage: blueprint.examination, distribution: wantedByLevel },
+    blueprintRow: { coverage: blueprint.examination, distribution: byLevel },
     items,
     itemsPerAttempt: wanted,
+    itemsPerModule,
+    topics,
     scope: "final",
     model: "assembled-from-lesson-banks"
   });

@@ -5,35 +5,33 @@
  * performance banded at 90/75/60, skills at 80/60 — so a 78% course read
  * "Good" while a 78% skill read "Medium". One scale now covers both.
  *
- * Three bands, not four. The band colours are the reserved status palette
- * (good / warning / critical) and adjacent bands have to be tellable apart:
- * a fourth band would have put the palette's yellow beside its orange, a pair
- * that measures ΔE 13.6 to normal vision — under the 15 floor. Dropping to
- * three puts the worst adjacent pair at ΔE 27.6 (11.3 simulated for protanopia
- * and deuteranopia), clear of every gate. Colour never travels alone here
- * either: every band ships an icon and a word.
- *
  * TARGET is the passing mark, and it is what "gap" means everywhere in the UI.
+ * 60% is TSU's passing percentage by memorandum, and it is the same figure the
+ * server sets every paper's pass mark from (DEFAULT_PASS_RATIO). It used to be
+ * 75 here, which meant the dashboard could call a topic failing that the exam
+ * behind it had passed.
+ *
+ * Two bands, not three. The question a skill gap answers is which topics are
+ * gaps, and that is a yes or no against the passing mark — a middle band
+ * invited a third answer to a two-answer question. It also removes the tightest
+ * colour pair: the remaining two are the status palette's good and critical,
+ * far apart to normal vision and still separable under protanopia and
+ * deuteranopia. Colour never travels alone here either: every band ships an
+ * icon and a word.
  */
-export const TARGET = 75;
+export const TARGET = 60;
 
 export const BANDS = {
   strong: {
     id: "strong",
     label: "Strong",
     // Sentence completing "This topic is …" in tooltips and callouts.
-    blurb: "at or above mastery",
+    blurb: "at or above the passing mark",
     tone: "good"
   },
-  developing: {
-    id: "developing",
-    label: "Developing",
-    blurb: "passing, with room to grow",
-    tone: "warn"
-  },
-  focus: {
-    id: "focus",
-    label: "Needs focus",
+  weak: {
+    id: "weak",
+    label: "Weak",
     blurb: "below the passing mark",
     tone: "crit"
   }
@@ -47,10 +45,7 @@ export function toScore(value) {
 }
 
 export function bandFor(value) {
-  const score = toScore(value);
-  if (score >= 85) return BANDS.strong;
-  if (score >= TARGET) return BANDS.developing;
-  return BANDS.focus;
+  return toScore(value) >= TARGET ? BANDS.strong : BANDS.weak;
 }
 
 /** Points still needed to reach the passing mark; 0 once there. */

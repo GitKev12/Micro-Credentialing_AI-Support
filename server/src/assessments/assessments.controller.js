@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { gradeSubmission, toAssessmentSummary, toStudentAssessment } from "./assessments.format.js";
 import { ensureFinalAssessment, ensureLessonAssessment } from "./assessments.autogen.js";
+import { lessonBadgeFor } from "../badges/badges.service.js";
 
 /**
  * Taking a quiz: what is unlocked, what the questions are, and what a
@@ -471,6 +472,23 @@ export async function submitAssessment(request, response) {
 
   await collection(RESULTS_COLLECTION).insertOne(record);
 
+  /**
+   * The badge this pass just earned, so the client can say so by name.
+   *
+   * Only a lesson quiz earns one — a final earns the course credential, which
+   * is an assessor's to release. Sent only on a pass, and only here: this is
+   * the one response that knows a badge was earned *just now* rather than at
+   * some point in the past, which is what a congratulation needs.
+   *
+   * A catalog miss costs the student nothing but the popup — the badge itself
+   * is derived from this result either way (see badges.service.js), so the
+   * wall will still show it.
+   */
+  const passedLessonQuiz = graded.passed && toAssessmentSummary(doc)?.scope === "lesson";
+  const badge = passedLessonQuiz
+    ? await lessonBadgeFor(doc.moduleId).catch(() => null)
+    : null;
+
   return response.status(201).json({
     result: {
       score: graded.score,
@@ -481,6 +499,7 @@ export async function submitAssessment(request, response) {
       itemCount: graded.items.length,
       submittedAt: record.submittedAt,
       reviewStatus: "pending"
-    }
+    },
+    badge
   });
 }

@@ -15,6 +15,8 @@
  *     pointsPerItem,       // default 5, matching reviewConfig in assessors
  *     itemsPerAttempt,     // how many of `items` one student sits; all of them
  *                          // when unset
+ *     itemsPerModule?,     // { <moduleId>: count } — a final's per-lesson quota,
+ *                          // see selectItemsFor. Absent on a lesson quiz.
  *     totalPoints,         // default pointsPerItem * itemsPerAttempt
  *     passMark,            // default 60% of totalPoints, rounded up (TSU)
  *     source: {            // which Table of Specification row this came from
@@ -49,6 +51,12 @@
  * as a multiple-choice one. Grading, the answer payload and the UI then have a
  * single shape to handle, and "true/false" stays a property of the item rather
  * than a second code path through everything that touches a quiz.
+ *
+ * Both types also carry `moduleId` and `topic`: the lesson the question was
+ * written for. A lesson quiz leaves them null, because the assessment itself
+ * names the lesson. A final sets them on every item, because a final draws from
+ * every lesson at once and skill gap analysis reports one score per lesson —
+ * without them a graded final is a single number with no way back to a topic.
  */
 
 import { hashSeed, sample, seededRandom, shuffled } from "../lib/random.js";
@@ -145,8 +153,29 @@ export function normalizeItem(raw, index) {
     q: question,
     choices,
     key,
-    level
+    level,
+    // Where the question came from. Set by the final's assembler; null on a
+    // lesson quiz, whose document already says which lesson it tests.
+    moduleId: text(raw.moduleId) || null,
+    topic: text(raw.topic) || null
   };
+}
+
+/**
+ * A final's per-lesson quota, cleaned. Null when the paper has none, which is
+ * every lesson quiz and any final assembled before quotas existed — both then
+ * fall back to the plain draw in selectItemsFor.
+ */
+function normalizeModuleQuota(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const quota = {};
+  for (const [moduleId, value] of Object.entries(raw)) {
+    const count = Math.floor(Number(value));
+    if (moduleId && count > 0) quota[moduleId] = count;
+  }
+
+  return Object.keys(quota).length > 0 ? quota : null;
 }
 
 export function normalizeAssessment(doc) {
@@ -182,6 +211,8 @@ export function normalizeAssessment(doc) {
     description: text(doc.description),
     pointsPerItem,
     itemsPerAttempt,
+    itemsPerModule: normalizeModuleQuota(doc.itemsPerModule),
+    topics: Array.isArray(doc.topics) ? doc.topics : null,
     totalPoints,
     passMark: Number(doc.passMark) > 0 ? Number(doc.passMark) : defaultPassMark(totalPoints),
     source: doc.source ?? null,
@@ -204,7 +235,44 @@ export function selectItemsFor(assessment, studentId) {
   if (!assessment) return [];
 
   const random = seededRandom(hashSeed(String(studentId ?? ""), String(assessment.id)));
-  return sample(assessment.items, assessment.itemsPerAttempt, random);
+
+  // A lesson quiz draws from one lesson, so any sample of it is a fair paper.
+  if (!assessment.itemsPerModule) {
+    return sample(assessment.items, assessment.itemsPerAttempt, random);
+  }
+
+  // A final must not be drawn that way. Its bank holds every lesson's
+  // questions, and a plain sample of 60 out of 180 can miss a lesson entirely —
+  // which skill gap analysis cannot report on, and cannot divide by. So the
+  // draw is per lesson, to the quota the blueprint set when the paper was
+  // assembled. Same seed, so the paper is still stable across reloads.
+  const byModule = new Map();
+  for (const item of assessment.items) {
+    const key = String(item.moduleId ?? "");
+    if (!byModule.has(key)) byModule.set(key, []);
+    byModule.get(key).push(item);
+  }
+
+  const drawn = [];
+  for (const [moduleId, count] of Object.entries(assessment.itemsPerModule)) {
+    drawn.push(...sample(byModule.get(moduleId) ?? [], count, random));
+  }
+
+  // A lesson whose bank came up short would leave the paper below its stated
+  // length, and totalPoints is already written on the document — so make the
+  // count up from whatever is left rather than quietly serving a shorter paper.
+  if (drawn.length < assessment.itemsPerAttempt) {
+    const taken = new Set(drawn.map((item) => item.id));
+    drawn.push(
+      ...sample(
+        assessment.items.filter((item) => !taken.has(item.id)),
+        assessment.itemsPerAttempt - drawn.length,
+        random
+      )
+    );
+  }
+
+  return drawn.slice(0, assessment.itemsPerAttempt);
 }
 
 /**
@@ -226,14 +294,17 @@ export function toStudentAssessment(doc, { studentId = "", shuffle = true } = {}
   const assessment = normalizeAssessment(doc);
   if (!assessment) return null;
 
-  const { items: _bank, ...rest } = assessment;
+  const { items: _bank, itemsPerModule: _quota, topics: _topics, ...rest } = assessment;
   const drawn = selectItemsFor(assessment, studentId);
   const ordered = shuffle ? shuffled(drawn) : drawn;
 
   return {
     ...rest,
     itemCount: ordered.length,
-    items: ordered.map(({ key: _key, ...item }) => ({
+    // `moduleId` and `topic` go the same way as the key: they are how the paper
+    // is scored, not part of the question. Sitting the exam does not need to
+    // know which lesson each item came from, and the mark does not depend on it.
+    items: ordered.map(({ key: _key, moduleId: _moduleId, topic: _topic, ...item }) => ({
       ...item,
       choices: shuffle ? shuffled(item.choices) : item.choices
     }))
@@ -248,7 +319,9 @@ export function toAssessmentSummary(doc) {
   const assessment = normalizeAssessment(doc);
   if (!assessment) return null;
 
-  const { items: _items, ...rest } = assessment;
+  // The quota and the topic list are how a final is built and scored, not part
+  // of a rail row — the rail only needs to say how long the paper is.
+  const { items: _items, itemsPerModule: _quota, topics: _topics, ...rest } = assessment;
   return { ...rest, itemCount: assessment.itemsPerAttempt };
 }
 
@@ -280,7 +353,12 @@ export function gradeSubmission(assessmentDoc, answers, { studentId = "" } = {})
     return {
       itemId: item.id,
       verdict: chosen === item.key ? "correct" : "incorrect",
-      chosen: chosen || null
+      chosen: chosen || null,
+      // Carried onto the result so a final can be scored per lesson without
+      // re-opening the assessment and matching item ids back to it. Null on a
+      // lesson quiz, where the result already names its module.
+      moduleId: item.moduleId ?? null,
+      topic: item.topic ?? null
     };
   });
 

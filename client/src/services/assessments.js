@@ -75,6 +75,11 @@ export async function fetchAssessment(studentId, assessmentId) {
 /**
  * Submits answers as [{ itemId, choice }]. A second attempt answers 409 with
  * the mark already on record, which the caller shows instead of an error.
+ *
+ * `badge` rides along on a passing lesson quiz — { id, name, icon, iconType } —
+ * and is null on a fail, on a final, and on a re-submission. It is what the
+ * "You Earned …" popup is drawn from, so it arrives only when the badge was
+ * earned by *this* submission rather than at some earlier point.
  */
 export async function submitAssessment(studentId, assessmentId, answers) {
   try {
@@ -82,7 +87,7 @@ export async function submitAssessment(studentId, assessmentId, answers) {
       `/students/${studentId}/assessments/${assessmentId}/submit`,
       { answers }
     );
-    return { result: data?.result ?? null };
+    return { result: data?.result ?? null, badge: data?.badge ?? null };
   } catch (error) {
     const status = error.response?.status;
     if (status === 409) {

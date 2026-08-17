@@ -88,10 +88,16 @@ export function Segmented({ options, value, onChange, label }) {
   );
 }
 
-/** Avatar disc + name + id number, used across every list. */
-export function Person({ name, sid, size = "md" }) {
+/**
+ * Avatar disc + name + id number, used across every list.
+ *
+ * `as` exists for the one caller that renders this inside a <button> — the
+ * To Grade group heading, which folds a student's submissions. A button may
+ * only contain phrasing content, so the default <div> would be invalid there.
+ */
+export function Person({ name, sid, size = "md", as: Tag = "div" }) {
   return (
-    <div className="person">
+    <Tag className="person">
       <span className={`person__disc${size === "lg" ? " person__disc--lg" : ""}`}>
         <UserIcon size={size === "lg" ? 62 : 30} color="var(--brand)" />
       </span>
@@ -99,7 +105,7 @@ export function Person({ name, sid, size = "md" }) {
         <span className="person__name">{name}</span>
         {sid ? <span className="person__id" style={{ display: "block" }}>{sid}</span> : null}
       </span>
-    </div>
+    </Tag>
   );
 }
 
