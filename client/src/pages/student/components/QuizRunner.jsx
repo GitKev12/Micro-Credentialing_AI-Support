@@ -34,6 +34,9 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
     needsGeneration ? { status: "offer" } : { status: "loading" }
   );
   const [answers, setAnswers] = useState({});
+  // Which question is on screen. The paper is answered one question at a time,
+  // in whatever order the student picks.
+  const [current, setCurrent] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -45,6 +48,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
     setResolvedId(needsGeneration ? null : incomingId);
     setState(needsGeneration ? { status: "offer" } : { status: "loading" });
     setAnswers({});
+    setCurrent(0);
     setResult(null);
     setError("");
   }, [incomingId, needsGeneration]);
@@ -119,6 +123,32 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
     [items, answers]
   );
   const allAnswered = items.length > 0 && answeredCount === items.length;
+  const question = items[current] ?? null;
+
+  // A paper that arrives shorter than the one before it must not leave the
+  // pager pointing past its end.
+  useEffect(() => {
+    setCurrent((index) => (index < items.length ? index : 0));
+  }, [items.length]);
+
+  /**
+   * Where "Skip" lands: the next question with no answer on it, searched
+   * forward and wrapped past the end so the last unanswered questions are
+   * reachable from anywhere. Never the question already on screen — skipping
+   * onto yourself is not a move — and null when nothing else is blank, which
+   * is what hides the button.
+   */
+  const nextUnanswered = useMemo(() => {
+    for (let step = 1; step < items.length; step += 1) {
+      const index = (current + step) % items.length;
+      if (!answers[items[index].id]) return index;
+    }
+    return null;
+  }, [items, answers, current]);
+
+  const goSkip = () => {
+    if (nextUnanswered !== null) setCurrent(nextUnanswered);
+  };
 
   const choose = (itemId, choiceId) => {
     setAnswers((current) => ({ ...current, [itemId]: choiceId }));
@@ -247,48 +277,102 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
         </div>
       ) : null}
 
-      <ol className="sd-quiz__items">
-        {items.map((item, index) => (
-          <li className="sd-quiz__item" key={item.id}>
-            <p className="sd-quiz__q">
-              <span className="sd-quiz__n">{index + 1}</span>
-              {item.q}
-              <span className="sd-quiz__type">
-                {item.type === "true-false" ? "True or false" : "Multiple choice"}
-              </span>
-            </p>
+      {/* The number strip: which question you are on, which are answered, and
+          the way to any of them. A quiz is answered in whatever order the
+          student likes, so this is navigation rather than a progress read-out. */}
+      <nav className="sd-quiz__pager" aria-label="Questions in this quiz">
+        {items.map((item, index) => {
+          const answered = Boolean(answers[item.id]);
+          return (
+            <button
+              type="button"
+              key={item.id}
+              className={
+                "sd-quiz__pager-btn" +
+                (index === current ? " is-current" : "") +
+                (answered ? " is-answered" : "")
+              }
+              aria-current={index === current ? "true" : undefined}
+              aria-label={`Question ${index + 1}, ${answered ? "answered" : "not answered"}`}
+              onClick={() => setCurrent(index)}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
+      </nav>
 
-            <div className="sd-quiz__choices" role="radiogroup" aria-label={item.q}>
-              {item.choices.map((choice) => {
-                const picked = answers[item.id] === choice.id;
-                return (
-                  <label
-                    className={`sd-quiz__choice${picked ? " is-picked" : ""}`}
-                    key={choice.id}
-                  >
-                    <input
-                      type="radio"
-                      name={`item-${item.id}`}
-                      value={choice.id}
-                      checked={picked}
-                      disabled={done}
-                      onChange={() => choose(item.id, choice.id)}
-                    />
-                    <span className="sd-quiz__choice-text">{choice.text}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </li>
-        ))}
-      </ol>
+      {question ? (
+        <div className="sd-quiz__item sd-quiz__item--single" key={question.id}>
+          <p className="sd-quiz__q">
+            <span className="sd-quiz__n">{current + 1}</span>
+            {question.q}
+            <span className="sd-quiz__type">
+              {question.type === "true-false" ? "True or false" : "Multiple choice"}
+            </span>
+          </p>
+
+          <div className="sd-quiz__choices" role="radiogroup" aria-label={question.q}>
+            {question.choices.map((choice) => {
+              const picked = answers[question.id] === choice.id;
+              return (
+                <label
+                  className={`sd-quiz__choice${picked ? " is-picked" : ""}`}
+                  key={choice.id}
+                >
+                  <input
+                    type="radio"
+                    name={`item-${question.id}`}
+                    value={choice.id}
+                    checked={picked}
+                    disabled={done}
+                    onChange={() => choose(question.id, choice.id)}
+                  />
+                  <span className="sd-quiz__choice-text">{choice.text}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {error ? <p className="sd-quiz__error">{error}</p> : null}
+
+      {/* Moving between questions. Skip and Next both go forward; they differ in
+          where they land. Next is the next number, which is what someone
+          working straight through wants. Skip hunts down the next question with
+          no answer on it and wraps past the end to find one — so a student who
+          left three blank on the way through is walked back to exactly those,
+          rather than paging through the finished ones to reach them. */}
+      <div className="sd-quiz__nav">
+        <span className="sd-quiz__progress">
+          Question {current + 1} of {items.length} · {answeredCount} answered
+        </span>
+
+        <div className="sd-quiz__nav-btns">
+          {!done && nextUnanswered !== null ? (
+            <button type="button" className="sd-quiz__skip" onClick={goSkip}>
+              Skip
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            className="module-row__action"
+            disabled={current >= items.length - 1}
+            onClick={() => setCurrent((index) => Math.min(index + 1, items.length - 1))}
+          >
+            Next question
+          </button>
+        </div>
+      </div>
 
       {!done ? (
         <div className="sd-quiz__actions">
           <span className="sd-quiz__progress">
-            {answeredCount} of {items.length} answered
+            {allAnswered
+              ? "Every question answered — hand it in when you are ready."
+              : `${items.length - answeredCount} still to answer`}
           </span>
           <button
             type="button"

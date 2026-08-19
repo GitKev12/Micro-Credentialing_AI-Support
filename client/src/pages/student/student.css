@@ -2645,6 +2645,92 @@ body:has(.student-app) {
   flex: 1;
 }
 
+/* The number strip. Every question in the paper is a target, so the state of
+   each one has to be readable at a glance: filled means answered, outlined
+   means blank, and the ring marks where you are. State is never colour alone —
+   an answered button is filled *and* weightier, and the current one carries a
+   ring the others do not. */
+.sd-quiz__pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sd-2);
+  padding-bottom: var(--sd-3);
+  border-bottom: 1px solid var(--sd-border);
+}
+
+.sd-quiz__pager-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--sd-border-strong);
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-surface);
+  color: var(--sd-muted);
+  font-family: inherit;
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-medium);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.sd-quiz__pager-btn:hover {
+  border-color: var(--sd-brand);
+  color: var(--sd-brand-text);
+}
+
+.sd-quiz__pager-btn.is-answered {
+  background: var(--sd-brand-wash);
+  border-color: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-weight: var(--sd-fw-semibold);
+}
+
+.sd-quiz__pager-btn.is-current {
+  border-color: var(--sd-brand);
+  box-shadow: 0 0 0 2px var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+}
+
+/* One question on screen: it carries the whole pane, so it sits flatter and
+   roomier than a row in a list ever needed to. */
+.sd-quiz__item--single {
+  padding: var(--sd-4);
+}
+
+.sd-quiz__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-3);
+  flex-wrap: wrap;
+}
+
+.sd-quiz__nav-btns {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-2);
+}
+
+/* Skip is the quieter of the two: leaving a question blank is a detour, not
+   the way through the paper. */
+.sd-quiz__skip {
+  padding: var(--sd-2) var(--sd-3);
+  border: 1px solid var(--sd-border-strong);
+  border-radius: var(--sd-r-pill);
+  background: transparent;
+  color: var(--sd-muted);
+  font-family: inherit;
+  font-size: var(--sd-fs-label);
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.sd-quiz__skip:hover {
+  border-color: var(--sd-brand);
+  color: var(--sd-brand-text);
+}
+
 .sd-quiz__actions {
   display: flex;
   align-items: center;

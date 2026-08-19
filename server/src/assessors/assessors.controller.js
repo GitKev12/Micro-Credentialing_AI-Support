@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
-import { defaultPassMark } from "../assessments/assessments.format.js";
+import { DEFAULT_POINTS_PER_ITEM, defaultPassMark } from "../assessments/assessments.format.js";
 import { issueCertificate } from "../certificates/certificates.service.js";
 import { aiStatusOf, isReleased, openFlags } from "./grading.js";
 
@@ -112,7 +112,7 @@ async function resultsForCourses(courses) {
  * would inflate every total on these screens several times over.
  */
 function reviewConfig(assessment, itemCount) {
-  const pointsPerItem = assessment?.pointsPerItem ?? 5;
+  const pointsPerItem = assessment?.pointsPerItem ?? DEFAULT_POINTS_PER_ITEM;
   const perAttempt = Number(assessment?.itemsPerAttempt) > 0
     ? Number(assessment.itemsPerAttempt)
     : itemCount;

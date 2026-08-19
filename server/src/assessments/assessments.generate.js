@@ -3,6 +3,7 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { hashSeed, sample, seededRandom } from "../lib/random.js";
 import { loadLessonBlueprint, loadQuizBlueprint } from "./assessments.blueprint.js";
 import {
+  DEFAULT_POINTS_PER_ITEM,
   ITEM_TYPES,
   TOS_LEVELS,
   defaultPassMark,
@@ -46,7 +47,6 @@ const COURSES_COLLECTION = "Course";
 const TEXT_COLLECTION = "ModuleText";
 
 const DEFAULT_BANK_MULTIPLIER = 3;
-const DEFAULT_POINTS_PER_ITEM = 5;
 
 /**
  * How long a final assessment is, whatever the blueprint adds up to.

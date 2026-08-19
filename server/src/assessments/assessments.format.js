@@ -12,7 +12,7 @@
  *     moduleId,            // the lesson it tests; null when scope is "final"
  *     title, description,
  *     credentialName?,     // defaults to "<title> Credential"
- *     pointsPerItem,       // default 5, matching reviewConfig in assessors
+ *     pointsPerItem,       // default 1 — see DEFAULT_POINTS_PER_ITEM
  *     itemsPerAttempt,     // how many of `items` one student sits; all of them
  *                          // when unset
  *     itemsPerModule?,     // { <moduleId>: count } — a final's per-lesson quota,
@@ -77,7 +77,20 @@ const TRUE_FALSE_CHOICES = [
   { id: "false", text: "False" }
 ];
 
-const DEFAULT_POINTS_PER_ITEM = 5;
+/**
+ * What one correct answer is worth.
+ *
+ * One point per item, so a paper's score reads as the number of questions the
+ * student actually got right. It was 5, which meant a 60-item final was marked
+ * out of 300 and every figure on screen had to be divided by five before it
+ * meant anything to anyone.
+ *
+ * Exported rather than repeated: this used to be written out in three separate
+ * files, which is the same way DEFAULT_PASS_RATIO below once ended up meaning
+ * three different things. An assessment that carries its own `pointsPerItem`
+ * still wins — a stored value is a decision someone made about that paper.
+ */
+export const DEFAULT_POINTS_PER_ITEM = 1;
 
 /**
  * The passing mark, as a share of an assessment's total points.

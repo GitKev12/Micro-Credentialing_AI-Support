@@ -135,140 +135,140 @@ function StudentDashboard() {
           </section>
         ) : (
           <>
-            {/* Hero — the one figure this view leads with. */}
-            <section className="sd-hero" aria-labelledby="sd-overall-label">
-              <div>
-                <p className="sd-hero__greeting">
-                  {greeting()}, <span>{firstName(student?.displayName)}</span>
-                </p>
-                <p className="sd-sub">
-                  {gaps.length === 0
-                    ? `Every topic you have been assessed on sits at or above the ${TARGET}% passing mark.`
-                    : `${gaps.length} ${
-                        gaps.length === 1 ? "topic sits" : "topics sit"
-                      } below the ${TARGET}% passing mark across ${courses.length} ${
-                        courses.length === 1 ? "course" : "courses"
-                      }. The list below is ordered by where you would gain the most.`}
-                </p>
-              </div>
+            {/*/!* Hero — the one figure this view leads with. *!/*/}
+            {/*<section className="sd-hero" aria-labelledby="sd-overall-label">*/}
+            {/*  <div>*/}
+            {/*    <p className="sd-hero__greeting">*/}
+            {/*      {greeting()}, <span>{firstName(student?.displayName)}</span>*/}
+            {/*    </p>*/}
+            {/*    <p className="sd-sub">*/}
+            {/*      {gaps.length === 0*/}
+            {/*        ? `Every topic you have been assessed on sits at or above the ${TARGET}% passing mark.`*/}
+            {/*        : `${gaps.length} ${*/}
+            {/*            gaps.length === 1 ? "topic sits" : "topics sit"*/}
+            {/*          } below the ${TARGET}% passing mark across ${courses.length} ${*/}
+            {/*            courses.length === 1 ? "course" : "courses"*/}
+            {/*          }. The list below is ordered by where you would gain the most.`}*/}
+            {/*    </p>*/}
+            {/*  </div>*/}
 
-              <div className="sd-hero__figure">
-                <p className="sd-hero__label" id="sd-overall-label">
-                  Overall performance
-                </p>
-                <p className="sd-hero__value">
-                  {overall}
-                  <small>%</small>
-                </p>
-                <div className="sd-hero__meter">
-                  <Meter
-                    value={overall}
-                    band={overallBand}
-                    label={`Overall performance across all courses: ${overall} percent, ${overallBand.label}`}
-                  />
-                </div>
-                <div className="sd-hero__foot">
-                  <TargetLegend />
-                  <BandChip band={overallBand} />
-                </div>
-              </div>
-            </section>
+            {/*  <div className="sd-hero__figure">*/}
+            {/*    <p className="sd-hero__label" id="sd-overall-label">*/}
+            {/*      Overall performance*/}
+            {/*    </p>*/}
+            {/*    <p className="sd-hero__value">*/}
+            {/*      {overall}*/}
+            {/*      <small>%</small>*/}
+            {/*    </p>*/}
+            {/*    <div className="sd-hero__meter">*/}
+            {/*      <Meter*/}
+            {/*        value={overall}*/}
+            {/*        band={overallBand}*/}
+            {/*        label={`Overall performance across all courses: ${overall} percent, ${overallBand.label}`}*/}
+            {/*      />*/}
+            {/*    </div>*/}
+            {/*    <div className="sd-hero__foot">*/}
+            {/*      <TargetLegend />*/}
+            {/*      <BandChip band={overallBand} />*/}
+            {/*    </div>*/}
+            {/*  </div>*/}
+            {/*</section>*/}
 
-            {/* KPI row — headline counts, no chart needed. */}
-            <ul className="sd-kpis">
-              <StatTile
-                icon={<BookIcon />}
-                label="Courses tracked"
-                value={courses.length}
-                note={
-                  completedCount
-                    ? `${completedCount} completed · ${courses.length - completedCount} in progress`
-                    : "All in progress"
-                }
-              />
-              <StatTile
-                icon={<SkillsIcon />}
-                label="Topics assessed"
-                value={allSkills.length}
-                note={
-                  allSkills.length
-                    ? `Averaging ${averageScore(allSkills.map((skill) => skill.score))}% across every topic`
-                    : "No topic scores yet"
-                }
-              />
-              <StatTile
-                icon={<TargetIcon />}
-                label="Topics below passing"
-                value={gaps.length}
-                note={
-                  gaps.length
-                    ? `Closing them needs ${gaps.reduce(
-                        (sum, skill) => sum + gapToTarget(skill.score),
-                        0
-                      )} points in total`
-                    : `Nothing under the ${TARGET}% mark`
-                }
-              />
-            </ul>
+            {/*/!* KPI row — headline counts, no chart needed. *!/*/}
+            {/*<ul className="sd-kpis">*/}
+            {/*  <StatTile*/}
+            {/*    icon={<BookIcon />}*/}
+            {/*    label="Courses tracked"*/}
+            {/*    value={courses.length}*/}
+            {/*    note={*/}
+            {/*      completedCount*/}
+            {/*        ? `${completedCount} completed · ${courses.length - completedCount} in progress`*/}
+            {/*        : "All in progress"*/}
+            {/*    }*/}
+            {/*  />*/}
+            {/*  <StatTile*/}
+            {/*    icon={<SkillsIcon />}*/}
+            {/*    label="Topics assessed"*/}
+            {/*    value={allSkills.length}*/}
+            {/*    note={*/}
+            {/*      allSkills.length*/}
+            {/*        ? `Averaging ${averageScore(allSkills.map((skill) => skill.score))}% across every topic`*/}
+            {/*        : "No topic scores yet"*/}
+            {/*    }*/}
+            {/*  />*/}
+            {/*  <StatTile*/}
+            {/*    icon={<TargetIcon />}*/}
+            {/*    label="Topics below passing"*/}
+            {/*    value={gaps.length}*/}
+            {/*    note={*/}
+            {/*      gaps.length*/}
+            {/*        ? `Closing them needs ${gaps.reduce(*/}
+            {/*            (sum, skill) => sum + gapToTarget(skill.score),*/}
+            {/*            0*/}
+            {/*          )} points in total`*/}
+            {/*        : `Nothing under the ${TARGET}% mark`*/}
+            {/*    }*/}
+            {/*  />*/}
+            {/*</ul>*/}
 
-            {/* Cross-course focus list — the weakest topics, wherever they live. */}
-            {allSkills.length ? (
-              <section className="sd-card" aria-labelledby="sd-focus-title">
-                <header className="sd-section-head">
-                  <div className="sd-section-head__text">
-                    <p className="sd-eyebrow">Where to focus next</p>
-                    <h2 className="sd-h3" id="sd-focus-title">
-                      Your weakest topics
-                    </h2>
-                    <p className="sd-sub">
-                      Ordered lowest first across every course you are enrolled in.
-                    </p>
-                  </div>
-                  <TargetLegend />
-                </header>
+            {/*/!* Cross-course focus list — the weakest topics, wherever they live. *!/*/}
+            {/*{allSkills.length ? (*/}
+            {/*  <section className="sd-card" aria-labelledby="sd-focus-title">*/}
+            {/*    <header className="sd-section-head">*/}
+            {/*      <div className="sd-section-head__text">*/}
+            {/*        <p className="sd-eyebrow">Where to focus next</p>*/}
+            {/*        <h2 className="sd-h3" id="sd-focus-title">*/}
+            {/*          Your weakest topics*/}
+            {/*        </h2>*/}
+            {/*        <p className="sd-sub">*/}
+            {/*          Ordered lowest first across every course you are enrolled in.*/}
+            {/*        </p>*/}
+            {/*      </div>*/}
+            {/*      <TargetLegend />*/}
+            {/*    </header>*/}
 
-                <ul className="sd-focus__list">
-                  {allSkills.slice(0, FOCUS_LIMIT).map((skill) => {
-                    const band = bandFor(skill.score);
-                    const course = courses.find((entry) => entry.id === skill.courseId);
+            {/*    <ul className="sd-focus__list">*/}
+            {/*      {allSkills.slice(0, FOCUS_LIMIT).map((skill) => {*/}
+            {/*        const band = bandFor(skill.score);*/}
+            {/*        const course = courses.find((entry) => entry.id === skill.courseId);*/}
 
-                    return (
-                      <li className="sd-focus__row" key={skill.key} data-band={band.id}>
-                        <div>
-                          <p className="sd-focus__topic">{skill.topic}</p>
-                          <p className="sd-focus__course">{skill.courseTitle}</p>
-                        </div>
+            {/*        return (*/}
+            {/*          <li className="sd-focus__row" key={skill.key} data-band={band.id}>*/}
+            {/*            <div>*/}
+            {/*              <p className="sd-focus__topic">{skill.topic}</p>*/}
+            {/*              <p className="sd-focus__course">{skill.courseTitle}</p>*/}
+            {/*            </div>*/}
 
-                        <div className="sd-focus__meter">
-                          <Meter
-                            value={skill.score}
-                            band={band}
-                            small
-                            label={`${skill.topic} in ${skill.courseTitle}: ${skill.score} percent, ${band.label}`}
-                          />
-                        </div>
+            {/*            <div className="sd-focus__meter">*/}
+            {/*              <Meter*/}
+            {/*                value={skill.score}*/}
+            {/*                band={band}*/}
+            {/*                small*/}
+            {/*                label={`${skill.topic} in ${skill.courseTitle}: ${skill.score} percent, ${band.label}`}*/}
+            {/*              />*/}
+            {/*            </div>*/}
 
-                        <span className="sd-focus__value">
-                          {toScore(skill.score)}
-                          <small>%</small>
-                        </span>
+            {/*            <span className="sd-focus__value">*/}
+            {/*              {toScore(skill.score)}*/}
+            {/*              <small>%</small>*/}
+            {/*            </span>*/}
 
-                        {/* The course grid used to be the way into the full
-                            analysis; the row that names the course now is. */}
-                        {course ? (
-                          <button
-                            type="button"
-                            className="sd-focus__open"
-                            onClick={() => setSelected(course)}
-                            aria-label={`Open the full skill gap analysis for ${skill.courseTitle}`}
-                          />
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ) : null}
+            {/*            /!* The course grid used to be the way into the full*/}
+            {/*                analysis; the row that names the course now is. *!/*/}
+            {/*            {course ? (*/}
+            {/*              <button*/}
+            {/*                type="button"*/}
+            {/*                className="sd-focus__open"*/}
+            {/*                onClick={() => setSelected(course)}*/}
+            {/*                aria-label={`Open the full skill gap analysis for ${skill.courseTitle}`}*/}
+            {/*              />*/}
+            {/*            ) : null}*/}
+            {/*          </li>*/}
+            {/*        );*/}
+            {/*      })}*/}
+            {/*    </ul>*/}
+            {/*  </section>*/}
+            {/*) : null}*/}
 
             {/* Every course, not just the five weakest topics' courses.
                 The focus list above is capped, so without this a course whose
@@ -282,12 +282,7 @@ function StudentDashboard() {
                   <h2 className="sd-h3" id="sd-courses-title">
                     Your courses
                   </h2>
-                  <p className="sd-sub">
-                    One card per course — its overall score and the shape behind it.
-                    Open a card for the topic-by-topic analysis.
-                  </p>
                 </div>
-                <TargetLegend />
               </header>
 
               <ul className="sd-cc-grid">

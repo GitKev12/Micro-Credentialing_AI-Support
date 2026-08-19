@@ -9,7 +9,7 @@ import { CheckIcon } from "./components/icons";
 import { Chip, Metric, Person, ScreenHeader } from "./components/ui";
 
 const CREDENTIALS_INTRO =
-  "A micro-credential is issued only after an assessor approves the final grade. AI scoring is a recommendation — your approval is what puts the badge on the student's record.";
+  "Nothing here has been awarded yet. The AI's score is only a suggestion — approving it is what puts the credential on the student's record.";
 
 function CredentialsPage() {
   const navigate = useNavigate();

@@ -30,9 +30,17 @@
  * cleared. Normalising over total correct keeps the weighting the document
  * asked for (strong topics pull the figure up) without that collapse.
  *
- * Overall performance is those two combined:
+ * Overall performance is NOT those two combined. It is the exam mark:
  *
- *     Overall (%) = SUM( Wi x Skill Score i )
+ *     Overall (%) = (total correct / total items) x 100
+ *
+ * The weighted combination SUM( Wi x Skill Score i ) is reported alongside it
+ * as `weightedPerformance`, because that is what the career recommendation
+ * reads. The two answer different questions, and only one of them belongs
+ * under a label that says "Overall Performance": weighting by correct answers
+ * gives a topic the student scored nothing in a weight of zero, so it vanishes
+ * from the total instead of lowering it. A 47-out-of-60 paper came out at 98%
+ * that way, sitting directly above two topics marked weak at 0%.
  *
  * ── The threshold ──────────────────────────────────────────────────────────
  * 60%, which is TSU's passing percentage by memorandum — the same figure
@@ -153,7 +161,22 @@ export function skillGapFromFinal(result, assessment) {
     };
   });
 
-  const performance =
+  const itemsAsked = skills.reduce((sum, skill) => sum + skill.total, 0);
+
+  // Overall performance is the exam mark, plainly: what the student scored on
+  // the paper they sat. It used to be the weighted figure below, which reads
+  // far higher than the exam — a student who answered 47 of 60 was shown 98%,
+  // printed directly above two topics marked weak at 0%. Weighting by correct
+  // answers gives a topic nobody scored in a weight of zero, so it drops out of
+  // the total rather than pulling it down, and the figure stops describing the
+  // exam it is sitting under.
+  const performance = itemsAsked > 0 ? (totalCorrect / itemsAsked) * 100 : 0;
+
+  // The weighted figure is still computed, because Wi is what the career
+  // recommendation is built on: it asks a different question — "when this
+  // student succeeds, which topics is that success coming from" — and for that
+  // purpose weighting by correct answers is the point rather than the flaw.
+  const weightedPerformance =
     totalCorrect > 0
       ? skills.reduce((sum, skill) => sum + (skill.correct / totalCorrect) * skill.score, 0)
       : 0;
@@ -161,7 +184,8 @@ export function skillGapFromFinal(result, assessment) {
   return {
     skills: skills.sort((left, right) => left.score - right.score),
     performance: Math.round(performance),
-    itemsAsked: skills.reduce((sum, skill) => sum + skill.total, 0),
+    weightedPerformance: Math.round(weightedPerformance),
+    itemsAsked,
     itemsCorrect: totalCorrect
   };
 }

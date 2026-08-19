@@ -976,6 +976,51 @@
   text-wrap: pretty;
 }
 
+/* The three steps. Numbered because the order is the point — the assessor's
+   turn comes second, and nothing reaches the student until the third. */
+.explainer__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.explainer__step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--sp-3);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: var(--text-body);
+  text-wrap: pretty;
+}
+
+.explainer__step-num {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--brand-hover);
+  color: var(--brand-text);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The exception to the three steps, kept quieter than them. */
+.explainer__note {
+  margin: 0;
+  padding-left: calc(1.5rem + var(--sp-3));
+  font-size: var(--fs-label);
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
 .explainer__tags {
   display: flex;
   gap: var(--sp-2);
