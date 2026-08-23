@@ -67,8 +67,21 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
           return;
         }
         setState({ status: "ready", assessment: data.assessment });
-        // A quiz already sat opens straight to its mark.
-        if (data.result) setResult(data.result);
+
+        // A quiz already sat opens straight to its mark — and to the answers
+        // that earned it. Restoring them is what makes reopening a paper a
+        // review rather than a blank form: every question shows the choice the
+        // student made, and the marks have something to sit against.
+        if (data.result) {
+          setResult(data.result);
+          setAnswers(
+            Object.fromEntries(
+              (data.result.items ?? [])
+                .filter((item) => item.choice)
+                .map((item) => [String(item.itemId), item.choice])
+            )
+          );
+        }
       })
       .catch(() => {
         if (active) setState({ status: "error" });
@@ -149,6 +162,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
   const goSkip = () => {
     if (nextUnanswered !== null) setCurrent(nextUnanswered);
   };
+
+  /**
+   * How each question was marked, once the paper is in. Empty until then, which
+   * is what keeps the strip neutral while the quiz is still being answered —
+   * a number must not go red for a question that has simply not been marked yet.
+   */
+  const verdicts = useMemo(() => {
+    const byItem = new Map();
+    for (const item of result?.items ?? []) byItem.set(String(item.itemId), item.verdict);
+    return byItem;
+  }, [result]);
+
+  // How the question on screen was marked — null while the paper is unmarked.
+  const questionVerdict = question ? (verdicts.get(String(question.id)) ?? null) : null;
 
   const choose = (itemId, choiceId) => {
     setAnswers((current) => ({ ...current, [itemId]: choiceId }));
@@ -283,6 +310,12 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
       <nav className="sd-quiz__pager" aria-label="Questions in this quiz">
         {items.map((item, index) => {
           const answered = Boolean(answers[item.id]);
+          const verdict = verdicts.get(String(item.id)) ?? null;
+          // Marked state replaces answered state rather than stacking on it:
+          // once a paper is in, "you put something here" stops being the useful
+          // fact and "you got it wrong" starts being it.
+          const marked = verdict === "correct" || verdict === "incorrect";
+
           return (
             <button
               type="button"
@@ -290,10 +323,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
               className={
                 "sd-quiz__pager-btn" +
                 (index === current ? " is-current" : "") +
-                (answered ? " is-answered" : "")
+                (marked
+                  ? verdict === "correct"
+                    ? " is-correct"
+                    : " is-wrong"
+                  : answered
+                    ? " is-answered"
+                    : "")
               }
               aria-current={index === current ? "true" : undefined}
-              aria-label={`Question ${index + 1}, ${answered ? "answered" : "not answered"}`}
+              aria-label={
+                marked
+                  ? `Question ${index + 1}, ${verdict === "correct" ? "correct" : "incorrect"}`
+                  : `Question ${index + 1}, ${answered ? "answered" : "not answered"}`
+              }
               onClick={() => setCurrent(index)}
             >
               {index + 1}
@@ -315,9 +358,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
           <div className="sd-quiz__choices" role="radiogroup" aria-label={question.q}>
             {question.choices.map((choice) => {
               const picked = answers[question.id] === choice.id;
+              // Once marked, the answer the student put down carries the
+              // verdict for this question. Only their own choice is coloured:
+              // the paper's key is not sent here and is not being revealed by
+              // the back door — a wrong row says "not this", never "that one".
+              const verdictClass =
+                picked && questionVerdict === "correct"
+                  ? " is-correct"
+                  : picked && questionVerdict === "incorrect"
+                    ? " is-wrong"
+                    : "";
+
               return (
                 <label
-                  className={`sd-quiz__choice${picked ? " is-picked" : ""}`}
+                  className={`sd-quiz__choice${picked ? " is-picked" : ""}${verdictClass}`}
                   key={choice.id}
                 >
                   <input

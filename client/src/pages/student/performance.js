@@ -37,6 +37,35 @@ export const BANDS = {
   }
 };
 
+/**
+ * The two formulas, worded as the paper words them, for the raw-computation
+ * panel.
+ *
+ * Two, not three. Overall Performance is not a formula of its own — it is
+ * Skill Score with the whole exam as the skill: same division, wider scope.
+ * Listing it separately implied a third method the paper never defines, so it
+ * is stated as a note underneath instead.
+ *
+ * Text only — nothing here computes. The arithmetic runs server-side in
+ * skillgap.service.js and its results are what the panel prints, so these
+ * strings can describe the working without becoming a second implementation
+ * of it that drifts.
+ *
+ * Only `fi`, `Σf` and `Wi` appear as symbols, because those are the three the
+ * paper defines. An earlier draft wrote the other terms as `ni` and `Σn` for
+ * symmetry with the table's columns — notation that exists nowhere in the
+ * source documents, which is exactly the kind of drift this panel is here to
+ * let a reader catch.
+ */
+export const SKILL_FORMULAS = [
+  { name: "Skill Score", expression: "(User Score / Total Score per Skill) × 100" },
+  { name: "Weight", expression: "Wi = fi / Σf" }
+];
+
+/** Why there is no third formula for the figure the course leads with. */
+export const OVERALL_NOTE =
+  "Overall Performance is the Skill Score formula applied to the whole exam rather than to one skill.";
+
 /** Clamp anything the API hands us into a whole 0–100. */
 export function toScore(value) {
   const number = Number(value);

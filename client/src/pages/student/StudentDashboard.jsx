@@ -3,6 +3,7 @@ import StudentSidebar from "./components/StudentSidebar";
 import CoursePerformance from "./components/CoursePerformance";
 import CourseCard from "./components/CourseCard";
 import SkillGapAnalysis from "./components/SkillGapAnalysis";
+import RawComputation from "./components/RawComputation";
 import { BackIcon, BookIcon, SkillsIcon, TargetIcon } from "./components/icons";
 import { BandChip, EmptyState, Meter, StatTile, TargetLegend } from "./components/ui";
 import {
@@ -102,6 +103,7 @@ function StudentDashboard() {
             skillCount={(selected.skills ?? []).length}
           />
           <SkillGapAnalysis skills={selected.skills} />
+          <RawComputation course={selected} />
         </main>
       </div>
     );

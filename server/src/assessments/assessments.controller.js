@@ -136,6 +136,35 @@ function lockStateFor(assessment, state) {
   return { locked: true, reason: `Complete ${parts.join(" and ")} to unlock the final assessment.` };
 }
 
+/**
+ * Which questions were right and which were missed, for a paper already sat.
+ *
+ * Verdicts only — never the key, and never the correct choice. Knowing that
+ * question three was missed is the student's own result; the answer to it is
+ * still the paper's, and this is the boundary that keeps the two apart. There
+ * is nothing to game either way: a second attempt is refused (see the 409 in
+ * submitAssessment), so the marked paper cannot be turned back into a better one.
+ *
+ * An assessor's override wins over the automatic verdict, the same way it wins
+ * in the score printed beside it — a student must never read "incorrect" on an
+ * item their assessor has since allowed.
+ */
+function resultItems(result) {
+  const overrides = result?.review?.overrides ?? {};
+  // What the student put down, from the submission itself. Sending it back is
+  // what lets a sat paper be reopened as the paper they actually sat: without
+  // it the questions return blank, and the marks have nothing to sit against.
+  const chosen = new Map(
+    (result?.answers ?? []).map((answer) => [asId(answer.itemId), answer.choice ?? null])
+  );
+
+  return (result?.aiGrading?.items ?? []).map((item) => ({
+    itemId: asId(item.itemId),
+    verdict: overrides[asId(item.itemId)] ?? item.verdict ?? null,
+    choice: chosen.get(asId(item.itemId)) ?? item.chosen ?? null
+  }));
+}
+
 function resultSummary(result, summary) {
   if (!result) return null;
   const score = effectiveScore(result);
@@ -145,7 +174,8 @@ function resultSummary(result, summary) {
     passMark: summary.passMark,
     passed: score >= summary.passMark,
     submittedAt: result.submittedAt ?? null,
-    reviewStatus: result.review?.status ?? "pending"
+    reviewStatus: result.review?.status ?? "pending",
+    items: resultItems(result)
   };
 }
 
@@ -498,7 +528,14 @@ export async function submitAssessment(request, response) {
       correct: graded.correct,
       itemCount: graded.items.length,
       submittedAt: record.submittedAt,
-      reviewStatus: "pending"
+      reviewStatus: "pending",
+      // Same shape resultSummary sends, so reopening the quiz later paints the
+      // question strip exactly as it is painted the moment it is handed in.
+      items: graded.items.map((item) => ({
+        itemId: asId(item.itemId),
+        verdict: item.verdict,
+        choice: item.chosen ?? null
+      }))
     },
     badge
   });

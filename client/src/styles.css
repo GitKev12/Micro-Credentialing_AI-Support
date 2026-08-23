@@ -2,16 +2,16 @@
 
 :root {
   /* Global UI scale. The whole app renders as if the browser were zoomed to
-     90% while the browser itself stays at 100%, so more fits on screen.
+     95% while the browser itself stays at 100%, so more fits on screen.
      Change this one number to retune the whole interface.
 
      `zoom` scales every length, px and rem alike, and reflows the layout the
      way real browser zoom does (unlike transform: scale). It does NOT scale
-     viewport units the same way, though: under zoom, 100vh paints at 90% of
+     viewport units the same way, though: under zoom, 100vh paints at 95% of
      the window. The --vh/--vw/--dvh helpers below divide that back out, so
      `calc(100 * var(--vh))` still means "exactly one screen tall". Use them
      instead of raw vh/vw anywhere a length must line up with the window. */
-  --app-zoom: 0.9;
+  --app-zoom: 0.95;
   --vh: calc(1vh / var(--app-zoom));
   --vw: calc(1vw / var(--app-zoom));
   --dvh: calc(1dvh / var(--app-zoom));
@@ -31,14 +31,20 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #050813;
-  --surface: rgba(13, 19, 40, 0.88);
-  --surface-strong: #0a1124;
-  --ink: #e4e9f7;
-  --muted: #8b96b8;
-  --accent: #34509c;
-  --accent-soft: #0e1730;
-  --border: rgba(150, 175, 240, 0.12);
+  --bg: #0e1824;
+  --surface: rgba(18, 30, 45, 0.88);
+  --surface-strong: #121e2d;
+  --ink: #c3cbe4;
+  --muted: #a6b0cf;
+  --accent: #2d4275;
+  /* The readable step of the accent, for type. Light mode defines this and
+     dark mode did not, so every `var(--accent-text, var(--accent))` fell back
+     to the fill — #2d4275 navy type on a #121e2d navy surface, which measures
+     1.5:1 and is effectively invisible. A fill and a text colour are not the
+     same colour and cannot share a token; this is the text one. */
+  --accent-text: #a9bce8;
+  --accent-soft: #192a3f;
+  --border: rgba(255, 255, 255, 0.12);
   --shadow: 0 6px 18px rgba(255, 255, 255, 0.03);
 }
 
@@ -99,9 +105,9 @@ body {
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at top left, rgba(91, 134, 255, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(50, 75, 150, 0.09), transparent 25%),
-    linear-gradient(180deg, #070b18 0%, var(--bg) 100%);
+    radial-gradient(circle at top left, rgba(57, 84, 147, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(45, 66, 117, 0.16), transparent 25%),
+    linear-gradient(180deg, #0b131d 0%, var(--bg) 100%);
 }
 
 a {
@@ -369,7 +375,7 @@ a {
 
 /* Dark mode: --muted is too dim for this heading on the near-black surface. */
 [data-theme="dark"] .student-courses__title {
-  color: #b7c0db;
+  color: #c3cbe4;
 }
 
 /* Enrollment tally under the heading — the page's answer to "where am I?". */
@@ -1059,7 +1065,9 @@ a {
 
 .module-viewer__complete.is-done {
   border-color: transparent;
-  background: #2e9e5b;
+  /* Darkened from #2e9e5b, which carried white type at 3.41:1 — under AA in
+     both themes. This step measures 4.7:1 against white. */
+  background: #1f8449;
   color: #fff;
 }
 

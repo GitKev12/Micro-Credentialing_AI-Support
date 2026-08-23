@@ -87,44 +87,44 @@
 [data-theme="dark"] .admin-app {
   color-scheme: dark;
 
-  /* Student theme's navy ramp, verbatim. */
-  --surface-sunken: #050813;
-  --surface: #0a1124;
-  --surface-raised: #111a33;
+  /* The TSU student portal's ramp, read from the live site. */
+  --surface-sunken: #0e1824;
+  --surface: #121e2d;
+  --surface-raised: #192a3f;
 
-  /* Accent — the student theme's navy blue. */
-  --brand: #34509c;
-  --brand-text: #b7c0db;
-  --brand-strong: #0e1730;
-  --brand-soft: #0e1730;
-  --brand-hover: rgba(150, 175, 240, 0.12);
-  --maroon-700-23: #0e1730;
+  /* Accent — TSU's primary navy. */
+  --brand: #2d4275;
+  --brand-text: #c3cbe4;
+  --brand-strong: #192a3f;
+  --brand-soft: #192a3f;
+  --brand-hover: rgba(255, 255, 255, 0.12);
+  --maroon-700-23: #192a3f;
 
-  /* Neutrals resolve onto the navy ramp. */
-  --gray-100: #0d1526;
-  --gray-150: rgba(150, 175, 240, 0.12);
-  --gray-200: rgba(150, 175, 240, 0.16);
-  --gray-400: #6b779b;
-  --gray-600: #8b96b8;
-  --gray-700: #e4e9f7;
-  --admin-ink: #e4e9f7;
-  --off-white: #e4e9f7;
+  /* Neutrals resolve onto that ramp. */
+  --gray-100: #11192c;
+  --gray-150: rgba(255, 255, 255, 0.12);
+  --gray-200: rgba(255, 255, 255, 0.18);
+  --gray-400: #9599ad;
+  --gray-600: #a6b0cf;
+  --gray-700: #c3cbe4;
+  --admin-ink: #c3cbe4;
+  --off-white: #c3cbe4;
 
-  --teal-700: #2f8f95;
-  --warning-text: #f2b84b;
+  --teal-700: #1ec8a5;
+  --warning-text: #f5bd58;
   --shadow-tint: rgba(255, 255, 255, 0.04);
   --shadow-sidebar: 0 0 26px 4px rgba(0, 0, 0, 0.4);
   --shadow-avatar: 0 4px 18px 6px rgba(0, 0, 0, 0.35);
-  --shadow-inset-field: inset 0 0 0 1px rgba(150, 175, 240, 0.22),
+  --shadow-inset-field: inset 0 0 0 1px rgba(255, 255, 255, 0.30),
     0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
 /* The page picks up the student theme's radial-glow backdrop. */
 [data-theme="dark"] .admin-app {
   background:
-    radial-gradient(circle at top left, rgba(91, 134, 255, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(50, 75, 150, 0.09), transparent 25%),
-    linear-gradient(180deg, #070b18 0%, var(--surface-sunken) 100%);
+    radial-gradient(circle at top left, rgba(57, 84, 147, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(45, 66, 117, 0.16), transparent 25%),
+    linear-gradient(180deg, #0b131d 0%, var(--surface-sunken) 100%);
 }
 
 /* Cards sit on a near-black page — give them a hairline edge. */
@@ -132,16 +132,16 @@
 [data-theme="dark"] .admin-app .admin-card,
 [data-theme="dark"] .admin-app .admin-course-card,
 [data-theme="dark"] .admin-app .admin-tos-card {
-  border: 1px solid rgba(150, 175, 240, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* Table headers and hover rows need to read against the navy surface. */
 [data-theme="dark"] .admin-app .admin-table th {
-  background: #0e1730;
+  background: #192a3f;
 }
 
 [data-theme="dark"] .admin-app .admin-table tbody tr:hover {
-  background: rgba(150, 175, 240, 0.07);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* ── Shell ──────────────────────────────────────────────── */
@@ -2313,8 +2313,8 @@
 [data-theme="dark"] .admin-app {
   --usage-input: #dd5f45;
   --usage-output: #1fa3ab;
-  --usage-grid: rgba(150, 175, 240, 0.14);
-  --usage-axis: rgba(150, 175, 240, 0.3);
+  --usage-grid: rgba(255, 255, 255, 0.12);
+  --usage-axis: rgba(195, 203, 228, 0.32);
 }
 
 .admin-table th.is-right,

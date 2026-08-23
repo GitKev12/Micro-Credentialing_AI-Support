@@ -111,35 +111,40 @@
 }
 
 /* ── Dark theme ─────────────────────────────────────────────
-   Selected, not flipped. The surface is the project's navy
-   (#0a1124); every step below was re-measured against it. The
-   status fills stay put — all three clear 3:1 there — while the
-   -text steps lift, because the light steps fall to ~2.6:1.
+   Selected, not flipped. The surface is TSU's (#121e2d); every
+   step below was re-measured against it. The status fills stay
+   put — all three clear 3:1 there — while the -text steps lift,
+   because the light steps fall to ~2.6:1.
    ───────────────────────────────────────────────────────── */
 
+/* Dark mode is the TSU student portal's palette, read from the live site
+   (student.tsu.edu.ph) rather than approximated: background #0e1824, surface
+   #121e2d, lines #192a3f, primary #2d4275, and TSU's own four status hues.
+   Every text pair below clears AA on --sd-surface; the ratios are recomputed,
+   not carried over. */
 [data-theme="dark"] .student-app {
   color-scheme: dark;
 
-  --sd-brand: #c9525c;
-  --sd-brand-deep: #a00e18;
-  --sd-brand-text: #e08c93;          /* 7.5:1 on --sd-surface */
+  --sd-brand: #2d4275;
+  --sd-brand-deep: #11192c;
+  --sd-brand-text: #c3cbe4;          /* 10.4:1 on --sd-surface */
   --sd-on-brand: #ffffff;
-  --sd-brand-wash: rgba(224, 140, 147, 0.1);
-  --sd-brand-wash-hover: rgba(224, 140, 147, 0.16);
+  --sd-brand-wash: rgba(195, 203, 228, 0.10);
+  --sd-brand-wash-hover: rgba(195, 203, 228, 0.16);
 
-  --sd-canvas: #050813;
-  --sd-surface: #0a1124;
-  --sd-surface-2: #0e1730;
-  --sd-border: rgba(150, 175, 240, 0.14);
-  --sd-border-strong: rgba(150, 175, 240, 0.26);
+  --sd-canvas: #0e1824;
+  --sd-surface: #121e2d;
+  --sd-surface-2: #192a3f;
+  --sd-border: rgba(255, 255, 255, 0.12);
+  --sd-border-strong: rgba(255, 255, 255, 0.30);
 
-  --sd-ink: #e4e9f7;                 /* 15.5:1 */
-  --sd-ink-2: #b9c2db;
-  --sd-muted: #9aa5c6;               /*  7.7:1 */
+  --sd-ink: #c3cbe4;                 /* 10.4:1 */
+  --sd-ink-2: #a6b0cf;
+  --sd-muted: #9599ad;               /*  6.0:1 */
 
-  --sd-good-text: #4ade80;           /* 10.8:1 */
-  --sd-warn-text: #fbbf3f;           /* 11.3:1 */
-  --sd-crit-text: #f08b8b;           /*  7.8:1 */
+  --sd-good-text: #2cb57e;           /*  6.4:1 */
+  --sd-warn-text: #f5bd58;           /*  9.9:1 */
+  --sd-crit-text: #f56e50;           /*  5.8:1 */
 
   /* The tooltip plane is light here, so the inverse steps swap back:
      5.6 / 4.9 / 5.5:1 against --sd-ink. */
@@ -147,13 +152,13 @@
   --sd-warn-inverse: #8a5a00;
   --sd-crit-inverse: #b32020;
 
-  --sd-axis: rgba(196, 208, 240, 0.32);
+  --sd-axis: rgba(195, 203, 228, 0.32);
   --sd-track-mix: 26%;
 
   --sd-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sd-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
   --sd-shadow-lift: 0 16px 36px -12px rgba(0, 0, 0, 0.7);
-  --sd-ring: 0 0 0 3px rgba(224, 140, 147, 0.28);
+  --sd-ring: 0 0 0 3px rgba(57, 84, 147, 0.45);
 }
 
 /* Band → colour. Set once here; every mark and chip reads --sd-band. */
@@ -182,7 +187,7 @@ body:has(.student-app) {
 [data-theme="dark"] body:has(.student-app) {
   background:
     radial-gradient(1100px 460px at 12% -8%, rgba(201, 82, 92, 0.12), transparent 62%),
-    linear-gradient(180deg, #080d1c 0%, #050813 60%);
+    linear-gradient(180deg, #080d1c 0%, #0e1824 60%);
   background-attachment: fixed;
 }
 
@@ -1868,6 +1873,144 @@ body:has(.student-app) {
   text-align: right;
 }
 
+/* ── Raw computation ────────────────────────────────────
+   Folded away by default: it answers "how was this derived",
+   which is a rarer question than "where am I weak" and would
+   otherwise push the chart off the first screen. */
+
+.sd-raw__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-2);
+  padding: 6px var(--sd-3);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-surface-2);
+  color: var(--sd-ink-2);
+  font-family: inherit;
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sd-raw__toggle:hover {
+  border-color: var(--sd-border-strong);
+  color: var(--sd-ink);
+}
+
+.sd-raw__toggle svg {
+  transition: transform 0.18s ease;
+}
+
+.sd-raw__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+/* The formulas, restated where the numbers are, so the table's
+   column heads (fi, ni, Wi) have something to refer back to. */
+.sd-raw__formulas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sd-2) var(--sd-4);
+  margin-bottom: var(--sd-4);
+  padding: var(--sd-3) var(--sd-4);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-surface-2);
+}
+
+.sd-raw__formula {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sd-2);
+  margin: 0;
+}
+
+.sd-raw__formula-name {
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+}
+
+.sd-raw__formula code {
+  font-size: var(--sd-fs-label);
+  color: var(--sd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Overall is the Skill Score formula at course scope, so it reads as a
+   remark on the pair above rather than a third member of it. */
+.sd-raw__formula--note {
+  flex-basis: 100%;
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+  text-wrap: pretty;
+}
+
+.sd-table--raw tfoot th,
+.sd-table--raw tfoot td {
+  padding: var(--sd-3);
+  border-top: 1px solid var(--sd-border-strong);
+  border-bottom: 0;
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-table--raw tfoot th {
+  text-align: left;
+  font-size: var(--sd-fs-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sd-table--raw tfoot td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A topic with nothing correct contributes zero and is the whole
+   reason the two totals differ — worth being able to find. */
+.sd-table--raw tbody tr[data-zero="true"] td {
+  color: var(--sd-muted);
+}
+
+.sd-raw__results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sd-3) var(--sd-6);
+  margin: var(--sd-4) 0 0;
+}
+
+.sd-raw__result dt {
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+}
+
+.sd-raw__result dd {
+  margin: 2px 0 0;
+  font-size: var(--sd-fs-body);
+  color: var(--sd-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-raw__result dd strong {
+  color: var(--sd-ink);
+}
+
+.sd-raw__note {
+  margin: var(--sd-4) 0 0;
+  font-size: var(--sd-fs-label);
+  line-height: 1.55;
+  color: var(--sd-muted);
+  text-wrap: pretty;
+}
+
 /* ── Callout ────────────────────────────────────────────── */
 
 .sd-callout {
@@ -2631,6 +2774,37 @@ body:has(.student-app) {
   font-weight: var(--sd-fw-medium);
 }
 
+/* A marked paper: the radio the student filled in carries the verdict for that
+   question — green where they were right, red where they were not. The row
+   itself keeps its ordinary picked look; only the control changes.
+
+   Drawn rather than tinted. A submitted paper disables every input, and a
+   browser draws a disabled control in its own grey — `accent-color` does not
+   survive that, so these states paint their own ring and dot and are immune to
+   it. Only the student's own answer is ever marked: the key is not sent to this
+   screen, so a red radio says "not this", never "that one". */
+.sd-quiz__choice.is-correct input,
+.sd-quiz__choice.is-wrong input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: 50%;
+  border: 2px solid;
+  opacity: 1;
+}
+
+.sd-quiz__choice.is-correct input {
+  border-color: var(--sd-good);
+  background: radial-gradient(circle, var(--sd-good) 0 42%, transparent 44%);
+}
+
+.sd-quiz__choice.is-wrong input {
+  border-color: var(--sd-crit);
+  background: radial-gradient(circle, var(--sd-crit) 0 42%, transparent 44%);
+}
+
 .sd-quiz__choice:has(input:disabled) {
   cursor: default;
   opacity: 0.75;
@@ -2686,6 +2860,29 @@ body:has(.student-app) {
   font-weight: var(--sd-fw-semibold);
 }
 
+/* Once the paper is marked, the strip becomes the result: red where a question
+   was missed, green where it was not. Colour carries this on its own by
+   deliberate choice — the score sits directly above the strip, and each
+   button's aria-label still says "correct" or "incorrect" outright, so the
+   reading is available without a mark drawn on top of the number. */
+.sd-quiz__pager-btn.is-correct,
+.sd-quiz__pager-btn.is-wrong {
+  font-weight: var(--sd-fw-semibold);
+}
+
+.sd-quiz__pager-btn.is-correct {
+  background: color-mix(in srgb, var(--sd-good) 14%, transparent);
+  border-color: color-mix(in srgb, var(--sd-good) 45%, transparent);
+  color: var(--sd-good-text);
+}
+
+.sd-quiz__pager-btn.is-wrong {
+  background: color-mix(in srgb, var(--sd-crit) 14%, transparent);
+  border-color: color-mix(in srgb, var(--sd-crit) 55%, transparent);
+  color: var(--sd-crit-text);
+}
+
+/* The ring still says where you are, over any of the three states. */
 .sd-quiz__pager-btn.is-current {
   border-color: var(--sd-brand);
   box-shadow: 0 0 0 2px var(--sd-brand-wash);
@@ -2752,14 +2949,20 @@ body:has(.student-app) {
   text-align: center;
 }
 
+/* A tinted surface, not a solid slab. The -inverse steps this used to fill
+   with are *text* colours for the inverted tooltip plane — read as a
+   background they happen to invert correctly in light mode and collapse in
+   dark, where the panel became dark green carrying green type at 2.6:1. A
+   wash of the status hue keeps the -text steps legible in both themes, and
+   matches how the band chips are built. */
 .sd-quiz__result.is-passed {
-  border-color: var(--sd-good);
-  background: var(--sd-good-inverse);
+  border-color: color-mix(in srgb, var(--sd-good) 45%, transparent);
+  background: color-mix(in srgb, var(--sd-good) 12%, transparent);
 }
 
 .sd-quiz__result.is-failed {
-  border-color: var(--sd-crit);
-  background: var(--sd-crit-inverse);
+  border-color: color-mix(in srgb, var(--sd-crit) 45%, transparent);
+  background: color-mix(in srgb, var(--sd-crit) 12%, transparent);
 }
 
 .sd-quiz__score {

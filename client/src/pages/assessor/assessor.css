@@ -112,56 +112,56 @@
 [data-theme="dark"] .assessor-app {
   color-scheme: dark;
 
-  /* Surfaces — the student theme's navy ramp, verbatim:
-     --bg #050813 · --surface-strong #0a1124 · --surface rgba(13,19,40,.88) */
-  --bg-app: #050813;
-  --surface: #0a1124;
-  --rail-bg: rgba(13, 19, 40, 0.88);
+  /* Surfaces — the TSU student portal's ramp, read from the live site:
+     background #0e1824 · surface #121e2d · drawer #121e2d at .88 */
+  --bg-app: #0e1824;
+  --surface: #121e2d;
+  --rail-bg: rgba(18, 30, 45, 0.88);
 
   /* Neutrals resolve onto that navy ramp. */
-  --gray-050: #0e1730;
-  --gray-100: #0d1526;
-  --gray-150: #111a33;
-  --gray-200: rgba(150, 175, 240, 0.12);
-  --gray-300: rgba(150, 175, 240, 0.18);
-  --gray-400: #6b779b;
-  --gray-600: #8b96b8;
-  --gray-700: #e4e9f7;
-  --ink: #e4e9f7;
-  --text-strong: #e4e9f7;
+  --gray-050: #192a3f;
+  --gray-100: #11192c;
+  --gray-150: #192a3f;
+  --gray-200: rgba(255, 255, 255, 0.12);
+  --gray-300: rgba(255, 255, 255, 0.30);
+  --gray-400: #9599ad;
+  --gray-600: #a6b0cf;
+  --gray-700: #c3cbe4;
+  --ink: #c3cbe4;
+  --text-strong: #c3cbe4;
 
-  /* Accent — the student theme's navy blue. --brand fills, --brand-text is the
-     lighter periwinkle used for headings on the student side. */
-  --brand: #34509c;
-  --brand-text: #b7c0db;
-  --brand-deep: #cdd5ec;
-  --brand-hover: rgba(150, 175, 240, 0.12);
-  --maroon-700-23: #0e1730;
+  /* Accent — TSU's primary navy. --brand fills, --brand-text is the lighter
+     tint TSU uses for type sitting on it. */
+  --brand: #2d4275;
+  --brand-text: #c3cbe4;
+  --brand-deep: #c3cbe4;
+  --brand-hover: rgba(255, 255, 255, 0.12);
+  --maroon-700-23: #192a3f;
 
-  /* Support colours resolved against the navy backdrop. */
-  --teal-700: #5fd3c4;
-  --blue-hard: #5b86ff;
-  --blue-whiter: #0e1730;
-  --blue-ink: #b9c6ee;
-  --blue-ink-soft: #9fb0e4;
-  --pink-100: #3a1c2a;
+  /* Support colours — TSU's own tertiary and info, on the navy backdrop. */
+  --teal-700: #1ec8a5;
+  --blue-hard: #47bce8;
+  --blue-whiter: #192a3f;
+  --blue-ink: #c3cbe4;
+  --blue-ink-soft: #a6b0cf;
+  --pink-100: #2a1a24;
 
   /* Light-lifted shadows, matching the student theme's --shadow. */
   --shadow-row: 0 6px 18px rgba(255, 255, 255, 0.03);
   --shadow-row-hover: 0 10px 26px rgba(255, 255, 255, 0.05);
   --shadow-card: 0 6px 18px rgba(255, 255, 255, 0.03);
   --shadow-pill: 0 4px 12px rgba(255, 255, 255, 0.03);
-  --shadow-brand-glow: 0 10px 28px -6px rgba(52, 80, 156, 0.55);
-  --shadow-field: inset 0 0 0 1px rgba(150, 175, 240, 0.18);
+  --shadow-brand-glow: 0 10px 28px -6px rgba(45, 66, 117, 0.55);
+  --shadow-field: inset 0 0 0 1px rgba(255, 255, 255, 0.30);
   --shadow-sidebar: 2px 0 18px rgba(0, 0, 0, 0.35);
 }
 
 /* The page itself picks up the student theme's radial-glow backdrop. */
 [data-theme="dark"] .assessor-app {
   background:
-    radial-gradient(circle at top left, rgba(91, 134, 255, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(50, 75, 150, 0.09), transparent 25%),
-    linear-gradient(180deg, #070b18 0%, var(--bg-app) 100%);
+    radial-gradient(circle at top left, rgba(57, 84, 147, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(45, 66, 117, 0.16), transparent 25%),
+    linear-gradient(180deg, #0b131d 0%, var(--bg-app) 100%);
 }
 
 /* Chips that carry their own type colour need it lifted off the navy. */
@@ -185,7 +185,7 @@
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
 [data-theme="dark"] .assessor-app .grade-panel {
-  border: 1px solid rgba(150, 175, 240, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 /* .stat-card and .explainer take their edge from the --gray-200 token (which
    already resolves to this hairline in dark), so .stat-card's :hover can
