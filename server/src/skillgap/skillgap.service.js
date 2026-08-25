@@ -181,8 +181,22 @@ export function skillGapFromFinal(result, assessment) {
       ? skills.reduce((sum, skill) => sum + (skill.correct / totalCorrect) * skill.score, 0)
       : 0;
 
+  // The order the paper lists its lessons in, which is the Table of
+  // Specification's order. It used to come back weakest-first; that is a
+  // ranking, and a ranking of a course's own lessons reads as if the syllabus
+  // had been reshuffled. The panel that wants weakest-first sorts for itself.
+  const order = new Map(
+    (assessment?.topics ?? []).map((entry, index) => [asId(entry.moduleId), index])
+  );
+  const inPaperOrder = order.size
+    ? [...skills].sort(
+        (left, right) =>
+          (order.get(left.moduleId) ?? order.size) - (order.get(right.moduleId) ?? order.size)
+      )
+    : skills;
+
   return {
-    skills: skills.sort((left, right) => left.score - right.score),
+    skills: inPaperOrder,
     performance: Math.round(performance),
     weightedPerformance: Math.round(weightedPerformance),
     itemsAsked,

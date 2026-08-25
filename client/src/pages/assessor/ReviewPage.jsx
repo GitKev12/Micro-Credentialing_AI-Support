@@ -9,54 +9,20 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from "./components/icons
 import { Chip, ScreenHeader, Segmented } from "./components/ui";
 
 const LAYOUTS = [
-  { key: "split", label: "Split" },
-  { key: "stacked", label: "Stacked" },
-  { key: "focus", label: "Focus" }
+  { key: "focus", label: "Focus" },
+  { key: "stacked", label: "Stacked" }
 ];
 
 /** The AI's own verdict — a flagged item falls back to its best guess. Undefined when AI never scored the item. */
 const aiVerdict = (item) => (item.verdict === "flagged" ? item.aiGuess : item.verdict);
 
-const LEVEL_ORDER = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
-
-/**
- * Where this paper came from, as one readable line.
- *
- * `assessment.source` is the record the generator wrote: the Table of
- * Specification row it drew from, the spread of cognitive levels it was asked
- * for, and the size of the bank it produced. It is an object, and this line
- * used to render it directly — which throws ("Objects are not valid as a React
- * child") and took the entire review screen down with it, so clicking Review
- * landed on a blank page rather than on one missing caption.
- *
- * A string is still accepted, because assessments written before the generator
- * recorded its provenance carry one.
- */
-function sourceLine(source) {
-  if (!source) return null;
-  if (typeof source === "string") return source;
-
-  const parts = [];
-  if (source.tosRow) parts.push(`Table of Specification · ${source.tosRow}`);
-
-  const levels = LEVEL_ORDER.filter((level) => Number(source.distribution?.[level]) > 0).map(
-    (level) => `${level} ${source.distribution[level]}`
-  );
-  if (levels.length > 0) parts.push(levels.join(" · "));
-
-  if (Number(source.bankSize) > 0) parts.push(`drawn from ${source.bankSize} questions`);
-
-  return parts.length > 0 ? parts.join(" — ") : null;
-}
-
 function ReviewPage() {
   const navigate = useNavigate();
   const { submissionId } = useParams();
 
-  const [layout, setLayout] = useState("split");
+  const [layout, setLayout] = useState("focus");
   const [overrides, setOverrides] = useState({});
   const [typed, setTyped] = useState(null);
-  const [remark, setRemark] = useState("");
   const [focusIdx, setFocusIdx] = useState(0);
   const [review, setReview] = useState(null);
   const [loadError, setLoadError] = useState(false);
@@ -76,12 +42,11 @@ function ReviewPage() {
         if (!active) return;
         setReview(data);
 
-        // Resume a saved draft: restore overrides, remark, and — when the
-        // stored score differs from what the item verdicts imply — the typed score.
+        // Resume a saved draft: restore the overrides and — when the stored
+        // score differs from what the item verdicts imply — the typed score.
         const saved = data?.review ?? {};
         const savedOverrides = saved.overrides ?? {};
         setOverrides(savedOverrides);
-        setRemark(saved.remark ?? "");
         if (saved.status === "draft" && saved.finalScore !== null) {
           const points = data.reviewConfig.pointsPerItem;
           const implied = data.items.reduce((sum, item) => {
@@ -103,7 +68,7 @@ function ReviewPage() {
   // Any change to the grade invalidates the "Draft saved" confirmation.
   useEffect(() => {
     setDraftSaved(false);
-  }, [overrides, typed, remark]);
+  }, [overrides, typed]);
 
   const ITEMS = useMemo(
     () =>
@@ -162,8 +127,7 @@ function ReviewPage() {
       await saveSubmissionReview(storedAssessorId(), submissionId, {
         action,
         overrides,
-        finalScore: totals.final,
-        remark
+        finalScore: totals.final
       });
       if (action === "release") {
         navigate("/assessor/credentials");
@@ -211,7 +175,6 @@ function ReviewPage() {
 
   const canReset = typed !== null || Object.keys(overrides).length > 0;
   const passed = totals.final >= PASS;
-  const isSplit = layout === "split";
   const isFocus = layout === "focus";
 
   const deltaLabel = isManual
@@ -264,15 +227,65 @@ function ReviewPage() {
     );
   };
 
-  const AnswerPills = ({ item }) => {
-    const verdict = effective(item);
-    const tone =
-      verdict === undefined ? "answer-pill--neutral" : verdict === "correct" ? "answer-pill--correct" : "answer-pill--wrong";
+  /**
+   * Every option the student could have picked, with the key and their answer
+   * marked on the rows themselves.
+   *
+   * This used to be two pills carrying bare letters — "Student · c", "Key · a" —
+   * which tells an assessor nothing unless they already have the paper open
+   * beside them. Deciding whether the AI marked an item fairly means reading
+   * what the student actually chose against what they could have chosen.
+   */
+  const AnswerChoices = ({ item }) => {
+    const choices = item.choices ?? [];
+
+    // Submissions graded before the review payload carried the options fall
+    // back to the letters, which is all those records hold.
+    if (choices.length === 0) {
+      const verdict = effective(item);
+      const tone =
+        verdict === undefined
+          ? "answer-pill--neutral"
+          : verdict === "correct"
+            ? "answer-pill--correct"
+            : "answer-pill--wrong";
+      return (
+        <div className="item-card__answers">
+          <span className={`answer-pill ${tone}`}>Student · {item.choice ?? "—"}</span>
+          <span className="answer-pill answer-pill--key">Key · {item.key ?? "—"}</span>
+        </div>
+      );
+    }
+
     return (
-      <div className="item-card__answers">
-        <span className={`answer-pill ${tone}`}>Student · {item.choice}</span>
-        <span className="answer-pill answer-pill--key">Key · {item.key}</span>
-      </div>
+      <ul className="choice-list">
+        {choices.map((choice) => {
+          const isKey = choice.id === item.key;
+          const isPicked = choice.id === item.choice;
+          const state = isPicked ? (isKey ? " is-right" : " is-wrong") : isKey ? " is-key" : "";
+
+          // Multiple-choice ids are single letters and read well in the badge.
+          // A true-false item is answered by the word — id "true", text "True" —
+          // so a badge there would overflow the circle and then say the same
+          // thing twice.
+          const letter = choice.id.length === 1 ? choice.id : null;
+
+          return (
+            <li key={choice.id} className={`choice${state}`}>
+              {letter ? <span className="choice__id">{letter}</span> : null}
+              <span className="choice__text">{choice.text}</span>
+              <span className="choice__tags">
+                {isKey ? <span className="choice__tag choice__tag--key">Correct answer</span> : null}
+                {isPicked ? (
+                  <span className="choice__tag choice__tag--picked">Student's answer</span>
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
+
+        {item.choice == null ? <li className="choice choice--blank">Left unanswered</li> : null}
+      </ul>
     );
   };
 
@@ -290,7 +303,6 @@ function ReviewPage() {
     );
 
   const focusItem = ITEMS[focusIdx];
-  const provenance = sourceLine(review.assessment.source);
 
   return (
     <>
@@ -305,10 +317,9 @@ function ReviewPage() {
         </div>
       </ScreenHeader>
 
-      {provenance ? <p className="assessor-meta review-source">{provenance}</p> : null}
 
       <div className="assessor-body">
-        <div className={isSplit ? "review-grid" : "review-grid--stacked"}>
+        <div className="review-grid--stacked">
           {/* ---- Answer sheet ---- */}
           {!isFocus ? (
             <div className="assessor-stack--tight" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -355,16 +366,13 @@ function ReviewPage() {
                         <p className="item-card__q" style={{ margin: 0 }}>
                           {item.q}
                         </p>
-                        <AnswerPills item={item} />
+                        <AnswerChoices item={item} />
                         <AiNote item={item} />
                       </div>
 
                       <div className="item-card__side">
                         <Chip tone={chip.tone}>{chip.label}</Chip>
                         <VerdictButtons item={item} />
-                        <span className="assessor-meta">
-                          {effective(item) === undefined ? "—" : effective(item) === "correct" ? PTS : 0} / {PTS} pts
-                        </span>
                       </div>
                     </div>
                   </article>
@@ -417,8 +425,7 @@ function ReviewPage() {
               >
                 <div className="focus-card__head">
                   <span className="focus-card__step">
-                    Item {focusItem.n} of {ITEMS.length} ·{" "}
-                    {effective(focusItem) === undefined ? "—" : effective(focusItem) === "correct" ? PTS : 0} / {PTS} pts
+                    Item {focusItem.n} of {ITEMS.length}
                   </span>
                   <Chip tone={itemChip(focusItem).tone}>{itemChip(focusItem).label}</Chip>
                 </div>
@@ -427,7 +434,7 @@ function ReviewPage() {
                   {focusItem.q}
                 </p>
 
-                <AnswerPills item={focusItem} />
+                <AnswerChoices item={focusItem} />
                 <AiNote item={focusItem} />
 
                 <div className="focus-card__verdicts">
@@ -539,25 +546,6 @@ function ReviewPage() {
                     {passed ? `Passed · ${PASS} needed` : `Below ${PASS} / ${TOTAL}`}
                   </Chip>
                 </div>
-              </div>
-
-              <div className="grade-divider" />
-
-              <div>
-                <div className="field-label">
-                  Remark to student{" "}
-                  <span style={{ textTransform: "none", letterSpacing: 0, opacity: 0.7 }}>
-                    (optional)
-                  </span>
-                </div>
-                <textarea
-                  className="remark-input"
-                  rows={3}
-                  aria-label="Remark to student"
-                  placeholder="A short note the student sees with their grade."
-                  value={remark}
-                  onChange={(event) => setRemark(event.target.value)}
-                />
               </div>
 
               <div className="grade-actions">

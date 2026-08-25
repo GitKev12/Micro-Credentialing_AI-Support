@@ -1,5 +1,5 @@
-import { TARGET, bandFor, gapToTarget, toScore } from "../performance";
-import { BandChip, Meter, TargetLegend, useGrown } from "./ui";
+import { TARGET, bandFor, toScore } from "../performance";
+import { BandChip, Meter, useGrown } from "./ui";
 
 /**
  * One course's performance, as a card.
@@ -11,9 +11,9 @@ import { BandChip, Meter, TargetLegend, useGrown } from "./ui";
  *
  * The column chart is deliberately small and unlabelled. Eight topic names will
  * not fit under a card-width plot, and a value on every column is the surest way
- * to make a chart go unread — so the columns carry shape and band, the weakest
- * one is named in words underneath, and the exact figures live a click away in
- * the course's own analysis (which has a table view). Hover names any column.
+ * to make a chart go unread — so the columns carry shape and band, and the
+ * exact figures live a click away in the course's own analysis (which has a
+ * table view). Hover names any column.
  */
 
 /** Columns are capped so a course with three topics does not draw three slabs. */
@@ -75,11 +75,6 @@ function CourseCard({ course, onOpen }) {
   const score = toScore(course.performance);
   const band = bandFor(score);
   const skills = course.skills ?? [];
-  const weak = skills.filter((skill) => gapToTarget(skill.score) > 0).length;
-  // The server sorts skills weakest-first, which is also the order that reads
-  // best here: the plot slopes up, so the gaps are the first thing seen.
-  const weakest = skills[0];
-
   return (
     <li className="sd-cc" data-band={band.id}>
       <button
@@ -114,19 +109,10 @@ function CourseCard({ course, onOpen }) {
       {skills.length > 0 ? (
         <>
           <p className="sd-cc__plot-label">
-            {skills.length} {skills.length === 1 ? "topic" : "topics"}, weakest first
+            {skills.length} {skills.length === 1 ? "topic" : "topics"}
           </p>
 
           <TopicColumns skills={skills} courseTitle={course.title} onOpen={onOpen} />
-
-          <footer className="sd-cc__foot">
-            <TargetLegend />
-            <span className="sd-cc__note">
-              {weak === 0
-                ? "No topic below the mark"
-                : `Weakest: ${weakest.topic} ${toScore(weakest.score)}%`}
-            </span>
-          </footer>
         </>
       ) : (
         <p className="sd-cc__note">

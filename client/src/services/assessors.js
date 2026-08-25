@@ -60,7 +60,7 @@ export async function fetchSubmissionReview(assessorId, submissionId) {
   return data;
 }
 
-// body: { action: "draft" | "release", overrides, finalScore, remark }
+// body: { action: "draft" | "release", overrides, finalScore }
 export async function saveSubmissionReview(assessorId, submissionId, body) {
   const { data } = await api.put(
     `/assessors/${assessorId}/submissions/${submissionId}/review`,

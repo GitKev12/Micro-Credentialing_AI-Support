@@ -13,8 +13,8 @@ const LEGEND = [BANDS.strong, BANDS.weak];
 /**
  * Per-topic scores for one course.
  *
- * Sorted weakest-first, because the question this panel answers is "where is
- * my gap", not "what is my alphabetical list of topics". One measure, banded
+ * Listed in the course's own lesson order, so a student can find a topic where
+ * they expect it; the callout underneath names the weakest. One measure, banded
  * by the reserved status palette; the band legend is always on screen, every
  * bar prints its own value, and the table view carries the same numbers for
  * anyone the colour does not reach.
@@ -40,15 +40,19 @@ function SkillGapAnalysis({ skills = [] }) {
             correct: Number.isFinite(skill.correct) ? skill.correct : null,
             total: Number.isFinite(skill.total) ? skill.total : null
           };
-        })
-        .sort((a, b) => a.score - b.score),
+        }),
     [skills]
   );
 
   const showItems = rows.some((row) => row.total !== null);
 
   const belowTarget = rows.filter((row) => row.gap > 0);
-  const focus = rows[0];
+  // The rows are in the course's own lesson order now, so the weakest has to be
+  // found rather than read off the front.
+  const focus = rows.reduce(
+    (lowest, row) => (lowest === null || row.score < lowest.score ? row : lowest),
+    null
+  );
 
   if (rows.length === 0) {
     return (
@@ -66,7 +70,6 @@ function SkillGapAnalysis({ skills = [] }) {
     <section className="sd-card" aria-labelledby="sd-skills-title">
       <header className="sd-section-head">
         <div className="sd-section-head__text">
-          <p className="sd-eyebrow">Weakest first</p>
           <h2 className="sd-h3" id="sd-skills-title">
             Skill gap analysis
           </h2>
@@ -146,7 +149,7 @@ function SkillGapAnalysis({ skills = [] }) {
         <div className="sd-table-wrap">
           <table className="sd-table">
             <caption className="sd-sr-only">
-              Topic scores for this course, weakest first
+              Topic scores for this course, in lesson order
             </caption>
             <thead>
               <tr>
@@ -171,7 +174,15 @@ function SkillGapAnalysis({ skills = [] }) {
                   <td>{row.topic}</td>
                   {showItems ? (
                     <td className="sd-table__num">
-                      {row.total !== null ? `${row.correct} / ${row.total}` : "—"}
+                      {row.total !== null ? (
+                        <span className="sd-frac">
+                          <span className="sd-frac__n">{row.correct}</span>
+                          <span className="sd-frac__slash">/</span>
+                          <span className="sd-frac__d">{row.total}</span>
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   ) : null}
                   <td className="sd-table__num">{row.score}%</td>

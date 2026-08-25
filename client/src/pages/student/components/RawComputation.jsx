@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { OVERALL_NOTE, SKILL_FORMULAS, TARGET, toScore } from "../performance";
+import { SKILL_FORMULAS, TARGET, toScore } from "../performance";
 import { ChevronDownIcon } from "./icons";
 
 /**
@@ -39,8 +39,7 @@ function RawComputation({ course }) {
             // The term this topic contributes to the weighted figure.
             contribution: weight * score
           };
-        })
-        .sort((a, b) => b.contribution - a.contribution),
+        }),
     [skills]
   );
 
@@ -59,13 +58,9 @@ function RawComputation({ course }) {
     <section className="sd-card" aria-labelledby="sd-raw-title">
       <header className="sd-section-head">
         <div className="sd-section-head__text">
-          <p className="sd-eyebrow">Show your working</p>
           <h2 className="sd-h3" id="sd-raw-title">
             Raw computation
           </h2>
-          <p className="sd-sub">
-            Every number above, term by term — the same figures the report is built from.
-          </p>
         </div>
 
         <button
@@ -85,17 +80,16 @@ function RawComputation({ course }) {
           <div className="sd-raw__formulas">
             {SKILL_FORMULAS.map((formula) => (
               <p className="sd-raw__formula" key={formula.name}>
-                <span className="sd-raw__formula-name">{formula.name}</span>
+                <span className="sd-raw__formula-name">{formula.name}:</span>
                 <code>{formula.expression}</code>
               </p>
             ))}
-            <p className="sd-raw__formula sd-raw__formula--note">{OVERALL_NOTE}</p>
           </div>
 
           <div className="sd-table-wrap">
             <table className="sd-table sd-table--raw">
               <caption className="sd-sr-only">
-                Per-topic working for this course, largest contribution first
+                Per-topic working for this course, in lesson order
               </caption>
               <thead>
                 <tr>
@@ -123,9 +117,7 @@ function RawComputation({ course }) {
                     <td>{row.topic}</td>
                     <td className="sd-table__num">{row.correct}</td>
                     <td className="sd-table__num">{row.asked}</td>
-                    <td className="sd-table__num">
-                      {row.correct} / {row.asked} = {row.score}%
-                    </td>
+                    <td className="sd-table__num">{row.score}%</td>
                     <td className="sd-table__num">{decimals(row.weight)}</td>
                     <td className="sd-table__num">{decimals(row.contribution, 1)}</td>
                   </tr>
@@ -136,9 +128,7 @@ function RawComputation({ course }) {
                   <th scope="row">Total</th>
                   <td className="sd-table__num">{totalCorrect}</td>
                   <td className="sd-table__num">{totalAsked}</td>
-                  <td className="sd-table__num">
-                    {totalCorrect} / {totalAsked}
-                  </td>
+                  <td className="sd-table__num">{Math.round(overall)}%</td>
                   <td className="sd-table__num">{decimals(weightSum)}</td>
                   <td className="sd-table__num">{decimals(weighted, 1)}</td>
                 </tr>

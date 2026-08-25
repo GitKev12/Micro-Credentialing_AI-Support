@@ -1804,14 +1804,6 @@ body:has(.student-app) {
   visibility: visible;
 }
 
-.sd-cc__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sd-2);
-  flex-wrap: wrap;
-}
-
 .sd-cc__note {
   font-size: var(--sd-fs-label);
   color: var(--sd-muted);
@@ -1838,13 +1830,56 @@ body:has(.student-app) {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--sd-fs-body);
+  /* Every digit the same width, so a column of numbers is a column and not a
+     ragged edge — set on the table so it reaches label cells too, not only
+     the ones marked as numeric. */
+  font-variant-numeric: tabular-nums;
 }
 
 .sd-table th,
 .sd-table td {
   padding: var(--sd-3);
-  text-align: left;
+  text-align: center;
+  /* Centred rather than baseline: the Level column holds a chip with its own
+     padding, and on a baseline it rides high against the plain text beside it. */
+  vertical-align: middle;
   border-bottom: 1px solid var(--sd-border);
+}
+
+/* The label column takes the slack, so the measured columns stay snug against
+   their contents and line up the same way in every table on the page. It is
+   also the one column that stays left — a topic is a name, and names read from
+   their first letter. Everything measured is centred under its heading. */
+.sd-table th:first-child,
+.sd-table td:first-child {
+  width: 100%;
+  text-align: left;
+}
+
+/* A fraction reads as one number, but "7 / 7" and "10 / 12" only line up if
+   both halves are held to a fixed width — otherwise the slash wanders. */
+.sd-frac {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.sd-frac__n,
+.sd-frac__d {
+  display: inline-block;
+  min-width: 2ch;
+}
+
+.sd-frac__n {
+  text-align: right;
+}
+
+.sd-frac__d {
+  text-align: left;
+}
+
+.sd-frac__slash {
+  padding: 0 0.15em;
+  color: var(--sd-muted);
 }
 
 .sd-table th {
@@ -1865,12 +1900,8 @@ body:has(.student-app) {
 }
 
 .sd-table__num {
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
-}
-
-.sd-table th.sd-table__num {
-  text-align: right;
 }
 
 /* ── Raw computation ────────────────────────────────────
@@ -1913,7 +1944,9 @@ body:has(.student-app) {
 .sd-raw__formulas {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sd-2) var(--sd-4);
+  /* No gap: the rule between each pair sets the rhythm, and a gap on top of it
+     would double the spacing on one side of every divider. */
+  gap: 0;
   margin-bottom: var(--sd-4);
   padding: var(--sd-3) var(--sd-4);
   border-radius: var(--sd-r-md);
@@ -1923,31 +1956,38 @@ body:has(.student-app) {
 .sd-raw__formula {
   display: flex;
   align-items: baseline;
-  gap: var(--sd-2);
+  gap: var(--sd-1);
   margin: 0;
+  padding: 0 var(--sd-4);
 }
 
+.sd-raw__formula:first-child {
+  padding-left: 0;
+}
+
+.sd-raw__formula:last-child {
+  padding-right: 0;
+}
+
+/* A hairline between formulas, not a box around each: the strip is one
+   statement in parts, and boxing them would read as three unrelated cards. */
+.sd-raw__formula + .sd-raw__formula {
+  border-left: 1px solid var(--sd-border-strong);
+}
+
+/* Reads as a sentence — "Skill Score: (User Score / …) × 100" — so the name
+   keeps its own casing and the colon does the separating that an uppercase
+   label and a wide gap used to do. */
 .sd-raw__formula-name {
-  font-size: var(--sd-fs-micro);
+  font-size: var(--sd-fs-label);
   font-weight: var(--sd-fw-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--sd-muted);
+  color: var(--sd-ink-2);
 }
 
 .sd-raw__formula code {
   font-size: var(--sd-fs-label);
   color: var(--sd-ink);
   font-variant-numeric: tabular-nums;
-}
-
-/* Overall is the Skill Score formula at course scope, so it reads as a
-   remark on the pair above rather than a third member of it. */
-.sd-raw__formula--note {
-  flex-basis: 100%;
-  font-size: var(--sd-fs-label);
-  color: var(--sd-muted);
-  text-wrap: pretty;
 }
 
 .sd-table--raw tfoot th,
@@ -1967,7 +2007,7 @@ body:has(.student-app) {
 }
 
 .sd-table--raw tfoot td {
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -3103,6 +3143,30 @@ body:has(.student-app) {
 .sd-quiz__locked-icon {
   display: flex;
   flex-shrink: 0;
+}
+
+/* Stacked, a left-hand rule would divide nothing — it turns on its side. */
+@media (max-width: 640px) {
+  .sd-raw__formulas {
+    flex-direction: column;
+  }
+
+  .sd-raw__formula {
+    padding: var(--sd-2) 0;
+  }
+
+  .sd-raw__formula:first-child {
+    padding-top: 0;
+  }
+
+  .sd-raw__formula:last-child {
+    padding-bottom: 0;
+  }
+
+  .sd-raw__formula + .sd-raw__formula {
+    border-left: 0;
+    border-top: 1px solid var(--sd-border-strong);
+  }
 }
 
 @media (max-width: 640px) {

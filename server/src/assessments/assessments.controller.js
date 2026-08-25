@@ -493,7 +493,6 @@ export async function submitAssessment(request, response) {
       status: "pending",
       overrides: {},
       finalScore: null,
-      remark: null,
       gradedBy: null,
       gradedAt: null
     },

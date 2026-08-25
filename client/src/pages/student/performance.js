@@ -62,10 +62,6 @@ export const SKILL_FORMULAS = [
   { name: "Weight", expression: "Wi = fi / Σf" }
 ];
 
-/** Why there is no third formula for the figure the course leads with. */
-export const OVERALL_NOTE =
-  "Overall Performance is the Skill Score formula applied to the whole exam rather than to one skill.";
-
 /** Clamp anything the API hands us into a whole 0–100. */
 export function toScore(value) {
   const number = Number(value);

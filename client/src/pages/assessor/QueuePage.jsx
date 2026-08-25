@@ -12,7 +12,7 @@ import { Chip, Metric, Person, ScreenHeader, Segmented } from "./components/ui";
 const FILTERS = [
   { key: "all", label: "All" },
   { key: "flagged", label: "AI flagged" },
-  { key: "confident", label: "High confidence" },
+  { key: "confident", label: "Ready to release" },
   { key: "manual", label: "Manual grading" }
 ];
 
@@ -122,7 +122,7 @@ function QueueRow({ row, onReview }) {
           <Chip tone="outline">Manual grading needed</Chip>
         ) : (
           <Chip tone={row.flags ? "brand-soft" : "info"}>
-            {row.flags ? `${row.flags} flagged for review` : "High confidence"}
+            {row.flags ? `${row.flags} flagged for review` : "Ready to release"}
           </Chip>
         )}
       </span>
@@ -241,7 +241,7 @@ function QueuePage() {
               onClick={acceptConfident}
             >
               <CheckIcon />
-              {releasing ? "Releasing…" : "Accept all high-confidence"}
+              {releasing ? "Releasing…" : "Release all ready"}
             </button>
           ) : null}
         </div>
@@ -284,7 +284,7 @@ function QueuePage() {
                       {group.attention} need{group.attention === 1 ? "s" : ""} your read
                     </Chip>
                   ) : (
-                    <Chip tone="info">All high confidence</Chip>
+                    <Chip tone="info">All ready to release</Chip>
                   )}
                 </span>
               </button>

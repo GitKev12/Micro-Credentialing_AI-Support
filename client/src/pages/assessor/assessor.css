@@ -166,12 +166,17 @@
 
 /* Chips that carry their own type colour need it lifted off the navy. */
 [data-theme="dark"] .assessor-app .chip--danger,
-[data-theme="dark"] .assessor-app .answer-pill--wrong {
+[data-theme="dark"] .assessor-app .answer-pill--wrong,
+[data-theme="dark"] .assessor-app .choice.is-wrong,
+[data-theme="dark"] .assessor-app .choice.is-wrong .choice__id {
   color: #f8b8bd;
 }
 
 [data-theme="dark"] .assessor-app .chip--success,
-[data-theme="dark"] .assessor-app .answer-pill--correct {
+[data-theme="dark"] .assessor-app .answer-pill--correct,
+[data-theme="dark"] .assessor-app .choice.is-key,
+[data-theme="dark"] .assessor-app .choice.is-right,
+[data-theme="dark"] .assessor-app .choice__tag--key {
   background: rgba(95, 211, 196, 0.14);
 }
 
@@ -184,7 +189,8 @@
 [data-theme="dark"] .assessor-app .data-row,
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
-[data-theme="dark"] .assessor-app .grade-panel {
+[data-theme="dark"] .assessor-app .grade-panel,
+[data-theme="dark"] .assessor-app .queue-group__head {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 /* .stat-card and .explainer take their edge from the --gray-200 token (which
@@ -229,12 +235,6 @@
   flex: 1;
   min-height: 0;
   padding: var(--sp-2) clamp(1.25rem, calc(3 * var(--vw)), 2.75rem) var(--sp-10);
-}
-
-.review-source {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0 clamp(1.25rem, calc(3 * var(--vw)), 2.75rem);
 }
 
 /* ── Sidebar (light theme, collapsible) ─────────────────── */
@@ -1169,13 +1169,14 @@
   align-items: center;
   gap: var(--sp-4);
   width: 100%;
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
   border: none;
   border-radius: var(--radius-lg);
-  background: transparent;
+  background: var(--surface);
+  box-shadow: var(--shadow-pill);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .queue-group__head:hover {
@@ -1456,13 +1457,6 @@
 
 /* ── Assessment review ──────────────────────────────────── */
 
-.review-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
-  gap: var(--sp-6);
-  align-items: start;
-}
-
 .review-grid--stacked {
   display: flex;
   flex-direction: column-reverse;
@@ -1561,6 +1555,105 @@
 
 .answer-pill--neutral {
   background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+/* ── Choice list ────────────────────────────────
+   Every option, with the key and the student's pick marked on the rows. The
+   tags carry the meaning in words: tint alone would leave the two states
+   indistinguishable to anyone who cannot separate the teal from the pink. */
+
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+  color: var(--text-body);
+}
+
+.choice__id {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--gray-700);
+}
+
+.choice__text {
+  flex: 1;
+  min-width: 0;
+  text-wrap: pretty;
+}
+
+.choice__tags {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.choice__tag {
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.choice__tag--key {
+  background: rgba(2, 110, 120, 0.12);
+  color: var(--teal-700);
+}
+
+.choice__tag--picked {
+  background: var(--surface);
+  color: var(--gray-700);
+  box-shadow: inset 0 0 0 1px var(--gray-200);
+}
+
+/* The key — whether or not the student landed on it. */
+.choice.is-key,
+.choice.is-right {
+  background: rgba(2, 110, 120, 0.1);
+  color: var(--teal-700);
+}
+
+.choice.is-key .choice__id,
+.choice.is-right .choice__id {
+  color: var(--teal-700);
+}
+
+/* What the student picked, when it was not the key. */
+.choice.is-wrong {
+  background: var(--pink-100);
+  color: var(--maroon-900);
+}
+
+.choice.is-wrong .choice__id {
+  color: var(--maroon-900);
+}
+
+.choice--blank {
+  font-style: italic;
   color: var(--gray-600);
 }
 
@@ -1722,8 +1815,6 @@
 
 /* Grading panel */
 .grade-panel {
-  position: sticky;
-  top: var(--sp-4);
   border-radius: var(--radius-xl);
   background: var(--surface);
   box-shadow: var(--shadow-card);
@@ -1731,7 +1822,6 @@
 }
 
 .review-grid--stacked .grade-panel {
-  position: static;
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
@@ -1890,27 +1980,6 @@
   display: none;
 }
 
-.remark-input {
-  width: 100%;
-  resize: vertical;
-  min-height: 5rem;
-  padding: var(--sp-3);
-  border: none;
-  outline: none;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-field);
-  font: inherit;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-light);
-  line-height: 1.55;
-  color: var(--ink);
-}
-
-.remark-input:focus {
-  box-shadow: inset 0 0 0 2px var(--brand);
-}
-
 .grade-actions {
   display: flex;
   flex-direction: column;
@@ -1930,7 +1999,6 @@
 /* ── Responsive ─────────────────────────────────────────── */
 
 @media (max-width: 1180px) {
-  .review-grid,
   .student-split {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -24,7 +24,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   POST /:assessorId/queue/release-confident               — accept all flag-free AI grades
 //   GET  /:assessorId/submissions/:submissionId             — full review payload
 //   PUT  /:assessorId/submissions/:submissionId/review      — { action: "draft"|"release",
-//                                                              overrides?, finalScore?, remark? }
+//                                                              overrides?, finalScore? }
 //   GET  /:assessorId/credentials                           — approved grades awaiting issue
 //   POST /:assessorId/credentials/:submissionId/issue       — issue the micro-credential
 const router = Router();

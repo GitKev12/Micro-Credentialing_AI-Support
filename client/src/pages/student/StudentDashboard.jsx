@@ -76,7 +76,6 @@ function StudentDashboard() {
 
   const railSummary = courses.length
     ? [
-        { label: "Overall", value: `${overall}%` },
         { label: "Courses", value: courses.length },
         { label: "Topics to close", value: gaps.length }
       ]

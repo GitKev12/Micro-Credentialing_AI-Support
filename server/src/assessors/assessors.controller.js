@@ -20,9 +20,9 @@ import { aiStatusOf, isReleased, openFlags } from "./grading.js";
  *     answers: [{ itemId, choice }],
  *     aiGrading: { status: "graded"|"unavailable", reason?, score,
  *                  items: [{ itemId, verdict: "correct"|"incorrect"|"flagged",
- *                            aiGuess?, why? }] },
+ *                            aiGuess?, why?, choices: [{ id, text }] }] },
  *     review: { status: "pending"|"draft"|"released", overrides: { itemId: verdict },
- *               finalScore, remark, gradedBy, gradedAt },
+ *               finalScore, gradedBy, gradedAt },
  *     credential: { status: "none"|"pending"|"issued", name, issuedAt, issuedBy } }
  *
  * Both collections exist but are empty until assessments are generated, so
@@ -399,6 +399,36 @@ async function findAssignedResult(assessor, submissionId) {
   return { result: course ? result : null, course };
 }
 
+/** Choice ids are compared lowercase everywhere else; do the same here. */
+function choiceId(value) {
+  return value == null || value === "" ? null : String(value).toLowerCase();
+}
+
+/**
+ * The options as the assessor should see them.
+ *
+ * Stored items already carry `{ id, text }` — assessments.format.js letters
+ * them on the way in — but an older document may hold plain strings, so letter
+ * those the same way rather than rendering a column of blank rows.
+ *
+ * Bank order, not the order the student saw: `toStudentAssessment` shuffles the
+ * options per sitting, and re-deriving that shuffle here would be guesswork.
+ * It costs nothing, because an answer names a choice id and the id is assigned
+ * before the shuffle — so "c" is the same option on every screen it appears on.
+ */
+function reviewChoices(item) {
+  return (Array.isArray(item?.choices) ? item.choices : []).map((choice, index) => {
+    const fallbackId = String.fromCharCode(97 + index);
+    if (choice && typeof choice === "object") {
+      return {
+        id: choiceId(choice.id) ?? fallbackId,
+        text: String(choice.text ?? choice.label ?? "")
+      };
+    }
+    return { id: fallbackId, text: String(choice ?? "") };
+  });
+}
+
 async function reviewPayload(result, course) {
   const [assessment, student] = await Promise.all([
     collection(ASSESSMENTS_COLLECTION).findOne({
@@ -430,8 +460,13 @@ async function reviewPayload(result, course) {
       id,
       n: item.n ?? index + 1,
       q: item.q ?? item.question ?? "",
-      choice: answerByItem.get(id) ?? null,
-      key: item.key ?? null,
+      choices: reviewChoices(item),
+      // Lowercased to match how the scorer compares them
+      // (assessments.format.js). A true-false item is answered by the word,
+      // and a client that posted "True" against a stored id of "true" would
+      // otherwise show the assessor a paper with nothing marked on it.
+      choice: choiceId(answerByItem.get(id)),
+      key: choiceId(item.key),
       verdict: ai?.verdict ?? null,
       aiGuess: ai?.aiGuess ?? null,
       why: ai?.why ?? null
@@ -465,7 +500,6 @@ async function reviewPayload(result, course) {
       status: result.review?.status ?? "pending",
       overrides: result.review?.overrides ?? {},
       finalScore: result.review?.finalScore ?? null,
-      remark: result.review?.remark ?? null,
       gradedAt: result.review?.gradedAt ?? null
     },
     credential: {
@@ -499,7 +533,7 @@ export async function saveReview(request, response) {
   const { result, course } = await findAssignedResult(assessor, request.params.submissionId);
   if (!result) return response.status(404).json({ message: "Submission not found." });
 
-  const { action, overrides, finalScore, remark } = request.body ?? {};
+  const { action, overrides, finalScore } = request.body ?? {};
   if (action !== "draft" && action !== "release") {
     return response.status(400).json({ message: 'action must be "draft" or "release".' });
   }
@@ -525,7 +559,6 @@ export async function saveReview(request, response) {
     status: action === "release" ? "released" : "draft",
     overrides: cleanOverrides,
     finalScore: score,
-    remark: String(remark ?? "").trim() || null,
     gradedBy: asId(assessor._id),
     gradedAt: new Date()
   };
@@ -572,7 +605,6 @@ export async function releaseConfident(request, response) {
             status: "released",
             overrides: result.review?.overrides ?? {},
             finalScore: score,
-            remark: result.review?.remark ?? null,
             gradedBy: asId(assessor._id),
             gradedAt: new Date()
           },
