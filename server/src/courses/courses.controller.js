@@ -264,7 +264,7 @@ async function buildCertifications(studentId, student, courses) {
 
   const results = await mongoose.connection
     .collection(RESULTS_COLLECTION)
-    .find({ studentId: { $in: studentKeys } })
+    .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
     .toArray();
 
   // Only released credentials are the student's business: "none" means the

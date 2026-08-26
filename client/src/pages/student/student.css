@@ -2723,8 +2723,8 @@ body:has(.student-app) {
 .sd-quiz__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sd-3);
-  font-size: var(--sd-fs-micro);
+  gap: var(--sd-4);
+  font-size: var(--sd-fs-meta);
   color: var(--sd-muted);
 }
 
@@ -2744,42 +2744,28 @@ body:has(.student-app) {
 }
 
 .sd-quiz__item {
-  padding: var(--sd-3);
+  padding: var(--sd-5);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-md);
   background: var(--sd-surface);
 }
 
 .sd-quiz__q {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sd-2);
-  margin: 0 0 var(--sd-3);
-  font-size: var(--sd-fs-body);
+  margin: 0 0 var(--sd-5);
+  font-size: var(--sd-fs-h3);
+  font-weight: var(--sd-fw-medium);
+  line-height: 1.45;
   color: var(--sd-ink);
-}
-
-.sd-quiz__n {
-  flex-shrink: 0;
-  min-width: 1.6em;
-  height: 1.6em;
-  border-radius: var(--sd-r-pill);
-  background: var(--sd-brand-wash);
-  color: var(--sd-brand-text);
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-semibold);
-  text-align: center;
-  line-height: 1.6em;
+  text-wrap: pretty;
 }
 
 /* Says which kind of item this is without changing how it is answered — both
    types are the same radio group underneath. */
 .sd-quiz__type {
-  padding: 1px var(--sd-1);
+  padding: 3px var(--sd-2);
   border-radius: var(--sd-r-pill);
   background: var(--sd-band);
-  font-size: var(--sd-fs-micro);
+  font-size: var(--sd-fs-label);
   color: var(--sd-band-text);
   white-space: nowrap;
 }
@@ -2787,17 +2773,21 @@ body:has(.student-app) {
 .sd-quiz__choices {
   display: flex;
   flex-direction: column;
-  gap: var(--sd-2);
+  gap: var(--sd-3);
 }
 
 .sd-quiz__choice {
   display: flex;
   align-items: center;
-  gap: var(--sd-2);
-  padding: var(--sd-2) var(--sd-3);
+  gap: var(--sd-3);
+  /* 3rem tall at rest: an answer is a touch target before it is a row, and the
+     old 13px-in-8px-padding came to barely 33px. */
+  min-height: 3rem;
+  padding: var(--sd-3) var(--sd-4);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-sm);
-  font-size: var(--sd-fs-meta);
+  font-size: var(--sd-fs-body-lg);
+  line-height: 1.45;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -2809,6 +2799,7 @@ body:has(.student-app) {
 
 .sd-quiz__choice.is-picked {
   border-color: var(--sd-brand);
+  box-shadow: inset 0 0 0 1px var(--sd-brand);
   background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
   font-weight: var(--sd-fw-medium);
@@ -2827,8 +2818,8 @@ body:has(.student-app) {
 .sd-quiz__choice.is-wrong input {
   appearance: none;
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   margin: 0;
   border-radius: 50%;
   border: 2px solid;
@@ -2852,6 +2843,9 @@ body:has(.student-app) {
 
 .sd-quiz__choice input {
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
   accent-color: var(--sd-brand);
 }
 
@@ -2873,15 +2867,15 @@ body:has(.student-app) {
 }
 
 .sd-quiz__pager-btn {
-  width: 2rem;
-  height: 2rem;
+  width: 2.5rem;
+  height: 2.5rem;
   padding: 0;
   border: 1px solid var(--sd-border-strong);
   border-radius: var(--sd-r-sm);
   background: var(--sd-surface);
   color: var(--sd-muted);
   font-family: inherit;
-  font-size: var(--sd-fs-micro);
+  font-size: var(--sd-fs-body);
   font-weight: var(--sd-fw-medium);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -2932,7 +2926,26 @@ body:has(.student-app) {
 /* One question on screen: it carries the whole pane, so it sits flatter and
    roomier than a row in a list ever needed to. */
 .sd-quiz__item--single {
-  padding: var(--sd-4);
+  padding: var(--sd-6);
+}
+
+/* Three sizes in three steps: the label that says where you are, the question
+   itself, then the answers. Reading order and visual weight agree. */
+.sd-quiz__qhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sd-3);
+}
+
+.sd-quiz__qcount {
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
 }
 
 .sd-quiz__nav {
@@ -2952,7 +2965,7 @@ body:has(.student-app) {
 /* Skip is the quieter of the two: leaving a question blank is a detour, not
    the way through the paper. */
 .sd-quiz__skip {
-  padding: var(--sd-2) var(--sd-3);
+  padding: var(--sd-2) var(--sd-4);
   border: 1px solid var(--sd-border-strong);
   border-radius: var(--sd-r-pill);
   background: transparent;
@@ -2968,22 +2981,31 @@ body:has(.student-app) {
   color: var(--sd-brand-text);
 }
 
+/* The badge that used to sit inside the question sentence. Nothing renders it
+   now — the pager strip above already says which question you are on, and the
+   head says it in words. */
+
 .sd-quiz__actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--sd-3);
-  padding-top: var(--sd-3);
+  gap: var(--sd-4);
+  flex-wrap: wrap;
+  padding-top: var(--sd-4);
   border-top: 1px solid var(--sd-border);
 }
 
 .sd-quiz__progress {
-  font-size: var(--sd-fs-meta);
+  font-size: var(--sd-fs-body);
   color: var(--sd-muted);
 }
 
 .sd-quiz__result {
-  padding: var(--sd-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sd-2);
+  padding: var(--sd-6);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-md);
   text-align: center;
@@ -3007,13 +3029,16 @@ body:has(.student-app) {
 
 .sd-quiz__score {
   margin: 0;
-  font-size: var(--sd-fs-stat);
+  font-size: var(--sd-fs-hero);
   font-weight: var(--sd-fw-bold);
+  line-height: 1;
+  letter-spacing: -0.02em;
   color: var(--sd-ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .sd-quiz__score span {
-  font-size: var(--sd-fs-body);
+  font-size: var(--sd-fs-h3);
   font-weight: var(--sd-fw-regular);
   color: var(--sd-muted);
 }
@@ -3022,9 +3047,9 @@ body:has(.student-app) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--sd-1);
-  margin: var(--sd-1) 0 0;
-  font-size: var(--sd-fs-meta);
+  gap: var(--sd-2);
+  margin: 0;
+  font-size: var(--sd-fs-title);
   font-weight: var(--sd-fw-semibold);
 }
 
@@ -3036,10 +3061,28 @@ body:has(.student-app) {
   color: var(--sd-crit-text);
 }
 
+/* Retake row — the attempts read-out, and the way back into the paper. */
+.sd-quiz__retake {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sd-4);
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: var(--sd-2);
+  padding-top: var(--sd-4);
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-quiz__attempts {
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
 .sd-quiz__note,
 .sd-quiz__error {
   margin: var(--sd-2) 0 0;
-  font-size: var(--sd-fs-micro);
+  font-size: var(--sd-fs-meta);
   color: var(--sd-muted);
 }
 

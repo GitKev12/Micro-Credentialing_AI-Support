@@ -342,7 +342,10 @@ export function tallyActivity(students, courses, sources) {
     activity.badgesTotal = catalogue.length;
     activity.badgesEarned = catalogue.filter((badge) => passed.has(asId(badge.moduleId))).length;
 
-    activity.pending = submissions.filter((result) => !isReleased(result)).length;
+    // Retired attempts are not waiting on anyone — the assessor queue drops
+    // them too, and the two counts have to agree.
+    const live = submissions.filter((result) => result.superseded !== true);
+    activity.pending = live.filter((result) => !isReleased(result)).length;
 
     activity.lastActive = latestActivity(
       newestDate(completions.map((entry) => entry.completedAt)),
@@ -373,6 +376,7 @@ async function activityForStudents(students, courses) {
       moduleId: 1,
       assessmentId: 1,
       submittedAt: 1,
+      superseded: 1,
       review: 1,
       aiGrading: 1
     }),

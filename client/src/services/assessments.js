@@ -90,11 +90,14 @@ export async function submitAssessment(studentId, assessmentId, answers) {
     return { result: data?.result ?? null, badge: data?.badge ?? null };
   } catch (error) {
     const status = error.response?.status;
+    // 409 no longer means "already submitted" — a paper may be sat again. It
+    // means this student has no attempt left to spend on it, and the server
+    // says which rule stopped them.
     if (status === 409) {
       return {
         alreadySubmitted: true,
         result: error.response.data?.result ?? null,
-        message: error.response.data?.message ?? "Already submitted."
+        message: error.response.data?.message ?? "No attempts left for this assessment."
       };
     }
     if (status === 423) {

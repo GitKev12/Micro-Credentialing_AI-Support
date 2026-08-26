@@ -38,6 +38,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
   // in whatever order the student picks.
   const [current, setCurrent] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [retaking, setRetaking] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
@@ -211,6 +212,42 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
     }
   };
 
+  /**
+   * Sit the paper again.
+   *
+   * Re-fetching is the whole mechanism: the server reshuffles the questions and
+   * their choices on every call, so a retake costs nothing to produce — the
+   * bank was written once and no model is asked for anything here.
+   *
+   * The previous mark comes back in that response and is deliberately dropped.
+   * The student is starting a fresh attempt, and showing last time's score
+   * above a blank paper would only invite them to re-enter the same answers.
+   */
+  const handleRetake = async () => {
+    if (retaking || !assessmentId) return;
+
+    setRetaking(true);
+    setError("");
+
+    try {
+      const data = await fetchAssessment(studentId, assessmentId);
+
+      if (data.locked) {
+        setState({ status: "locked", message: data.message });
+        return;
+      }
+
+      setState({ status: "ready", assessment: data.assessment });
+      setResult(null);
+      setAnswers({});
+      setCurrent(0);
+    } catch (_error) {
+      setError("Could not start another attempt. Try again.");
+    } finally {
+      setRetaking(false);
+    }
+  };
+
   // The quiz is the student's to take; it just has not been written yet.
   if (state.status === "offer") {
     return (
@@ -301,6 +338,30 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
               An assessor still reviews this before the badge is released.
             </p>
           ) : null}
+
+          <div className="sd-quiz__retake">
+            <span className="sd-quiz__attempts">
+              {result.attemptsAllowed
+                ? `Attempt ${result.attempt} of ${result.attemptsAllowed}`
+                : `Attempt ${result.attempt}`}
+              {result.attemptsLeft === 0
+                ? " — no attempts left"
+                : result.attemptsLeft
+                  ? ` — ${result.attemptsLeft} left`
+                  : " — retake as often as you like"}
+            </span>
+
+            {result.canRetake ? (
+              <button
+                type="button"
+                className="module-row__action"
+                disabled={retaking}
+                onClick={handleRetake}
+              >
+                {retaking ? "Starting…" : "Retake"}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -347,13 +408,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onGenerated, onBadgeEa
 
       {question ? (
         <div className="sd-quiz__item sd-quiz__item--single" key={question.id}>
-          <p className="sd-quiz__q">
-            <span className="sd-quiz__n">{current + 1}</span>
-            {question.q}
+          {/* Context first, then the question, then the answers. The three used
+              to share one wrapping paragraph — badge, question and type pill on
+              a baseline — which put the item's label in the middle of the
+              sentence on any question long enough to wrap. */}
+          <div className="sd-quiz__qhead">
+            <span className="sd-quiz__qcount">
+              Question {current + 1} of {items.length}
+            </span>
             <span className="sd-quiz__type">
               {question.type === "true-false" ? "True or false" : "Multiple choice"}
             </span>
-          </p>
+          </div>
+
+          <p className="sd-quiz__q">{question.q}</p>
 
           <div className="sd-quiz__choices" role="radiogroup" aria-label={question.q}>
             {question.choices.map((choice) => {

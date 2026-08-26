@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
-import { DEFAULT_POINTS_PER_ITEM, defaultPassMark } from "../assessments/assessments.format.js";
+import {
+  DEFAULT_POINTS_PER_ITEM,
+  TRUE_FALSE_CHOICES,
+  defaultPassMark
+} from "../assessments/assessments.format.js";
 import { issueCertificate } from "../certificates/certificates.service.js";
 import { aiStatusOf, isReleased, openFlags } from "./grading.js";
 
@@ -100,8 +104,16 @@ function moduleFilterForCourse(course) {
 
 async function resultsForCourses(courses) {
   if (courses.length === 0) return [];
+
+  // Superseded attempts are history, not work. A lesson quiz may be retaken
+  // without limit, so grading every sitting would let one student add rows to
+  // the queue indefinitely — and the earlier attempts no longer decide
+  // anything, because the latest is the one that counts.
   return collection(RESULTS_COLLECTION)
-    .find({ courseId: { $in: manyCandidates(courses.map((course) => course._id)) } })
+    .find({
+      courseId: { $in: manyCandidates(courses.map((course) => course._id)) },
+      superseded: { $ne: true }
+    })
     .toArray();
 }
 
@@ -411,13 +423,23 @@ function choiceId(value) {
  * them on the way in — but an older document may hold plain strings, so letter
  * those the same way rather than rendering a column of blank rows.
  *
+ * A true-false item stores no choices at all. The generator only writes a
+ * `choices` array on the multiple-choice branch, and `normalizeItem` supplies
+ * True/False when the paper is read — which every path except this one goes
+ * through. Reading the raw document therefore found nothing, and the review
+ * screen fell back to bare "Student · false" pills on exactly the items whose
+ * wording an assessor most needs to see.
+ *
  * Bank order, not the order the student saw: `toStudentAssessment` shuffles the
  * options per sitting, and re-deriving that shuffle here would be guesswork.
  * It costs nothing, because an answer names a choice id and the id is assigned
  * before the shuffle — so "c" is the same option on every screen it appears on.
  */
 function reviewChoices(item) {
-  return (Array.isArray(item?.choices) ? item.choices : []).map((choice, index) => {
+  const stored = Array.isArray(item?.choices) ? item.choices : [];
+  if (stored.length === 0 && item?.type === "true-false") return [...TRUE_FALSE_CHOICES];
+
+  return stored.map((choice, index) => {
     const fallbackId = String.fromCharCode(97 + index);
     if (choice && typeof choice === "object") {
       return {

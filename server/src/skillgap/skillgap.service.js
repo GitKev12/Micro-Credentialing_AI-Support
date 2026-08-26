@@ -229,7 +229,11 @@ export async function buildStudentSkillGap(studentId, courses) {
     .collection(RESULTS_COLLECTION)
     .find({
       studentId: { $in: idCandidates(studentId) },
-      assessmentId: { $in: finals.flatMap((doc) => idCandidates(doc._id)) }
+      assessmentId: { $in: finals.flatMap((doc) => idCandidates(doc._id)) },
+      // One breakdown per course. A student with three attempts at the final
+      // would otherwise get three rows for the same course, all claiming to be
+      // the analysis of it.
+      superseded: { $ne: true }
     })
     .toArray();
 

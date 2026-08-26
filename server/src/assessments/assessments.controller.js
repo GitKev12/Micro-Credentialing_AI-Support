@@ -62,6 +62,33 @@ function resultPassed(result, assessment) {
 }
 
 /** Everything the gates need, read once. */
+/**
+ * How many times a paper may be sat.
+ *
+ * A lesson quiz is practice: a student who failed it should be able to read the
+ * lesson again and come back, as often as it takes, and no credential rests on
+ * it. The final is the examination that issues the credential, so it is capped.
+ *
+ * Retaking costs nothing to generate. The bank was written once and every
+ * sitting is drawn from it — see selectItemsFor — so an unlimited quiz is
+ * unlimited only in a student's time, never in tokens.
+ */
+export const FINAL_ATTEMPT_LIMIT = 3;
+
+export const attemptLimitFor = (scope) => (scope === "final" ? FINAL_ATTEMPT_LIMIT : Infinity);
+
+/**
+ * The attempt that counts.
+ *
+ * Latest wins, so a retake supersedes what came before it. Results written
+ * before retakes existed carry no `attempt`, and are treated as attempt 1 —
+ * which is what they were.
+ */
+const attemptNo = (result) => Number(result?.attempt ?? 1);
+
+export const currentAttempt = (results) =>
+  results.reduce((latest, result) => (!latest || attemptNo(result) >= attemptNo(latest) ? result : latest), null);
+
 async function loadCourseState(studentId, courseId) {
   const [hasAssessments, hasModules, hasProgress, hasResults] = await Promise.all([
     collectionExists(ASSESSMENTS_COLLECTION),
@@ -93,11 +120,23 @@ async function loadCourseState(studentId, courseId) {
         .toArray()
     : [];
 
+  // Every attempt is kept, so this can no longer be a straight Map of the rows
+  // — two attempts at one paper would collapse into whichever loaded last.
+  const attemptsByAssessment = new Map();
+  for (const result of results) {
+    const key = asId(result.assessmentId);
+    if (!attemptsByAssessment.has(key)) attemptsByAssessment.set(key, []);
+    attemptsByAssessment.get(key).push(result);
+  }
+
   return {
     assessments,
     modules,
     completedModuleIds: new Set(progress.map((entry) => asId(entry.moduleId))),
-    resultByAssessment: new Map(results.map((result) => [asId(result.assessmentId), result]))
+    attemptsByAssessment,
+    resultByAssessment: new Map(
+      [...attemptsByAssessment].map(([key, rows]) => [key, currentAttempt(rows)])
+    )
   };
 }
 
@@ -165,9 +204,12 @@ function resultItems(result) {
   }));
 }
 
-function resultSummary(result, summary) {
+function resultSummary(result, summary, attempts = []) {
   if (!result) return null;
   const score = effectiveScore(result);
+  const limit = attemptLimitFor(summary.scope);
+  const used = Math.max(attempts.length, attemptNo(result));
+
   return {
     score,
     total: summary.totalPoints,
@@ -175,8 +217,36 @@ function resultSummary(result, summary) {
     passed: score >= summary.passMark,
     submittedAt: result.submittedAt ?? null,
     reviewStatus: result.review?.status ?? "pending",
-    items: resultItems(result)
+    items: resultItems(result),
+    // What the rail needs to offer a retake, or explain why it cannot.
+    attempt: attemptNo(result),
+    attemptsUsed: used,
+    attemptsAllowed: Number.isFinite(limit) ? limit : null,
+    attemptsLeft: Number.isFinite(limit) ? Math.max(0, limit - used) : null,
+    canRetake: retakeState(result, summary, used).allowed
   };
+}
+
+/**
+ * Whether this paper may be sat again, and why not when it may not.
+ *
+ * An issued credential closes the final for good. The latest attempt is the one
+ * that counts, so sitting it again could only take a credential away from a
+ * student who has already earned it — which is not a retake, it is a forfeit.
+ */
+export function retakeState(result, summary, used) {
+  if (!result) return { allowed: true, reason: null };
+
+  if (summary.scope === "final" && result.credential?.status === "issued") {
+    return { allowed: false, reason: "Your credential for this course has been issued." };
+  }
+
+  const limit = attemptLimitFor(summary.scope);
+  if (used >= limit) {
+    return { allowed: false, reason: `You have used all ${limit} attempts at this assessment.` };
+  }
+
+  return { allowed: true, reason: null };
 }
 
 /**
@@ -250,7 +320,11 @@ export async function getCourseAssessmentsForStudent(request, response) {
       return {
         ...summary,
         ...lockStateFor(doc, state),
-        result: resultSummary(state.resultByAssessment.get(asId(doc._id)), summary)
+        result: resultSummary(
+          state.resultByAssessment.get(asId(doc._id)),
+          summary,
+          state.attemptsByAssessment.get(asId(doc._id)) ?? []
+        )
       };
     })
     .filter(Boolean);
@@ -424,7 +498,11 @@ export async function getAssessmentForStudent(request, response) {
     // studentId decides which questions of the bank this student is given, and
     // it has to be the same id grading uses — see selectItemsFor.
     assessment: toStudentAssessment(doc, { studentId }),
-    result: resultSummary(state.resultByAssessment.get(asId(doc._id)), summary)
+    result: resultSummary(
+      state.resultByAssessment.get(asId(doc._id)),
+      summary,
+      state.attemptsByAssessment.get(asId(doc._id)) ?? []
+    )
   });
 }
 
@@ -456,16 +534,21 @@ export async function submitAssessment(request, response) {
     return response.status(423).json({ message: lock.reason, locked: true });
   }
 
-  // One attempt: a re-submission would silently overwrite a mark an assessor
-  // may already have released.
+  const summary = toAssessmentSummary(doc);
+  const priorAttempts = state.attemptsByAssessment.get(asId(doc._id)) ?? [];
   const existing = state.resultByAssessment.get(asId(doc._id));
-  if (existing) {
+
+  // A retake is allowed; a fourth sitting of a final is not, and neither is
+  // re-sitting a final whose credential is already in the student's hands.
+  const retake = retakeState(existing, summary, priorAttempts.length);
+  if (existing && !retake.allowed) {
     return response.status(409).json({
-      message: "This assessment has already been submitted.",
-      result: resultSummary(existing, toAssessmentSummary(doc))
+      message: retake.reason,
+      result: resultSummary(existing, summary, priorAttempts)
     });
   }
 
+  const attempt = priorAttempts.length + 1;
   const graded = gradeSubmission(doc, answers, { studentId });
 
   const record = {
@@ -474,6 +557,11 @@ export async function submitAssessment(request, response) {
     courseId: doc.courseId ?? null,
     studentId: String(studentId),
     submittedAt: new Date(),
+    // Which sitting this was, and whether it is still the one that counts.
+    // Every attempt is kept — a superseded row is history, not waste — but only
+    // one per paper is ever graded, scored against, or shown.
+    attempt,
+    superseded: false,
     // The questions this student was actually given. Without it the assessor
     // console would review the whole bank and mark the unasked ones wrong.
     servedItemIds: graded.servedItemIds,
@@ -499,6 +587,19 @@ export async function submitAssessment(request, response) {
     credential: { status: "none", name: null, issuedAt: null, issuedBy: null }
   };
 
+  // Retire the earlier sittings first. Doing it before the insert means a
+  // failure here leaves the student with their old attempt intact rather than
+  // with two live ones, and the pair can never both read as current.
+  if (priorAttempts.length > 0) {
+    await collection(RESULTS_COLLECTION).updateMany(
+      {
+        studentId: { $in: idCandidates(studentId) },
+        assessmentId: { $in: idCandidates(doc._id) }
+      },
+      { $set: { superseded: true } }
+    );
+  }
+
   await collection(RESULTS_COLLECTION).insertOne(record);
 
   /**
@@ -513,7 +614,7 @@ export async function submitAssessment(request, response) {
    * is derived from this result either way (see badges.service.js), so the
    * wall will still show it.
    */
-  const passedLessonQuiz = graded.passed && toAssessmentSummary(doc)?.scope === "lesson";
+  const passedLessonQuiz = graded.passed && summary?.scope === "lesson";
   const badge = passedLessonQuiz
     ? await lessonBadgeFor(doc.moduleId).catch(() => null)
     : null;
@@ -528,6 +629,13 @@ export async function submitAssessment(request, response) {
       itemCount: graded.items.length,
       submittedAt: record.submittedAt,
       reviewStatus: "pending",
+      attempt,
+      attemptsAllowed: Number.isFinite(attemptLimitFor(summary.scope))
+        ? attemptLimitFor(summary.scope)
+        : null,
+      attemptsLeft: Number.isFinite(attemptLimitFor(summary.scope))
+        ? Math.max(0, attemptLimitFor(summary.scope) - attempt)
+        : null,
       // Same shape resultSummary sends, so reopening the quiz later paints the
       // question strip exactly as it is painted the moment it is handed in.
       items: graded.items.map((item) => ({

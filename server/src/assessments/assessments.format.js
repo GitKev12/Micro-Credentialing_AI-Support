@@ -72,7 +72,7 @@ export const TOS_LEVELS = [
   "create"
 ];
 
-const TRUE_FALSE_CHOICES = [
+export const TRUE_FALSE_CHOICES = [
   { id: "true", text: "True" },
   { id: "false", text: "False" }
 ];

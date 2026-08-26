@@ -50,7 +50,7 @@ export async function passedLessonQuizzes(studentId, student) {
   ];
 
   const results = await collection(RESULTS_COLLECTION)
-    .find({ studentId: { $in: studentKeys } })
+    .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
     .toArray();
   if (results.length === 0) return new Map();
 
@@ -80,6 +80,11 @@ export function passedFromResults(results, assessmentById) {
   const passed = new Map();
 
   for (const result of results) {
+    // A superseded sitting decides nothing. The latest attempt is the one that
+    // counts everywhere else, and this module exists so the badge wall and the
+    // admin list read the same rule as the quiz gate — see lockStateFor.
+    if (result.superseded === true) continue;
+
     const assessment = assessmentById.get(String(result.assessmentId));
     if (!assessment) continue;
 
