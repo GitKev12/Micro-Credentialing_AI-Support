@@ -40,8 +40,8 @@ export async function updateCourse(courseId, changes) {
 }
 
 /**
- * What withdrawing a course would take with it — lessons, submissions,
- * completions, the blueprint, and how many people it would be withdrawn from.
+ * What deleting a course would take with it — lessons, submissions,
+ * completions, the blueprint, and how many people would be unenrolled from it.
  */
 export async function fetchCourseImpact(courseId) {
   const { data } = await api.get(`/admin/courses/${courseId}/impact`);

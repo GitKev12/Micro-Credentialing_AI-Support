@@ -310,7 +310,7 @@ export async function deleteCourseModule(request, response) {
  * The catalog itself.
  *
  * A course could not be created from the console at all — every one of them
- * began as a hand-written document — and could not be renamed or withdrawn
+ * began as a hand-written document — and could not be renamed or deleted
  * either. These are the endpoints behind that, and they live beside the module
  * writes because removing a course is removing its lessons, which is work this
  * file already knows how to do.
@@ -442,7 +442,7 @@ async function courseContents(course) {
   return { modules, enrolled, assessors, submissions, completions, blueprints };
 }
 
-/** GET /api/admin/courses/:id/impact — what withdrawing this course destroys. */
+/** GET /api/admin/courses/:id/impact — what deleting this course destroys. */
 export async function getCourseImpact(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 

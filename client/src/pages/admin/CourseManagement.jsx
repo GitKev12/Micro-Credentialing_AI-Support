@@ -45,7 +45,7 @@ function plural(count, word, suffix = "s") {
 }
 
 /**
- * What withdrawing a course destroys, and what survives it.
+ * What deleting a course destroys, and what survives it.
  *
  * The distinction is the point of the dialog: lessons and submissions go, but a
  * student is not the course's to delete — they are unenrolled and keep their
@@ -378,7 +378,7 @@ function CourseManagement() {
   const [notice, setNotice] = useState(null);
 
   // The course itself, rather than its lessons: which form is open ("new", or
-  // the course being edited), and the withdrawal waiting on its impact count.
+  // the course being edited), and the deletion waiting on its impact count.
   const [courseForm, setCourseForm] = useState(null);
   const [formError, setFormError] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -464,12 +464,12 @@ function CourseManagement() {
       closeCourse();
       setNotice({
         tone: "ok",
-        text: `“${removed.title}” was withdrawn, along with ${removed.modules} lesson${
+        text: `“${removed.title}” was deleted, along with ${removed.modules} lesson${
           removed.modules === 1 ? "" : "s"
         }.`
       });
     } catch (error) {
-      setNotice({ tone: "error", text: errorMessage(error, "Couldn't withdraw this course.") });
+      setNotice({ tone: "error", text: errorMessage(error, "Couldn't delete this course.") });
       setDeleting(null);
     } finally {
       setBusy(false);
@@ -610,7 +610,7 @@ function CourseManagement() {
                   disabled={busy}
                   onClick={() => askToDeleteCourse(selected)}
                 >
-                  Withdraw
+                  Delete
                 </button>
               </div>
             ) : null
@@ -716,12 +716,12 @@ function CourseManagement() {
 
         {deleting ? (
           <ConfirmDeleteModal
-            title="Withdraw this course?"
+            title="Delete this course?"
             subject={`${deleting.code} · ${deleting.title}`}
             losses={courseLosses(courseImpact)}
             keeps={courseKeeps(courseImpact)}
             busy={busy}
-            confirmLabel="Withdraw course"
+            confirmLabel="Delete course"
             onCancel={() => {
               setDeleting(null);
               setCourseImpact(null);
@@ -750,7 +750,7 @@ function CourseManagement() {
         }
       />
 
-      {/* A withdrawal closes the detail screen, so its result has to land
+      {/* A deletion closes the detail screen, so its result has to land
           here — the notice inside the detail view would never be seen. */}
       {notice ? (
         <p className={`admin-notice admin-notice--${notice.tone}`} role="status">

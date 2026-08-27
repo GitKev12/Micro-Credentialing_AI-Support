@@ -38,7 +38,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/courses/:id                      — course detail + modules
 //   PATCH  /api/admin/courses/:id                      — edit     { code?, title?, description? }
 //   GET    /api/admin/courses/:id/impact               — what deleting it would take
-//   DELETE /api/admin/courses/:id                      — withdraw the course
+//   DELETE /api/admin/courses/:id                      — delete the course
 //   POST   /api/admin/courses/:id/modules              — add a lesson (PDF body)
 //   GET    /api/admin/modules/:moduleId/impact         — what deleting it would take
 //   DELETE /api/admin/modules/:moduleId                — remove a lesson

@@ -88,32 +88,34 @@ function AssessorSidebar({ name, idNumber, counts }) {
         })}
       </nav>
 
-      <button
-        type="button"
-        className="assessor-rail__theme"
-        onClick={() => setTheme(toggleTheme())}
-        role="switch"
-        aria-checked={isDark}
-        title={collapsed ? (isDark ? "Light mode" : "Dark mode") : undefined}
-      >
-        {isDark ? <SunIcon /> : <MoonIcon />}
-        <span className="assessor-nav-item__label">
-          {isDark ? "Light Mode" : "Dark Mode"}
-        </span>
-        <span className={`theme-toggle${isDark ? " is-on" : ""}`} aria-hidden="true">
-          <span className="theme-toggle__thumb" />
-        </span>
-      </button>
+      <div className="assessor-rail__bottom">
+        <button
+          type="button"
+          className="assessor-rail__theme"
+          onClick={() => setTheme(toggleTheme())}
+          role="switch"
+          aria-checked={isDark}
+          title={collapsed ? (isDark ? "Light mode" : "Dark mode") : undefined}
+        >
+          {isDark ? <SunIcon /> : <MoonIcon />}
+          <span className="assessor-nav-item__label">
+            {isDark ? "Light Mode" : "Dark Mode"}
+          </span>
+          <span className={`theme-toggle${isDark ? " is-on" : ""}`} aria-hidden="true">
+            <span className="theme-toggle__thumb" />
+          </span>
+        </button>
 
-      <button
-        type="button"
-        className="assessor-rail__signout"
-        onClick={handleSignOut}
-        title={collapsed ? "Sign Out" : undefined}
-      >
-        <SignOutIcon />
-        <span>Sign Out</span>
-      </button>
+        <button
+          type="button"
+          className="assessor-rail__signout"
+          onClick={handleSignOut}
+          title={collapsed ? "Sign Out" : undefined}
+        >
+          <SignOutIcon />
+          <span>Sign Out</span>
+        </button>
+      </div>
     </aside>
   );
 }

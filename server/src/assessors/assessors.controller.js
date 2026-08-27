@@ -34,6 +34,7 @@ import { aiStatusOf, isReleased, openFlags } from "./grading.js";
  * shown is derived from real documents:
  *
  *   class.pending    <- StudentResults awaiting release in that course
+ *   class.lessons    <- LearningModules published for that course
  *   roster.done      <- ModuleProgress completions for that course
  *   roster.creds     <- issued credentials on StudentResults
  *   summary.toGrade  <- unreleased StudentResults across assigned courses
@@ -223,6 +224,67 @@ export async function getOverview(request, response) {
 
 /* ─────────────────────────── Classes ─────────────────────────── */
 
+/**
+ * Lessons per course, in one query rather than one per course.
+ *
+ * A LearningModule names its course by id or by course code — the same pair
+ * moduleFilterForCourse accepts — so both forms are resolved back to the course
+ * document here.
+ */
+async function lessonCountsForCourses(courses) {
+  const counts = new Map(courses.map((course) => [asId(course._id), 0]));
+  if (courses.length === 0) return counts;
+
+  const codes = [...new Set(courses.map(courseCode).filter(Boolean))];
+  const modules = await collection(MODULES_COLLECTION)
+    .find(
+      {
+        $or: [
+          { courseId: { $in: manyCandidates(courses.map((course) => course._id)) } },
+          ...(codes.length
+            ? [{ courseCode: { $in: codes.flatMap((code) => [code, code.toUpperCase()]) } }]
+            : [])
+        ]
+      },
+      { projection: { courseId: 1, courseCode: 1 } }
+    )
+    .toArray();
+
+  const byCode = new Map(
+    courses
+      .filter((course) => courseCode(course))
+      .map((course) => [courseCode(course).toLowerCase(), asId(course._id)])
+  );
+
+  modules.forEach((module) => {
+    const key = counts.has(asId(module.courseId))
+      ? asId(module.courseId)
+      : byCode.get(String(module.courseCode ?? "").trim().toLowerCase());
+    if (key && counts.has(key)) counts.set(key, counts.get(key) + 1);
+  });
+
+  return counts;
+}
+
+/** Submissions per course, counting only the ones the predicate keeps. */
+function countByCourse(results, predicate) {
+  const counts = new Map();
+  results.filter(predicate).forEach((result) => {
+    const key = asId(result.courseId);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+  return counts;
+}
+
+/**
+ * One row per assigned course, with everything the Classes table shows.
+ *
+ * The screen is a register, not a set of shortcuts: it answers how big the
+ * class is, how far it has read, what is waiting to be graded, how many
+ * credentials have come out of it, and when the class was last heard from —
+ * all derived from the live collections, so an empty database reports zeroes
+ * rather than failing.
+ */
 export async function getClasses(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
@@ -230,13 +292,14 @@ export async function getClasses(request, response) {
   if (!assessor) return response.status(404).json({ message: "Assessor not found." });
 
   const courses = await coursesForAssessor(assessor);
-  const results = await resultsForCourses(courses);
+  const [results, lessonCounts, students] = await Promise.all([
+    resultsForCourses(courses),
+    lessonCountsForCourses(courses),
+    collection(STUDENTS_COLLECTION).find({}, { projection: { enrolledCourses: 1 } }).toArray()
+  ]);
 
   // Enrollment counts per course, derived from Student.enrolledCourses.
   const studentCounts = new Map();
-  const students = await collection(STUDENTS_COLLECTION)
-    .find({}, { projection: { enrolledCourses: 1 } })
-    .toArray();
   students.forEach((student) => {
     (student.enrolledCourses ?? []).forEach((courseId) => {
       const key = asId(courseId);
@@ -244,24 +307,51 @@ export async function getClasses(request, response) {
     });
   });
 
-  const pendingCounts = new Map();
-  results
-    .filter((result) => !isReleased(result))
-    .forEach((result) => {
-      const key = asId(result.courseId);
-      pendingCounts.set(key, (pendingCounts.get(key) ?? 0) + 1);
-    });
+  const pendingCounts = countByCourse(results, (result) => !isReleased(result));
+  const flaggedCounts = countByCourse(
+    results,
+    (result) =>
+      !isReleased(result) && aiStatusOf(result) === "graded" && openFlags(result) > 0
+  );
+  const credentialsPending = countByCourse(
+    results,
+    (result) => isReleased(result) && result.credential?.status === "pending"
+  );
+  const credentialsIssued = countByCourse(
+    results,
+    (result) => result.credential?.status === "issued"
+  );
+
+  // The newest submission in each course — how recently the class was active.
+  const lastSubmission = new Map();
+  results.forEach((result) => {
+    if (!result.submittedAt) return;
+    const key = asId(result.courseId);
+    const current = lastSubmission.get(key);
+    if (!current || new Date(result.submittedAt) > new Date(current)) {
+      lastSubmission.set(key, result.submittedAt);
+    }
+  });
 
   return response.json({
-    classes: courses.map((course) => ({
-      id: asId(course._id),
-      code: courseCode(course),
-      name: courseTitle(course),
-      // Sections are not stored on the Course document yet.
-      section: course.section ?? null,
-      students: studentCounts.get(asId(course._id)) ?? 0,
-      pending: pendingCounts.get(asId(course._id)) ?? 0
-    }))
+    classes: courses.map((course) => {
+      const key = asId(course._id);
+
+      return {
+        id: key,
+        code: courseCode(course),
+        name: courseTitle(course),
+        // Sections are not stored on the Course document yet.
+        section: course.section ?? null,
+        students: studentCounts.get(key) ?? 0,
+        lessons: lessonCounts.get(key) ?? 0,
+        pending: pendingCounts.get(key) ?? 0,
+        flagged: flaggedCounts.get(key) ?? 0,
+        credentialsPending: credentialsPending.get(key) ?? 0,
+        credentialsIssued: credentialsIssued.get(key) ?? 0,
+        lastSubmission: lastSubmission.get(key) ?? null
+      };
+    })
   });
 }
 

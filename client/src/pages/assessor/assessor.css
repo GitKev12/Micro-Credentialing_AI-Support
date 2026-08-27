@@ -186,6 +186,7 @@
 
 /* Cards sit on a near-black page, so give them a hairline edge. */
 [data-theme="dark"] .assessor-app .assessor-card,
+[data-theme="dark"] .assessor-app .assessor-table-wrap,
 [data-theme="dark"] .assessor-app .data-row,
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
@@ -304,6 +305,7 @@
 
 .assessor-rail--collapsed .assessor-rail__signout {
   align-self: center;
+  margin-left: 0;
   padding: 0.625rem;
   border-radius: 50%;
 }
@@ -446,10 +448,18 @@
   color: var(--white);
 }
 
+.assessor-rail__bottom {
+  margin-top: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
 /* Dark-mode switch, sits just above Sign Out. */
 .assessor-rail__theme {
   outline: 2px solid var(--brand);
-  margin-top: auto;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -510,7 +520,9 @@
 }
 
 .assessor-rail__signout {
-  margin-top: var(--sp-2);
+  margin-top: 0;
+  align-self: flex-start;
+  margin-left: var(--sp-4);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -851,12 +863,10 @@
 
 /* ── Stat cards ─────────────────────────────────────────── */
 
-/* Stat tiles are sized to their own content — three numbers and a button
-   shouldn't inherit the height of the explainer panel beside them. */
+/* Stat tiles in a 3-column grid */
 .stat-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--sp-3);
 }
 
@@ -864,11 +874,13 @@
    the hierarchy, and the whole tile is the click target — the action reads as
    a footer link, not a heavy button block. */
 .stat-card {
-  flex: 0 0 auto;
-  width: 184px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label icon"
+    "value value"
+    "action action";
+  align-items: center;
   padding: var(--sp-5);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
@@ -896,42 +908,45 @@
 }
 
 .stat-card__icon {
+  grid-area: icon;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: var(--sp-4);
-  border-radius: var(--radius-sm);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   background: var(--brand-hover);
   color: var(--brand-text);
 }
 
 .stat-card__value {
+  grid-area: value;
   font-size: var(--fs-stat-lg);
   font-weight: var(--fw-semibold);
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--text-strong);
+  margin-top: var(--sp-2);
 }
 
 .stat-card__label {
-  margin-top: var(--sp-1);
-  font-size: var(--fs-body);
+  grid-area: label;
+  font-size: var(--fs-title-sm);
   font-weight: var(--fw-medium);
-  color: var(--text-body);
+  color: var(--text-muted);
 }
 
 .stat-card__action {
+  grid-area: action;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
   width: 100%;
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-3);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
   border-top: 1px solid var(--gray-200);
-  font-size: var(--fs-label);
+  font-size: var(--fs-body);
   font-weight: var(--fw-semibold);
   color: var(--brand-text);
 }
@@ -945,10 +960,8 @@
   transform: translateX(3px);
 }
 
-/* The explainer panel that sits beside the stat cards — takes the rest. */
+/* The explainer panel that sits below the stat cards */
 .explainer {
-  flex: 1 1 300px;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1027,35 +1040,74 @@
   flex-wrap: wrap;
 }
 
-/* ── Class rows ─────────────────────────────────────────── */
+/* ── Class register table ───────────────────────────────
+   The Classes screen is a register, so it is a real <table>: one row per
+   course, one column per measured fact. The rows it replaced were cards —
+   they carried a name and two numbers each, and nothing lined up between
+   them, which is exactly what a class list is read for.
 
-.class-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-6);
-  width: 100%;
-  padding: var(--sp-5) var(--sp-6);
-  border: none;
+   Eight columns do not fold into a phone, so the table keeps its shape and
+   the wrapper scrolls instead. Numbers only compare while they stay in a
+   column. */
+
+.assessor-table-wrap {
+  overflow-x: auto;
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--brand), var(--shadow-row);
+  box-shadow: var(--shadow-card);
+}
+
+.assessor-table {
+  width: 100%;
+  min-width: 62rem;
+  border-collapse: collapse;
+  font-size: var(--fs-body);
+  /* Every digit the same width, so a column of numbers is a column and not a
+     ragged edge — set on the table so it reaches the label cells too. */
+  font-variant-numeric: tabular-nums;
+}
+
+.assessor-table th,
+.assessor-table td {
+  padding: var(--sp-4) var(--sp-5);
+  text-align: center;
+  /* Centred rather than baseline: several cells hold a chip with its own
+     padding, which rides high against plain text on a baseline. */
+  vertical-align: middle;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+/* The course column takes the slack so the measured columns stay snug against
+   their headings. It is also the one column that stays left — a course is a
+   name, and names read from their first letter. */
+.assessor-table th:first-child,
+.assessor-table td:first-child {
+  width: 100%;
   text-align: left;
+}
+
+.assessor-table thead th {
+  background: var(--gray-050);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.assessor-table__row {
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  transition: background 0.15s ease;
 }
 
-.class-row:hover {
-  transform: translateY(-3px);
-  box-shadow: inset 0 0 0 1px var(--brand), var(--shadow-brand-glow);
+.assessor-table__row:hover {
+  background: var(--brand-hover);
 }
 
-.class-row__lead {
-  flex: 1;
-  min-width: 0;
-}
-
-.class-row__code {
-  font-size: var(--fs-micro);
+.assessor-table__code {
+  display: block;
+  font-size: var(--fs-label);
   font-weight: var(--fw-semibold);
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -1063,31 +1115,126 @@
   opacity: 0.7;
 }
 
-.class-row__name {
-  font-size: var(--fs-h2);
+.assessor-table__name {
+  display: block;
+  font-size: var(--fs-title-sm);
   font-weight: var(--fw-medium);
-  line-height: 1.3;
+  line-height: 1.35;
   letter-spacing: -0.01em;
   color: var(--brand-text);
 }
 
-.class-row__rule {
-  align-self: stretch;
-  width: 1px;
-  background: var(--brand);
-  opacity: 0.28;
+.assessor-table__num {
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+  white-space: nowrap;
 }
 
-.class-row__students {
-  min-width: 7rem;
+/* A measured column with nothing in it. Present, so the eye still counts the
+   column, but quiet enough not to read as a value. */
+.assessor-table__dash {
+  color: var(--gray-400);
+}
+
+.assessor-table__progress-cell {
+  min-width: 13rem;
+  text-align: left;
+}
+
+.assessor-table__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.assessor-table__progress .progress__track {
+  flex: 1;
+  min-width: 5rem;
+}
+
+.assessor-table__pct {
   font-size: var(--fs-body);
-  font-weight: var(--fw-light);
-  color: var(--brand-text);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
 }
 
-.class-row__chevron {
-  flex-shrink: 0;
+.assessor-table__hint {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+.assessor-table__creds {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
+  color: var(--text-body);
+}
+
+.assessor-table__when {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* The row is clickable for the mouse; this is the same trip by keyboard. */
+.assessor-table__open {
+  width: 1%;
+}
+
+.assessor-table__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0.375rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
   color: var(--brand-text);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.assessor-table__link:hover {
+  background: var(--brand-hover);
+}
+
+.assessor-table__link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.assessor-table tfoot th,
+.assessor-table tfoot td {
+  border-bottom: none;
+  background: var(--gray-050);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+.assessor-table__empty {
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+}
+
+/* Headings and captions that only the screen reader needs. */
+.assessor-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ── Data rows (roster / queue / credentials) ───────────── */
@@ -2042,15 +2189,6 @@
     grid-template-columns: 34px minmax(0, 1fr);
     row-gap: var(--sp-2);
   }
-
-  .class-row {
-    flex-wrap: wrap;
-    gap: var(--sp-3);
-  }
-
-  .class-row__rule {
-    display: none;
-  }
 }
 
 @media (max-width: 780px) {
@@ -2106,14 +2244,12 @@
 @media (prefers-reduced-motion: reduce) {
   .assessor-rail,
   .assessor-rail__avatar,
-  .class-row,
   .data-row,
   .progress__fill,
   .focus-dot {
     transition: none;
   }
 
-  .class-row:hover,
   .data-row--clickable:hover {
     transform: none;
   }
