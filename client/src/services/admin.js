@@ -59,6 +59,9 @@ export async function deleteCourse(courseId) {
 // rather than after uploading every byte of it.
 export const MAX_MODULE_BYTES = 40 * 1024 * 1024;
 
+// Mirrors MAX_COURSE_IMAGE_BYTES on the server, for the same reason.
+export const MAX_COURSE_IMAGE_BYTES = 5 * 1024 * 1024;
+
 /**
  * Adds a learning module (a lesson PDF) to a course.
  *
@@ -77,6 +80,31 @@ export async function createCourseModule(courseId, file, { title, onProgress } =
     }
   });
   return data.module;
+}
+
+/**
+ * The card picture. Sent as the raw body, the same way a lesson is — see
+ * createCourseModule. Resolves to `{ hasImage, imageUpdatedAt, … }`; the stamp
+ * is what the card appends to the image URL so a replacement is actually
+ * fetched rather than read out of the browser's cache.
+ */
+export async function uploadCourseImage(courseId, file, { onProgress } = {}) {
+  const { data } = await api.put(`/admin/courses/${courseId}/image`, file, {
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    params: { fileName: file.name },
+    onUploadProgress: (event) => {
+      if (!onProgress) return;
+      const total = event.total ?? file.size;
+      if (total) onProgress(Math.round((event.loaded / total) * 100));
+    }
+  });
+  return data.image;
+}
+
+/** Drops the picture, putting the course back on a placeholder gradient. */
+export async function removeCourseImage(courseId) {
+  const { data } = await api.delete(`/admin/courses/${courseId}/image`);
+  return data.image;
 }
 
 /**
@@ -142,21 +170,14 @@ export async function updateStudent(studentId, changes) {
 }
 
 /**
- * Token spend, read from the server's own log — this makes no call to OpenAI
- * and costs nothing, so it is safe to poll.
+ * Stop a student signing in, or let them back.
+ *
+ * Its own call rather than a field on `updateStudent`: that one corrects the
+ * record, this one changes what the student can do. The server refuses a
+ * suspended account at login, so it is a lock, not a label.
  */
-export async function fetchApiUsage(days = 30) {
-  const { data } = await api.get(`/admin/api-usage`, { params: { days } });
-  return data;
-}
-
-export async function enrollStudent(studentId, courseId) {
-  const { data } = await api.post(`/admin/students/${studentId}/courses`, { courseId });
-  return data.student;
-}
-
-export async function unenrollStudent(studentId, courseId) {
-  const { data } = await api.delete(`/admin/students/${studentId}/courses/${courseId}`);
+export async function setStudentSuspended(studentId, suspended) {
+  const { data } = await api.patch(`/admin/students/${studentId}/suspension`, { suspended });
   return data.student;
 }
 
@@ -194,13 +215,15 @@ export async function updateAssessor(assessorId, changes) {
   return data.assessor;
 }
 
-export async function assignCourse(assessorId, courseId) {
-  const { data } = await api.post(`/admin/assessors/${assessorId}/courses`, { courseId });
-  return data.assessor;
-}
-
-export async function unassignCourse(assessorId, courseId) {
-  const { data } = await api.delete(`/admin/assessors/${assessorId}/courses/${courseId}`);
+/**
+ * Stop an assessor signing in, or let them back.
+ *
+ * The assessor half of `setStudentSuspended`, and the same kind of call: a
+ * lock rather than a label. Their assigned courses and their grading queue are
+ * untouched — the papers simply wait until the account is turned back on.
+ */
+export async function setAssessorSuspended(assessorId, suspended) {
+  const { data } = await api.patch(`/admin/assessors/${assessorId}/suspension`, { suspended });
   return data.assessor;
 }
 

@@ -171,7 +171,6 @@ function TableOfSpecification() {
     <div className="admin-main__inner admin-main__inner--wide">
       <PageHeader
         title="Table of Specification"
-        subtitle="One assessment blueprint per course — its rows are that course's lessons"
         action={
           <AdminButton onClick={save} disabled={saveState === "saving" || !selected?.courseId}>
             {saveLabel}

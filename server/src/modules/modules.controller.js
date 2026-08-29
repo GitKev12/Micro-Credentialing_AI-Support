@@ -1,6 +1,13 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { toAssessmentSummary } from "../assessments/assessments.format.js";
+import {
+  findCourse,
+  loadClassSuspension,
+  loadStudentRestriction,
+  refuseRestrictedCourse,
+  toCourseAccess
+} from "../lib/courseAccess.js";
 import { extractPdfFigures, extractPdfText, extractPdfTextViaOcr, stripStyleMarkers } from "./modules.ocr.js";
 import {
   buildLessonBlocks,
@@ -8,6 +15,7 @@ import {
   countReadingMinutes,
   insertFigureBlocks
 } from "./modules.format.js";
+import { sortLessons } from "../lib/lessonOrder.js";
 
 /**
  * Learning modules (lessons) and assessments for a course.
@@ -80,11 +88,67 @@ function toPublicAssessment(assessment) {
   };
 }
 
+/**
+ * The course a reader was opened on: its name, its run, and whether that run
+ * is over.
+ *
+ * Sent with the lessons because the reader is a page a student can land on
+ * directly — on a refresh there is no card behind it to have carried the
+ * course, and `ended` is what decides whether the page is read-only.
+ */
+function toPublicCourse(course, suspension = null) {
+  if (!course) return null;
+
+  return {
+    id: course._id,
+    code: String(course.code ?? course.courseCode ?? "").trim(),
+    title: course.title ?? course.courseName ?? course.name ?? "",
+    ...toCourseAccess(course, new Date(), suspension)
+  };
+}
+
+/**
+ * Whether the signed-in student's class for this course has been switched off.
+ *
+ * Only a student is gated. An assessor or an admin opening the same lesson is
+ * looking at the material, not sitting the course, and a class that stopped
+ * running is no reason to hide it from them.
+ *
+ * `courseRef` may be a course document, a course id, or a course code.
+ */
+async function viewerSuspension(request, courseRef) {
+  if (request.session?.role !== "student") return null;
+  return loadClassSuspension(request.session.id, courseRef);
+}
+
+/**
+ * Turns a lesson route away when the viewer's class has been switched off —
+ * closing its lessons is the whole point of the switch, so the refusal comes
+ * before the file is read or its text extracted.
+ *
+ * Returns the sent response when it refused, and null when the route may carry
+ * on, so a handler reads as `if (refused) return refused;`.
+ */
+async function refuseIfSuspended(request, response, module) {
+  const suspension = await viewerSuspension(request, module.courseId ?? module.courseCode);
+  return suspension ? refuseRestrictedCourse(response, suspension) : null;
+}
+
 export async function getCourseModules(request, response) {
   const courseId = request.params.courseId;
+  const found = await findCourse(courseId);
+  const suspension = await viewerSuspension(request, found ?? courseId);
+  const course = toPublicCourse(found, suspension);
+
+  // A switched-off class hands back the course but none of its lessons, so the
+  // reader has a name and a reason to show instead of an empty rail it cannot
+  // explain. The lesson routes refuse on their own — this is not the gate.
+  if (suspension) {
+    return response.json({ course, modules: [] });
+  }
 
   if (!(await collectionExists(MODULES_COLLECTION))) {
-    return response.json({ modules: [], pending: true });
+    return response.json({ course, modules: [], pending: true });
   }
 
   const modules = await mongoose.connection
@@ -92,21 +156,9 @@ export async function getCourseModules(request, response) {
     .find(courseMatch(courseId))
     .toArray();
 
-  // Order lessons by their chapter/week number — the last number in the
-  // title ("CC2 Lec Chapter 3 Module", "TSM3 Module Week10", "… CHAPTER 7").
-  // Plain title sorting fails both on "Chapter 10" < "Chapter 2" and on
-  // prefix quirks like MST's "FINALS MODULE … CHAPTER 7".
-  const lessonNumber = (title) => {
-    const numbers = String(title ?? "").match(/\d+/g);
-    return numbers ? Number(numbers[numbers.length - 1]) : Number.POSITIVE_INFINITY;
-  };
-  modules.sort((a, b) => {
-    const difference = lessonNumber(a.title) - lessonNumber(b.title);
-    if (difference !== 0) return difference;
-    return String(a.title ?? "").localeCompare(String(b.title ?? ""), "en", { numeric: true });
-  });
+  sortLessons(modules);
 
-  return response.json({ modules: modules.map(toPublicModule) });
+  return response.json({ course, modules: modules.map(toPublicModule) });
 }
 
 export async function getCourseAssessments(request, response) {
@@ -144,6 +196,9 @@ export async function getModuleFile(request, response) {
   if (!module) {
     return response.status(404).json({ message: "Learning module not found." });
   }
+
+  const refused = await refuseIfSuspended(request, response, module);
+  if (refused) return refused;
 
   const { bucketName, fileDocument } = await findModuleFile(module);
 
@@ -354,6 +409,9 @@ export async function getModuleText(request, response) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
+  const refused = await refuseIfSuspended(request, response, module);
+  if (refused) return refused;
+
   const result = await getOrExtractModuleText(module);
   if (result.error) {
     return response.status(result.error.status).json({ message: result.error.message });
@@ -369,6 +427,9 @@ export async function getModuleSections(request, response) {
   if (!module) {
     return response.status(404).json({ message: "Learning module not found." });
   }
+
+  const refused = await refuseIfSuspended(request, response, module);
+  if (refused) return refused;
 
   const result = await getOrExtractModuleText(module);
   if (result.error) {
@@ -417,6 +478,13 @@ export async function getCourseImage(request, response) {
 
 // Streams a single cropped figure PNG from the ModuleFigure bucket.
 export async function getModuleFigure(request, response) {
+  // A figure is part of the lesson, so it closes with it. The ids only come
+  // from the text route, which refuses too — this stops a page left open in
+  // another tab from still pulling the pictures.
+  const module = await findModule(request.params.moduleId);
+  const refused = module ? await refuseIfSuspended(request, response, module) : null;
+  if (refused) return refused;
+
   let figureId;
   try {
     figureId = new mongoose.Types.ObjectId(request.params.figureId);
@@ -472,6 +540,18 @@ export async function markModuleComplete(request, response) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
+  // A course whose run is over is read-only: the lesson stays open to read,
+  // but nothing more is written against it. A class switched off is shut
+  // outright. The reader hides the tick too — this is the half that makes it a
+  // rule (see courseAccess.js).
+  // Lessons written without a courseId name their course by code instead, and
+  // findCourse takes either — the gate must not turn on how a lesson was linked.
+  const restriction = await loadStudentRestriction(
+    request.params.studentId,
+    module.courseId ?? module.courseCode
+  );
+  if (restriction) return refuseRestrictedCourse(response, restriction);
+
   const record = {
     studentId: String(request.params.studentId),
     moduleId: String(module._id),
@@ -496,6 +576,14 @@ export async function markModuleComplete(request, response) {
 
 export async function unmarkModuleComplete(request, response) {
   const { studentId, moduleId } = request.params;
+
+  // Undoing a completion is still writing to the record, so a closed course
+  // refuses it for the same reason it refuses the tick itself.
+  const module = await findModule(moduleId);
+  const restriction = module
+    ? await loadStudentRestriction(studentId, module.courseId ?? module.courseCode)
+    : null;
+  if (restriction) return refuseRestrictedCourse(response, restriction);
 
   await mongoose.connection
     .collection(PROGRESS_COLLECTION)

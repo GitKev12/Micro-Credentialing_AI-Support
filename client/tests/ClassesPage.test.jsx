@@ -19,6 +19,8 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       section: "A",
       students: 4,
       lessons: 5,
+      startsOn: "2026-08-04T00:00:00.000Z",
+      endsOn: "2026-10-10T00:00:00.000Z",
       pending: 3,
       flagged: 1,
       credentialsIssued: 2,
@@ -66,6 +68,7 @@ describe("ClassesPage", () => {
       "Course",
       "Students",
       "Lessons",
+      "Duration",
       "To grade",
       "AI flagged",
       "Credentials",
@@ -74,6 +77,8 @@ describe("ClassesPage", () => {
     ]);
 
     expect(await screen.findByText("Today")).toBeInTheDocument();
+    expect(screen.getByText("Aug 4 – Oct 10, 2026")).toBeInTheDocument();
+    expect(screen.getByText("10 weeks")).toBeInTheDocument();
     expect(screen.getByText("No submissions yet")).toBeInTheDocument();
     expect(screen.getByText("1 to approve")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open" })).toHaveLength(2);

@@ -7,25 +7,7 @@ import {
 } from "../../services/assessors";
 import { ChevronRightIcon, CredentialIcon, FlagIcon, QueueIcon } from "./components/icons";
 import { Chip, ScreenHeader, StatCard } from "./components/ui";
-
-/**
- * Three steps, not a paragraph.
- *
- * This used to be four dense sentences naming the module PDF, the Table of
- * Specification and the token limit — none of which an assessor does anything
- * about. What they need to know is who marks first, what they can change, and
- * when the student actually gets the credential.
- */
-const HOW_GRADING_WORKS = {
-  title: "How grading works",
-  steps: [
-    "The AI writes each quiz from the lesson, then marks the answers.",
-    "You review the marks. Keep them, change any answer, or set your own grade.",
-    "The student gets the credential only after you approve it."
-  ],
-  note: "If the AI cannot mark a paper, it says so on the submission and you grade that one yourself.",
-  tags: ["AI marks first", "You can override", "You approve"]
-};
+import { formatCourseLength, formatCourseRange } from "../../lib/courseDuration";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -143,31 +125,6 @@ function ClassesPage() {
           />
         </div>
 
-        <section className="explainer">
-          <h2 className="explainer__title">{HOW_GRADING_WORKS.title}</h2>
-
-          <ol className="explainer__steps">
-            {HOW_GRADING_WORKS.steps.map((step, index) => (
-              <li className="explainer__step" key={step}>
-                <span className="explainer__step-num" aria-hidden="true">
-                  {index + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-
-          <p className="explainer__note">{HOW_GRADING_WORKS.note}</p>
-
-          <div className="explainer__tags">
-            {HOW_GRADING_WORKS.tags.map((tag, index) => (
-              <Chip key={tag} tone={index % 2 === 0 ? "info" : "brand-soft"} dot>
-                {tag}
-              </Chip>
-            ))}
-          </div>
-        </section>
-
         {/* A class register, which is what a course list is in an LMS: one row
             per class, and one column per thing the assessor has to decide on —
             how big the class is, how much of it there is, what is waiting to be
@@ -178,8 +135,8 @@ function ClassesPage() {
           <div className="assessor-table-wrap">
             <table className="assessor-table">
               <caption className="assessor-sr-only">
-                Classes assigned to you, with enrolment, lesson counts, grading backlog
-                and credentials issued.
+                Classes assigned to you, with enrolment, lesson counts, run dates,
+                grading backlog and credentials issued.
               </caption>
 
               <thead>
@@ -187,6 +144,7 @@ function ClassesPage() {
                   <th scope="col">Course</th>
                   <th scope="col" className="assessor-table__num">Students</th>
                   <th scope="col" className="assessor-table__num">Lessons</th>
+                  <th scope="col">Duration</th>
                   <th scope="col" className="assessor-table__num">To grade</th>
                   <th scope="col" className="assessor-table__num">AI flagged</th>
                   <th scope="col">Credentials</th>
@@ -201,6 +159,8 @@ function ClassesPage() {
                 {classes.map((course) => {
                   const students = course.students ?? 0;
                   const lessons = course.lessons ?? 0;
+                  const runRange = formatCourseRange(course);
+                  const runLength = formatCourseLength(course);
                   const pending = course.pending ?? 0;
                   const flagged = course.flagged ?? 0;
                   const issued = course.credentialsIssued ?? 0;
@@ -224,6 +184,19 @@ function ClassesPage() {
 
                       <td className="assessor-table__num">
                         {lessons || <span className="assessor-table__dash">—</span>}
+                      </td>
+
+                      <td className="assessor-table__when">
+                        {runRange ? (
+                          <>
+                            {runRange}
+                            {runLength ? (
+                              <span className="assessor-table__sub">{runLength}</span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="assessor-table__dash">—</span>
+                        )}
                       </td>
 
                       <td className="assessor-table__num">
@@ -272,7 +245,7 @@ function ClassesPage() {
 
                 {isLoading ? (
                   <tr>
-                    <td className="assessor-table__empty" colSpan={8}>
+                    <td className="assessor-table__empty" colSpan={9}>
                       Loading your classes…
                     </td>
                   </tr>
@@ -280,7 +253,7 @@ function ClassesPage() {
 
                 {!isLoading && classes.length === 0 ? (
                   <tr>
-                    <td className="assessor-table__empty" colSpan={8}>
+                    <td className="assessor-table__empty" colSpan={9}>
                       No classes are assigned to you yet.
                     </td>
                   </tr>
@@ -293,6 +266,7 @@ function ClassesPage() {
                     <th scope="row">All classes</th>
                     <td className="assessor-table__num">{totals.students}</td>
                     <td className="assessor-table__num">{totals.lessons}</td>
+                    <td />
                     <td className="assessor-table__num">{totals.pending}</td>
                     <td className="assessor-table__num">{totals.flagged}</td>
                     <td>

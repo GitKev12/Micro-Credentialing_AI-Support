@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAllAssessors } from "./enrollment.sync.js";
+import { readCourseDates, toIsoDay } from "../lib/courseDates.js";
 
 /**
  * Adding and removing a course's learning modules.
@@ -47,6 +48,15 @@ const COURSE_IMAGE_BUCKET = "CourseImage";
  */
 export const MAX_MODULE_BYTES = 40 * 1024 * 1024;
 
+/**
+ * The largest course picture the API will take.
+ *
+ * Far smaller than a lesson, because this one is decoration: it is stretched
+ * behind a card a few hundred pixels wide, and a photo straight off a phone
+ * already carries more detail than that can show.
+ */
+export const MAX_COURSE_IMAGE_BYTES = 5 * 1024 * 1024;
+
 const collection = (name) => mongoose.connection.collection(name);
 const asId = (value) => String(value);
 
@@ -75,15 +85,39 @@ function bucketFor(name) {
  * path, a quote or a control character in it is worth dropping here rather
  * than discovering downstream.
  */
-function safeFileName(name, fallback) {
+function safeName(name, fallback) {
   const base = String(name ?? "")
     .split(/[\\/]/)
     .pop()
     .replace(/[\u0000-\u001f"]/g, "")
     .trim();
 
-  const chosen = (base || fallback).slice(0, 180);
+  return (base || fallback).slice(0, 180);
+}
+
+/** The same, for a lesson — which is a PDF whatever it arrived called. */
+function safeFileName(name, fallback) {
+  const chosen = safeName(name, fallback);
   return /\.pdf$/i.test(chosen) ? chosen : `${chosen}.pdf`;
+}
+
+/**
+ * The picture formats a browser will draw, recognised by their first bytes
+ * rather than by the type the upload declared — the same reasoning as the PDF
+ * check further down, and the same reason a renamed file cannot sneak past it.
+ */
+export function imageTypeOf(file) {
+  if (!file || file.length < 12) return null;
+
+  const head = file.subarray(0, 4);
+  if (head.toString("hex") === "89504e47") return "image/png";
+  if (head.toString("hex").startsWith("ffd8ff")) return "image/jpeg";
+  if (file.subarray(0, 3).toString("latin1") === "GIF") return "image/gif";
+  if (head.toString("latin1") === "RIFF" && file.subarray(8, 12).toString("latin1") === "WEBP") {
+    return "image/webp";
+  }
+
+  return null;
 }
 
 /** The module as the admin screens read it — same fields `getCourse` returns. */
@@ -107,9 +141,9 @@ function courseModuleFilter(course) {
   return { $or: clauses };
 }
 
-function storeModuleFile(fileName, buffer, options) {
+function storeFile(bucketName, fileName, buffer, options) {
   return new Promise((resolve, reject) => {
-    const upload = bucketFor(MODULES_BUCKET).openUploadStream(fileName, options);
+    const upload = bucketFor(bucketName).openUploadStream(fileName, options);
     upload.on("error", reject);
     upload.on("finish", () => resolve(upload.id));
     upload.end(buffer);
@@ -161,7 +195,7 @@ export async function createCourseModule(request, response) {
   }
 
   const code = courseCode(course);
-  const fileId = await storeModuleFile(fileName, file, {
+  const fileId = await storeFile(MODULES_BUCKET, fileName, file, {
     contentType: "application/pdf",
     metadata: { courseId: course._id, courseCode: code, title }
   });
@@ -323,13 +357,17 @@ function publicCourse(course, counts = {}) {
     code: courseCode(course),
     title: course.courseName ?? course.title ?? course.name ?? "",
     description: course.description ?? "",
+    // When the course runs. Either may be null — the field arrived after the
+    // catalog did, and a course that predates it is not invalid.
+    startsOn: toIsoDay(course.startsOn),
+    endsOn: toIsoDay(course.endsOn),
     hasImage: Boolean(course.imageFileId),
     moduleCount: counts.moduleCount ?? 0,
     studentCount: counts.studentCount ?? 0
   };
 }
 
-/** POST /api/admin/courses — { code, title, description } */
+/** POST /api/admin/courses — { code, title, description?, startsOn?, endsOn? } */
 export async function createCourse(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
@@ -350,10 +388,15 @@ export async function createCourse(request, response) {
     return response.status(409).json({ message: `A course with the code "${code}" already exists.` });
   }
 
+  const { dates, error } = readCourseDates(body, {}, { required: true });
+  if (error) return response.status(400).json({ message: error });
+
   const document = {
     courseCode: code,
     courseName: title,
     description: String(body.description ?? "").trim(),
+    startsOn: dates.startsOn ?? null,
+    endsOn: dates.endsOn ?? null,
     createdAt: new Date()
   };
 
@@ -364,7 +407,7 @@ export async function createCourse(request, response) {
     .json({ course: publicCourse({ ...document, _id: insertedId }) });
 }
 
-/** PATCH /api/admin/courses/:id — { code?, title?, description? } */
+/** PATCH /api/admin/courses/:id — { code?, title?, description?, startsOn?, endsOn? } */
 export async function updateCourse(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
@@ -383,6 +426,12 @@ export async function updateCourse(request, response) {
   }
 
   if ("description" in body) updates.description = String(body.description ?? "").trim();
+
+  // Checked against the stored course, not just against each other: a request
+  // that moves only the end date still has to clear the start date on file.
+  const { dates, error } = readCourseDates(body, course);
+  if (error) return response.status(400).json({ message: error });
+  Object.assign(updates, dates);
 
   if ("code" in body) {
     const code = String(body.code ?? "").trim();
@@ -409,12 +458,103 @@ export async function updateCourse(request, response) {
   }
 
   if (Object.keys(updates).length === 0) {
-    return response.status(400).json({ message: "Send at least one of code, title or description." });
+    return response
+      .status(400)
+      .json({ message: "Send at least one of code, title, description or run dates." });
   }
 
   await collection(COURSES_COLLECTION).updateOne({ _id: course._id }, { $set: updates });
 
   return response.json({ course: publicCourse({ ...course, ...updates }) });
+}
+
+/**
+ * PUT /api/admin/courses/:id/image
+ *
+ * The picture is the request body, the same shape a lesson arrives in and for
+ * the same reason: no multipart parser, and nothing to carry beside the file
+ * that the query string cannot hold.
+ *
+ * A course has one picture, so this replaces rather than appends. The old file
+ * is dropped only after the course points at the new one — the other order
+ * leaves a card pointing at nothing whenever the write in between fails.
+ */
+export async function setCourseImage(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  const file = Buffer.isBuffer(request.body) ? request.body : null;
+  if (!file || file.length === 0) {
+    return response.status(400).json({ message: "Attach the picture as the request body." });
+  }
+
+  const contentType = imageTypeOf(file);
+  if (!contentType) {
+    return response
+      .status(415)
+      .json({ message: "A course picture must be a PNG, JPEG, WebP or GIF image." });
+  }
+
+  const fileName = safeName(request.query.fileName, `${courseCode(course) || "course"}-image`);
+  const fileId = await storeFile(COURSE_IMAGE_BUCKET, fileName, file, {
+    contentType,
+    metadata: { courseId: course._id, courseCode: courseCode(course) }
+  });
+
+  const imageUpdatedAt = new Date();
+  await collection(COURSES_COLLECTION).updateOne(
+    { _id: course._id },
+    {
+      $set: {
+        imageFileId: fileId,
+        imageContentType: contentType,
+        imageFileName: fileName,
+        imageUpdatedAt
+      }
+    }
+  );
+
+  if (course.imageFileId) {
+    await bucketFor(COURSE_IMAGE_BUCKET)
+      .delete(course.imageFileId)
+      .catch(() => {});
+  }
+
+  // The reader asks for this picture at a URL that just held the old one, and
+  // it is served with a day of cache — so the stamp is what lets a card notice
+  // that the picture behind that URL has changed.
+  return response.json({
+    image: { hasImage: true, fileName, contentType, imageUpdatedAt, fileSize: file.length }
+  });
+}
+
+/** DELETE /api/admin/courses/:id/image — back to the placeholder gradient. */
+export async function removeCourseImage(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  if (course.imageFileId) {
+    await collection(COURSES_COLLECTION).updateOne(
+      { _id: course._id },
+      {
+        $unset: { imageFileId: "", imageContentType: "", imageFileName: "", imageUpdatedAt: "" }
+      }
+    );
+
+    await bucketFor(COURSE_IMAGE_BUCKET)
+      .delete(course.imageFileId)
+      .catch(() => {});
+  }
+
+  return response.json({ image: { hasImage: false } });
 }
 
 /** Everything that hangs off a course, counted or collected. */

@@ -134,15 +134,12 @@ function Badges({ badges = [] }) {
     <section className="sd-card" aria-labelledby="sd-badges-title">
       <header className="sd-section-head">
         <div className="sd-section-head__text">
-          <p className="sd-eyebrow">Badges</p>
           <h2 className="sd-h3" id="sd-badges-title">
             Lesson Badges
           </h2>
-          <p className="sd-sub">
-            {badges.length
-              ? `${earned} of ${badges.length} earned — one badge for every lesson quiz you pass.`
-              : "One badge for every lesson quiz you pass."}
-          </p>
+          {badges.length ? (
+            <p className="sd-sub">{`${earned} of ${badges.length} earned`}</p>
+          ) : null}
         </div>
       </header>
 

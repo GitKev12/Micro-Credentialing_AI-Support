@@ -194,9 +194,9 @@
 [data-theme="dark"] .assessor-app .queue-group__head {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
-/* .stat-card and .explainer take their edge from the --gray-200 token (which
-   already resolves to this hairline in dark), so .stat-card's :hover can
-   raise the border to --brand without a dark-mode override fighting it. */
+/* .stat-card takes its edge from the --gray-200 token (which already resolves
+   to this hairline in dark), so its :hover can raise the border to --brand
+   without a dark-mode override fighting it. */
 
 /* ── Shell ──────────────────────────────────────────────── */
 
@@ -960,93 +960,13 @@
   transform: translateX(3px);
 }
 
-/* The explainer panel that sits below the stat cards */
-.explainer {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--sp-3);
-  padding: var(--sp-5);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-}
-
-.explainer__title {
-  margin: 0;
-  font-size: var(--fs-h3);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.01em;
-  color: var(--brand-text);
-}
-
-.explainer__body {
-  margin: 0;
-  font-size: var(--fs-body);
-  line-height: 1.6;
-  color: var(--text-body);
-  text-wrap: pretty;
-}
-
-/* The three steps. Numbered because the order is the point — the assessor's
-   turn comes second, and nothing reaches the student until the third. */
-.explainer__steps {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.explainer__step {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: var(--sp-3);
-  font-size: var(--fs-body);
-  line-height: 1.5;
-  color: var(--text-body);
-  text-wrap: pretty;
-}
-
-.explainer__step-num {
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--brand-hover);
-  color: var(--brand-text);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-semibold);
-  font-variant-numeric: tabular-nums;
-}
-
-/* The exception to the three steps, kept quieter than them. */
-.explainer__note {
-  margin: 0;
-  padding-left: calc(1.5rem + var(--sp-3));
-  font-size: var(--fs-label);
-  line-height: 1.5;
-  color: var(--text-muted);
-  text-wrap: pretty;
-}
-
-.explainer__tags {
-  display: flex;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
 /* ── Class register table ───────────────────────────────
    The Classes screen is a register, so it is a real <table>: one row per
    course, one column per measured fact. The rows it replaced were cards —
    they carried a name and two numbers each, and nothing lined up between
    them, which is exactly what a class list is read for.
 
-   Eight columns do not fold into a phone, so the table keeps its shape and
+   Nine columns do not fold into a phone, so the table keeps its shape and
    the wrapper scrolls instead. Numbers only compare while they stay in a
    column. */
 
@@ -1059,7 +979,7 @@
 
 .assessor-table {
   width: 100%;
-  min-width: 62rem;
+  min-width: 68rem;
   border-collapse: collapse;
   font-size: var(--fs-body);
   /* Every digit the same width, so a column of numbers is a column and not a
@@ -1163,6 +1083,14 @@
   display: block;
   margin-top: var(--sp-1);
   font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+/* The length under the dates: the same fact said shorter, so it is quieter
+   than the line it belongs to rather than a second column of its own. */
+.assessor-table__sub {
+  display: block;
+  font-size: var(--fs-micro);
   color: var(--text-muted);
 }
 

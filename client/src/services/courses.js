@@ -25,6 +25,15 @@ export async function fetchStudentCourses(studentId) {
   return Array.isArray(data) ? data : data?.courses ?? [];
 }
 
-export function courseImageUrl(courseId) {
-  return withAuthToken(`${api.defaults.baseURL}/courses/${courseId}/image`);
+/**
+ * Where a course's picture is served from.
+ *
+ * `version` is the course's imageUpdatedAt. The file comes back with a day of
+ * cache and a replacement lands at the same address, so without the stamp a
+ * reader who has already seen a card keeps yesterday's picture on it.
+ */
+export function courseImageUrl(courseId, version) {
+  const url = withAuthToken(`${api.defaults.baseURL}/courses/${courseId}/image`);
+  if (!version) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 }

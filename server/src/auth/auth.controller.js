@@ -130,6 +130,14 @@ export async function loginUser(request, response) {
     return response.status(401).json({ message: "Invalid student or assessor login credentials." });
   }
 
+  // Checked after the password, not before: answering "suspended" to a wrong
+  // password would tell an outsider the account exists.
+  if (result.account.suspended === true) {
+    return response.status(403).json({
+      message: "This account is suspended. Contact your administrator."
+    });
+  }
+
   return response.json({
     message: "Login successful.",
     token: signAuthToken(result.account, result.role),

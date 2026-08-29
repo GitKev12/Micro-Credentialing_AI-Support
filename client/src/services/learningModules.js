@@ -3,7 +3,7 @@ import api, { withAuthToken } from "./api";
 /**
  * Learning module (lesson) and assessment helpers for a course.
  *
- *   GET /api/courses/:courseId/modules      → { modules: [...] }
+ *   GET /api/courses/:courseId/modules      → { course, modules: [...] }
  *   GET /api/courses/:courseId/assessments  → { assessments: [...] }
  *   GET /api/modules/:moduleId/file         → streams the lesson file (PDF)
  *   GET /api/modules/:moduleId/text         → OCR/extracted text, cached server-side
@@ -12,11 +12,20 @@ import api, { withAuthToken } from "./api";
  *   { id, title, subject, fileName, fileType, fileSize, uploadDate }
  * and each assessment as { id, title, description, status, dueDate }.
  */
+/**
+ * A course and its lessons, as `{ course, modules }`.
+ *
+ * The course itself rides along because the reader is a page a student can
+ * land on directly — after a refresh there is no card behind it to have
+ * carried one — and `course.ended` is what turns that page read-only.
+ */
 export async function fetchCourseModules(courseId) {
-  if (!courseId) return [];
+  if (!courseId) return { course: null, modules: [] };
 
   const { data } = await api.get(`/courses/${courseId}/modules`);
-  return Array.isArray(data) ? data : data?.modules ?? [];
+  if (Array.isArray(data)) return { course: null, modules: data };
+
+  return { course: data?.course ?? null, modules: data?.modules ?? [] };
 }
 
 export async function fetchCourseAssessments(courseId) {

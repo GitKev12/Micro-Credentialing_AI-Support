@@ -594,6 +594,20 @@ a {
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
 }
 
+/* The run dates, under the description on the card's scrim. One line only —
+   the tile is short, and a wrapped date range would push the progress bar off
+   the bottom of it. */
+.course-card__run {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+}
+
 /* On the shorter "Your Courses" tiles the progress row takes the third line. */
 .student-courses__list .course-card__desc {
   -webkit-line-clamp: 2;
@@ -644,6 +658,63 @@ a {
 
 .course-card[data-status="not-started"] .course-card__status {
   color: rgba(255, 255, 255, 0.82);
+}
+
+/* A run that is over. Cooler and quieter than the three progress states,
+   because it is not a state the student can move out of — and paired with a
+   line on the card, since "Ended" alone would not say that the course is
+   still theirs to read. */
+.course-card[data-status="ended"] .course-card__status {
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #cbd5e1;
+}
+
+.course-card[data-status="ended"] .course-card__image {
+  filter: grayscale(0.45);
+}
+
+.course-card[data-status="ended"] .course-card__fill {
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.course-card__ended {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+}
+
+/* A class the admin switched off. Quieter still than "ended", and the only
+   card state that takes the course away rather than narrowing it — so the
+   picture drains further and the card stops being a button. */
+.course-card[data-status="suspended"] .course-card__status {
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+}
+
+.course-card[data-status="suspended"] .course-card__image {
+  filter: grayscale(0.85) brightness(0.85);
+}
+
+.course-card[data-status="suspended"] .course-card__fill {
+  background: rgba(226, 232, 240, 0.55);
+}
+
+.course-card__click:disabled {
+  cursor: default;
+}
+
+/* Wraps, unlike the one-line "ended" note beside it: this one carries the
+   reason, and a reason cut off at the card's edge is no reason at all. */
+.course-card__closed {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(226, 232, 240, 0.95);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
 }
 
 .course-card__progress {
@@ -754,6 +825,79 @@ a {
 .modules-page__title {
   margin: 0;
   font-size: 1.35rem;
+}
+
+/* The course is over, said once at the top of the reader rather than on every
+   control it shuts below. Centred under its own lock like the switched-off
+   notice, but a banner rather than a half-page: the lessons stay open
+   underneath it, and pushing them off the fold would be the wrong lesson to
+   draw from a course that is still readable. */
+.modules-page__ended {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.modules-page__ended-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.modules-page__ended-text {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* The class is switched off. Unlike the "ended" strip above, this one is not a
+   note over the lessons — it replaces them, so it takes the space they would
+   have filled and sits in the middle of it. The lock is large because at this
+   size it is the message, and the sentence under it only the detail. */
+.modules-page__closed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  min-height: 46vh;
+  margin: 0 1.5rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+}
+
+.modules-page__closed-icon {
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.modules-page__closed-text {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--muted);
 }
 
 .modules-section__title {

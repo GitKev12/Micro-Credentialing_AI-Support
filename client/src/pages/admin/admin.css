@@ -23,6 +23,7 @@
   --blue-bg: rgb(237, 247, 252);
 
   /* ---- Neutrals ---- */
+  --bg-app: #f6f7f8;
   --white: rgb(255, 255, 255);
   --off-white: rgb(254, 254, 254);
   --gray-100: rgb(242, 242, 242);
@@ -40,7 +41,7 @@
      for type — they diverge in dark mode. */
   --surface: var(--white);
   --surface-raised: var(--off-white);
-  --surface-sunken: var(--blue-bg);
+  --surface-sunken: var(--bg-app);
   --brand: var(--maroon-700);
   --brand-text: var(--maroon-700);
   --brand-strong: var(--maroon-900);
@@ -63,9 +64,15 @@
 
   /* ---- Radii ---- */
   --radius-xs: 8px;
+  /* The picker panel that opens beside a form, and the gap between them.
+     Both halves of that pairing are positioned from these. */
+  --picker-w: 420px;
+  --picker-gap: 16px;
+  --form-w: 520px;
+
   --radius-sm: 12px;
   --radius-md: 20px;
-  --radius-xl: 30px;
+  --radius-xl: 8px;
 
   /* ---- Shadows ---- */
   --shadow-sm: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
@@ -171,35 +178,54 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 44px 52px;
+  padding: 30px 36px;
 }
 
+/* Two things hold the content in, and lifting one without the other does
+   nothing: this cap, and the padding above. On any window wide enough to reach
+   the cap — most of them — the cap is what binds and the padding is only the
+   floor under it, so both come down together. */
 .admin-main__inner {
-  max-width: 1120px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
 .admin-main__inner--wide {
-  max-width: 1160px;
+  max-width: 1400px;
 }
 
 /* ── Sidebar ────────────────────────────────────────────── */
 
+/* The palette runs the other way round from the rest of the console: the
+   sidebar is the brand fill and everything on it is light, so the nav reads as
+   one solid block against the page rather than as another white surface beside
+   the cards. The pieces that were brand-coloured on white — the active pill,
+   Sign Out, the collapse knob — invert with it and become light on brand.
+
+   Only white-alpha values below, no second palette: `--brand` is maroon in the
+   light theme and navy in the dark one, and white type sits correctly on both. */
 .admin-sidebar {
+  --sidebar-ink: var(--white);
+  --sidebar-ink-soft: rgba(255, 255, 255, 0.72);
+  --sidebar-hover: rgba(255, 255, 255, 0.14);
+  --sidebar-line: rgba(255, 255, 255, 0.34);
+
   position: relative;
-  width: 272px;
+  /* Trimmed as far as the nav allows: "Table of Specification" needs 225px of
+     rail to stay on one line, and an item that wraps is taller than the four
+     around it — which costs more height than the width saves. */
+  width: 230px;
   flex-shrink: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 0 24px;
+  padding: 22px 0 18px;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
-  background: var(--surface);
-  /* Right edge only, so it still reads as the boundary with .admin-main
-     instead of an all-around outline. box-shadow (not border) so it
-     follows the rounded corners. */
-  box-shadow: 2px 0 0 0 var(--brand), var(--shadow-sidebar);
+  background: var(--brand);
+  color: var(--sidebar-ink);
+  /* The brand keyline that used to mark the boundary is the whole panel now. */
+  box-shadow: var(--shadow-sidebar);
   transition: width 0.2s ease;
 }
 
@@ -214,13 +240,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--brand);
-  color: var(--white);
+  background: var(--surface);
+  color: var(--brand-text);
   box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: filter 0.15s ease;
@@ -231,27 +257,27 @@
 }
 
 .admin-sidebar__toggle:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--sidebar-ink);
   outline-offset: 2px;
 }
 
 .admin-sidebar--collapsed {
-  width: 84px;
+  width: 72px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__top {
-  gap: 20px;
-  margin-top: 8px;
+  gap: 16px;
+  margin-top: 6px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__avatar {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__avatar svg {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__who,
@@ -266,13 +292,13 @@
 
 .admin-sidebar--collapsed .admin-nav-item {
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__signout {
-  padding: 9px;
+  padding: 8px;
   border-radius: 50%;
   justify-content: center;
 }
@@ -288,7 +314,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  gap: 22px;
   width: 100%;
 }
 
@@ -296,15 +322,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
+/* A disc cut out of the panel rather than a white circle sitting on it — a
+   surface-coloured avatar goes muddy against navy in the dark theme. */
 .admin-sidebar__avatar {
-  width: 96px;
-  height: 96px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
-  background: var(--surface);
-  box-shadow: var(--shadow-avatar);
+  background: var(--sidebar-hover);
+  color: var(--sidebar-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -321,41 +349,41 @@
 .admin-sidebar__name {
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.35;
   letter-spacing: -0.01em;
-  color: var(--brand-text);
+  color: var(--sidebar-ink);
 }
 
 .admin-sidebar__id {
   font-family: var(--font-ui);
   font-weight: 400;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
-  color: var(--text-muted);
+  color: var(--sidebar-ink-soft);
 }
 
 .admin-sidebar__nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
-  padding-inline: 16px;
+  padding-inline: 12px;
 }
 
 .admin-nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 11px 16px;
+  padding: 9px 12px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--brand-text);
+  color: var(--sidebar-ink);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
@@ -363,17 +391,19 @@
 }
 
 .admin-nav-item:hover {
-  background: var(--brand-hover);
+  background: var(--sidebar-hover);
 }
 
 .admin-nav-item:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--sidebar-ink);
   outline-offset: -2px;
 }
 
+/* The pill and the panel trade places: what was a brand fill on white is a
+   white fill on brand. */
 .admin-nav-item.is-active {
-  background: var(--brand);
-  color: var(--white);
+  background: var(--surface);
+  color: var(--brand-text);
   font-weight: 600;
 }
 
@@ -383,32 +413,32 @@
 
 /* Dark-mode switch, directly above Sign Out. */
 .admin-sidebar__theme {
-  outline: 2px solid var(--brand);
+  outline: 1px solid var(--sidebar-line);
   margin-top: auto;
-  width: calc(100% - 32px);
+  width: calc(100% - 24px);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 7px 10px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--brand-text);
+  color: var(--sidebar-ink);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .admin-sidebar__theme:hover {
-  background: var(--brand-hover);
+  background: var(--sidebar-hover);
 }
 
 .admin-sidebar--collapsed .admin-sidebar__theme {
   width: auto;
-  padding: 8px;
+  padding: 7px;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__theme span,
@@ -416,33 +446,36 @@
   display: none;
 }
 
+/* Both states have to read on the brand fill, so the track goes from a hollow
+   of the panel to a solid of the ink, and the thumb swaps to match. */
 .admin-theme-switch {
   position: relative;
   flex-shrink: 0;
-  width: 34px;
-  height: 19px;
+  width: 30px;
+  height: 17px;
   border-radius: 999px;
-  background: var(--gray-400);
+  background: rgba(255, 255, 255, 0.26);
   transition: background 0.18s ease;
 }
 
 .admin-theme-switch.is-on {
-  background: var(--brand);
+  background: var(--sidebar-ink);
 }
 
 .admin-theme-switch__thumb {
   position: absolute;
   top: 2.5px;
   left: 2.5px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--white);
-  transition: transform 0.18s ease;
+  transition: transform 0.18s ease, background 0.18s ease;
 }
 
 .admin-theme-switch.is-on .admin-theme-switch__thumb {
-  transform: translateX(15px);
+  transform: translateX(13px);
+  background: var(--brand);
 }
 
 .admin-sidebar__signout {
@@ -450,14 +483,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 7px 12px;
   border: none;
   border-radius: var(--radius-xl);
-  background: var(--brand);
-  color: var(--white);
+  background: var(--surface);
+  color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
   cursor: pointer;
   transition: filter 0.15s ease;
@@ -466,7 +499,7 @@
 
 .admin-sidebar__signout-wrap {
   width: 100%;
-  padding: 0 16px;
+  padding: 0 12px;
 }
 
 .admin-sidebar__signout:hover {
@@ -474,7 +507,7 @@
 }
 
 .admin-sidebar__signout:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--sidebar-ink);
   outline-offset: 2px;
 }
 
@@ -779,6 +812,19 @@
   color: var(--text-muted);
 }
 
+/* Title and one line of context, inside the card and above its table. */
+.admin-table-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 18px 4px;
+}
+
+.admin-table-head .admin-card__title {
+  margin: 0;
+}
+
+
 .admin-table__empty:hover {
   background: transparent;
 }
@@ -985,11 +1031,29 @@
   align-items: start;
 }
 
+/* A detail screen's blocks stacked one under another, rather than paired in
+   `.admin-grid-2`. Same rhythm as that grid — the gap it puts between two
+   cards, under the margin it puts between the identity block and the first of
+   them — so a screen reads the same whether its blocks sit side by side or in
+   one column. */
+.admin-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 20px;
+}
+
 .admin-grid-detail {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+}
+
+/* The upload panel's stacked-layout top margin is for when it sits *below* the
+   list; as the right column its top must line up with the module card's. */
+.admin-grid-detail>.admin-card--stacked {
+  margin-top: 0;
 }
 
 
@@ -1066,7 +1130,7 @@
 /* flex:1 keeps the title claiming the leftover width so the Remove button
    stays on its line; min-width:0 lets a long title wrap inside that space
    instead of shoving the button onto a row of its own. */
-.admin-assign-row > div:first-child {
+.admin-assign-row>div:first-child {
   flex: 1;
   min-width: 0;
 }
@@ -1122,6 +1186,121 @@
   box-shadow: var(--ring-focus);
 }
 
+/* ── Multi-select tag picker (Classes: assessors + students) ──────────
+   The dropdown is a plain AdminSelect; these are the chips above it that
+   show what has been chosen, each with its own remove control. */
+.admin-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Only when something follows the tags — the roster ends on them. */
+.admin-tags:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.admin-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 11px;
+  border-radius: var(--radius-xs);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-tag__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.admin-tag__remove:hover {
+  opacity: 1;
+  background: var(--brand-hover);
+}
+
+.admin-tag__remove:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+/* The roster's control once it has people in it: under the tags, on its own
+   line. It used to sit beside the count on the label row, where a button and a
+   figure shared one corner and neither read cleanly.
+
+   Dashed and hollow rather than the chip's usual fill, for two reasons: the
+   tags beside it are that same fill, so a solid button read as one more tag;
+   and it is the same action as the dashed panel this roster shows when empty,
+   so the two states of one control now look like one control. */
+.admin-roster-more {
+  margin-top: 2px;
+  border: 1px dashed var(--gray-400);
+  background: transparent;
+  color: var(--brand-text);
+}
+
+.admin-roster-more:hover:not([disabled]) {
+  border-color: var(--brand);
+  background: var(--brand-hover);
+}
+
+.admin-tags__empty {
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 3px 0;
+}
+
+/* Field grid — the schedule labels sit as a compact block rather than a tall
+   stack, fitting as many across as there is room for. */
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.admin-form-grid .admin-field {
+  margin-bottom: 0;
+}
+
+@media (max-width: 520px) {
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Right-aligned row actions (Classes table: Edit + delete). */
+.admin-table__actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin-table__actions .admin-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.admin-table__actions .admin-chip-btn+.admin-chip-btn {
+  margin-left: 6px;
+}
+
 /* ── List toolbar (category + search) ───────────────────── */
 
 /* The category dropdown and the search field share one row: pick a category,
@@ -1147,7 +1326,8 @@
 
 /* The search field carries its own bottom margin for the screens that use it
    alone; inside the toolbar the row owns the spacing. */
-.admin-toolbar__search .admin-search {
+.admin-toolbar__search .admin-search,
+.admin-toolbar>.admin-search {
   margin-bottom: 0;
 }
 
@@ -1355,6 +1535,48 @@
   margin-bottom: 18px;
 }
 
+/* When the tiles are the whole card, the card's padding is the only gap. */
+.admin-stats--flush {
+  margin-bottom: 0;
+}
+
+/* Shorter tiles: the figure sits beside its label rather than above it, and the
+   footnote follows straight on without a rule.
+   Stacked, a tile ran figure / label / rule / note and the one figure with no
+   note stretched to match, ending in a band of empty sunken colour. Set side by
+   side the whole tile is barely taller than the number itself, so there is
+   little left to leave empty.
+   Laid out in a grid rather than by changing the markup, so the same
+   `StatTile` serves both lists: the student's badges and credentials carry a
+   footnote, the assessor's releases and credentials do not, and a row may mix
+   the two without the noteless tiles stretching to match. */
+.admin-stats--compact .admin-stat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 12px;
+  padding: 14px 16px;
+}
+
+.admin-stats--compact .admin-stat__value {
+  font-size: 30px;
+}
+
+.admin-stats--compact .admin-stat__label {
+  margin-top: 0;
+  line-height: 1.3;
+}
+
+/* Under both columns, and close enough to the label to read as its footnote —
+   the rule that separated them when the figure sat above is what made the tile
+   tall in the first place. */
+.admin-stats--compact .admin-stat__note {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .admin-stat {
   flex: 1;
   padding: 16px 18px;
@@ -1377,6 +1599,19 @@
 .admin-stat__label {
   margin-top: 5px;
   font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* The most recent of whatever the tile counts. Ruled off rather than merely
+   spaced, so the figure above stays the tile's headline and this reads as its
+   footnote. */
+.admin-stat__note {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--gray-200);
+  font-family: var(--font-label);
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
@@ -1421,6 +1656,22 @@
   height: 100%;
   border-radius: 999px;
   background: var(--brand);
+}
+
+.admin-cell-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 116px;
+  max-width: 180px;
+}
+
+.admin-cell-progress__figure {
+  font-family: var(--font-label);
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ── Course cards (Course Management list) ──────────────── */
@@ -1529,6 +1780,16 @@
   position: absolute;
   inset: 0;
   border-radius: var(--radius-md);
+}
+
+/* When the course runs, under its title. Same register as the code above
+   it — this is identity, not a statistic, so it stays out of the footer where
+   the counts live. */
+.admin-course-card__run {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .admin-course-card__desc {
@@ -1687,8 +1948,39 @@
 }
 
 .admin-notice--ok {
-  background: var(--surface-sunken);
-  color: var(--text-body);
+  background: rgba(2, 110, 120, 0.12);
+  color: var(--teal-700);
+}
+
+/* A standing fact about the list rather than the result of an action — it
+   should not read as something that just succeeded, so it takes the surface
+   and a hairline instead of the teal. */
+.admin-notice--note {
+  background: var(--surface);
+  color: var(--text-muted);
+  box-shadow: inset 0 0 0 1px var(--gray-200);
+}
+
+/* In the search row instead of above it: a notice arriving and clearing used
+   to shunt the whole table down and back. A chip on the search field's own
+   radius, sitting centred against it, wrapping to its own line rather than
+   squeezing the field when the text runs long. */
+.admin-notice--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 7px 12px;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The tick is the fastest read on the row; the words are the detail. */
+.admin-notice__icon {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .admin-notice--error {
@@ -1720,6 +2012,14 @@
 
 .admin-field {
   margin-bottom: 14px;
+}
+
+/* The two date fields add up to something the admin did not type, so the
+   form says it back to them before they save. */
+.admin-field__hint--run {
+  margin-top: -6px;
+  margin-bottom: 14px;
+  font-weight: 500;
 }
 
 .admin-field__label {
@@ -1754,6 +2054,584 @@
   font-family: var(--font-alt);
   font-size: 15px;
   color: var(--admin-ink);
+}
+
+/* The paragraph form of the field. Height comes from `rows`, so the caller
+   decides how tall it opens; the reader can drag it between the two bounds
+   below, but never sideways — a wider box than the dialog would break the
+   form's column.
+
+   Bounded at both ends on purpose: pulled shut the field looks broken and
+   hides what is already typed, and the ceiling keeps the dialog's own buttons
+   in reach — it sits just above the height the field opens at, so there is
+   room to drag but not enough to take over the form. Past it the box scrolls
+   its own text instead of growing. */
+.admin-input--multiline {
+  height: auto;
+  min-height: 96px;
+  max-height: 200px;
+  padding: 12px 16px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+/* ── Roster picker panel ────────────────────────────────
+   Tagging a roster is one decision repeated, so it gets a panel with the whole
+   list in it rather than a dropdown that takes one name per open.
+
+   It sits *beside* the class form rather than over it: the form stays readable,
+   and the two read as one workspace — course on the left, the people it is
+   picking on the right. The panel carries .admin-modal__panel--form too, so its
+   width, height, radius and shadow are the form's own, not a second design.
+
+   The centring is the trick worth knowing: this overlay centres its own row,
+   and the ::before spacer stands in for the form's width, so the panel lands
+   exactly beside a form that is itself centred in the viewport. No backdrop —
+   the modal underneath already dims the page, and dimming twice would push the
+   form it is meant to sit next to into the background. */
+
+.admin-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+/*
+ * Two panels, one pair.
+ *
+ * The form centres itself and this panel centres itself, so neither can be
+ * placed by centring alone — a row centred around the middle of the screen puts
+ * its right half straight over a form that is also in the middle. They are
+ * offset instead, each by half of what the other adds: the form slides left by
+ * (panel + gap) / 2 while it is open, and the panel sits at
+ * (form + gap - panel) / 2 to the right of centre. The pair ends up centred and
+ * the two never touch, whatever either one is sized to.
+ *
+ * Width is set here rather than inherited from --form, which is the shape this
+ * borrows for its corners, shadow and height but not for how wide a list of
+ * names needs to be.
+ */
+.admin-drawer {
+  /* One duration for the panel's slide and the form's shift, so neither can
+     arrive ahead of the other. */
+  --picker-motion: 0.22s;
+}
+
+.admin-drawer .admin-drawer__panel {
+  position: absolute;
+  top: 50%;
+  /* Placed with `left`, not `transform`: the transform belongs to the slide
+     below, and a placement that also lived there would be overwritten by every
+     frame of it — which is how this panel came to only fade. */
+  left: calc(50% + (var(--form-w) + var(--picker-gap) - var(--picker-w)) / 2);
+  display: flex;
+  flex-direction: column;
+  width: var(--picker-w);
+  transform: translateY(-50%);
+  animation: admin-drawer-slide var(--picker-motion) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Leaving is the same move, reversed and held at its end so the panel does not
+   flash back into place for the frame before it unmounts. */
+.admin-drawer .admin-drawer__panel.is-closing {
+  animation-name: admin-drawer-slide-out;
+  animation-fill-mode: forwards;
+}
+
+/*
+ * The form's half of the offset, applied only while the panel is open.
+ *
+ * A margin, and it must stay one. `transform` looks like the natural way to
+ * nudge a box sideways, and it was the first thing tried here — but the picker
+ * renders *inside* this panel, and a transformed element becomes the containing
+ * block for its `position: fixed` descendants. The panel stopped being fixed to
+ * the viewport, started being fixed to this box, and was then clipped by the
+ * `overflow: hidden` above — so it appeared cropped, on top of the form it was
+ * supposed to sit beside. Nothing in this chain may carry a transform, a filter
+ * or a `will-change` while the picker is open.
+ *
+ * The margin does the same job through the flex centring of .admin-modal: the
+ * item's outer width grows by the margin, and centring that outer box shifts
+ * the visible half of it left by half the margin — which is exactly the offset
+ * wanted, so the margin is the whole panel-plus-gap.
+ */
+.admin-modal__panel--paired {
+  margin-right: calc(var(--picker-w) + var(--picker-gap));
+}
+
+/*
+ * The move itself is timed on the base class, not on --paired.
+ *
+ * A transition declared on the modifier only exists while the modifier does, so
+ * the form would glide open and then snap back the moment the class came off.
+ * Declared here it owns both directions — and the timing is the panel's own, so
+ * the two halves of the pair move as one thing.
+ */
+.admin-modal__panel--form {
+  transition: margin-right var(--picker-motion, 0.22s) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Too narrow to stand side by side: the panel takes the middle, the form stops
+   sliding out from under it, and the backdrop comes back because the form is
+   now behind the panel rather than beside it. */
+@media (max-width: 1120px) {
+  .admin-drawer {
+    background: rgba(16, 24, 40, 0.45);
+  }
+
+  .admin-drawer .admin-drawer__panel {
+    width: min(var(--picker-w), calc(100vw - 32px));
+    left: 50%;
+    margin-left: calc(min(var(--picker-w), 100vw - 32px) / -2);
+  }
+
+  .admin-modal__panel--paired {
+    margin-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-modal__panel--form {
+    transition: none;
+  }
+}
+
+/* In from the left, coming to rest beside the form — the panel arrives from
+   behind it rather than from nowhere. The Y half of the transform repeats the
+   panel's own vertical centring, since a keyframe replaces the whole property
+   and dropping it would make the panel rise as it slides. */
+@keyframes admin-drawer-slide {
+  from {
+    transform: translate(-28px, -50%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(-50%);
+    opacity: 1;
+  }
+}
+
+@keyframes admin-drawer-slide-out {
+  from {
+    transform: translateY(-50%);
+    opacity: 1;
+  }
+
+  to {
+    transform: translate(-28px, -50%);
+    opacity: 0;
+  }
+}
+
+/* Reduced motion keeps the arrival, loses the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .admin-drawer .admin-drawer__panel {
+    animation-name: admin-drawer-fade;
+  }
+
+  .admin-drawer .admin-drawer__panel.is-closing {
+    animation-name: admin-drawer-fade-out;
+  }
+}
+
+@keyframes admin-drawer-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes admin-drawer-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-drawer__panel {
+    animation: none;
+  }
+}
+
+.admin-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+
+.admin-drawer__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.admin-drawer__sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* The count answers the question the panel is open for, so it is a line of its
+   own above the list — not only a number on the button at the bottom. */
+.admin-drawer__count {
+  margin: 0;
+  padding: 0 20px 12px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.admin-drawer__count strong {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.admin-drawer__search {
+  padding: 0 20px 12px;
+}
+
+.admin-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+}
+
+.admin-drawer__group {
+  margin: 0 0 8px;
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.admin-drawer__toggle {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--action);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.admin-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The whole row is the label, so the name is as clickable as the box. */
+.admin-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.admin-pick:hover {
+  background: var(--surface-sunken);
+}
+
+.admin-pick.is-picked {
+  background: rgba(2, 110, 120, 0.08);
+}
+
+.admin-pick__box {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--action);
+}
+
+.admin-pick__text {
+  min-width: 0;
+}
+
+.admin-pick__name {
+  display: block;
+  font-size: 15px;
+  color: var(--admin-ink);
+}
+
+.admin-pick__meta {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.admin-drawer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--gray-200);
+}
+
+/* The list is the only part that scrolls, so the count, the search and the
+   buttons stay put while a long roster moves under them — the same division
+   the form beside it makes between its body and its footer. */
+.admin-drawer__panel .admin-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The count beside a field's label, for the same reason the panel carries one,
+   and — on a roster — the add control parked next to it. */
+.admin-field__label--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.admin-field__count {
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* ── The roster's add control, empty state ──────────────────────────
+   With nobody tagged there is nothing for a small chip to sit under, so the
+   whole row is the button: one large target that names what it adds, what the
+   picker will offer, and — when no course has been chosen — why it is closed,
+   all at the point the click would happen. Dashed while it is waiting to be
+   filled; solid and sunken once it is not offering anything. */
+.admin-roster-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px dashed var(--gray-400);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-body);
+  font-family: var(--font-label);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.admin-roster-add:hover:not([disabled]) {
+  border-color: var(--brand);
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.admin-roster-add:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.admin-roster-add[disabled] {
+  border-style: solid;
+  border-color: var(--gray-200);
+  background: var(--gray-100);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.admin-roster-add__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.admin-roster-add[disabled] .admin-roster-add__icon {
+  background: var(--gray-200);
+  color: var(--text-muted);
+}
+
+.admin-roster-add__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.admin-roster-add__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-roster-add__note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* The affordance, not the subject — quiet until the row is hovered. */
+.admin-roster-add__plus {
+  display: inline-flex;
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--gray-400);
+}
+
+.admin-roster-add:hover:not([disabled]) .admin-roster-add__plus {
+  color: var(--brand-text);
+}
+
+/* ── Class status switch ────────────────────────────────
+   A cell that is both the state and the control: the word says which way the
+   class stands, the track says it can be changed. Teal for running, matching
+   the console's completed-action colour; a hollow track for stood down. */
+
+.admin-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-switch:hover:not([disabled]) {
+  background: var(--surface-sunken);
+}
+
+.admin-switch:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.admin-switch[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-switch__track {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 17px;
+  border-radius: 999px;
+  background: var(--gray-400);
+  transition: background 0.18s ease;
+}
+
+.admin-switch.is-on .admin-switch__track {
+  background: var(--teal-700);
+}
+
+.admin-switch__thumb {
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--white);
+  transition: transform 0.18s ease;
+}
+
+.admin-switch.is-on .admin-switch__thumb {
+  transform: translateX(13px);
+}
+
+.admin-switch__label {
+  white-space: nowrap;
+}
+
+.admin-switch.is-on .admin-switch__label {
+  color: var(--teal-700);
+  font-weight: 600;
+}
+
+/* The status beside a name on a detail screen. Sits with the name because that
+   is the first thing read on the page and a locked account has to be part of
+   that first read — not a fact found further down. */
+.admin-status-pill {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: rgba(2, 110, 120, 0.12);
+  color: var(--teal-700);
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  vertical-align: middle;
+}
+
+/* Suspended is the state worth stopping on, so it takes the amber the console
+   already uses for "something here needs attention". */
+.admin-status-pill--off {
+  background: rgba(150, 96, 10, 0.13);
+  color: var(--warning-text);
+}
+
+[data-theme="dark"] .admin-app .admin-status-pill {
+  background: rgba(30, 200, 165, 0.14);
+}
+
+[data-theme="dark"] .admin-app .admin-status-pill--off {
+  background: rgba(245, 189, 88, 0.16);
+}
+
+/* A class that is not running still has to be readable — it is dimmed, not
+   greyed out, so its roster and schedule can still be checked. */
+.admin-table tbody tr.is-inactive td {
+  opacity: 0.62;
+}
+
+.admin-table tbody tr.is-inactive .admin-switch,
+.admin-table tbody tr.is-inactive .admin-table__actions {
+  opacity: 1;
+}
+
+/* --teal-700 lightens for the dark theme on its own, but the light tint it
+   sits in disappears against navy. */
+[data-theme="dark"] .admin-app .admin-notice--ok {
+  background: rgba(30, 200, 165, 0.14);
+}
+
+/* The two panels in the detail's right-hand column, stacked. */
+.admin-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-content: start;
+}
+
+/* The picture as it will be seen: same crop and corner as the student's card,
+   so what the admin approves here is what the dashboard shows. */
+.admin-course-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
 }
 
 /* A button, so it is reachable by keyboard as well as by drop — the real file
@@ -2200,6 +3078,7 @@
 /* ── Responsive ─────────────────────────────────────────── */
 
 @media (max-width: 1080px) {
+
   .admin-grid-2,
   .admin-grid-detail {
     grid-template-columns: 1fr;
@@ -2217,7 +3096,7 @@
 
   .admin-sidebar {
     width: 100%;
-    padding: 24px 0;
+    padding: 18px 0;
     border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   }
 
@@ -2242,21 +3121,21 @@
   }
 
   .admin-sidebar--collapsed .admin-sidebar__avatar {
-    width: 96px;
-    height: 96px;
+    width: 62px;
+    height: 62px;
   }
 
   .admin-sidebar--collapsed .admin-sidebar__avatar svg {
-    width: 56px;
-    height: 56px;
+    width: 36px;
+    height: 36px;
   }
 
   .admin-sidebar__signout {
-    margin: 20px 0 0;
+    margin: 16px 0 0;
   }
 
   .admin-main {
-    padding: 24px 20px;
+    padding: 20px 16px;
   }
 
   .admin-header {
@@ -2275,6 +3154,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .admin-course-card,
   .admin-nav-item,
   .admin-btn {
@@ -2289,452 +3169,5 @@
   .admin-course-card:hover .admin-course-card__manage svg {
     transition: none;
     transform: none;
-  }
-
-  .usage-live.is-on .usage-live__dot {
-    animation: none;
-  }
-}
-
-/* ── API usage dashboard ─────────────────────────────────
-   Two series: tokens sent to the model, and tokens it wrote back. The hues come
-   from the maroon-red and teal families already in this interface, stepped once
-   per theme so each clears the colour-blind separation and contrast gates on
-   the surface it actually sits on (worst adjacent CVD dE 15.1 light / 14.7
-   dark, against a floor of 8). Identity is carried by the legend and the
-   tooltip as well, never by hue alone. */
-.admin-app {
-  --usage-input: #d1462f;
-  --usage-output: #0ea5a5;
-  --usage-grid: var(--gray-200);
-  --usage-axis: var(--gray-400);
-}
-
-[data-theme="dark"] .admin-app {
-  --usage-input: #dd5f45;
-  --usage-output: #1fa3ab;
-  --usage-grid: rgba(255, 255, 255, 0.12);
-  --usage-axis: rgba(195, 203, 228, 0.32);
-}
-
-.admin-table th.is-right,
-.admin-table td.is-right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Nothing in these tables opens a detail screen. */
-.admin-app .usage-inner-table tbody tr,
-.admin-app .usage-mini-table tbody tr,
-.admin-app .usage-recent tbody tr {
-  cursor: default;
-}
-
-.usage-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.usage-range {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  background: var(--gray-100);
-  border-radius: 10px;
-}
-
-.usage-range__btn {
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.usage-range__btn.is-active {
-  background: var(--surface);
-  font-weight: 600;
-  color: var(--brand-text);
-  box-shadow: 0 1px 3px var(--shadow-tint);
-}
-
-.usage-live {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-  padding: 7px 13px;
-  border: 1px solid var(--gray-200);
-  border-radius: 999px;
-  background: var(--surface);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.usage-live__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--gray-400);
-}
-
-.usage-live.is-on {
-  color: var(--text-body);
-}
-
-.usage-live.is-on .usage-live__dot {
-  background: #0ca30c;
-  animation: usage-pulse 2s ease-in-out infinite;
-}
-
-@keyframes usage-pulse {
-  50% {
-    opacity: 0.35;
-  }
-}
-
-.usage-updated {
-  margin: -8px 0 18px;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.usage-hero {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) 2.4fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.usage-hero__figure,
-.usage-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 20px 22px;
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-}
-
-.usage-hero__label,
-.usage-tile__label {
-  font-family: var(--font-label);
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-/* The one number the page leads with. Proportional figures on purpose:
-   tabular-nums pads every digit to the width of a zero, which reads loose at
-   display sizes. Tabular is for the columns below, where digits must line up. */
-.usage-hero__value {
-  font-family: var(--font-display);
-  font-size: 48px;
-  font-weight: 600;
-  line-height: 1.05;
-  color: var(--admin-ink);
-}
-
-.usage-hero__sub,
-.usage-tile__sub {
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--text-muted);
-}
-
-.usage-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 16px;
-}
-
-.usage-tile__value {
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--admin-ink);
-}
-
-.usage-chart {
-  margin-bottom: 16px;
-}
-
-.usage-chart__head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.usage-chart__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--admin-ink);
-}
-
-.usage-chart__sub {
-  margin: 2px 0 0;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.usage-chart__right {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-
-.usage-legend {
-  display: flex;
-  gap: 14px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-body);
-}
-
-.usage-legend li {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.usage-legend__key {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-}
-
-.usage-legend__key--input {
-  background: var(--usage-input);
-}
-
-.usage-legend__key--output {
-  background: var(--usage-output);
-}
-
-.usage-tablebtn {
-  padding: 6px 12px;
-  border: 1px solid var(--gray-200);
-  border-radius: 999px;
-  background: transparent;
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.usage-chart__plot {
-  position: relative;
-}
-
-.usage-chart__svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.usage-chart__grid {
-  stroke: var(--usage-grid);
-  stroke-width: 1;
-}
-
-.usage-chart__baseline {
-  stroke: var(--usage-axis);
-  stroke-width: 1;
-}
-
-.usage-chart__tick {
-  fill: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-chart__value {
-  fill: var(--text-body);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.usage-chart__input {
-  fill: var(--usage-input);
-}
-
-.usage-chart__output {
-  fill: var(--usage-output);
-}
-
-.usage-chart__hit {
-  fill: transparent;
-}
-
-.usage-chart__band.is-hovered .usage-chart__hit {
-  fill: var(--brand-hover);
-}
-
-.usage-tooltip {
-  position: absolute;
-  top: 8px;
-  min-width: 178px;
-  padding: 10px 12px;
-  transform: translateX(-50%);
-  background: var(--surface-raised);
-  border: 1px solid var(--gray-200);
-  border-radius: 10px;
-  box-shadow: 0 6px 20px var(--shadow-tint);
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-  color: var(--text-body);
-  pointer-events: none;
-}
-
-.usage-tooltip__date {
-  margin: 0 0 6px;
-  font-weight: 600;
-  color: var(--admin-ink);
-}
-
-.usage-tooltip__row {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  margin: 0 0 3px;
-}
-
-.usage-tooltip__row b {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-tooltip__total {
-  margin: 7px 0 0;
-  padding-top: 7px;
-  border-top: 1px solid var(--gray-200);
-  color: var(--text-muted);
-}
-
-.usage-empty {
-  margin: 0;
-  padding: 34px 0;
-  text-align: center;
-  font-family: var(--font-ui);
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-.usage-inner-table {
-  padding: 0;
-  box-shadow: none;
-}
-
-.usage-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.usage-panel__figure {
-  margin: 12px 0 6px;
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 600;
-  color: var(--admin-ink);
-}
-
-.usage-panel__figure--muted {
-  font-size: 20px;
-  color: var(--text-muted);
-}
-
-.usage-panel__note {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text-muted);
-}
-
-.usage-panel__note--divided {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--gray-200);
-}
-
-.usage-mini-table th,
-.usage-mini-table td {
-  padding: 9px 10px;
-}
-
-.usage-mini-table th:first-child,
-.usage-mini-table td:first-child {
-  padding-left: 0;
-}
-
-/* The word carries the meaning; colour only supports it. */
-.usage-outcome {
-  display: inline-block;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--gray-100);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-body);
-}
-
-.usage-outcome--created {
-  background: rgba(12, 163, 12, 0.14);
-  color: #0a7c0a;
-}
-
-.usage-outcome--rejected {
-  background: rgba(236, 131, 90, 0.18);
-  color: #a2492a;
-}
-
-.usage-outcome--failed {
-  background: rgba(208, 59, 59, 0.16);
-  color: #a52c2c;
-}
-
-[data-theme="dark"] .admin-app .usage-outcome--created {
-  color: #4ec94e;
-}
-
-[data-theme="dark"] .admin-app .usage-outcome--rejected {
-  color: #f0a07c;
-}
-
-[data-theme="dark"] .admin-app .usage-outcome--failed {
-  color: #ef7d7d;
-}
-
-.usage-outcome__why {
-  display: block;
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-@media (max-width: 980px) {
-  .usage-hero,
-  .usage-split {
-    grid-template-columns: 1fr;
   }
 }

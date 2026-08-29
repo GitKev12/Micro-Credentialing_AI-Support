@@ -207,6 +207,36 @@ export async function updateStudent(request, response) {
   return getStudent(request, response);
 }
 
+/**
+ * PATCH /api/admin/students/:id/suspension — stop this student signing in, or
+ * let them back.
+ *
+ * Its own endpoint rather than a field on the edit form, because it is not a
+ * detail being corrected: it is an action with an effect, and it is the one
+ * write here that changes what a student can do rather than what their record
+ * says. `loginUser` refuses a suspended account (see auth.controller.js), so
+ * this is a real lock and not a label — nothing is deleted, no enrolment moves,
+ * and clearing it restores them exactly as they were.
+ */
+export async function setStudentSuspension(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const body = request.body ?? {};
+  if (!("suspended" in body)) return badRequest(response, "Send suspended: true or false.");
+
+  const student = await collection(STUDENTS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!student) return response.status(404).json({ message: "Student not found." });
+
+  await collection(STUDENTS_COLLECTION).updateOne(
+    { _id: student._id },
+    { $set: { suspended: body.suspended === true } }
+  );
+
+  return getStudent(request, response);
+}
+
 /** PATCH /api/admin/assessors/:id — name, email, ID number, password. */
 export async function updateAssessor(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
@@ -245,6 +275,35 @@ export async function updateAssessor(request, response) {
   }
 
   await collection(ASSESSORS_COLLECTION).updateOne({ _id: assessor._id }, { $set: updates });
+
+  return getAssessor(request, response);
+}
+
+/**
+ * PATCH /api/admin/assessors/:id/suspension — stop this assessor signing in,
+ * or let them back.
+ *
+ * The student version of this, on the other collection. It matters more here
+ * than it looks: an assessor holds a grading queue, so locking one out does
+ * not empty it — the papers stay assigned and stay unmarked until the account
+ * is turned back on or the class is given to someone else. Nothing is deleted,
+ * no assignment moves, and clearing it restores them exactly as they were.
+ */
+export async function setAssessorSuspension(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const body = request.body ?? {};
+  if (!("suspended" in body)) return badRequest(response, "Send suspended: true or false.");
+
+  const assessor = await collection(ASSESSORS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+
+  await collection(ASSESSORS_COLLECTION).updateOne(
+    { _id: assessor._id },
+    { $set: { suspended: body.suspended === true } }
+  );
 
   return getAssessor(request, response);
 }

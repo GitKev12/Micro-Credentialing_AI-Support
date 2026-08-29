@@ -8,9 +8,6 @@ import {
 import { CheckIcon } from "./components/icons";
 import { Chip, Metric, Person, ScreenHeader } from "./components/ui";
 
-const CREDENTIALS_INTRO =
-  "Nothing here has been awarded yet. The AI's score is only a suggestion — approving it is what puts the credential on the student's record.";
-
 function CredentialsPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
@@ -65,13 +62,6 @@ function CredentialsPage() {
       />
 
       <div className="assessor-body assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
-        <p
-          className="explainer__body"
-          style={{ maxWidth: "48rem", marginBottom: "var(--sp-2)" }}
-        >
-          {CREDENTIALS_INTRO}
-        </p>
-
         {rows.map((row) => (
           <div key={row.id} className="data-row creds-grid">
             <Person name={row.name} sid={row.sid} />

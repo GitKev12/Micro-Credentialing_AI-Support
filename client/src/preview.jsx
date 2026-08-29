@@ -86,6 +86,8 @@ const ADMIN_COURSES = [
     title: "Introduction to Computing",
     description:
       "Foundations of computer systems, number representation and the basics of algorithmic thinking.",
+    startsOn: "2026-08-04T00:00:00.000Z",
+    endsOn: "2026-10-10T00:00:00.000Z",
     moduleCount: 12,
     studentCount: 48
   },
@@ -94,6 +96,8 @@ const ADMIN_COURSES = [
     code: "IT 214",
     title: "Web Systems and Technologies",
     description: "Client and server architecture, markup, styling and the request lifecycle.",
+    startsOn: "2026-08-04T00:00:00.000Z",
+    endsOn: "2026-12-12T00:00:00.000Z",
     moduleCount: 8,
     studentCount: 31
   },
@@ -111,6 +115,8 @@ const ADMIN_COURSES = [
     title: "Information Assurance and Security Management for Enterprise Systems",
     description:
       "Threat modelling, access control and the policy side of keeping an organisation's data intact.",
+    startsOn: "2026-11-02T00:00:00.000Z",
+    endsOn: "2027-01-15T00:00:00.000Z",
     moduleCount: 5,
     studentCount: 19
   },
@@ -127,6 +133,7 @@ const ADMIN_COURSES = [
     code: "DB 205",
     title: "Database Management Systems",
     description: "Relational modelling, normalisation and query planning.",
+    startsOn: "2026-09-01T00:00:00.000Z",
     moduleCount: 14,
     studentCount: 52
   }

@@ -40,6 +40,18 @@ export function AssessorsIcon({ size = 20 }) {
   );
 }
 
+/** Classes — people grouped under a course: two figures on a card. */
+export function ClassesIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="14" rx="2" {...stroke} />
+      <circle cx="9" cy="10" r="1.8" {...stroke} />
+      <circle cx="15" cy="10" r="1.8" {...stroke} />
+      <path d="M6.5 15a2.8 2.8 0 015 0M12.5 15a2.8 2.8 0 015 0" {...stroke} />
+    </svg>
+  );
+}
+
 export function TosIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -140,6 +152,14 @@ export function CloseIcon({ size = 14 }) {
   );
 }
 
+export function PlusIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -180,16 +200,6 @@ export function UploadIcon({ size = 26 }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-/** API usage — a small column chart, matching the dashboard it links to. */
-export function UsageIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 20h16" {...stroke} />
-      <path d="M7 20v-5M12 20V7M17 20v-9" {...stroke} />
     </svg>
   );
 }

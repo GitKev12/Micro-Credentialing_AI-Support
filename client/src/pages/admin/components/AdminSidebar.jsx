@@ -6,29 +6,30 @@ import {
   AssessorsIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ClassesIcon,
   CoursesIcon,
   MoonIcon,
   SignOutIcon,
   StudentsIcon,
   SunIcon,
   TosIcon,
-  UsageIcon,
   UserIcon
 } from "./icons";
 
-// Ordered the way the work runs: build the catalog, enrol the people, write the
-// blueprint, then watch what the API cost.
+// Ordered the way the work runs: build the catalog, form the classes that enrol
+// and assign the people, correct individual records, write the blueprint.
 //
-// There is no "generate quizzes" screen. A quiz becomes available to a student
-// when that student finishes reading its lesson — there is no class schedule
-// and no release date an admin would be setting, so a screen for choosing when
-// quizzes appear would describe a system this is not.
+// A class carries a schedule, but only as a label — the timetable an admin
+// writes on it opens and locks nothing. A quiz still becomes available to a
+// student when that student finishes reading its lesson; there is no
+// schedule-driven release date, so there is still no "generate quizzes" screen
+// for choosing when quizzes appear.
 const NAV_ITEMS = [
   { to: "/admin/courses", label: "Courses", Icon: CoursesIcon },
+  { to: "/admin/classes", label: "Classes", Icon: ClassesIcon },
   { to: "/admin/students", label: "Students", Icon: StudentsIcon },
   { to: "/admin/assessors", label: "Assessors", Icon: AssessorsIcon },
-  { to: "/admin/table-of-specification", label: "Table of Specification", Icon: TosIcon },
-  { to: "/admin/api-usage", label: "API Usage", Icon: UsageIcon }
+  { to: "/admin/table-of-specification", label: "Table of Specification", Icon: TosIcon }
 ];
 
 const COLLAPSED_KEY = "adminSidebarCollapsed";
@@ -71,7 +72,7 @@ function AdminSidebar({ name, idNumber }) {
       <div className="admin-sidebar__top">
         <div className="admin-sidebar__identity">
           <div className="admin-sidebar__avatar">
-            <UserIcon size={56} color="var(--brand)" />
+            <UserIcon size={36} color="currentColor" />
           </div>
           <div className="admin-sidebar__who">
             <span className="admin-sidebar__name">{name}</span>

@@ -3,6 +3,7 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { gradeSubmission, toAssessmentSummary, toStudentAssessment } from "./assessments.format.js";
 import { ensureFinalAssessment, ensureLessonAssessment } from "./assessments.autogen.js";
 import { lessonBadgeFor } from "../badges/badges.service.js";
+import { loadStudentRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
 
 /**
  * Taking a quiz: what is unlocked, what the questions are, and what a
@@ -129,9 +130,15 @@ async function loadCourseState(studentId, courseId) {
     attemptsByAssessment.get(key).push(result);
   }
 
+  // Whether the course is still open to this student at all. Its run ending —
+  // or the class holding them being switched off — shuts every gate below at
+  // once (see courseAccess.js).
+  const restriction = await loadStudentRestriction(studentId, courseId);
+
   return {
     assessments,
     modules,
+    restriction,
     completedModuleIds: new Set(progress.map((entry) => asId(entry.moduleId))),
     attemptsByAssessment,
     resultByAssessment: new Map(
@@ -204,7 +211,7 @@ function resultItems(result) {
   }));
 }
 
-function resultSummary(result, summary, attempts = []) {
+function resultSummary(result, summary, attempts = [], restriction = null) {
   if (!result) return null;
   const score = effectiveScore(result);
   const limit = attemptLimitFor(summary.scope);
@@ -223,7 +230,9 @@ function resultSummary(result, summary, attempts = []) {
     attemptsUsed: used,
     attemptsAllowed: Number.isFinite(limit) ? limit : null,
     attemptsLeft: Number.isFinite(limit) ? Math.max(0, limit - used) : null,
-    canRetake: retakeState(result, summary, used).allowed
+    // A course that has ended offers no further sitting, however many
+    // attempts the paper itself would still allow.
+    canRetake: !restriction && retakeState(result, summary, used).allowed
   };
 }
 
@@ -323,7 +332,8 @@ export async function getCourseAssessmentsForStudent(request, response) {
         result: resultSummary(
           state.resultByAssessment.get(asId(doc._id)),
           summary,
-          state.attemptsByAssessment.get(asId(doc._id)) ?? []
+          state.attemptsByAssessment.get(asId(doc._id)) ?? [],
+          state.restriction
         )
       };
     })
@@ -362,7 +372,11 @@ export async function getCourseAssessmentsForStudent(request, response) {
   if (!assessments.some((row) => row.scope === "final")) {
     // Free — the final is drawn from the lesson banks and makes no model call —
     // so it is attempted whenever every lesson quiz is in place.
-    if (state.modules.length > 0 && coveredModuleIds.size === state.modules.length) {
+    if (
+      !state.restriction &&
+      state.modules.length > 0 &&
+      coveredModuleIds.size === state.modules.length
+    ) {
       ensureFinalAssessment({ courseId }).catch(() => {});
     }
     assessments.push(placeholderRow(courseId, { scope: "final" }));
@@ -377,6 +391,31 @@ export async function getCourseAssessmentsForStudent(request, response) {
       (moduleOrder.get(asId(left.moduleId)) ?? 0) - (moduleOrder.get(asId(right.moduleId)) ?? 0)
     );
   });
+
+  /**
+   * The course is closed, so the rail closes with it.
+   *
+   * A paper this student has already sat stays open when the course simply
+   * ended: the mark is theirs, and reopening it is reading, not working. A
+   * class switched off keeps nothing open — it is not a run finishing but the
+   * class being taken off — so every row shuts, sat or not.
+   *
+   * Either way the row carries the closing's own reason, because no amount of
+   * finishing will open it now.
+   */
+  if (state.restriction) {
+    const suspended = Boolean(state.restriction.suspended);
+
+    for (const row of assessments) {
+      row.ended = Boolean(state.restriction.ended);
+      row.suspended = suspended;
+      if (row.result && !suspended) continue;
+
+      row.locked = true;
+      row.needsGeneration = false;
+      row.reason = state.restriction.reason;
+    }
+  }
 
   return response.json({
     assessments,
@@ -411,6 +450,10 @@ export async function prepareLessonAssessment(request, response) {
 
   const courseId = asId(module.courseId ?? "");
   const state = await loadCourseState(studentId, courseId);
+
+  // The one call in the student app that can spend money, so an ended course
+  // has to be refused before anything is written for it.
+  if (state.restriction) return refuseRestrictedCourse(response, state.restriction);
 
   // Same gate as the quiz itself: the lesson has to be read first.
   if (!state.completedModuleIds.has(asId(module._id))) {
@@ -486,6 +529,18 @@ export async function getAssessmentForStudent(request, response) {
   if (!doc) return response.status(404).json({ message: "Assessment not found." });
 
   const state = await loadCourseState(studentId, doc.courseId);
+
+  // An ended course still hands back a paper this student sat — that is their
+  // own record — and refuses one they never reached. A switched-off class is
+  // not a calendar closing a course but the class being taken off; it hands
+  // back nothing until it is switched on again.
+  if (
+    state.restriction &&
+    (state.restriction.suspended || !state.resultByAssessment.get(asId(doc._id)))
+  ) {
+    return refuseRestrictedCourse(response, state.restriction);
+  }
+
   const lock = lockStateFor(doc, state);
 
   if (lock.locked) {
@@ -501,7 +556,8 @@ export async function getAssessmentForStudent(request, response) {
     result: resultSummary(
       state.resultByAssessment.get(asId(doc._id)),
       summary,
-      state.attemptsByAssessment.get(asId(doc._id)) ?? []
+      state.attemptsByAssessment.get(asId(doc._id)) ?? [],
+      state.restriction
     )
   });
 }
@@ -528,6 +584,11 @@ export async function submitAssessment(request, response) {
   if (!doc) return response.status(404).json({ message: "Assessment not found." });
 
   const state = await loadCourseState(studentId, doc.courseId);
+
+  // Nothing is marked for a course whose run is over, whatever the rail said
+  // when this paper was opened.
+  if (state.restriction) return refuseRestrictedCourse(response, state.restriction);
+
   const lock = lockStateFor(doc, state);
 
   if (lock.locked) {

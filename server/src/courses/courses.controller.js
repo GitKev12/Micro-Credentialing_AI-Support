@@ -3,6 +3,8 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges } from "../badges/badges.service.js";
 import { buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { listIssuedCertificates } from "../certificates/certificates.service.js";
+import { toIsoDay } from "../lib/courseDates.js";
+import { loadStudentSuspensions, toCourseAccess } from "../lib/courseAccess.js";
 
 /**
  * "Abang" — lookout endpoints that wait for their collections.
@@ -33,16 +35,24 @@ function courseCodeOf(course) {
   return String(course.code ?? course.courseCode ?? course.course_code ?? "").trim();
 }
 
-function toPublicCourse(course, progress) {
+function toPublicCourse(course, progress, suspension = null) {
   return {
     id: course._id,
     code: courseCodeOf(course),
     title: course.title ?? course.courseName ?? course.name ?? course.course_name ?? "",
     description: course.description ?? "",
+    // When the course runs, whether that run is over, and whether the class
+    // holding this student in it has been switched off. `ended` marks the card
+    // read-only and `suspended` shuts it — one rule, enforced on every endpoint
+    // that serves or writes to this course (see courseAccess.js).
+    ...toCourseAccess(course, new Date(), suspension),
     imageUrl: course.imageUrl ?? course.image_url ?? null,
     // Set when a picture is stored in the CourseImage bucket — the client
     // then loads GET /api/courses/:id/image.
     hasImage: Boolean(course.imageFileId),
+    // Changes whenever the picture does, so a replaced image is fetched again
+    // rather than served from yesterday's cache.
+    imageUpdatedAt: toIsoDay(course.imageUpdatedAt),
     ...progress
   };
 }
@@ -208,11 +218,18 @@ export async function getStudentCourses(request, response) {
   if (courses.length === 0) return response.json({ courses: [] });
 
   const { index } = await buildProgressIndex(studentId, student, courses);
+  // Classes hold the student by their Mongo _id; the route may have been given
+  // their student number instead, so ask with the id the class would have used.
+  const suspensions = await loadStudentSuspensions(student?._id ?? studentId);
 
   return response.json({
     courses: courses.map((course) => {
       const { total, completed } = index.get(String(course._id));
-      return toPublicCourse(course, progressSummary(total, completed));
+      return toPublicCourse(
+        course,
+        progressSummary(total, completed),
+        suspensions.get(String(course._id)) ?? null
+      );
     })
   });
 }

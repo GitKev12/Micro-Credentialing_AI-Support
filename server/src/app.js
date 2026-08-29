@@ -8,7 +8,6 @@ import certificateRoutes from "./certificates/certificates.routes.js";
 import courseRoutes from "./courses/courses.routes.js";
 import healthRoutes from "./health/health.routes.js";
 import moduleRoutes from "./modules/modules.routes.js";
-import { trackRequestUsage } from "./middleware/requestMetrics.js";
 
 const app = express();
 
@@ -33,7 +32,6 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(trackRequestUsage);
 
 app.get("/", (_request, response) => {
   response.json({

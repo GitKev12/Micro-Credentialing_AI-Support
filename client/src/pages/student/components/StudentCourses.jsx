@@ -3,6 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { getStoredSession } from "../../../auth/services/authService";
 import { courseImageUrl, fetchStudentCourses } from "../../../services/courses";
 import noCoursesImage from "../../../assets/no-courses-student.png";
+import {
+  formatCourseEnded,
+  formatCourseRun,
+  hasCourseEnded
+} from "../../../lib/courseDuration";
 
 // Placeholder backdrops for courses that have no stored picture.
 const PLACEHOLDER_GRADIENTS = [
@@ -24,10 +29,26 @@ const PLACEHOLDER_GRADIENTS = [
 const STATUSES = {
   completed: { id: "completed", label: "Completed" },
   "in-progress": { id: "in-progress", label: "In progress" },
-  "not-started": { id: "not-started", label: "Not started" }
+  "not-started": { id: "not-started", label: "Not started" },
+  // Not a progress state but the course's own. It outranks the other three
+  // because it is the one that changes what the student may still do: an
+  // ended course is read-only, and the server refuses the rest.
+  ended: { id: "ended", label: "Ended" },
+  // The admin switched this student's class off. It outranks "ended" in turn,
+  // because it shuts the card rather than making it read-only.
+  suspended: { id: "suspended", label: "Unavailable" }
 };
 
+// The server sends `ended` with every course; the date rule is the fallback.
+const isEnded = (course) => course.ended ?? hasCourseEnded(course);
+
+// Sent only by a server that knows about classes; an older response has no
+// field, and no switched-off class either.
+const isSuspended = (course) => Boolean(course.suspended);
+
 function statusOf(course) {
+  if (isSuspended(course)) return STATUSES.suspended;
+  if (isEnded(course)) return STATUSES.ended;
   if (STATUSES[course.status]) return STATUSES[course.status];
 
   const total = Number(course.moduleCount) || 0;
@@ -60,6 +81,10 @@ function StudentCourses() {
   const [isLoading, setIsLoading] = useState(true);
 
   const openCourse = (course) => {
+    // A switched-off class has no lessons to open. The reader turns the same
+    // student away on its own — this only spares them the trip.
+    if (isSuspended(course)) return;
+
     navigate(`/student/courses/${course.id}/modules`, {
       state: { title: course.title }
     });
@@ -90,12 +115,19 @@ function StudentCourses() {
   const summary = useMemo(() => {
     if (!courses.length) return "";
 
-    const done = courses.filter((course) => statusOf(course).id === "completed").length;
-    const active = courses.filter((course) => statusOf(course).id === "in-progress").length;
+    const count = (id) => courses.filter((course) => statusOf(course).id === id).length;
+    const active = count("in-progress");
+    const done = count("completed");
+    const ended = count("ended");
+    const closed = count("suspended");
     const parts = [`${courses.length} ${courses.length === 1 ? "course" : "courses"}`];
 
     if (active) parts.push(`${active} in progress`);
     if (done) parts.push(`${done} completed`);
+    // A closed course is neither of those any more, so without these the line
+    // under the heading would not add up to the cards under it.
+    if (ended) parts.push(`${ended} ended`);
+    if (closed) parts.push(`${closed} unavailable`);
     return parts.join(" · ");
   }, [courses]);
 
@@ -129,7 +161,7 @@ function StudentCourses() {
         <ul className="student-courses__list">
           {courses.map((course, index) => {
             const backdrop = course.hasImage
-              ? `url(${courseImageUrl(course.id)})`
+              ? `url(${courseImageUrl(course.id, course.imageUpdatedAt)})`
               : course.imageUrl
                 ? `url(${course.imageUrl})`
                 : PLACEHOLDER_GRADIENTS[index % PLACEHOLDER_GRADIENTS.length];
@@ -137,6 +169,9 @@ function StudentCourses() {
             const status = statusOf(course);
             const percent = percentOf(course);
             const lessons = lessonLine(course);
+            const run = formatCourseRun(course);
+            const ended = status.id === "ended";
+            const suspended = status.id === "suspended";
 
             return (
               <li
@@ -163,6 +198,23 @@ function StudentCourses() {
                   {course.description ? (
                     <span className="course-card__desc">{course.description}</span>
                   ) : null}
+                  {run ? <span className="course-card__run">{run}</span> : null}
+                  {/* The chip says the course is over; this says what that means
+                      for the student, since the card is still theirs to open. */}
+                  {ended ? (
+                    <span className="course-card__ended">
+                      {formatCourseEnded(course)} · read-only
+                    </span>
+                  ) : null}
+                  {/* The chip says the course cannot be opened; this says why,
+                      and that it is the class rather than anything the student
+                      did or failed to do. */}
+                  {suspended ? (
+                    <span className="course-card__closed">
+                      {course.suspendedReason ??
+                        "Your class for this course is switched off, so its lessons are closed for now."}
+                    </span>
+                  ) : null}
 
                   <div className="course-card__progress" aria-hidden="true">
                     <span className="course-card__track">
@@ -178,7 +230,17 @@ function StudentCourses() {
                   type="button"
                   className="course-card__click"
                   onClick={() => openCourse(course)}
-                  aria-label={`Open ${course.title} learning modules — ${status.label}, ${lessons}`}
+                  disabled={suspended}
+                  aria-label={
+                    suspended
+                      ? `${course.title} — unavailable. ${
+                          course.suspendedReason ??
+                          "Your class for this course is switched off."
+                        }`
+                      : `Open ${course.title} learning modules — ${status.label}${
+                          ended ? ", read-only" : ""
+                        }, ${lessons}`
+                  }
                 />
               </li>
             );

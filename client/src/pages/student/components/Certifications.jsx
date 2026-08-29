@@ -87,15 +87,10 @@ function Certifications({ certifications = [] }) {
     <section className="sd-card" aria-labelledby="sd-certs-title">
       <header className="sd-section-head">
         <div className="sd-section-head__text">
-          <p className="sd-eyebrow">Certification</p>
           <h2 className="sd-h3" id="sd-certs-title">
             Your micro-credentials
           </h2>
-          <p className="sd-sub">
-            {issuedCount
-              ? `${issuedCount} issued after an assessor approved your final grade.`
-              : "Issued by an assessor once your final grade is approved."}
-          </p>
+          {issuedCount ? <p className="sd-sub">{`${issuedCount} issued`}</p> : null}
         </div>
       </header>
 

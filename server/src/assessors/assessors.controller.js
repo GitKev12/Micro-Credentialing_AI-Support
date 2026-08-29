@@ -7,6 +7,8 @@ import {
 } from "../assessments/assessments.format.js";
 import { issueCertificate } from "../certificates/certificates.service.js";
 import { aiStatusOf, isReleased, openFlags } from "./grading.js";
+import { toIsoDay } from "../lib/courseDates.js";
+import { sortLessons } from "../lib/lessonOrder.js";
 
 /**
  * Assessor console endpoints — classes, roster, grading queue, submission
@@ -74,12 +76,6 @@ function courseCode(course) {
 function studentName(student) {
   const full = [student?.first_name, student?.last_name].filter(Boolean).join(" ").trim();
   return full || student?.full_name || student?.name || student?.email || "Unnamed student";
-}
-
-/** Modules are titled "Chapter 3", "week 10 11", … — sort by the last number. */
-function lessonNumber(title) {
-  const numbers = String(title ?? "").match(/\d+/g);
-  return numbers ? Number(numbers[numbers.length - 1]) : Number.POSITIVE_INFINITY;
 }
 
 /** Assessors sign in with either their Mongo id or their ASS### number. */
@@ -345,6 +341,9 @@ export async function getClasses(request, response) {
         section: course.section ?? null,
         students: studentCounts.get(key) ?? 0,
         lessons: lessonCounts.get(key) ?? 0,
+        // When the course runs — the register's duration column.
+        startsOn: toIsoDay(course.startsOn),
+        endsOn: toIsoDay(course.endsOn),
         pending: pendingCounts.get(key) ?? 0,
         flagged: flaggedCounts.get(key) ?? 0,
         credentialsPending: credentialsPending.get(key) ?? 0,
@@ -892,11 +891,7 @@ export async function getStudentDetail(request, response) {
       .toArray()
   ]);
 
-  modules.sort((a, b) => {
-    const difference = lessonNumber(a.title) - lessonNumber(b.title);
-    if (difference !== 0) return difference;
-    return String(a.title ?? "").localeCompare(String(b.title ?? ""), "en", { numeric: true });
-  });
+  sortLessons(modules);
 
   const assessments = await assessmentMap(results);
   const resultByModule = new Map(results.map((result) => [asId(result.moduleId), result]));

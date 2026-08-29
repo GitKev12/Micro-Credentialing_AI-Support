@@ -8,11 +8,17 @@ import {
   fetchCourseImpact,
   fetchCourses,
   fetchModuleImpact,
+  removeCourseImage,
   updateCourse,
+  uploadCourseImage,
+  MAX_COURSE_IMAGE_BYTES,
   MAX_MODULE_BYTES
 } from "../../services/admin";
 import { moduleFileUrl } from "../../services/learningModules";
-import { ChevronRightIcon, TrashIcon, UploadIcon } from "./components/icons";
+import { courseImageUrl } from "../../services/courses";
+import { sortedLessons } from "../../lib/lessonOrder";
+import { formatCourseRun, isRunInOrder, toDateInput } from "../../lib/courseDuration";
+import { CheckIcon, ChevronRightIcon, TrashIcon, UploadIcon } from "./components/icons";
 import {
   AdminButton,
   AdminField,
@@ -22,6 +28,12 @@ import {
   PageHeader,
   SearchField
 } from "./components/ui";
+
+/** The course's run, on the one line a card has room for — nothing if unset. */
+function CourseRun({ course, className }) {
+  const run = formatCourseRun(course);
+  return run ? <p className={className}>{run}</p> : null;
+}
 
 /** "2.4 MB" — the size as an admin would say it, or nothing if unrecorded. */
 function fileSizeLabel(bytes) {
@@ -208,13 +220,21 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
   const [code, setCode] = useState(course?.code ?? "");
   const [title, setTitle] = useState(course?.title ?? "");
   const [description, setDescription] = useState(course?.description ?? "");
+  const [startsOn, setStartsOn] = useState(toDateInput(course?.startsOn));
+  const [endsOn, setEndsOn] = useState(toDateInput(course?.endsOn));
 
-  const ready = code.trim() && title.trim();
+  // A course runs between two dates, so both are wanted and in that order.
+  // The courses stored before the field existed have neither; the form insists
+  // on them the first time one of those is opened for editing.
+  const orderedRun = isRunInOrder(startsOn, endsOn);
+  const wholeRun = Boolean(startsOn && endsOn);
+  const run = orderedRun && wholeRun ? formatCourseRun({ startsOn, endsOn }) : null;
+  const ready = code.trim() && title.trim() && wholeRun && orderedRun;
 
   return (
     <AdminModal
       title={editing ? "Edit course" : "New course"}
-      subtitle={editing ? course.code : "Courses hold the lessons students work through"}
+      subtitle={editing ? course.code : null}
       onClose={onCancel}
       footer={
         <>
@@ -230,7 +250,15 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
             variant="admin-btn--compact"
             disabled={busy || !ready}
             onClick={() =>
-              onSave({ code: code.trim(), title: title.trim(), description: description.trim() })
+              onSave({
+                code: code.trim(),
+                title: title.trim(),
+                description: description.trim(),
+                // Sent even when blank: an empty string is how the admin
+                // clears a date they set earlier.
+                startsOn,
+                endsOn
+              })
             }
           >
             {busy ? "Saving…" : editing ? "Save changes" : "Create course"}
@@ -268,8 +296,133 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         value={description}
         onChange={setDescription}
         placeholder="What this course covers"
+        multiline
+        rows={5}
       />
+
+      {/* Two-up, because they are one fact read together — and required
+          together, since one date on its own is not a duration. */}
+      <div className="admin-form-grid">
+        <AdminField
+          label="Starts on"
+          type="date"
+          value={startsOn}
+          onChange={setStartsOn}
+          required
+        />
+        <AdminField
+          label="Ends on"
+          type="date"
+          value={endsOn}
+          onChange={setEndsOn}
+          required
+          // The only thing left to say here is when the pair is wrong.
+          hint={orderedRun ? undefined : "This is before the start date."}
+        />
+      </div>
+
+      {run ? <p className="admin-field__hint admin-field__hint--run">Duration: {run}</p> : null}
     </AdminModal>
+  );
+}
+
+/**
+ * The picture behind the course's card on the student's dashboard.
+ *
+ * One picture per course, so this is a replace rather than a list: choosing a
+ * file uploads it immediately — there is no second field to fill in and no
+ * reason to make the admin press Save for a decision they have already made by
+ * picking the file.
+ */
+function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
+  const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState(null);
+  const inputRef = useRef(null);
+
+  const takeFile = (chosen) => {
+    if (!chosen) return;
+    setError(null);
+
+    if (chosen.size > MAX_COURSE_IMAGE_BYTES) {
+      setError(`That picture is ${fileSizeLabel(chosen.size)} — the limit is 5 MB.`);
+      return;
+    }
+
+    onUpload(chosen);
+    // Cleared so picking the same file twice still counts as a choice.
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <section className="admin-card admin-card--stacked">
+      <h2 className="admin-card__title">Course Picture</h2>
+
+      {course.hasImage ? (
+        <img
+          className="admin-course-image"
+          src={courseImageUrl(course.id, course.imageUpdatedAt)}
+          alt={`Current picture for ${course.title}`}
+        />
+      ) : null}
+
+      {error ? (
+        <p className="admin-notice admin-notice--error" role="status">
+          {error}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        className={`admin-dropzone${dragging ? " is-dragging" : ""}`}
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          takeFile(event.dataTransfer.files?.[0]);
+        }}
+      >
+        <span className="admin-dropzone__icon">
+          <UploadIcon />
+        </span>
+        <span className="admin-dropzone__text">
+          {course.hasImage ? "Drop a replacement here, or " : "Drag a picture here, or "}
+          <span className="admin-dropzone__link">browse</span>
+        </span>
+        <span className="admin-dropzone__file">
+          {busy ? `Uploading… ${progress}%` : "PNG, JPEG, WebP or GIF, up to 5 MB"}
+        </span>
+      </button>
+
+      <input
+        ref={inputRef}
+        className="admin-visually-hidden"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        tabIndex={-1}
+        onChange={(event) => takeFile(event.target.files?.[0])}
+      />
+
+      {course.hasImage ? (
+        <button
+          type="button"
+          className="admin-chip-btn admin-chip-btn--quiet"
+          disabled={busy}
+          onClick={onRemove}
+        >
+          Remove picture
+        </button>
+      ) : (
+        <p className="admin-empty-note">
+          Without one, the card falls back to a plain colour on the student&apos;s dashboard.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -379,6 +532,8 @@ function CourseManagement() {
 
   // The course itself, rather than its lessons: which form is open ("new", or
   // the course being edited), and the deletion waiting on its impact count.
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageProgress, setImageProgress] = useState(0);
   const [courseForm, setCourseForm] = useState(null);
   const [formError, setFormError] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -476,6 +631,60 @@ function CourseManagement() {
     }
   };
 
+  const setCourseImage = async (file) => {
+    setImageBusy(true);
+    setImageProgress(0);
+    try {
+      const image = await uploadCourseImage(selected.id, file, { onProgress: setImageProgress });
+      setSelected((course) =>
+        course ? { ...course, hasImage: true, imageUpdatedAt: image.imageUpdatedAt } : course
+      );
+      // The catalog card carries hasImage too, so it does not fall out of step
+      // with the detail screen the admin just left.
+      setCourses((list) =>
+        list.map((course) =>
+          course.id === selected.id
+            ? { ...course, hasImage: true, imageUpdatedAt: image.imageUpdatedAt }
+            : course
+        )
+      );
+      setNotice({ tone: "ok", text: "The course picture was updated." });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: errorMessage(error, "Couldn't upload that picture. Try again.")
+      });
+    } finally {
+      setImageBusy(false);
+      setImageProgress(0);
+    }
+  };
+
+  const clearCourseImage = async () => {
+    setImageBusy(true);
+    try {
+      await removeCourseImage(selected.id);
+      setSelected((course) =>
+        course ? { ...course, hasImage: false, imageUpdatedAt: null } : course
+      );
+      setCourses((list) =>
+        list.map((course) =>
+          course.id === selected.id
+            ? { ...course, hasImage: false, imageUpdatedAt: null }
+            : course
+        )
+      );
+      setNotice({ tone: "ok", text: "The course picture was removed." });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: errorMessage(error, "Couldn't remove that picture. Try again.")
+      });
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
   /** Keeps the course card's module count in step with the detail screen. */
   const setModules = (modules) => {
     setSelected((course) => (course ? { ...course, modules } : course));
@@ -502,12 +711,10 @@ function CourseManagement() {
         title,
         onProgress: setProgress
       });
-      // Slot it in by title, the order the API lists modules in — appending
-      // would put it last here and somewhere else after the next reload.
-      const merged = [...(selected.modules ?? []), added].sort((left, right) =>
-        String(left.title) < String(right.title) ? -1 : 1
-      );
-      setModules(merged);
+      // Slot it in by lesson number, the order the API lists modules in —
+      // appending would put it last here and somewhere else after the next
+      // reload, and "Chapter 10" is not the last chapter.
+      setModules(sortedLessons([...(selected.modules ?? []), added]));
       setNotice({ tone: "ok", text: `“${added.title}” was added to this course.` });
       return true;
     } catch (error) {
@@ -587,7 +794,13 @@ function CourseManagement() {
           title={selected.title ?? "Course"}
           subtitle={
             detailStatus === "ready"
-              ? `${selected.code} · ${modules.length} ${modules.length === 1 ? "module" : "modules"}`
+              ? [
+                  selected.code,
+                  `${modules.length} ${modules.length === 1 ? "module" : "modules"}`,
+                  formatCourseRun(selected)
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : "Loading course…"
           }
           action={
@@ -623,84 +836,98 @@ function CourseManagement() {
           </p>
         ) : null}
 
-        <div className="admin-card">
-          <h2 className="admin-card__title">Learning Modules</h2>
+        {/* Two columns on the detail: the module list reads down the left, and
+            the upload panel sits to its right where it is always in reach —
+            rather than below a list that grows and pushes it off-screen. */}
+        <div className="admin-grid-detail">
+          <div className="admin-card">
+            <h2 className="admin-card__title">Learning Modules</h2>
 
-          {detailStatus === "loading" ? (
-            <p className="admin-empty-note">Loading modules…</p>
-          ) : detailStatus === "error" ? (
-            <p className="admin-empty-note">Couldn&apos;t load this course.</p>
-          ) : (
-            <div className="admin-module-list">
-              {modules.map((module) => (
-                <div className="admin-module-row" key={module.id}>
-                  <div className="admin-module-row__main">
-                    <span className="admin-module-row__label">{module.title}</span>
-                    <span className="admin-assign-row__meta">{moduleMeta(module)}</span>
+            {detailStatus === "loading" ? (
+              <p className="admin-empty-note">Loading modules…</p>
+            ) : detailStatus === "error" ? (
+              <p className="admin-empty-note">Couldn&apos;t load this course.</p>
+            ) : (
+              <div className="admin-module-list">
+                {modules.map((module) => (
+                  <div className="admin-module-row" key={module.id}>
+                    <div className="admin-module-row__main">
+                      <span className="admin-module-row__label">{module.title}</span>
+                      <span className="admin-assign-row__meta">{moduleMeta(module)}</span>
+                    </div>
+
+                    {confirming === module.id ? (
+                      <div className="admin-module-row__actions">
+                        <span className="admin-module-row__warn">{impactLabel(impact)}</span>
+                        {/* Held back until the counts are in: agreeing to a
+                            removal whose cost is still loading is agreeing to
+                            nothing in particular. */}
+                        <button
+                          type="button"
+                          className="admin-chip-btn"
+                          disabled={busy || !impact}
+                          onClick={() => removeModule(module)}
+                        >
+                          Yes, remove
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-chip-btn admin-chip-btn--quiet"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirming(null);
+                            setImpact(null);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="admin-module-row__actions">
+                        <button
+                          type="button"
+                          className="admin-chip-btn admin-chip-btn--quiet"
+                          onClick={() => setPreview(module)}
+                          aria-label={`Preview ${module.title}`}
+                        >
+                          Preview
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-chip-btn admin-chip-btn--icon"
+                          disabled={busy}
+                          onClick={() => askToRemove(module)}
+                          aria-label={`Remove ${module.title}`}
+                        >
+                          <TrashIcon />
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
+                ))}
+                {modules.length === 0 ? (
+                  <p className="admin-empty-note">
+                    No learning modules uploaded for this course yet.
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </div>
 
-                  {confirming === module.id ? (
-                    <div className="admin-module-row__actions">
-                      <span className="admin-module-row__warn">{impactLabel(impact)}</span>
-                      {/* Held back until the counts are in: agreeing to a
-                          removal whose cost is still loading is agreeing to
-                          nothing in particular. */}
-                      <button
-                        type="button"
-                        className="admin-chip-btn"
-                        disabled={busy || !impact}
-                        onClick={() => removeModule(module)}
-                      >
-                        Yes, remove
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-chip-btn admin-chip-btn--quiet"
-                        disabled={busy}
-                        onClick={() => {
-                          setConfirming(null);
-                          setImpact(null);
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="admin-module-row__actions">
-                      <button
-                        type="button"
-                        className="admin-chip-btn admin-chip-btn--quiet"
-                        onClick={() => setPreview(module)}
-                        aria-label={`Preview ${module.title}`}
-                      >
-                        Preview
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-chip-btn admin-chip-btn--icon"
-                        disabled={busy}
-                        onClick={() => askToRemove(module)}
-                        aria-label={`Remove ${module.title}`}
-                      >
-                        <TrashIcon />
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {modules.length === 0 ? (
-                <p className="admin-empty-note">
-                  No learning modules uploaded for this course yet.
-                </p>
-              ) : null}
+          {detailStatus === "ready" ? (
+            <div className="admin-stack">
+              <AddModuleForm busy={busy} progress={progress} onAdd={addModule} />
+              <CourseImageForm
+                course={selected}
+                busy={imageBusy}
+                progress={imageProgress}
+                onUpload={setCourseImage}
+                onRemove={clearCourseImage}
+              />
             </div>
-          )}
+          ) : null}
         </div>
-
-        {detailStatus === "ready" ? (
-          <AddModuleForm busy={busy} progress={progress} onAdd={addModule} />
-        ) : null}
 
         {preview ? <ModulePreview module={preview} onClose={() => setPreview(null)} /> : null}
 
@@ -737,7 +964,6 @@ function CourseManagement() {
     <div className="admin-main__inner">
       <PageHeader
         title="Courses Management"
-        subtitle="Select a course to add, preview or remove its learning modules"
         action={
           <AdminButton
             onClick={() => {
@@ -751,20 +977,32 @@ function CourseManagement() {
       />
 
       {/* A deletion closes the detail screen, so its result has to land
-          here — the notice inside the detail view would never be seen. */}
-      {notice ? (
-        <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
-          {notice.text}
-        </p>
-      ) : null}
+          here — the notice inside the detail view would never be seen. It
+          rides the search row rather than a line of its own, so arriving and
+          clearing does not shunt the table down and back. */}
+      <div className="admin-toolbar">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search courses…"
+          label="Search courses"
+          hint={`${visible.length} of ${courses.length}`}
+        />
 
-      <SearchField
-        value={query}
-        onChange={setQuery}
-        placeholder="Search courses…"
-        label="Search courses"
-        hint={`${visible.length} of ${courses.length}`}
-      />
+        {notice ? (
+          <p
+            className={`admin-notice admin-notice--inline admin-notice--${notice.tone}`}
+            role="status"
+          >
+            {notice.tone === "ok" ? (
+              <span className="admin-notice__icon">
+                <CheckIcon size={14} />
+              </span>
+            ) : null}
+            {notice.text}
+          </p>
+        ) : null}
+      </div>
 
       {status === "loading" ? (
         <div className="admin-state-card">Loading courses…</div>
@@ -799,6 +1037,7 @@ function CourseManagement() {
                         {course.title}
                       </button>
                     </h3>
+                    <CourseRun course={course} className="admin-course-card__run" />
                   </div>
 
                 </div>

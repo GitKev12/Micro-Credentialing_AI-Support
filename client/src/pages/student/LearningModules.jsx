@@ -13,6 +13,7 @@ import {
 // Student-scoped rather than the course-wide list in learningModules: a quiz's
 // lock state and result only exist relative to who is asking.
 import { fetchCourseAssessments } from "../../services/assessments";
+import { hasCourseEnded } from "../../lib/courseDuration";
 import LessonNav from "./components/LessonNav";
 import QuizRunner from "./components/QuizRunner";
 import BadgeToast from "./components/BadgeToast";
@@ -167,6 +168,9 @@ function LearningModules() {
   const studentId = getStoredSession()?.user?.id;
 
   const [modules, setModules] = useState([]);
+  // The course this reader is open on — its name, its run, and whether that
+  // run is over. An ended course is read-only: see courseAccess.js.
+  const [course, setCourse] = useState(null);
   const [assessments, setAssessments] = useState([]);
   const [completedIds, setCompletedIds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -196,7 +200,18 @@ function LearningModules() {
 
   // Course title travels via navigation state; fall back to the modules'
   // subject code after a hard refresh.
-  const courseTitle = location.state?.title ?? modules[0]?.subject ?? "Course";
+  const courseTitle =
+    location.state?.title ?? course?.title ?? modules[0]?.subject ?? "Course";
+
+  // The server sends `ended` with the course and refuses the writes itself;
+  // the date rule is only the fallback for a response without the field.
+  const ended = course?.ended ?? hasCourseEnded(course);
+
+  // The class holding this student in the course has been switched off in the
+  // admin console. Unlike an ended run it is not read-only — the server sends
+  // no lessons and refuses the content routes — so the page says so instead of
+  // drawing an empty curriculum it cannot explain.
+  const suspended = Boolean(course?.suspended);
 
   useEffect(() => {
     let active = true;
@@ -204,12 +219,14 @@ function LearningModules() {
     setSelected(null);
 
     Promise.all([
-      fetchCourseModules(courseId).catch(() => []),
+      fetchCourseModules(courseId).catch(() => ({ course: null, modules: [] })),
       fetchCourseAssessments(studentId, courseId).catch(() => []),
       fetchCourseProgress(studentId, courseId).catch(() => [])
     ])
-      .then(([moduleList, assessmentList, completedList]) => {
+      .then(([lessons, assessmentList, completedList]) => {
         if (!active) return;
+        const moduleList = lessons.modules;
+        setCourse(lessons.course);
         setModules(moduleList);
         setAssessments(assessmentList);
         setCompletedIds(completedList.map(String));
@@ -437,6 +454,11 @@ function LearningModules() {
     if (!studentId || !moduleId || completionBusy || isCompleted(moduleId)) return;
     if (!isExerciseFulfilled(moduleId)) return;
 
+    // A course whose run is over is read-only. The server refuses this write
+    // as well — this is what stops the reader asking for it on every scroll
+    // to the foot of a lesson.
+    if (ended) return;
+
     setCompletionBusy(true);
     try {
       await setModuleCompleted(studentId, moduleId, true);
@@ -506,6 +528,38 @@ function LearningModules() {
         </h2>
       </div>
 
+      {/* The class is off, so there is nothing under this to show. It stands in
+          place of the curriculum rather than above it, so it is centred on the
+          space the lessons would have filled rather than tucked into a strip. */}
+      {suspended ? (
+        <div className="modules-page__closed">
+          <span className="modules-page__closed-icon" aria-hidden="true">
+            <LockIcon size={56} />
+          </span>
+          <p className="modules-page__closed-text">
+            {course?.suspendedReason ??
+              "Your class for this course is switched off, so its lessons are closed for now."}
+          </p>
+        </div>
+      ) : null}
+
+      {/* Said once, above everything it shuts. Centred and locked like the
+          switched-off notice, so the reader closes the same way twice — but
+          kept to a banner, because unlike that one it has lessons under it that
+          are still open to read. */}
+      {ended && !suspended ? (
+        <div className="modules-page__ended">
+          <span className="modules-page__ended-icon" aria-hidden="true">
+            <LockIcon size={30} />
+          </span>
+          <p className="modules-page__ended-text">
+            {course?.endedReason ??
+              "This course has ended. You can still read it, but it can no longer be worked on."}
+          </p>
+        </div>
+      ) : null}
+
+      {suspended ? null : (
       <div className="modules-layout">
         {/* Left: curriculum — numbered lessons with completion state */}
         <aside className="modules-layout__aside">
@@ -761,6 +815,7 @@ function LearningModules() {
           )}
         </div>
       </div>
+      )}
 
       {/* Fixed to the corner of the screen, so it is unaffected by where in the
           reader or the rail the student happens to be scrolled. */}

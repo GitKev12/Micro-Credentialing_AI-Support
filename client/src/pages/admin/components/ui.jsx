@@ -285,6 +285,69 @@ export function AdminSelect({
 }
 
 /**
+ * Tag-style multi-select: pick many from a dropdown, each shown as a removable
+ * chip. Built on top of `AdminSelect` rather than beside it — the dropdown is
+ * one AdminSelect whose options are only the values not yet chosen, so it keeps
+ * the same listbox, keyboard model and rich two-line rows for free. Choosing an
+ * option adds a chip and drops it from the list; the trigger always shows its
+ * placeholder because it holds no single "value".
+ *
+ * `values` is an array of chosen option values; `options` are { value, label,
+ * meta? }, the same shape AdminSelect takes.
+ */
+export function AdminMultiSelect({
+  values,
+  onChange,
+  options,
+  label,
+  placeholder = "Add…",
+  emptyLabel = "None selected",
+  disabled = false
+}) {
+  const selected = new Set(values);
+  const chosen = values.map((value) => options.find((option) => option.value === value)).filter(Boolean);
+  const available = options.filter((option) => !selected.has(option.value));
+
+  const add = (value) => {
+    if (!selected.has(value)) onChange([...values, value]);
+  };
+  const remove = (value) => onChange(values.filter((entry) => entry !== value));
+
+  return (
+    <div className="admin-field admin-multiselect">
+      {label ? <div className="admin-field__label">{label}</div> : null}
+
+      <div className="admin-tags">
+        {chosen.map((option) => (
+          <span className="admin-tag" key={option.value}>
+            <span className="admin-tag__label">{option.label}</span>
+            <button
+              type="button"
+              className="admin-tag__remove"
+              onClick={() => remove(option.value)}
+              aria-label={`Remove ${option.label}`}
+              disabled={disabled}
+            >
+              <CloseIcon size={12} />
+            </button>
+          </span>
+        ))}
+        {chosen.length === 0 ? <span className="admin-tags__empty">{emptyLabel}</span> : null}
+      </div>
+
+      <AdminSelect
+        value=""
+        onChange={add}
+        options={available}
+        label={label ? `${label} — add one` : "Add one"}
+        placeholder={available.length === 0 ? "All selected" : placeholder}
+        disabled={disabled || available.length === 0}
+      />
+    </div>
+  );
+}
+
+/**
  * A labelled field for the create and edit forms.
  *
  * The label is a real <label> bound by id rather than a styled div, so clicking
@@ -301,9 +364,16 @@ export function AdminField({
   hint,
   disabled = false,
   required = false,
-  autoComplete = "off"
+  autoComplete = "off",
+  multiline = false,
+  rows = 4
 }) {
   const id = useId();
+
+  // Same field, two shapes: anything paragraph-length gets a box it can be
+  // read back in while it is being written, rather than a one-line slot that
+  // scrolls its own beginning out of sight.
+  const Control = multiline ? "textarea" : "input";
 
   return (
     <div className="admin-field">
@@ -311,10 +381,10 @@ export function AdminField({
         {label}
         {required ? <span className="admin-field__required"> *</span> : null}
       </label>
-      <input
+      <Control
         id={id}
-        className="admin-input"
-        type={type}
+        className={`admin-input${multiline ? " admin-input--multiline" : ""}`}
+        {...(multiline ? { rows } : { type })}
         value={value}
         placeholder={placeholder}
         disabled={disabled}
@@ -463,11 +533,12 @@ export function BackLink({ children, onClick }) {
 }
 
 /** Blue metric tile used on the detail screens. */
-export function StatTile({ value, label }) {
+export function StatTile({ value, label, note }) {
   return (
     <div className="admin-stat">
       <div className="admin-stat__value">{value}</div>
       <div className="admin-stat__label">{label}</div>
+      {note ? <div className="admin-stat__note">{note}</div> : null}
     </div>
   );
 }

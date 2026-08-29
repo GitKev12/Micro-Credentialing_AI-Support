@@ -8,8 +8,9 @@ import {
   generateModuleAssessment,
   getGenerationStatus
 } from "../assessments/assessments.generate.js";
-import { syncAssessor, syncAssessorsForCourse } from "./enrollment.sync.js";
 import { aiStatusOf, isReleased, openFlags } from "../assessors/grading.js";
+import { toIsoDay } from "../lib/courseDates.js";
+import { sortLessons } from "../lib/lessonOrder.js";
 
 /**
  * Admin console endpoints — courses, students, assessors and the Table of
@@ -140,6 +141,8 @@ export async function listCourses(_request, response) {
       code: courseCode(course),
       title: courseTitle(course),
       description: course.description ?? "",
+      startsOn: toIsoDay(course.startsOn),
+      endsOn: toIsoDay(course.endsOn),
       hasImage: Boolean(course.imageFileId),
       moduleCount: moduleCounts.get(asId(course._id)) ?? 0,
       studentCount: studentCounts.get(asId(course._id)) ?? 0
@@ -156,15 +159,19 @@ export async function getCourse(request, response) {
 
   if (!course) return response.status(404).json({ message: "Course not found." });
 
-  const modules = await collection(MODULES_COLLECTION)
-    .find({
-      $or: [
-        { courseId: { $in: idCandidates(course._id) } },
-        { courseCode: courseCode(course) }
-      ]
-    })
-    .sort({ title: 1 })
-    .toArray();
+  // Lesson order, not title order: "Chapter 10" belongs after "Chapter 2",
+  // and this is the screen a lesson is uploaded from — it has to land where
+  // the student will find it.
+  const modules = sortLessons(
+    await collection(MODULES_COLLECTION)
+      .find({
+        $or: [
+          { courseId: { $in: idCandidates(course._id) } },
+          { courseCode: courseCode(course) }
+        ]
+      })
+      .toArray()
+  );
 
   return response.json({
     course: {
@@ -172,6 +179,10 @@ export async function getCourse(request, response) {
       code: courseCode(course),
       title: courseTitle(course),
       description: course.description ?? "",
+      startsOn: toIsoDay(course.startsOn),
+      endsOn: toIsoDay(course.endsOn),
+      hasImage: Boolean(course.imageFileId),
+      imageUpdatedAt: toIsoDay(course.imageUpdatedAt),
       modules: modules.map((module) => ({
         id: asId(module._id),
         title: module.title ?? module.fileName ?? "Untitled module",
@@ -195,9 +206,17 @@ async function progressForStudent(student, courses) {
     .toArray();
 
   const completedByCourse = new Map();
+  // When each course was last worked on. A micro-credential has no record of
+  // its own — it is a course finished to the last lesson — so the newest
+  // completion in a course that is fully done is the date it was earned.
+  const finishedByCourse = new Map();
   completed.forEach((entry) => {
     const key = asId(entry.courseId);
     completedByCourse.set(key, (completedByCourse.get(key) ?? 0) + 1);
+
+    const at = toDate(entry.completedAt);
+    const newest = finishedByCourse.get(key);
+    if (at && (!newest || at > newest)) finishedByCourse.set(key, at);
   });
 
   const rows = [];
@@ -212,10 +231,15 @@ async function progressForStudent(student, courses) {
     const done = completedByCourse.get(key) ?? 0;
 
     rows.push({
+      // The id as well as the title: the student screen shows progress on the
+      // same row as that course's badges and assessors, and joining those on a
+      // title would break the moment two courses shared one.
+      courseId: key,
       label: courseTitle(course),
       pct: total > 0 ? Math.round((done / total) * 100) : 0,
       completed: done,
-      total
+      total,
+      completedAt: finishedByCourse.get(key)?.toISOString() ?? null
     });
   }
   return rows;
@@ -417,6 +441,10 @@ function publicStudent(student, courses, activity = null) {
     name: studentName(student),
     email: student.email ?? null,
     enrolled,
+    // Absent on every account written before the field existed, and none of
+    // those were suspended — so missing reads as not suspended, and only an
+    // explicit true locks anyone out.
+    suspended: student.suspended === true,
     ...(activity ? { activity } : {})
   };
 }
@@ -538,50 +566,6 @@ export async function getStudent(request, response) {
       assessors
     }
   });
-}
-
-export async function enrollStudent(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const { courseId } = request.body ?? {};
-  if (!courseId) return response.status(400).json({ message: "courseId is required." });
-
-  const course = await collection(COURSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(courseId) }
-  });
-  if (!course) return response.status(404).json({ message: "Course not found." });
-
-  const result = await collection(STUDENTS_COLLECTION).updateOne(
-    { _id: { $in: idCandidates(request.params.id) } },
-    { $addToSet: { enrolledCourses: course._id } }
-  );
-  if (result.matchedCount === 0) {
-    return response.status(404).json({ message: "Student not found." });
-  }
-
-  // The course's assessors now have one more student on their roster.
-  await syncAssessorsForCourse(course._id);
-
-  return getStudent(request, response);
-}
-
-export async function unenrollStudent(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const result = await collection(STUDENTS_COLLECTION).updateOne(
-    { _id: { $in: idCandidates(request.params.id) } },
-    { $pull: { enrolledCourses: { $in: idCandidates(request.params.courseId) } } }
-  );
-  if (result.matchedCount === 0) {
-    return response.status(404).json({ message: "Student not found." });
-  }
-
-  // Run after the pull, so the recomputed roster reflects the course they left
-  // — while keeping them on any assessor who also teaches a course they remain
-  // enrolled in.
-  await syncAssessorsForCourse(request.params.courseId);
-
-  return getStudent(request, response);
 }
 
 /* ─────────────────────────── Assessors ─────────────────────────── */
@@ -755,6 +739,11 @@ function publicAssessor(assessor, courses, tally = blankTally()) {
     email: assessor.email ?? null,
     students: (assessor.assigned_students ?? []).length,
     assigned,
+    // Same rule as a student's: absent on every account written before the
+    // field existed, so missing reads as not suspended and only an explicit
+    // true locks anyone out. `loginUser` searches both collections with one
+    // identifier and refuses either, so this is the same lock, not a label.
+    suspended: assessor.suspended === true,
     workload: publicWorkload(tally)
   };
 }
@@ -871,49 +860,6 @@ export async function getAssessor(request, response) {
       classes: await classesFor(assessor, courses, tally)
     }
   });
-}
-
-export async function assignCourse(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const { courseId } = request.body ?? {};
-  if (!courseId) return response.status(400).json({ message: "courseId is required." });
-
-  const course = await collection(COURSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(courseId) }
-  });
-  if (!course) return response.status(404).json({ message: "Course not found." });
-
-  const result = await collection(ASSESSORS_COLLECTION).updateOne(
-    { _id: { $in: idCandidates(request.params.id) } },
-    { $addToSet: { assigned_courses: course._id } }
-  );
-  if (result.matchedCount === 0) {
-    return response.status(404).json({ message: "Assessor not found." });
-  }
-
-  // Taking on a course means taking on everyone already enrolled in it.
-  await syncAssessor(request.params.id);
-
-  return getAssessor(request, response);
-}
-
-export async function unassignCourse(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const result = await collection(ASSESSORS_COLLECTION).updateOne(
-    { _id: { $in: idCandidates(request.params.id) } },
-    { $pull: { assigned_courses: { $in: idCandidates(request.params.courseId) } } }
-  );
-  if (result.matchedCount === 0) {
-    return response.status(404).json({ message: "Assessor not found." });
-  }
-
-  // Dropping a course drops its students, unless another of their courses
-  // keeps them on this assessor's roster.
-  await syncAssessor(request.params.id);
-
-  return getAssessor(request, response);
 }
 
 /* ──────────────────── Table of Specification ──────────────────── */
