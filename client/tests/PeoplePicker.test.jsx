@@ -6,13 +6,16 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
+// Every name the screen imports from the real module, and nothing it does
+// not export: a mock factory replaces the module wholesale, so one missing
+// export fails the import rather than the assertion that needed it.
 jest.unstable_mockModule("../src/services/classes.js", () => ({
   fetchClasses: async () => [],
   fetchClass: async () => null,
-  fetchClassLog: async () => [],
   fetchClassImpact: async () => ({}),
   createClass: async () => ({}),
   updateClass: async () => ({}),
+  setClassActive: async () => ({}),
   deleteClass: async () => ({})
 }));
 
