@@ -98,9 +98,12 @@
   --shadow-field: inset 0 0 0 1px var(--gray-300);
   --shadow-sidebar: 3px 0 24px rgba(16, 24, 40, 0.12);
 
-  /* ---- Layout ---- */
-  --rail-w: 272px;
-  --rail-w-collapsed: 84px;
+  /* ---- Layout ----
+     The admin console's rail, to the pixel: 230px is the width its nav needs
+     for its longest label on one line, and a wrapped nav item costs more
+     height than the width saves. */
+  --rail-w: 230px;
+  --rail-w-collapsed: 72px;
 }
 
 /* ── Dark theme ─────────────────────────────────────────────
@@ -230,12 +233,14 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* The admin console's page padding, on the same element: one edge for the
+     header and everything under it, rather than a clamp on each block. */
+  padding: 30px 36px;
 }
 
 .assessor-body {
   flex: 1;
   min-height: 0;
-  padding: var(--sp-2) clamp(1.25rem, calc(3 * var(--vw)), 2.75rem) var(--sp-10);
 }
 
 /* ── Sidebar (light theme, collapsible) ─────────────────── */
@@ -260,8 +265,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-8);
-  padding: var(--sp-8) 0 var(--sp-6);
+  gap: 22px;
+  padding: 22px 0 18px;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   background: var(--rail-bg);
   /* Right edge only — the rail is flush with the viewport on the other
@@ -285,39 +290,44 @@
 }
 
 .assessor-rail--collapsed .assessor-rail__avatar {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 
 .assessor-rail--collapsed .assessor-rail__avatar svg {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
 }
 
 .assessor-rail--collapsed .assessor-rail__nav {
   padding-inline: var(--sp-2);
 }
 
+/* A square target rather than a full-width row with its label gone — the
+   icon then sits in the middle of something, not in the middle of nothing. */
 .assessor-rail--collapsed .assessor-nav-item {
   justify-content: center;
-  padding-inline: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  align-self: center;
 }
 
 .assessor-rail--collapsed .assessor-rail__signout {
   align-self: center;
   margin-left: 0;
-  padding: 0.625rem;
+  padding: 8px;
   border-radius: 50%;
 }
 
 /* Collapse toggle sits on the rail's outer edge. */
 .assessor-rail__toggle {
   position: absolute;
-  top: var(--sp-5);
+  top: 20px;
   right: -14px;
   z-index: 2;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -343,7 +353,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   padding-inline: var(--sp-4);
   text-align: center;
 }
@@ -351,8 +361,8 @@
 .assessor-rail__avatar {
   display: grid;
   place-items: center;
-  width: 96px;
-  height: 96px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
   background: var(--surface);
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.14);
@@ -367,7 +377,7 @@
 }
 
 .assessor-rail__name {
-  font-size: var(--fs-body-lg);
+  font-size: 14px;
   font-weight: var(--fw-semibold);
   line-height: 1.35;
   color: var(--brand-text);
@@ -375,17 +385,18 @@
 }
 
 .assessor-rail__id {
-  font-size: var(--fs-label);
+  font-size: var(--fs-micro);
   font-weight: var(--fw-regular);
+  line-height: 1.5;
   color: var(--text-muted);
 }
 
 .assessor-rail__nav {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: 2px;
   width: 100%;
-  padding-inline: var(--sp-4);
+  padding-inline: var(--sp-3);
   /* The rail is now a fixed screen-height box, so on a short viewport something
      has to give. It is the nav that scrolls — never the rail itself, whose
      collapse toggle sits outside its right edge and would be clipped the moment
@@ -398,14 +409,15 @@
 .assessor-nav-item {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: 10px;
   width: 100%;
-  padding: 0.6875rem var(--sp-4);
+  padding: 9px 12px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--brand-text);
-  font-size: var(--fs-body);
+  font-size: 14px;
+  line-height: 1.3;
   font-weight: var(--fw-medium);
   text-align: left;
   cursor: pointer;
@@ -462,14 +474,14 @@
   outline: 2px solid var(--brand);
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  width: calc(100% - var(--sp-8));
-  padding: 0.5rem var(--sp-3);
+  gap: 10px;
+  width: calc(100% - 24px);
+  padding: 7px 10px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--brand-text);
-  font-size: var(--fs-label);
+  font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
   cursor: pointer;
   transition: background 0.15s ease;
@@ -488,8 +500,8 @@
 .theme-toggle {
   position: relative;
   flex-shrink: 0;
-  width: 34px;
-  height: 19px;
+  width: 30px;
+  height: 17px;
   margin-left: auto;
   border-radius: var(--radius-pill);
   background: var(--gray-300);
@@ -504,15 +516,15 @@
   position: absolute;
   top: 2.5px;
   left: 2.5px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--white);
   transition: transform 0.18s ease;
 }
 
 .theme-toggle.is-on .theme-toggle__thumb {
-  transform: translateX(15px);
+  transform: translateX(13px);
 }
 
 .assessor-rail--collapsed .theme-toggle {
@@ -520,18 +532,19 @@
 }
 
 .assessor-rail__signout {
-  margin-top: 0;
+  margin-top: 8px;
   align-self: flex-start;
-  margin-left: var(--sp-4);
+  margin-left: var(--sp-3);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 0.625rem var(--sp-4);
+  padding: 7px 12px;
   border: none;
   border-radius: var(--radius-pill);
   background: var(--brand);
   color: var(--white);
-  font-size: var(--fs-label);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
   font-weight: var(--fw-medium);
   cursor: pointer;
   transition: filter 0.15s ease;
@@ -554,7 +567,7 @@
   align-items: flex-end;
   gap: var(--sp-6);
   flex-wrap: wrap;
-  padding: var(--sp-8) clamp(1.25rem, calc(3 * var(--vw)), 2.75rem) var(--sp-5);
+  margin-bottom: 22px;
 }
 
 .assessor-header__lead {
@@ -2155,6 +2168,14 @@
     height: 44px;
   }
 
+  /* Stacked, the nav is a row of real labels again, so the collapsed square
+     from the vertical rail does not apply. */
+  .assessor-rail--collapsed .assessor-nav-item {
+    width: auto;
+    height: auto;
+    padding: 9px 12px;
+  }
+
   .assessor-rail__nav {
     order: 3;
     flex-direction: row;
@@ -2166,6 +2187,10 @@
 
   .assessor-rail__signout {
     margin-top: 0;
+  }
+
+  .assessor-main {
+    padding: 20px 16px;
   }
 }
 

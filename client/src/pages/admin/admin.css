@@ -42,6 +42,9 @@
   --surface: var(--white);
   --surface-raised: var(--off-white);
   --surface-sunken: var(--bg-app);
+  /* The sidebar's fill. Light keeps the solid brand panel this console has
+     always had; dark swaps it for the assessor console's translucent rail. */
+  --rail-bg: var(--maroon-700);
   --brand: var(--maroon-700);
   --brand-text: var(--maroon-700);
   --brand-strong: var(--maroon-900);
@@ -107,10 +110,16 @@
   --brand-hover: rgba(255, 255, 255, 0.12);
   --maroon-700-23: #192a3f;
 
-  /* Neutrals resolve onto that ramp. */
+  /* The rail is the page's own colour with a brand keyline, not a lighter
+     navy block: a --brand fill the height of the screen reads as a second
+     surface competing with the cards beside it. */
+  --rail-bg: rgba(18, 30, 45, 0.88);
+
+  /* Neutrals resolve onto that ramp — the assessor console's values, so a
+     hairline and a sunken track are the same weight in both. */
   --gray-100: #11192c;
-  --gray-150: rgba(255, 255, 255, 0.12);
-  --gray-200: rgba(255, 255, 255, 0.18);
+  --gray-150: #192a3f;
+  --gray-200: rgba(255, 255, 255, 0.12);
   --gray-400: #9599ad;
   --gray-600: #a6b0cf;
   --gray-700: #c3cbe4;
@@ -149,6 +158,36 @@
 
 [data-theme="dark"] .admin-app .admin-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Dark rail ──────────────────────────────────────────────
+   The light theme's rail is a brand fill, so everything on it is light on
+   brand. Dark makes the panel the page's own colour, which flips that back:
+   the pieces that were light fills — the active pill, Sign Out, the collapse
+   knob — become brand fills again, as they are on the assessor console.
+   ───────────────────────────────────────────────────────── */
+
+/* Right edge only — the rail is flush with the viewport on the other three
+   sides. box-shadow, not border, so it follows the rounded corner. */
+[data-theme="dark"] .admin-app .admin-sidebar {
+  box-shadow: 2px 0 0 0 var(--brand), var(--shadow-sidebar);
+}
+
+[data-theme="dark"] .admin-app .admin-nav-item.is-active,
+[data-theme="dark"] .admin-app .admin-sidebar__signout,
+[data-theme="dark"] .admin-app .admin-sidebar__toggle {
+  background: var(--brand);
+  color: var(--white);
+}
+
+/* The switch track reads as a hollow of the panel; on a panel this dark it
+   needs the brand behind it to register as filled. */
+[data-theme="dark"] .admin-app .admin-theme-switch.is-on {
+  background: var(--brand);
+}
+
+[data-theme="dark"] .admin-app .admin-theme-switch.is-on .admin-theme-switch__thumb {
+  background: var(--white);
 }
 
 /* ── Shell ──────────────────────────────────────────────── */
@@ -222,7 +261,7 @@
   align-items: center;
   padding: 22px 0 18px;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
-  background: var(--brand);
+  background: var(--rail-bg);
   color: var(--sidebar-ink);
   /* The brand keyline that used to mark the boundary is the whole panel now. */
   box-shadow: var(--shadow-sidebar);
@@ -3098,6 +3137,11 @@
     width: 100%;
     padding: 18px 0;
     border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  }
+
+  /* Stacked, the rail's edge is its bottom one. */
+  [data-theme="dark"] .admin-app .admin-sidebar {
+    box-shadow: 0 2px 0 0 var(--brand), var(--shadow-sidebar);
   }
 
   /* Stacked layout: collapsing doesn't apply — hide the toggle and undo
