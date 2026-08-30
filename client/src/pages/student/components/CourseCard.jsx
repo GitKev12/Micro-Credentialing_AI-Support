@@ -45,6 +45,7 @@ function TopicColumns({ skills, courseTitle, onOpen }) {
         axes={false}
         lineColor="--sd-muted"
         textColor="--sd-muted"
+        surfaceColor="--sd-surface"
         onClick={onOpen}
       />
 

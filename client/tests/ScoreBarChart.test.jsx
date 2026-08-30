@@ -17,10 +17,12 @@ jest.unstable_mockModule("react-google-charts", () => ({
 }));
 
 let ScoreBarChart;
+let opaque;
+let parseColor;
 let CourseCard;
 
 beforeAll(async () => {
-  ({ ScoreBarChart } = await import("../src/components/ScoreBarChart.jsx"));
+  ({ ScoreBarChart, opaque, parseColor } = await import("../src/components/ScoreBarChart.jsx"));
   ({ default: CourseCard } = await import("../src/pages/student/components/CourseCard.jsx"));
 });
 
@@ -80,14 +82,22 @@ describe("ScoreBarChart", () => {
   // token and the component resolves it off its own container, so the theme
   // still decides. A literal passes straight through, and an unresolvable
   // token falls back rather than handing Google Charts an empty string.
-  it("passes a literal colour through untouched", () => {
+  it("passes a literal colour through, normalised to a form the engine takes", () => {
     render(<ScoreBarChart bars={[{ label: "1", score: 50, color: "#123456" }]} />);
-    expect(rows()[0][2]).toBe("#123456");
+    expect(rows()[0][2]).toBe("rgb(18, 52, 86)");
   });
 
   it("falls back to a real colour when a token cannot be resolved", () => {
     render(<ScoreBarChart bars={[{ label: "1", score: 50, color: "--not-a-token" }]} />);
-    expect(rows()[0][2]).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(rows()[0][2]).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+  });
+
+  it("never hands the engine an rgba value, whatever the theme resolves to", () => {
+    render(<ScoreBarChart bars={[{ label: "1", score: 50, color: "rgba(255,255,255,0.3)" }]} target={60} />);
+
+    expect(rows()[0][2]).not.toMatch(/rgba/);
+    expect(last().options.series[1].color).not.toMatch(/rgba/);
+    expect(last().options.vAxis.textStyle.color).not.toMatch(/rgba/);
   });
 
   it("gives every bar a tooltip, since the canvas says nothing on its own", () => {
@@ -110,6 +120,38 @@ describe("ScoreBarChart", () => {
     render(<ScoreBarChart bars={bars} target={60} />);
 
     expect(last().options.vAxis.viewWindow).toEqual({ min: 0, max: 100 });
+  });
+});
+
+// Google Charts parses colours itself and rejects rgba() — "Invalid color:
+// rgba(255, 255, 255, 0.30)", which is exactly the dark theme's hairline
+// token. Verified against the live engine: it takes hex and rgb(), not rgba().
+describe("opaque", () => {
+  it("reads the colour forms the stylesheet actually produces", () => {
+    expect(parseColor("#d03b3b")).toEqual([208, 59, 59, 1]);
+    expect(parseColor("#abc")).toEqual([170, 187, 204, 1]);
+    expect(parseColor("rgb(12, 163, 12)")).toEqual([12, 163, 12, 1]);
+    expect(parseColor("rgba(255, 255, 255, 0.30)")).toEqual([255, 255, 255, 0.3]);
+    expect(parseColor("chartreuse")).toBeNull();
+  });
+
+  it("composites a translucent token onto the surface under it", () => {
+    // The dark theme's hairline: 30% white over the navy card #121e2d, so
+    // each channel is c*0.7 + 255*0.3 — blue lands at 45*0.7 + 76.5 = 108.
+    expect(opaque("rgba(255, 255, 255, 0.30)", "#121e2d")).toBe("rgb(89, 98, 108)");
+  });
+
+  it("hands an opaque colour back as rgb, never as rgba", () => {
+    expect(opaque("#d03b3b", "#ffffff")).toBe("rgb(208, 59, 59)");
+    expect(opaque("rgba(12, 163, 12, 1)", "#ffffff")).toBe("rgb(12, 163, 12)");
+  });
+
+  it("leaves a keyword alone, because the engine knows those", () => {
+    expect(opaque("transparent", "#ffffff")).toBe("transparent");
+  });
+
+  it("falls back to white when the surface itself cannot be read", () => {
+    expect(opaque("rgba(0, 0, 0, 0.5)", "not-a-colour")).toBe("rgb(128, 128, 128)");
   });
 });
 

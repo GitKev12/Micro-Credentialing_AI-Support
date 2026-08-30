@@ -28,6 +28,55 @@ function resolve(styles, value, fallback) {
   return styles.getPropertyValue(value).trim() || fallback;
 }
 
+/** #abc, #aabbcc, rgb() and rgba() → [r, g, b, a]. Anything else is a keyword,
+ *  which the engine knows how to read on its own. */
+export function parseColor(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(text);
+  if (short) {
+    return [1, 2, 3].map((i) => parseInt(short[i] + short[i], 16)).concat(1);
+  }
+
+  const long = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(text);
+  if (long) {
+    return [1, 2, 3].map((i) => parseInt(long[i], 16)).concat(1);
+  }
+
+  const fn = /^rgba?\(([^)]+)\)$/i.exec(text);
+  if (fn) {
+    const parts = fn[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+    if (parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)) {
+      return [parts[0], parts[1], parts[2], Number.isFinite(parts[3]) ? parts[3] : 1];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Flatten a colour onto the surface it will be drawn against.
+ *
+ * Google Charts parses every colour itself and rejects `rgba()` outright — it
+ * throws "Invalid color: rgba(255, 255, 255, 0.30)", which is precisely what
+ * the dark theme's hairline token is: translucent white over a dark card. CSS
+ * composited that for free. Here it has to be done by hand, and the result is
+ * the colour the browser would have painted anyway.
+ */
+export function opaque(color, surface) {
+  const parsed = parseColor(color);
+  if (!parsed) return color;
+
+  const [r, g, b, alpha] = parsed;
+  const round = (value) => Math.max(0, Math.min(255, Math.round(value)));
+  if (alpha >= 1) return `rgb(${round(r)}, ${round(g)}, ${round(b)})`;
+
+  const base = parseColor(surface) ?? [255, 255, 255, 1];
+  const mix = (over, under) => round(over * alpha + under * (1 - alpha));
+  return `rgb(${mix(r, base[0])}, ${mix(g, base[1])}, ${mix(b, base[2])})`;
+}
+
 export function ScoreBarChart({
   bars,
   target = null,
@@ -35,7 +84,7 @@ export function ScoreBarChart({
   axes = true,
   lineColor = "--gray-300",
   textColor = "--text-muted",
-  gridColor = "transparent",
+  surfaceColor = "--surface",
   ariaLabel,
   className,
   onClick
@@ -53,11 +102,14 @@ export function ScoreBarChart({
 
     const read = () => {
       const styles = getComputedStyle(host);
+      // The surface is read first: it is what anything translucent has to be
+      // flattened onto before the engine will accept it.
+      const surface = resolve(styles, surfaceColor, "#ffffff");
+
       setPalette({
-        bars: colorKey.split("|").map((token) => resolve(styles, token, "#0ca30c")),
-        line: resolve(styles, lineColor, "#dadada"),
-        text: resolve(styles, textColor, "#667085"),
-        grid: resolve(styles, gridColor, "transparent")
+        bars: colorKey.split("|").map((token) => opaque(resolve(styles, token, "#0ca30c"), surface)),
+        line: opaque(resolve(styles, lineColor, "#dadada"), surface),
+        text: opaque(resolve(styles, textColor, "#667085"), surface)
       });
     };
 
@@ -71,7 +123,24 @@ export function ScoreBarChart({
       attributeFilter: ["data-theme"]
     });
     return () => observer.disconnect();
-  }, [colorKey, lineColor, textColor, gridColor]);
+  }, [colorKey, lineColor, textColor, surfaceColor]);
+
+  // Nothing reaches the engine until the palette is off the DOM. Google Charts
+  // parses every colour it is handed and throws "Invalid color" on anything
+  // that is not one — which is what a first render would pass, before the
+  // tokens have been read. The effect above resolves them before paint, so
+  // this frame is never seen; it exists to give that effect its element.
+  if (!palette) {
+    return (
+      <div
+        ref={hostRef}
+        className={className}
+        style={{ height }}
+        role={ariaLabel ? "img" : undefined}
+        aria-label={ariaLabel}
+      />
+    );
+  }
 
   const header = ["Topic", "Score", { role: "style" }, { role: "tooltip" }];
   if (target !== null) header.push("Pass mark");
@@ -83,7 +152,7 @@ export function ScoreBarChart({
       const row = [
         bar.label ?? "",
         score,
-        palette ? palette.bars[index] : "transparent",
+        palette.bars[index],
         bar.tooltip ?? `${bar.label ?? ""} ${Math.round(score)}%`
       ];
       if (target !== null) row.push(target);
@@ -91,9 +160,8 @@ export function ScoreBarChart({
     })
   ];
 
-  const rule = palette ? palette.line : "#dadada";
-  const ink = palette ? palette.text : "#667085";
-  const grid = palette ? palette.grid : "transparent";
+  const rule = palette.line;
+  const ink = palette.text;
 
   const options = {
     legend: "none",
@@ -121,9 +189,9 @@ export function ScoreBarChart({
     vAxis: {
       viewWindow: { min: 0, max: 100 },
       textPosition: axes ? "out" : "none",
-      gridlines: { color: grid, count: axes ? 3 : 0 },
+      gridlines: { count: 0 },
       minorGridlines: { count: 0 },
-      baselineColor: axes ? grid : "transparent",
+      baselineColor: "transparent",
       textStyle: { color: ink, fontSize: 11 }
     },
     hAxis: {
