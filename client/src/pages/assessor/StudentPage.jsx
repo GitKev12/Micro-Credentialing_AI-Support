@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchStudentDetail, storedAssessorId, timeAgo } from "../../services/assessors";
-import { CheckIcon, UserIcon } from "./components/icons";
+import { ScoreBarChart } from "../../components/ScoreBarChart";
+import { certificateFileUrl } from "../../services/achievements";
+import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
+import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
 import { Chip, ScreenHeader } from "./components/ui";
+
+/** The server's own pass ratio, used until a run reports its own threshold. */
+const PASS_MARK = 60;
 
 const MODULE_CHIP = {
   done: { tone: "info", label: "Graded" },
@@ -10,22 +15,134 @@ const MODULE_CHIP = {
   locked: { tone: "neutral", label: "Not started" }
 };
 
-function moduleMeta(module) {
-  if (module.state === "pending") return `Submitted ${timeAgo(module.submittedAt)}`;
-  if (module.state === "done") return "Quiz graded";
-  return module.read ? "Lesson read — quiz not yet taken" : "Not yet attempted";
+/** Dates here are read off the record, so they are written out rather than
+ *  counted back from today. */
+function formatDate(value, { year = true } = {}) {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(year ? { year: "numeric" } : {})
+  });
+}
+
+/** Course artwork when the catalog carries it, the older emoji glyph otherwise. */
+function BadgeArt({ badge }) {
+  const isImage = badge.icon && (badge.iconType === "svg" || badge.icon.startsWith("data:"));
+
+  return (
+    <span className="badge-tile__art" aria-hidden="true">
+      {isImage ? <img src={badge.icon} alt="" /> : (badge.icon ?? "🏅")}
+    </span>
+  );
+}
+
+function badgeMeta(badge) {
+  if (!badge.earned) return "Not earned";
+
+  const date = formatDate(badge.earnedAt, { year: false });
+  return date ? `Earned ${date}` : "Earned";
+}
+
+/**
+ * The final exam, one column per lesson, read against the pass mark.
+ *
+ * The line is the encoding: a column standing below it is a gap, which is what
+ * an assessor opens this page to find. Colour says the same thing a second
+ * time, and because green against red is the one pair colour-blind readers
+ * cannot separate, it never says it alone — a weak column is also striped, is
+ * the only one carrying its own number, and is counted in the sentence
+ * underneath.
+ *
+ * Before the exam is taken the same frame is drawn empty: the pass line, and
+ * one waiting seat per lesson of the course. The chart is the thing being
+ * looked at, so the empty state is the chart — a paragraph standing in its
+ * place made the hero change shape the moment a student took the exam, and
+ * said nothing the plot does not already show.
+ */
+function PerformanceChart({ skillGap, modules, lessonNumbers }) {
+  const threshold = skillGap?.threshold ?? PASS_MARK;
+  const skills = skillGap?.skills ?? [];
+  const taken = skills.length > 0;
+
+  const weak = skills.filter((skill) => skill.score < threshold);
+  const weakest = weak.reduce(
+    (lowest, skill) => (lowest === null || skill.score < lowest.score ? skill : lowest),
+    null
+  );
+
+  // A scored bar per topic once the exam is taken; before that, a waiting seat
+  // per lesson — full height in a flat neutral, so the plot shows the scale it
+  // will be read against without any bar reading as a perfect score.
+  const bars = taken
+    ? skills.map((skill, index) => {
+        const isWeak = skill.score < threshold;
+
+        return {
+          label: String(lessonNumbers.get(skill.moduleId) ?? index + 1),
+          score: skill.score,
+          color: isWeak ? "--skill-weak" : "--skill-strong",
+          tooltip: `${skill.topic} — ${skill.score}% (${skill.correct}/${skill.total}), ${
+            isWeak ? "weak" : "strong"
+          }`
+        };
+      })
+    : modules.map((module) => ({
+        label: String(module.n),
+        score: 100,
+        color: "--gray-150",
+        tooltip: `Lesson ${module.n} — not taken yet`
+      }));
+
+  let caption = "Not taken yet";
+  if (taken && weak.length === 0) {
+    caption = `Every topic at or above the ${threshold}% pass mark.`;
+  } else if (taken) {
+    caption = `${weak.length} of ${skills.length} topics below ${threshold}% — weakest is ${weakest.topic} at ${weakest.score}%.`;
+  }
+
+  return (
+    <div className="student-hero__chart">
+      <div className="hero-chart__head">
+        <span className="metric__label">Performance — final exam</span>
+        {taken ? (
+          <span className="hero-chart__score">
+            {skillGap.performance}%
+            {skillGap.released ? null : <Chip tone="brand-soft">Provisional</Chip>}
+          </span>
+        ) : (
+          <span className="hero-chart__score hero-chart__score--waiting">—</span>
+        )}
+      </div>
+
+      <ScoreBarChart
+        className="hero-chart"
+        bars={bars}
+        target={threshold}
+        height={96}
+        lineColor="--gray-300"
+        textColor="--text-muted"
+        ariaLabel={
+          taken
+            ? `${skills.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")}. The pass mark is ${threshold} percent.`
+            : `One bar per lesson, empty — the final exam has not been taken. The pass mark is ${threshold} percent.`
+        }
+      />
+
+      <p className="assessor-meta">{caption}</p>
+    </div>
+  );
 }
 
 function credentialMeta(credential) {
-  if (credential.status === "issued" && credential.issuedAt) {
-    const date = new Date(credential.issuedAt).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    });
-    return `Issued ${date}`;
-  }
-  return "Awaiting your approval";
+  if (credential.status !== "issued") return "Awaiting approval";
+
+  const date = formatDate(credential.issuedAt, { year: false });
+  return date ? `Issued ${date}` : "Issued";
 }
 
 function StudentPage() {
@@ -75,7 +192,14 @@ function StudentPage() {
   }
 
   const { student, course, modules, credentials, waiting } = detail;
+  const badges = detail.badges ?? { earned: 0, total: detail.totalModules ?? 0 };
+  const badgeItems = badges.items ?? [];
   const issuedCount = credentials.filter((credential) => credential.status === "issued").length;
+  const gradedCount = modules.filter((module) => module.state === "done").length;
+  const skillGap = detail.skillGap ?? null;
+  // The chart's columns carry the lesson numbers the table uses, so a column
+  // and a row point at the same lesson.
+  const lessonNumbers = new Map(modules.map((module) => [module.moduleId, module.n]));
 
   return (
     <>
@@ -95,94 +219,208 @@ function StudentPage() {
           </span>
 
           <div className="student-hero__lead">
-            <div className="student-hero__name">{student.name}</div>
-            <div className="student-hero__meta">{student.sid}</div>
+            <div className="student-hero__name">
+              {student.name}
+              <span className={`status-pill${student.suspended ? " status-pill--off" : ""}`}>
+                {student.suspended ? "Suspended" : "Active"}
+              </span>
+            </div>
+            {/* Number then address, the admin console's own identity line —
+                a student is named the same way wherever staff meet them. Either
+                may be missing on an older record, so neither is assumed. */}
+            <div className="student-hero__meta">
+              {[student.sid, student.email].filter(Boolean).join(" · ")}
+            </div>
           </div>
 
-          <div className="student-hero__stats">
-            <div>
-              <div className="metric__label">Total points</div>
-              <div className="student-hero__value">{detail.points}</div>
-            </div>
-            <div>
-              <div className="metric__label">Credentials</div>
-              <div className="student-hero__value student-hero__value--brand">
-                {issuedCount} / {detail.totalModules}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={() => navigate("/assessor/queue")}
-            >
-              Grade pending work
-            </button>
-          </div>
+          <PerformanceChart
+            skillGap={skillGap}
+            modules={modules}
+            lessonNumbers={lessonNumbers}
+          />
         </section>
 
         <div className="student-split">
           <section className="assessor-card">
-            <h2 className="assessor-card-title">
-              Modules — {course.code} {course.name}
-            </h2>
-
-            <div className="assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
-              {modules.map((module) => {
-                const chip = MODULE_CHIP[module.state];
-                const locked = module.state === "locked";
-
-                return (
-                  <div key={module.moduleId} className="module-row">
-                    <span className={`module-row__num${locked ? " is-locked" : ""}`}>
-                      {module.n}
-                    </span>
-                    <span style={{ minWidth: 0 }}>
-                      <span className="cell-title" style={{ display: "block" }}>
-                        {module.title}
-                      </span>
-                      <span className="assessor-meta">{moduleMeta(module)}</span>
-                    </span>
-                    <span className={`module-row__score${locked ? " is-locked" : ""}`}>
-                      {module.score !== null ? `${module.score}/${module.total}` : "—"}
-                    </span>
-                    <span>
-                      <Chip tone={chip.tone}>{chip.label}</Chip>
-                    </span>
-                  </div>
-                );
-              })}
-
-              {modules.length === 0 ? (
-                <p className="assessor-meta" style={{ padding: "var(--sp-4)", textAlign: "center" }}>
-                  This course has no modules yet.
-                </p>
+            <header className="card-head">
+              <h2 className="assessor-card-title">
+                Modules — {course.code} {course.name}
+              </h2>
+              {modules.length ? (
+                <span className="assessor-meta">
+                  {gradedCount} of {modules.length} graded
+                </span>
               ) : null}
-            </div>
+            </header>
+
+            {modules.length === 0 ? (
+              <p className="assessor-meta">This course has no modules yet.</p>
+            ) : (
+              <div className="card-table">
+                <table className="assessor-table">
+                  <caption className="assessor-sr-only">
+                    Every lesson in this course, when its quiz was taken, what it
+                    scored and where it stands.
+                  </caption>
+
+                  <thead>
+                    <tr>
+                      <th scope="col">Lesson</th>
+                      <th scope="col">Date taken</th>
+                      <th scope="col" className="assessor-table__num">
+                        Score
+                      </th>
+                      <th scope="col">Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {modules.map((module) => {
+                      const chip = MODULE_CHIP[module.state];
+                      const locked = module.state === "locked";
+                      const takenOn = formatDate(module.submittedAt);
+
+                      // An attempt can be opened; a lesson nobody has taken
+                      // has nothing to open.
+                      const openReview = module.submissionId
+                        ? () => navigate(`/assessor/review/${module.submissionId}`)
+                        : undefined;
+
+                      return (
+                        <tr
+                          key={module.moduleId}
+                          className={openReview ? "assessor-table__row" : undefined}
+                          onClick={openReview}
+                        >
+                          <th scope="row">
+                            <span className="module-cell">
+                              <span className={`module-row__num${locked ? " is-locked" : ""}`}>
+                                {module.n}
+                              </span>
+                              <span style={{ minWidth: 0 }}>
+                                <span className="assessor-table__name">{module.title}</span>
+                                {locked ? (
+                                  <span className="assessor-table__sub">
+                                    {module.read ? "Lesson read" : "Not opened"}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </span>
+                          </th>
+
+                          <td className="assessor-table__when">
+                            {takenOn ?? <span className="assessor-table__dash">—</span>}
+                          </td>
+
+                          <td className="assessor-table__num">
+                            {module.score !== null ? (
+                              `${module.score}/${module.total}`
+                            ) : (
+                              <span className="assessor-table__dash">—</span>
+                            )}
+                          </td>
+
+                          <td>
+                            <Chip tone={chip.tone}>{chip.label}</Chip>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           <div className="assessor-stack">
             <section className="assessor-card">
-              <h2 className="assessor-card-title">Micro-credentials</h2>
+              <header className="card-head">
+                <h2 className="assessor-card-title">Badges</h2>
+                <span className="assessor-meta">
+                  {badges.earned} of {badges.total} earned
+                </span>
+              </header>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-                {credentials.map((credential) => (
-                  <div key={credential.submissionId} className="cred-line">
-                    <span className={`cred-line__mark${credential.status === "issued" ? " is-earned" : ""}`}>
-                      <CheckIcon size={16} />
-                    </span>
-                    <span style={{ minWidth: 0 }}>
-                      <span className="cred-line__name" style={{ display: "block" }}>
-                        {credential.name}
-                      </span>
-                      <span className="assessor-meta">{credentialMeta(credential)}</span>
-                    </span>
-                  </div>
-                ))}
+              {badgeItems.length === 0 ? (
+                <p className="assessor-meta">This course has no badges yet.</p>
+              ) : (
+                <ul className="badge-wall">
+                  {badgeItems.map((badge) => (
+                    <li
+                      key={badge.id}
+                      className="badge-tile"
+                      data-earned={badge.earned ? "yes" : "no"}
+                      title={badge.name}
+                    >
+                      <BadgeArt badge={badge} />
+                      <span className="badge-tile__name">{badge.name}</span>
+                      <span className="badge-tile__state">{badgeMeta(badge)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-                {credentials.length === 0 ? (
-                  <p className="assessor-meta">No credentials earned yet.</p>
+            <section className="assessor-card">
+              <header className="card-head">
+                <h2 className="assessor-card-title">Micro-credentials</h2>
+                {credentials.length ? (
+                  <span className="assessor-meta">
+                    {issuedCount} of {credentials.length} issued
+                  </span>
                 ) : null}
-              </div>
+              </header>
+
+              {credentials.length === 0 ? (
+                <p className="assessor-meta">No credentials yet.</p>
+              ) : (
+                <ul className="badge-wall badge-wall--wide">
+                  {credentials.map((credential) => {
+                    const certificate = credential.certificate;
+
+                    const body = (
+                      <>
+                        <span className="badge-tile__art cred-tile__art" aria-hidden="true">
+                          <CredentialIcon size={24} />
+                        </span>
+                        <span className="badge-tile__name">{credential.name}</span>
+                        <span className="badge-tile__state">{credentialMeta(credential)}</span>
+                        {certificate ? (
+                          <span className="badge-tile__action">
+                            <DownloadIcon size={13} />
+                            Certificate
+                          </span>
+                        ) : null}
+                      </>
+                    );
+
+                    // The stamped sheet opens in its own tab, so the browser
+                    // shows exactly what the student was given. A credential
+                    // still awaiting release has no sheet to open.
+                    return (
+                      <li
+                        key={credential.submissionId}
+                        className="badge-tile"
+                        data-earned={credential.status === "issued" ? "yes" : "no"}
+                        title={credential.name}
+                      >
+                        {certificate ? (
+                          <a
+                            className="badge-tile__link"
+                            href={certificateFileUrl(student.id, certificate.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {body}
+                          </a>
+                        ) : (
+                          body
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </section>
 
             {waiting ? (

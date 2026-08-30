@@ -30,6 +30,13 @@
   --blue-ink: #0b5570;
   --blue-ink-soft: #0b6a8e;
   --pink-100: #ffcccc;
+  /* The admin console's own warning colour, so a suspended account reads the
+     same on both sides of the staff app. */
+  --warning-text: #96600a;
+  /* The student app's own good/critical steps — the skill gap says the same
+     thing to an assessor as it does to the student it is about. */
+  --skill-strong: #0ca30c;
+  --skill-weak: #d03b3b;
 
   /* ---- Neutrals ---- */
   /* Near-white canvas with just a whisper of gray, so the white cards/
@@ -97,7 +104,7 @@
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 22px;
-  --radius-xl: 8px;
+  --radius-xl: 16px;
   --radius-pill: 8px;
 
   /* ---- Elevation ---- */
@@ -159,6 +166,9 @@
   --blue-ink: #c3cbe4;
   --blue-ink-soft: #a6b0cf;
   --pink-100: #2a1a24;
+  --warning-text: #f5bd58;
+  --skill-strong: #0ca30c;
+  --skill-weak: #d03b3b;
 
   /* Light-lifted shadows, matching the student theme's --shadow. */
   --shadow-row: 0 6px 18px rgba(255, 255, 255, 0.03);
@@ -194,6 +204,23 @@
   background: rgba(95, 211, 196, 0.14);
 }
 
+[data-theme="dark"] .assessor-app .badge-tile__art {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .assessor-app .status-pill {
+  background: rgba(30, 200, 165, 0.14);
+}
+
+[data-theme="dark"] .assessor-app .status-pill--off {
+  background: rgba(245, 189, 88, 0.16);
+}
+
+[data-theme="dark"] .assessor-app .badge-tile__link:hover,
+[data-theme="dark"] .assessor-app .badge-tile__link:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 [data-theme="dark"] .assessor-app .module-row__num.is-locked {
   color: var(--gray-600);
 }
@@ -205,7 +232,9 @@
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
 [data-theme="dark"] .assessor-app .grade-panel,
-[data-theme="dark"] .assessor-app .queue-group__head {
+[data-theme="dark"] .assessor-app .gen-card,
+[data-theme="dark"] .assessor-app .gen-paper,
+[data-theme="dark"] .assessor-app .gen-q {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -985,6 +1014,7 @@
   transform: translateX(3px);
 }
 
+
 /* ── Class register table ───────────────────────────────
    The Classes screen is a register, so it is a real <table>: one row per
    course, one column per measured fact. The rows it replaced were cards —
@@ -1190,7 +1220,7 @@
   border: 0;
 }
 
-/* ── Data rows (roster / queue / credentials) ───────────── */
+/* ── Data rows (roster / credentials) ───────────────────── */
 
 .row-head {
   display: grid;
@@ -1229,81 +1259,6 @@
 
 .roster-grid {
   grid-template-columns: minmax(0, 1fr) minmax(0, 230px) minmax(0, 170px) 130px 24px;
-}
-
-.queue-grid {
-  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 92px 150px auto;
-}
-
-/* Inside a student's group the name is in the heading above, so the row drops
-   its person cell and gives the width back to the assessment title. */
-.queue-grid--grouped {
-  grid-template-columns: minmax(0, 1fr) 92px 150px auto;
-}
-
-/* ── To Grade: grouped by student ───────────────────────── */
-
-.queue-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--sp-2);
-}
-
-.queue-summary {
-  margin: 0 0 var(--sp-1);
-}
-
-.queue-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-/* The whole heading is the fold control, so it is a button reset back to a row
-   of content rather than something that looks pressable. */
-.queue-group__head {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 260px) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--sp-4);
-  width: 100%;
-  padding: var(--sp-3) var(--sp-5);
-  border: none;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-pill);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-}
-
-.queue-group__head:hover {
-  background: var(--brand-hover);
-}
-
-.queue-group__chevron {
-  display: grid;
-  place-items: center;
-  color: var(--text-muted);
-}
-
-.queue-group__meta {
-  font-size: var(--fs-label);
-  color: var(--text-muted);
-}
-
-.queue-group__tags {
-  justify-self: end;
-}
-
-/* Indented under their heading so a group reads as one block of work. */
-.queue-group__rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding-left: calc(16px + var(--sp-4));
 }
 
 /* The scope chip sits beside the assessment title. */
@@ -1397,6 +1352,51 @@
 
 /* ── Student detail ─────────────────────────────────────── */
 
+/* ── Skill gap, in the hero ──────────────────────
+   One column per lesson from the final exam. The pass line does the work: a
+   column standing under it is a gap, which is what an assessor came to find.
+   The fills are the student app's own good/critical steps, so a weak topic is
+   the same colour on both ends of the system — and because that pair is the
+   one colour-blind readers cannot separate, a weak column is also striped and
+   is the only one that prints its number. */
+.student-hero__chart {
+  flex: 1 1 20rem;
+  min-width: min(100%, 17rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.hero-chart__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.hero-chart__score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+}
+
+/* The plot's box. Google Charts draws the bars, the pass mark and the axis
+   inside it now, so all that is left here is the room it stands in — the
+   engine sizes itself to this. */
+.hero-chart {
+  margin-bottom: var(--sp-2);
+}
+
+/* The figure that is not there yet. */
+.hero-chart__score--waiting {
+  font-weight: var(--fw-regular);
+  color: var(--text-muted);
+}
+
 .student-hero {
   display: flex;
   align-items: center;
@@ -1421,29 +1421,31 @@
   color: var(--brand-text);
 }
 
+/* Whether the account is open, in the admin console's words — Active, or
+   Suspended. Same two states, same two colours, so a suspension reads the
+   same wherever staff meet it. */
+.status-pill {
+  display: inline-block;
+  margin-left: var(--sp-3);
+  padding: 3px 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(2, 110, 120, 0.12);
+  color: var(--teal-700);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.01em;
+  vertical-align: middle;
+}
+
+.status-pill--off {
+  background: rgba(150, 96, 10, 0.13);
+  color: var(--warning-text);
+}
+
 .student-hero__meta {
   font-size: var(--fs-body);
   font-weight: var(--fw-light);
   color: var(--text-muted);
-}
-
-.student-hero__stats {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--sp-8);
-  flex-wrap: wrap;
-}
-
-.student-hero__value {
-  font-size: var(--fs-stat-lg);
-  font-weight: var(--fw-semibold);
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-  color: var(--text-strong);
-}
-
-.student-hero__value--brand {
-  color: var(--brand-text);
 }
 
 .student-split {
@@ -1451,16 +1453,6 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
   gap: var(--sp-6);
   align-items: start;
-}
-
-.module-row {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 96px 150px;
-  align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--radius-md);
-  background: var(--gray-050);
 }
 
 .module-row__num {
@@ -1480,43 +1472,168 @@
   color: var(--text-muted);
 }
 
-.module-row__score {
-  font-size: var(--fs-body-lg);
-  font-weight: var(--fw-medium);
-  color: var(--text-strong);
+/* A table inside a card. The card is already the surface, so this adds only
+   the sideways scroll and a floor narrow enough for the column it sits in —
+   the full-width tables elsewhere set theirs at 68rem. */
+.card-table {
+  overflow-x: auto;
 }
 
-.module-row__score.is-locked {
-  color: var(--gray-400);
+.card-table .assessor-table {
+  min-width: 26rem;
 }
 
-.cred-line {
+.card-table .assessor-table th,
+.card-table .assessor-table td {
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.card-table .assessor-table tbody tr:last-child th,
+.card-table .assessor-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* The lesson's number and its name, together in the row's heading cell. A
+   row heading is a <th>, which the browser sets in bold — the name and the
+   line under it carry their own weights, so the cell starts from regular. */
+.module-cell {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  font-weight: var(--fw-regular);
 }
 
-.cred-line__mark {
+/* A card that carries a count as well as a name. */
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.card-head .assessor-card-title {
+  margin: 0;
+}
+
+/* The badge wall — the catalog's own artwork, one badge per lesson, in the
+   same order the course runs. An unearned badge stays on the wall greyed, and
+   says so in words underneath: the state is never colour alone. */
+.badge-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--sp-5) var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.badge-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  text-align: center;
+}
+
+.badge-tile__art {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
+  background: var(--gray-100);
+  font-size: 1.5rem;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.badge-tile__art img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+}
+
+.badge-tile[data-earned="no"] .badge-tile__art {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.badge-tile__name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  /* Two lines whether the lesson's name needs them or not, so the row of
+     "Earned"s underneath sits on one line rather than stepping about. */
+  min-height: 2.6em;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  line-height: 1.3;
+  color: var(--text-strong);
+}
+
+.badge-tile[data-earned="no"] .badge-tile__name {
+  color: var(--text-muted);
+}
+
+.badge-tile__state {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+.badge-tile[data-earned="yes"] .badge-tile__state {
+  color: var(--teal-700);
+}
+
+/* Micro-credentials read as the same wall: a course carries a handful of them
+   against a dozen badges, and a credential's name is a phrase where a badge's
+   is a lesson, so the tiles are wider. The seal stands in for artwork —
+   filled when the credential is issued, greyed while it waits. */
+.badge-wall--wide {
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+}
+
+.cred-tile__art {
   background: var(--gray-150);
   color: var(--gray-400);
 }
 
-.cred-line__mark.is-earned {
+.badge-tile[data-earned="yes"] .cred-tile__art {
   background: var(--teal-700);
   color: var(--white);
 }
 
-.cred-line__name {
-  font-size: var(--fs-body);
+/* A released credential carries its certificate: the tile opens the stamped
+   sheet, so what the student holds is one click from their record. */
+.badge-tile__link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: calc(var(--sp-2) * -1);
+  padding: var(--sp-2);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.badge-tile__link:hover,
+.badge-tile__link:focus-visible {
+  background: var(--gray-050);
+}
+
+.badge-tile__action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
-  line-height: 1.4;
-  color: var(--text-strong);
+  color: var(--brand-text);
 }
 
 /* Brand call-out panel */
@@ -2096,11 +2213,501 @@
   padding-block: 0.875rem;
 }
 
+/* ── Generate Assessment ────────────────────────
+   Two screens. The index is a card per class, because each class is a
+   decision — papers owed or not — rather than a record to read across.
+   The workspace is the paper on the left and what makes it on the right,
+   in the order the work happens in. */
+
+.gen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-5);
+}
+
+.gen-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-row);
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.gen-card:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow-row-hover);
+  transform: translateY(-2px);
+}
+
+.gen-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.gen-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.gen-card__code {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--brand-text);
+}
+
+.gen-card__icon {
+  display: grid;
+  place-items: center;
+  color: var(--brand-text);
+}
+
+.gen-card__name {
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1.35;
+  color: var(--text-strong);
+  text-wrap: pretty;
+}
+
+.gen-card__count {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  color: var(--text-strong);
+}
+
+.gen-card__count-of {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+  color: var(--text-muted);
+}
+
+.gen-card__track {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--gray-150);
+  overflow: hidden;
+}
+
+.gen-card__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width 0.25s ease;
+}
+
+.gen-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-height: 26px;
+}
+
+.gen-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-200);
+}
+
+.gen-card__go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  color: var(--brand-text);
+}
+
+/* ── The workspace ───────────────────────────── */
+
+.gen-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  align-items: start;
+  gap: var(--sp-6);
+}
+
+/* The right column runs the full height of the paper beside it, so the card
+   inside it has somewhere to slide. `align-self` is what buys that room: the
+   grid's `align-items: start` would otherwise shrink this column to its two
+   cards, and a sticky child can never travel past its own parent's bottom. */
+.gen-side {
+  align-self: stretch;
+}
+
+/* Review & post is the card that follows the reader down a bank of sixty
+   questions: the numbers pick one to correct, and Post is the press at the end
+   of the read. It sticks on its own rather than as part of the column, because
+   the two cards together stand taller than the screen — sticking them as one
+   pins the top of Assessment and holds Post below the fold for the whole
+   scroll, which is the same as not sticking at all.
+
+   Assessment scrolls away above it instead. Everything on it — the type, the
+   lesson, the length, Generate — is set before there is a paper to read, and
+   the page is at its top when that happens. */
+.gen-post {
+  position: sticky;
+  top: var(--sp-6);
+}
+
+.gen-paper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.gen-paper__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.gen-paper__tags {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.gen-notice {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: rgba(2, 110, 120, 0.1);
+  font-size: var(--fs-label);
+  color: var(--teal-700);
+}
+
+.gen-notice.is-error {
+  background: var(--pink-100);
+  color: var(--maroon-900);
+}
+
+/* ── One question ────────────────────────────── */
+
+.gen-q-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gen-q {
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+.gen-q.is-editing {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--brand), var(--shadow-pill);
+}
+
+.gen-q__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.gen-q__num {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  color: var(--brand-text);
+}
+
+.gen-q__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-top: 3px;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
+  color: var(--text-strong);
+  text-wrap: pretty;
+}
+
+.gen-q__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+  padding: 0.25rem 0.625rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  color: var(--brand-text);
+  cursor: pointer;
+}
+
+.gen-q__edit:hover {
+  background: var(--brand-hover);
+}
+
+.gen-q__radio {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding-top: 2px;
+  cursor: pointer;
+}
+
+.gen-q__radio input {
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.gen-q__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.gen-q .choice {
+  align-items: center;
+}
+
+.gen-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-10) var(--sp-5);
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.gen-empty__icon {
+  display: grid;
+  place-items: center;
+  color: var(--brand-text);
+}
+
+.gen-empty__title {
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+}
+
+.gen-empty .assessor-meta {
+  max-width: 46ch;
+}
+
+/* ── Fields ─────────────────────────────────── */
+
+.gen-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.gen-field--inline {
+  margin-bottom: 0;
+  margin-top: var(--sp-2);
+}
+
+.gen-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-strong);
+}
+
+.gen-input--area {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.gen-input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.gen-hint {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.gen-hint.is-warn {
+  color: var(--brand-text);
+  font-weight: var(--fw-medium);
+}
+
+.gen-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border-radius: var(--radius-pill);
+  background: var(--gray-050);
+}
+
+.gen-toggle__btn {
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.gen-toggle__btn.is-active {
+  background: var(--brand);
+  color: var(--white);
+}
+
+.gen-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.gen-check input {
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.gen-check span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.gen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.gen-actions .btn {
+  flex: 1;
+}
+
+/* The question numbers, as a keypad. Picking a number is how an assessor
+   says that one has the wrong answer — the same way they would read it off
+   a printed paper. */
+.gen-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 var(--sp-3);
+  /* The one part of the card with no ceiling. The subtraction is the rest of
+     the card — heading, hints, divider, Post — so the keypad is only ever
+     given what the window has left over. A 60-item final fills eight rows and
+     sits well inside that; it takes a bank half again as large, or a very
+     short window, before the keypad scrolls rather than pushing Post off the
+     bottom of the screen. */
+  max-height: max(120px, calc(100 * var(--vh) - 380px));
+  overflow-y: auto;
+}
+
+.gen-number {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  color: var(--text-body);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gen-number:hover:not(:disabled) {
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.gen-number.is-active {
+  background: var(--brand);
+  color: var(--white);
+}
+
+.gen-number:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gen-divider {
+  height: 1px;
+  margin: var(--sp-4) 0;
+  background: var(--gray-200);
+}
+
 /* ── Responsive ─────────────────────────────────────────── */
 
 @media (max-width: 1180px) {
   .student-split {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Below this the two columns are both too narrow to read a question in, so
+     the paper takes the full width and its controls sit above it. */
+  .gen-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* One column now: the controls sit above the paper and simply scroll with
+     it, so nothing needs pinning. */
+  .gen-side {
+    order: -1;
+  }
+
+  .gen-post {
+    position: static;
   }
 
   .grade-panel {
@@ -2111,37 +2718,13 @@
 @media (max-width: 960px) {
 
   .roster-grid,
-  .queue-grid,
-  .queue-grid--grouped,
   .creds-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-4);
   }
 
-  /* The heading stacks, and the rows give up their indent — at this width it
-     costs more than the grouping it signals. */
-  .queue-group__head {
-    grid-template-columns: 16px minmax(0, 1fr);
-    row-gap: var(--sp-2);
-  }
-
-  .queue-group__meta,
-  .queue-group__tags {
-    grid-column: 2;
-    justify-self: start;
-  }
-
-  .queue-group__rows {
-    padding-left: 0;
-  }
-
   .row-head {
     display: none;
-  }
-
-  .module-row {
-    grid-template-columns: 34px minmax(0, 1fr);
-    row-gap: var(--sp-2);
   }
 }
 
