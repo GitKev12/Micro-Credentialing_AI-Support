@@ -567,10 +567,10 @@ export async function markModuleComplete(request, response) {
       { upsert: true }
     );
 
-  // Finishing the lesson unlocks its quiz. It deliberately does not write it:
-  // the questions cost a model call, and a lesson read by someone who never
-  // opens the quiz should cost nothing. Writing happens when the student
-  // presses "Take the Quiz" — see prepareLessonAssessment.
+  // Finishing the lesson is one of the two gates on its quiz; the other is the
+  // assessor's, and it is the one that decides whether a paper exists at all.
+  // Nothing is written here — a student cannot cause a model call — see the
+  // assessor console's Generate Assessment screen.
   return response.json({ completed: true, moduleId: record.moduleId });
 }
 

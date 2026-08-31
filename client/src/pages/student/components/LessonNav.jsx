@@ -161,8 +161,7 @@ function LessonNav({
                       aria-current={open ? "true" : undefined}
                       title={
                         locked
-                          ? (quiz.reason ??
-                            `Finish ${module.title} to unlock this assessment`)
+                          ? (quiz.reason ?? "Your assessor will unlock this quiz.")
                           : (quiz.title || undefined)
                       }
                     >
@@ -175,13 +174,18 @@ function LessonNav({
                           <QuizIcon size={15} />
                         )}
                       </span>
-                      <span className="sd-lesson__quiz-title">Quiz {number}</span>
-                      {/* A quiz waiting to be written is open, not locked —
-                          "Locked" would tell a student who has finished reading
-                          that they still have something to do first. */}
-                      {quiz.needsGeneration ? (
-                        <span className="sd-lesson__quiz-tag">Ready</span>
-                      ) : locked ? (
+                      <span className="sd-lesson__quiz-text">
+                        <span className="sd-lesson__quiz-title">Quiz {number}</span>
+                        {/* Why it is shut, on the row rather than in a tooltip.
+                            A student who has finished the lesson has nothing
+                            left to do — the paper is their assessor's to
+                            release — and "Locked" on its own reads as though
+                            they still do. */}
+                        {locked && quiz.reason ? (
+                          <span className="sd-lesson__quiz-note">{quiz.reason}</span>
+                        ) : null}
+                      </span>
+                      {locked ? (
                         <span className="sd-lesson__quiz-tag">Locked</span>
                       ) : quiz.result ? (
                         <span className="sd-lesson__quiz-tag">

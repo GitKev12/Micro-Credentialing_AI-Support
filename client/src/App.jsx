@@ -9,7 +9,8 @@ import TableOfSpecification from "./pages/admin/TableOfSpecification";
 import AssessorLayout from "./pages/assessor/AssessorLayout";
 import ClassesPage from "./pages/assessor/ClassesPage";
 import RosterPage from "./pages/assessor/RosterPage";
-import QueuePage from "./pages/assessor/QueuePage";
+import GeneratePage from "./pages/assessor/GeneratePage";
+import GenerateCoursePage from "./pages/assessor/GenerateCoursePage";
 import StudentPage from "./pages/assessor/StudentPage";
 import ReviewPage from "./pages/assessor/ReviewPage";
 import CredentialsPage from "./pages/assessor/CredentialsPage";
@@ -55,7 +56,8 @@ function App() {
           <Route path="classes" element={<ClassesPage />} />
           <Route path="classes/:classId" element={<RosterPage />} />
           <Route path="classes/:classId/students/:studentId" element={<StudentPage />} />
-          <Route path="queue" element={<QueuePage />} />
+          <Route path="generate" element={<GeneratePage />} />
+          <Route path="generate/:courseId" element={<GenerateCoursePage />} />
           <Route path="review/:submissionId" element={<ReviewPage />} />
           <Route path="credentials" element={<CredentialsPage />} />
         </Route>

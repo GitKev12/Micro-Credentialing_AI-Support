@@ -19,13 +19,33 @@ export function ClassesIcon({ size = 20 }) {
   );
 }
 
-export function QueueIcon({ size = 20 }) {
+/** A paper with a spark on it — writing a quiz, rather than marking one. */
+export function GenerateIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M8 4h8a2 2 0 012 2v13a1 1 0 01-1.5.9L12 17.5 7.5 19.9A1 1 0 016 19V6a2 2 0 012-2z"
-        {...line}
-      />
+      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2v-9" {...line} />
+      <path d="M18.5 2.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z" {...line} />
+      <path d="M8.5 12h5M8.5 16h7" {...line} />
+    </svg>
+  );
+}
+
+/** A clock face — how long a sitting runs. */
+export function ClockIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 7.5V12l3 2" {...line} />
+    </svg>
+  );
+}
+
+/** A pencil — correcting a question the generator got wrong. */
+export function PencilIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 20h4L19.5 8.5a2.1 2.1 0 10-3-3L5 17v3z" {...line} />
+      <path d="M14.5 7l2.5 2.5" {...line} />
     </svg>
   );
 }
@@ -35,15 +55,6 @@ export function CredentialIcon({ size = 20 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="9" r="5" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8.5 13.5L7 21l5-2.4L17 21l-1.5-7.5" {...line} />
-    </svg>
-  );
-}
-
-export function FlagIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 21V4" {...line} />
-      <path d="M6 4.5h11l-2.2 3.5L17 11.5H6" {...line} />
     </svg>
   );
 }
@@ -121,6 +132,16 @@ export function SunIcon({ size = 18 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
       <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4" {...line} />
+    </svg>
+  );
+}
+
+/** Opens a stored sheet — the certificate behind a released credential. */
+export function DownloadIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5" {...line} />
+      <path d="M4.5 17.5v1.5a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5v-1.5" {...line} />
     </svg>
   );
 }

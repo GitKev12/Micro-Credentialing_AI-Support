@@ -7,8 +7,8 @@ import {
   ChevronRightIcon,
   ClassesIcon,
   CredentialIcon,
+  GenerateIcon,
   MoonIcon,
-  QueueIcon,
   SignOutIcon,
   SunIcon,
   UserIcon
@@ -16,7 +16,9 @@ import {
 
 const NAV_ITEMS = [
   { to: "/assessor/classes", label: "My Classes", Icon: ClassesIcon },
-  { to: "/assessor/queue", label: "To Grade", Icon: QueueIcon, countKey: "toGrade" },
+  // The badge counts papers the assessor's classes are still waiting on: one
+  // per lesson plus a final per course, less whatever has been posted.
+  { to: "/assessor/generate", label: "Generate Assessment", Icon: GenerateIcon, countKey: "toPost" },
   { to: "/assessor/credentials", label: "Credentials", Icon: CredentialIcon }
 ];
 

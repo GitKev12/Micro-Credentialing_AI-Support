@@ -145,7 +145,7 @@ function ReviewPage() {
     return (
       <>
         <ScreenHeader
-          back={{ label: "To grade", onClick: () => navigate("/assessor/queue") }}
+          back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
           eyebrow="Review"
           title="Submission not found"
         />
@@ -162,7 +162,7 @@ function ReviewPage() {
     return (
       <>
         <ScreenHeader
-          back={{ label: "To grade", onClick: () => navigate("/assessor/queue") }}
+          back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
           eyebrow="Review"
           title="Loading submission…"
         />
@@ -307,7 +307,7 @@ function ReviewPage() {
   return (
     <>
       <ScreenHeader
-        back={{ label: "To grade", onClick: () => navigate("/assessor/queue") }}
+        back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
         eyebrow={review.assessment.meta}
         title={`${review.submission.studentName} — ${review.assessment.title}`}
       >

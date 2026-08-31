@@ -5,8 +5,10 @@ import {
   TRUE_FALSE_CHOICES,
   defaultPassMark
 } from "../assessments/assessments.format.js";
-import { issueCertificate } from "../certificates/certificates.service.js";
-import { aiStatusOf, isReleased, openFlags } from "./grading.js";
+import { buildStudentBadges, passedFromResults } from "../badges/badges.service.js";
+import { issueCertificate, listIssuedCertificates } from "../certificates/certificates.service.js";
+import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.service.js";
+import { aiStatusOf, isReleased } from "./grading.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -35,11 +37,11 @@ import { sortLessons } from "../lib/lessonOrder.js";
  * every list endpoint degrades to empty rows rather than failing. Everything
  * shown is derived from real documents:
  *
- *   class.pending    <- StudentResults awaiting release in that course
  *   class.lessons    <- LearningModules published for that course
+ *   class.posted     <- Assessments released to that course
  *   roster.done      <- ModuleProgress completions for that course
  *   roster.creds     <- issued credentials on StudentResults
- *   summary.toGrade  <- unreleased StudentResults across assigned courses
+ *   summary.toPost   <- papers not yet released across assigned courses
  */
 const ASSESSORS_COLLECTION = "Assessor";
 const ASSESSMENTS_COLLECTION = "Assessment";
@@ -65,11 +67,11 @@ const asId = (value) => String(value);
 
 const manyCandidates = (values) => values.flatMap((value) => idCandidates(value));
 
-function courseTitle(course) {
+export function courseTitle(course) {
   return course?.courseName ?? course?.title ?? course?.name ?? "";
 }
 
-function courseCode(course) {
+export function courseCode(course) {
   return (course?.courseCode ?? course?.code ?? "").trim();
 }
 
@@ -79,13 +81,13 @@ function studentName(student) {
 }
 
 /** Assessors sign in with either their Mongo id or their ASS### number. */
-async function findAssessor(idOrNumber) {
+export async function findAssessor(idOrNumber) {
   return collection(ASSESSORS_COLLECTION).findOne({
     $or: [{ _id: { $in: idCandidates(idOrNumber) } }, { assessor_id: String(idOrNumber) }]
   });
 }
 
-async function coursesForAssessor(assessor) {
+export async function coursesForAssessor(assessor) {
   const assigned = assessor.assigned_courses ?? [];
   if (assigned.length === 0) return [];
   return collection(COURSES_COLLECTION)
@@ -93,7 +95,7 @@ async function coursesForAssessor(assessor) {
     .toArray();
 }
 
-function moduleFilterForCourse(course) {
+export function moduleFilterForCourse(course) {
   return {
     $or: [{ courseId: { $in: idCandidates(course._id) } }, { courseCode: courseCode(course) }]
   };
@@ -195,9 +197,30 @@ export async function getOverview(request, response) {
   if (!assessor) return response.status(404).json({ message: "Assessor not found." });
 
   const courses = await coursesForAssessor(assessor);
-  const results = await resultsForCourses(courses);
+  const [results, lessonCounts, assessments] = await Promise.all([
+    resultsForCourses(courses),
+    lessonCountsForCourses(courses),
+    assessmentsForCourses(courses)
+  ]);
 
-  const pending = results.filter((result) => !isReleased(result));
+  // What the rail's "Generate Assessment" badge counts: papers this assessor's
+  // classes are still waiting on. One per lesson, plus one final per course —
+  // a course with eight lessons owes nine papers.
+  const postedLessons = new Set(
+    assessments
+      .filter((doc) => doc.scope !== "final" && doc.status !== "draft")
+      .map((doc) => asId(doc.moduleId))
+  );
+  const postedFinals = new Set(
+    assessments
+      .filter((doc) => doc.scope === "final" && doc.status !== "draft")
+      .map((doc) => asId(doc.courseId))
+  );
+
+  const owed = courses.reduce((sum, course) => {
+    const lessons = lessonCounts.get(asId(course._id)) ?? 0;
+    return sum + lessons + 1;
+  }, 0);
 
   return response.json({
     assessor: {
@@ -207,10 +230,7 @@ export async function getOverview(request, response) {
       email: assessor.email ?? null
     },
     summary: {
-      toGrade: pending.length,
-      aiFlagged: pending.filter(
-        (result) => aiStatusOf(result) === "graded" && openFlags(result) > 0
-      ).length,
+      toPost: Math.max(0, owed - postedLessons.size - postedFinals.size),
       credentials: results.filter(
         (result) => isReleased(result) && result.credential?.status === "pending"
       ).length
@@ -262,6 +282,22 @@ async function lessonCountsForCourses(courses) {
   return counts;
 }
 
+/**
+ * Every assessment written for these courses, drafts included.
+ *
+ * Both the overview and the register now report on what has been released
+ * rather than on what is waiting to be marked, and both need the same read.
+ */
+async function assessmentsForCourses(courses) {
+  if (courses.length === 0) return [];
+  return collection(ASSESSMENTS_COLLECTION)
+    .find(
+      { courseId: { $in: manyCandidates(courses.map((course) => course._id)) } },
+      { projection: { courseId: 1, moduleId: 1, scope: 1, status: 1 } }
+    )
+    .toArray();
+}
+
 /** Submissions per course, counting only the ones the predicate keeps. */
 function countByCourse(results, predicate) {
   const counts = new Map();
@@ -288,10 +324,11 @@ export async function getClasses(request, response) {
   if (!assessor) return response.status(404).json({ message: "Assessor not found." });
 
   const courses = await coursesForAssessor(assessor);
-  const [results, lessonCounts, students] = await Promise.all([
+  const [results, lessonCounts, students, assessments] = await Promise.all([
     resultsForCourses(courses),
     lessonCountsForCourses(courses),
-    collection(STUDENTS_COLLECTION).find({}, { projection: { enrolledCourses: 1 } }).toArray()
+    collection(STUDENTS_COLLECTION).find({}, { projection: { enrolledCourses: 1 } }).toArray(),
+    assessmentsForCourses(courses)
   ]);
 
   // Enrollment counts per course, derived from Student.enrolledCourses.
@@ -303,12 +340,21 @@ export async function getClasses(request, response) {
     });
   });
 
-  const pendingCounts = countByCourse(results, (result) => !isReleased(result));
-  const flaggedCounts = countByCourse(
-    results,
-    (result) =>
-      !isReleased(result) && aiStatusOf(result) === "graded" && openFlags(result) > 0
-  );
+  // Papers written and papers released, per course. The register's job is now
+  // to say what a class is still waiting on, and a draft nobody has posted is
+  // waiting exactly as much as a lesson with no quiz at all.
+  const written = new Map();
+  const posted = new Map();
+  const finalPosted = new Set();
+
+  assessments.forEach((doc) => {
+    const key = asId(doc.courseId);
+    written.set(key, (written.get(key) ?? 0) + 1);
+    if (doc.status === "draft") return;
+    posted.set(key, (posted.get(key) ?? 0) + 1);
+    if (doc.scope === "final") finalPosted.add(key);
+  });
+
   const credentialsPending = countByCourse(
     results,
     (result) => isReleased(result) && result.credential?.status === "pending"
@@ -344,8 +390,11 @@ export async function getClasses(request, response) {
         // When the course runs — the register's duration column.
         startsOn: toIsoDay(course.startsOn),
         endsOn: toIsoDay(course.endsOn),
-        pending: pendingCounts.get(key) ?? 0,
-        flagged: flaggedCounts.get(key) ?? 0,
+        // One paper per lesson, plus the course's final.
+        assessmentsExpected: (lessonCounts.get(key) ?? 0) + 1,
+        assessmentsWritten: written.get(key) ?? 0,
+        assessmentsPosted: posted.get(key) ?? 0,
+        finalPosted: finalPosted.has(key),
         credentialsPending: credentialsPending.get(key) ?? 0,
         credentialsIssued: credentialsIssued.get(key) ?? 0,
         lastSubmission: lastSubmission.get(key) ?? null
@@ -355,7 +404,7 @@ export async function getClasses(request, response) {
 }
 
 /** The course from the route, but only if it is assigned to this assessor. */
-async function findAssignedCourse(assessor, courseId) {
+export async function findAssignedCourse(assessor, courseId) {
   const courses = await coursesForAssessor(assessor);
   return courses.find((course) => idCandidates(courseId).some((id) => asId(id) === asId(course._id))) ?? null;
 }
@@ -417,73 +466,6 @@ export async function getRoster(request, response) {
       creds: credsByStudent.get(asId(student._id)) ?? 0,
       pending: pendingByStudent.get(asId(student._id)) ?? 0
     }))
-  });
-}
-
-/* ─────────────────────────── Queue ─────────────────────────── */
-
-function queueRow(result, student, assessment, course) {
-  const graded = aiStatusOf(result) === "graded";
-  const config = reviewConfig(assessment, (assessment?.items ?? result.answers ?? []).length);
-
-  return {
-    id: asId(result._id),
-    studentId: asId(result.studentId),
-    name: studentName(student),
-    sid: student?.student_id ?? null,
-    assessment: assessment?.title ?? "Assessment",
-    // Which kind of paper this is. A final carries the course credential and a
-    // lesson quiz carries a badge, so they are not interchangeable work — the
-    // queue groups and orders by this, and could not tell them apart without
-    // it. Derived the same way toAssessmentSummary derives it: an assessment
-    // belonging to no single lesson is a final.
-    scope: assessment?.scope === "final" || !assessment?.moduleId ? "final" : "lesson",
-    course: courseCode(course),
-    submittedAt: result.submittedAt ?? null,
-    aiStatus: aiStatusOf(result),
-    ai: graded ? (result.aiGrading?.score ?? null) : null,
-    flags: graded ? openFlags(result) : null,
-    total: config.total,
-    // What the mark has to clear. The queue showed a score with nothing to read
-    // it against, so whether a submission passed — the thing that decides
-    // whether releasing it issues a credential — was only visible one click in.
-    passMark: config.passMark,
-    pointsPerItem: config.pointsPerItem,
-    reviewStatus: result.review?.status ?? "pending"
-  };
-}
-
-export async function getQueue(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
-
-  const courses = await coursesForAssessor(assessor);
-  const courseById = new Map(courses.map((course) => [asId(course._id), course]));
-
-  const results = (await resultsForCourses(courses)).filter((result) => !isReleased(result));
-  results.sort((a, b) => new Date(a.submittedAt ?? 0) - new Date(b.submittedAt ?? 0));
-
-  const [students, assessments] = await Promise.all([studentMap(), assessmentMap(results)]);
-
-  const queue = results.map((result) =>
-    queueRow(
-      result,
-      students.get(asId(result.studentId)),
-      assessments.get(asId(result.assessmentId)),
-      courseById.get(asId(result.courseId))
-    )
-  );
-
-  return response.json({
-    queue,
-    counts: {
-      all: queue.length,
-      flagged: queue.filter((row) => row.flags > 0).length,
-      confident: queue.filter((row) => row.aiStatus === "graded" && row.flags === 0).length,
-      manual: queue.filter((row) => row.aiStatus === "unavailable").length
-    }
   });
 }
 
@@ -687,51 +669,6 @@ export async function saveReview(request, response) {
   return response.json(await reviewPayload({ ...result, ...update }, course));
 }
 
-/** Release every graded, flag-free pending submission at its AI score. */
-export async function releaseConfident(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
-
-  const courses = await coursesForAssessor(assessor);
-  const results = (await resultsForCourses(courses)).filter(
-    (result) =>
-      !isReleased(result) && aiStatusOf(result) === "graded" && openFlags(result) === 0
-  );
-
-  const assessments = await assessmentMap(results);
-
-  let released = 0;
-  for (const result of results) {
-    const assessment = assessments.get(asId(result.assessmentId));
-    const config = reviewConfig(assessment, (assessment?.items ?? result.answers ?? []).length);
-    const score = result.aiGrading?.score ?? computedScore(result, assessment);
-
-    await collection(RESULTS_COLLECTION).updateOne(
-      { _id: result._id },
-      {
-        $set: {
-          review: {
-            status: "released",
-            overrides: result.review?.overrides ?? {},
-            finalScore: score,
-            gradedBy: asId(assessor._id),
-            gradedAt: new Date()
-          },
-          credential:
-            score >= config.passMark
-              ? { status: "pending", name: credentialName(assessment) }
-              : { status: "none", name: null }
-        }
-      }
-    );
-    released += 1;
-  }
-
-  return response.json({ released });
-}
-
 /* ─────────────────────────── Credentials ─────────────────────────── */
 
 export async function getPendingCredentials(request, response) {
@@ -917,15 +854,69 @@ export async function getStudentDetail(request, response) {
     };
   });
 
-  const releasedResults = results.filter(isReleased);
+  // Badges, by the one rule the student's own badge wall uses: a lesson quiz
+  // passed earns that lesson's badge. Counted against this course's lessons,
+  // since the badge catalog holds one badge per lesson.
+  const moduleIds = new Set(modules.map((module) => asId(module._id)));
+  const passedLessons = [...passedFromResults(results, assessments).keys()].filter((moduleId) =>
+    moduleIds.has(moduleId)
+  );
+
+  // The badges themselves, from the catalog: this course's artwork, one badge
+  // per lesson, earned ones marked. Built by the module the student's own
+  // badge wall reads, so the assessor and the student are shown the same wall
+  // — and the count above falls back to the lessons only when the catalog has
+  // no row for this course.
+  const badgeWall = (await buildStudentBadges(student._id, student, [course])).map((badge) => ({
+    id: badge.id,
+    moduleId: badge.moduleId,
+    name: badge.name,
+    icon: badge.icon,
+    iconType: badge.iconType,
+    order: badge.order,
+    earned: badge.earned,
+    earnedAt: badge.earnedAt
+  }));
+
+  // The final exam read one lesson at a time — the same breakdown the student
+  // is shown, built by the same service, so an assessor looking at a weak
+  // topic is looking at the row the student was told about. Absent until the
+  // final has been taken: a lesson nobody has been examined on is not a gap.
+  const [courseSkillGap] = await buildStudentSkillGap(student._id, [course]);
+
+  // The stamped certificates this student holds for this course, paired to the
+  // release each was printed from. The sheet is the record — the assessor can
+  // open what the student was actually given rather than take a row's word.
+  const certificateBySubmission = new Map(
+    (await listIssuedCertificates(student._id))
+      .filter(
+        (certificate) =>
+          certificate.submissionId && asId(certificate.courseId) === asId(course._id)
+      )
+      .map((certificate) => [asId(certificate.submissionId), certificate])
+  );
+
   const credentials = results
     .filter((result) => ["pending", "issued"].includes(result.credential?.status))
-    .map((result) => ({
-      name: result.credential?.name ?? credentialName(assessments.get(asId(result.assessmentId))),
-      status: result.credential?.status,
-      issuedAt: result.credential?.issuedAt ?? null,
-      submissionId: asId(result._id)
-    }));
+    .map((result) => {
+      const certificate = certificateBySubmission.get(asId(result._id)) ?? null;
+
+      return {
+        name: result.credential?.name ?? credentialName(assessments.get(asId(result.assessmentId))),
+        status: result.credential?.status,
+        issuedAt: result.credential?.issuedAt ?? null,
+        submissionId: asId(result._id),
+        certificate: certificate
+          ? {
+              id: certificate.id,
+              title: certificate.title ?? null,
+              filename: certificate.filename ?? null,
+              issuedBy: certificate.issuedBy ?? null,
+              issuedAt: certificate.issuedAt ?? null
+            }
+          : null
+      };
+    });
 
   // The oldest ungraded submission, so the UI can point the assessor at it.
   const waitingResult = results
@@ -940,7 +931,10 @@ export async function getStudentDetail(request, response) {
       id: asId(student._id),
       name: studentName(student),
       sid: student.student_id ?? null,
-      email: student.email ?? null
+      email: student.email ?? null,
+      // The admin console's own wording: an account is Suspended or Active,
+      // and a row that never carried the field reads as active.
+      suspended: student.suspended === true
     },
     course: {
       id: asId(course._id),
@@ -949,7 +943,32 @@ export async function getStudentDetail(request, response) {
       section: course.section ?? null
     },
     totalModules: modules.length,
-    points: releasedResults.reduce((sum, result) => sum + (result.review?.finalScore ?? 0), 0),
+    skillGap: courseSkillGap
+      ? {
+          threshold: SKILL_THRESHOLD,
+          performance: courseSkillGap.performance,
+          itemsAsked: courseSkillGap.itemsAsked,
+          itemsCorrect: courseSkillGap.itemsCorrect,
+          // Provisional until the assessor releases the final's grade — the
+          // same rule the certificate follows.
+          released: courseSkillGap.status === "completed",
+          skills: courseSkillGap.skills.map((skill) => ({
+            moduleId: skill.moduleId,
+            topic: skill.topic,
+            score: skill.score,
+            correct: skill.correct,
+            total: skill.total,
+            label: skill.label
+          }))
+        }
+      : null,
+    badges: {
+      earned: badgeWall.length
+        ? badgeWall.filter((badge) => badge.earned).length
+        : passedLessons.length,
+      total: badgeWall.length || modules.length,
+      items: badgeWall
+    },
     modules: moduleRows,
     credentials,
     waiting: waitingResult

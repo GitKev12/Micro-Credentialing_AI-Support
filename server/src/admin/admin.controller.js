@@ -1012,10 +1012,16 @@ export async function saveTableOfSpecification(request, response) {
 /**
  * Authoring endpoints, not student ones.
  *
- * Generating is the only thing in this system that spends money, so it is
- * reachable from exactly one place — this admin-only router — and never from a
- * route a student can call. Every one of them takes `dryRun`, which reports
- * what would happen and what it would roughly cost without calling the model.
+ * Generating is the only thing in this system that spends money, and no route
+ * a student can call reaches it. Every endpoint here takes `dryRun`, which
+ * reports what would happen and what it would roughly cost without calling the
+ * model.
+ *
+ * These are the bulk tool: a whole course in one press, for setting a course up
+ * before its assessors arrive. Everything they write is a draft, the same as
+ * anything generated on the assessor's own screen — releasing a paper to a
+ * class is the assessor's act, and running the bulk job must not quietly make
+ * sixty-eight of those decisions for them.
  */
 export async function getAssessmentGenerationStatus(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);

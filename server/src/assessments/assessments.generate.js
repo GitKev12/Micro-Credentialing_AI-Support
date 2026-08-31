@@ -3,11 +3,13 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { hashSeed, sample, seededRandom } from "../lib/random.js";
 import { loadLessonBlueprint, loadQuizBlueprint } from "./assessments.blueprint.js";
 import {
+  DEFAULT_FINAL_MINUTES,
   DEFAULT_POINTS_PER_ITEM,
   ITEM_TYPES,
   TOS_LEVELS,
   defaultPassMark,
   normalizeItem,
+  normalizeMinutes,
   validateAssessment
 } from "./assessments.format.js";
 import { generateAssessmentItems } from "../integrations/openai/openai.client.js";
@@ -56,6 +58,23 @@ const DEFAULT_BANK_MULTIPLIER = 3;
  * lessons — this keeps the final the paper it was meant to be.
  */
 const FINAL_ASSESSMENT_ITEMS = 60;
+
+/**
+ * The longest paper an assessor may ask for.
+ *
+ * The item count is now typed into a form rather than read off the Table of
+ * Specification, and a form field is a place where 600 gets entered instead of
+ * 60. The cap is what stops one keystroke turning into a call that reads the
+ * lesson once and then writes for ten minutes.
+ */
+const MAX_REQUESTED_ITEMS = 120;
+
+/** A requested length, clamped, or null when nothing usable was asked for. */
+function requestedItems(raw) {
+  const count = Math.floor(Number(raw));
+  if (!Number.isFinite(count) || count < 1) return null;
+  return Math.min(count, MAX_REQUESTED_ITEMS);
+}
 
 // Roughly four characters to a token. Only used to report an estimate before
 // spending, so it does not need to be exact.
@@ -227,6 +246,10 @@ export function buildAssessmentDocument({
   itemsPerModule = null,
   topics = null,
   scope = "lesson",
+  // Written shut. Generating a paper and releasing it are two decisions now,
+  // and only the assessor makes the second one — see postAssessment.
+  status = "draft",
+  timeLimitMinutes = null,
   model = null,
   usage = null
 }) {
@@ -243,6 +266,12 @@ export function buildAssessmentDocument({
     courseId: course?._id ?? null,
     moduleId: scope === "final" ? null : (lesson?._id ?? null),
     scope,
+    status: status === "posted" ? "posted" : "draft",
+    postedAt: null,
+    postedBy: null,
+    // A final runs to a clock; a lesson quiz does not unless someone sets one.
+    timeLimitMinutes:
+      normalizeMinutes(timeLimitMinutes) ?? (scope === "final" ? DEFAULT_FINAL_MINUTES : null),
     title,
     description:
       scope === "final"
@@ -294,12 +323,19 @@ export async function generateModuleAssessment({
   moduleId,
   bankMultiplier = DEFAULT_BANK_MULTIPLIER,
   dryRun = false,
-  model = null
+  model = null,
+  // The assessor's three decisions, all optional: how long the paper is, how
+  // long the sitting is, and whether an existing draft is being rewritten. Left
+  // unset, the Table of Specification decides the length as it always did.
+  itemCount = null,
+  timeLimitMinutes = null,
+  status = "draft",
+  replaceExisting = false
 }) {
   if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
 
   const already = await existingAssessment(courseId, moduleId, "lesson");
-  if (already) {
+  if (already && !replaceExisting) {
     return { status: "skipped", reason: "already-exists", assessmentId: asId(already._id) };
   }
 
@@ -311,7 +347,12 @@ export async function generateModuleAssessment({
   if (!lesson) return { status: "error", reason: "module-not-found" };
 
   const blueprintRow = await loadLessonBlueprint(courseId, moduleId);
-  if (!blueprintRow || !(blueprintRow.items > 0)) {
+
+  // An assessor who typed a length has said what the paper is; the blueprint
+  // then only supplies the mix of thinking levels. Without one, the blueprint
+  // is still the whole answer, and a lesson it does not cover has no quiz.
+  const wantedItems = requestedItems(itemCount) ?? (blueprintRow?.items > 0 ? blueprintRow.items : 0);
+  if (!(wantedItems > 0)) {
     return { status: "skipped", reason: "no-blueprint-row", moduleId: asId(moduleId) };
   }
 
@@ -325,8 +366,8 @@ export async function generateModuleAssessment({
     return { status: "skipped", reason: "no-source-text", moduleId: asId(moduleId), title: lesson.title };
   }
 
-  const itemsPerAttempt = blueprintRow.items;
-  const bankSize = itemsPerAttempt * Math.max(1, bankMultiplier);
+  const itemsPerAttempt = wantedItems;
+  const bankSize = Math.min(itemsPerAttempt * Math.max(1, bankMultiplier), MAX_REQUESTED_ITEMS * 2);
 
   if (dryRun) {
     return {
@@ -337,7 +378,7 @@ export async function generateModuleAssessment({
       bankSize,
       sourceChars: sourceText.length,
       estimatedInputTokens: Math.round(sourceText.length / CHARS_PER_TOKEN),
-      distribution: blueprintRow.distribution
+      distribution: blueprintRow?.distribution ?? null
     };
   }
 
@@ -348,7 +389,7 @@ export async function generateModuleAssessment({
       moduleTitle: lesson.title ?? blueprintRow.coverage,
       sourceText,
       itemCount: bankSize,
-      distribution: blueprintRow.distribution,
+      distribution: blueprintRow?.distribution ?? null,
       model
     });
   } catch (error) {
@@ -362,6 +403,8 @@ export async function generateModuleAssessment({
     blueprintRow,
     items,
     itemsPerAttempt,
+    status,
+    timeLimitMinutes,
     model: generated.model,
     usage: generated.usage
   });
@@ -379,6 +422,23 @@ export async function generateModuleAssessment({
   }
 
   try {
+    // Rewriting a draft keeps the document it replaces, rather than deleting
+    // and inserting: an assessment's id is what a StudentResult points at, and
+    // a regenerated paper that took a new id would orphan every mark against it.
+    if (already) {
+      await collection(ASSESSMENTS_COLLECTION).replaceOne({ _id: already._id }, document);
+
+      return {
+        status: "replaced",
+        assessmentId: asId(already._id),
+        moduleId: asId(moduleId),
+        title: document.title,
+        itemsPerAttempt: document.itemsPerAttempt,
+        bankSize: items.length,
+        usage: generated.usage
+      };
+    }
+
     const inserted = await collection(ASSESSMENTS_COLLECTION).insertOne(document);
 
     return {
@@ -544,11 +604,18 @@ function drawFromLesson(lessonItems, count, distribution, random) {
  * questions from 1, so pooling six of them unchanged would produce six
  * questions called "g1" in a single document, and grading matches on id.
  */
-export async function assembleFinalAssessment({ courseId, dryRun = false }) {
+export async function assembleFinalAssessment({
+  courseId,
+  dryRun = false,
+  itemCount = null,
+  timeLimitMinutes = null,
+  status = "draft",
+  replaceExisting = false
+}) {
   if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
 
   const already = await existingAssessment(courseId, null, "final");
-  if (already) {
+  if (already && !replaceExisting) {
     return { status: "skipped", reason: "already-exists", assessmentId: asId(already._id) };
   }
 
@@ -557,7 +624,13 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
     loadQuizBlueprint(courseId)
   ]);
 
-  if (!blueprint || !(blueprint.totalItems > 0)) {
+  const asked = requestedItems(itemCount);
+
+  // The blueprint is what says how long the paper is and how it divides. An
+  // assessor who typed a length has answered the first half themselves, so a
+  // course whose Table of Specification never arrived can still be given a
+  // final — the lessons then share it evenly.
+  if (!asked && (!blueprint || !(blueprint.totalItems > 0))) {
     return { status: "skipped", reason: "no-blueprint" };
   }
 
@@ -579,7 +652,7 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
   // The id prefix is not that link. It only keeps ids unique across banks that
   // each number their own questions from 1; `moduleId` is the lesson.
   const rowByModule = new Map(
-    blueprint.rows.filter((row) => row.moduleId).map((row) => [asId(row.moduleId), row])
+    (blueprint?.rows ?? []).filter((row) => row.moduleId).map((row) => [asId(row.moduleId), row])
   );
 
   const pool = [];
@@ -621,7 +694,7 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
   // fifteen-lesson course would set a 150-question paper. Capped at the length
   // an examination is actually written to be; the blueprint still decides how
   // the paper is divided, and shorter blueprints still give a shorter paper.
-  const wanted = Math.min(blueprint.totalItems, FINAL_ASSESSMENT_ITEMS);
+  const wanted = asked ?? Math.min(blueprint.totalItems, FINAL_ASSESSMENT_ITEMS);
   if (pool.length < wanted) {
     return {
       status: "skipped",
@@ -690,12 +763,14 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
   const document = buildAssessmentDocument({
     course,
     module: null,
-    blueprintRow: { coverage: blueprint.examination, distribution: byLevel },
+    blueprintRow: { coverage: blueprint?.examination ?? "", distribution: byLevel },
     items,
     itemsPerAttempt: wanted,
     itemsPerModule,
     topics,
     scope: "final",
+    status,
+    timeLimitMinutes,
     model: "assembled-from-lesson-banks"
   });
 
@@ -703,6 +778,19 @@ export async function assembleFinalAssessment({ courseId, dryRun = false }) {
   if (!check.valid) return { status: "rejected", problems: check.problems };
 
   try {
+    // Same reasoning as a lesson quiz: the paper is rewritten in place so its
+    // id survives, because that id is what every mark against it points at.
+    if (already) {
+      await collection(ASSESSMENTS_COLLECTION).replaceOne({ _id: already._id }, document);
+      return {
+        status: "replaced",
+        assessmentId: asId(already._id),
+        scope: "final",
+        itemsPerAttempt: document.itemsPerAttempt,
+        bankSize: items.length
+      };
+    }
+
     const inserted = await collection(ASSESSMENTS_COLLECTION).insertOne(document);
     return {
       status: "created",
@@ -753,6 +841,9 @@ export async function getGenerationStatus(courseId) {
       coverage: row.coverage,
       itemsWanted: row.items,
       hasQuiz: Boolean(quiz),
+      // Written and released are two different states now, and "has a quiz" no
+      // longer means the students of the course can see one.
+      posted: Boolean(quiz) && quiz.status !== "draft",
       bankSize: quiz?.items?.length ?? 0,
       hasText: Boolean(text?.hasText),
       textLength: text?.textLength ?? 0,
@@ -766,9 +857,11 @@ export async function getGenerationStatus(courseId) {
     hasBlueprint: true,
     totalItems: blueprint.totalItems,
     hasFinal: assessments.some((doc) => doc.scope === "final"),
+    finalPosted: assessments.some((doc) => doc.scope === "final" && doc.status !== "draft"),
     counts: {
       lessons: rows.length,
       withQuiz: rows.filter((row) => row.hasQuiz).length,
+      posted: rows.filter((row) => row.posted).length,
       readyToGenerate: rows.filter((row) => row.readyToGenerate).length,
       blockedOnText: rows.filter((row) => !row.hasQuiz && !row.hasText).length
     },

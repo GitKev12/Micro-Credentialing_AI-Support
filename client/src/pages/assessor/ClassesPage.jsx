@@ -5,7 +5,7 @@ import {
   fetchAssessorOverview,
   storedAssessorId
 } from "../../services/assessors";
-import { ChevronRightIcon, CredentialIcon, FlagIcon, QueueIcon } from "./components/icons";
+import { ChevronRightIcon, CredentialIcon, GenerateIcon } from "./components/icons";
 import { Chip, ScreenHeader, StatCard } from "./components/ui";
 import { formatCourseLength, formatCourseRange } from "../../lib/courseDuration";
 
@@ -38,15 +38,15 @@ function lastActivity(iso) {
 const EMPTY_TOTALS = {
   students: 0,
   lessons: 0,
-  pending: 0,
-  flagged: 0,
+  expected: 0,
+  posted: 0,
   issued: 0,
   awaiting: 0
 };
 
 function ClassesPage() {
   const navigate = useNavigate();
-  const [summary, setSummary] = useState({ toGrade: 0, aiFlagged: 0, credentials: 0 });
+  const [summary, setSummary] = useState({ toPost: 0, credentials: 0 });
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,7 +61,7 @@ function ClassesPage() {
     Promise.all([fetchAssessorOverview(assessorId), fetchAssessorClasses(assessorId)])
       .then(([overview, classList]) => {
         if (!active) return;
-        setSummary(overview?.summary ?? { toGrade: 0, aiFlagged: 0, credentials: 0 });
+        setSummary(overview?.summary ?? { toPost: 0, credentials: 0 });
         setClasses(classList);
       })
       .catch(() => {
@@ -84,8 +84,8 @@ function ClassesPage() {
         (sum, course) => ({
           students: sum.students + (course.students ?? 0),
           lessons: sum.lessons + (course.lessons ?? 0),
-          pending: sum.pending + (course.pending ?? 0),
-          flagged: sum.flagged + (course.flagged ?? 0),
+          expected: sum.expected + (course.assessmentsExpected ?? 0),
+          posted: sum.posted + (course.assessmentsPosted ?? 0),
           issued: sum.issued + (course.credentialsIssued ?? 0),
           awaiting: sum.awaiting + (course.credentialsPending ?? 0)
         }),
@@ -103,18 +103,11 @@ function ClassesPage() {
       <div className="assessor-body assessor-stack">
         <div className="stat-row">
           <StatCard
-            value={summary.toGrade}
-            label="To Grade"
-            action="Open Queue"
-            icon={<QueueIcon />}
-            onAction={() => navigate("/assessor/queue")}
-          />
-          <StatCard
-            value={summary.aiFlagged}
-            label="AI Flagged"
-            action="Review Flagged"
-            icon={<FlagIcon />}
-            onAction={() => navigate("/assessor/queue?filter=flagged")}
+            value={summary.toPost}
+            label="Papers to Post"
+            action="Generate Assessment"
+            icon={<GenerateIcon />}
+            onAction={() => navigate("/assessor/generate")}
           />
           <StatCard
             value={summary.credentials}
@@ -127,8 +120,9 @@ function ClassesPage() {
 
         {/* A class register, which is what a course list is in an LMS: one row
             per class, and one column per thing the assessor has to decide on —
-            how big the class is, how much of it there is, what is waiting to be
-            marked, what has come out of it, and when it was last active. */}
+            how big the class is, how much of it there is, how many of its
+            papers are out, what has come out of it, and when it was last
+            active. */}
         <section className="assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
           <h2 className="assessor-h2">Your Classes</h2>
 
@@ -136,7 +130,7 @@ function ClassesPage() {
             <table className="assessor-table">
               <caption className="assessor-sr-only">
                 Classes assigned to you, with enrolment, lesson counts, run dates,
-                grading backlog and credentials issued.
+                assessments posted and credentials issued.
               </caption>
 
               <thead>
@@ -145,8 +139,7 @@ function ClassesPage() {
                   <th scope="col" className="assessor-table__num">Students</th>
                   <th scope="col" className="assessor-table__num">Lessons</th>
                   <th scope="col">Duration</th>
-                  <th scope="col" className="assessor-table__num">To grade</th>
-                  <th scope="col" className="assessor-table__num">AI flagged</th>
+                  <th scope="col" className="assessor-table__num">Assessments</th>
                   <th scope="col">Credentials</th>
                   <th scope="col">Last activity</th>
                   <th scope="col">
@@ -161,8 +154,8 @@ function ClassesPage() {
                   const lessons = course.lessons ?? 0;
                   const runRange = formatCourseRange(course);
                   const runLength = formatCourseLength(course);
-                  const pending = course.pending ?? 0;
-                  const flagged = course.flagged ?? 0;
+                  const expected = course.assessmentsExpected ?? 0;
+                  const postedPapers = course.assessmentsPosted ?? 0;
                   const issued = course.credentialsIssued ?? 0;
                   const awaiting = course.credentialsPending ?? 0;
 
@@ -199,17 +192,13 @@ function ClassesPage() {
                         )}
                       </td>
 
+                      {/* Posted out of expected — one paper per lesson plus the
+                          course's final. A class is ready when the two match. */}
                       <td className="assessor-table__num">
-                        {pending ? (
-                          <Chip tone="brand">{pending}</Chip>
-                        ) : (
-                          <span className="assessor-table__dash">—</span>
-                        )}
-                      </td>
-
-                      <td className="assessor-table__num">
-                        {flagged ? (
-                          <Chip tone="danger">{flagged}</Chip>
+                        {expected ? (
+                          <Chip tone={postedPapers >= expected ? "info" : "brand"}>
+                            {postedPapers}/{expected}
+                          </Chip>
                         ) : (
                           <span className="assessor-table__dash">—</span>
                         )}
@@ -245,7 +234,7 @@ function ClassesPage() {
 
                 {isLoading ? (
                   <tr>
-                    <td className="assessor-table__empty" colSpan={9}>
+                    <td className="assessor-table__empty" colSpan={8}>
                       Loading your classes…
                     </td>
                   </tr>
@@ -253,7 +242,7 @@ function ClassesPage() {
 
                 {!isLoading && classes.length === 0 ? (
                   <tr>
-                    <td className="assessor-table__empty" colSpan={9}>
+                    <td className="assessor-table__empty" colSpan={8}>
                       No classes are assigned to you yet.
                     </td>
                   </tr>
@@ -267,8 +256,9 @@ function ClassesPage() {
                     <td className="assessor-table__num">{totals.students}</td>
                     <td className="assessor-table__num">{totals.lessons}</td>
                     <td />
-                    <td className="assessor-table__num">{totals.pending}</td>
-                    <td className="assessor-table__num">{totals.flagged}</td>
+                    <td className="assessor-table__num">
+                      {totals.posted}/{totals.expected}
+                    </td>
                     <td>
                       {totals.issued} issued
                       {totals.awaiting ? ` · ${totals.awaiting} to approve` : ""}

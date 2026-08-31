@@ -8,51 +8,26 @@ import api from "./api";
  * whether they have already sat it, are both per-student facts.
  *
  *   GET  /api/students/:studentId/courses/:courseId/assessments
- *   POST /api/students/:studentId/modules/:moduleId/assessment
  *   GET  /api/students/:studentId/assessments/:assessmentId
  *   POST /api/students/:studentId/assessments/:assessmentId/submit
+ *
+ * Nothing here writes a quiz. Papers are generated and released by the
+ * assessor — see the console's Generate Assessment screen — so a student who
+ * finishes a lesson now waits for their assessor rather than for a model call.
  */
 
 /**
  * Every quiz in a course, each with `locked`, `reason` and `result`.
  *
- * A lesson that is finished but whose quiz has not been written yet comes back
- * with `needsGeneration: true` and `locked: false` — the student may take it,
- * it just does not exist until they say so. Reading this costs nothing.
+ * A lesson whose quiz the assessor has not posted comes back as a locked
+ * placeholder whose `reason` says who opens it. Reading this costs nothing and
+ * writes nothing.
  */
 export async function fetchCourseAssessments(studentId, courseId) {
   if (!studentId || !courseId) return [];
 
   const { data } = await api.get(`/students/${studentId}/courses/${courseId}/assessments`);
   return Array.isArray(data?.assessments) ? data.assessments : [];
-}
-
-/**
- * "Take the Quiz" — writes this lesson's quiz if nobody has yet, then returns
- * it. Resolves to `{ assessment, generated }`, where `generated` says whether
- * this call is the one that wrote it.
- *
- * The single call in the student app that can cost money, which is why it is
- * behind a button rather than fired when a lesson is finished. It takes as long
- * as the model does, so the caller shows "Generating your quiz…" while it runs.
- * Safe to retry: a second call finds the quiz already written.
- */
-export async function prepareLessonAssessment(studentId, moduleId) {
-  try {
-    const { data } = await api.post(`/students/${studentId}/modules/${moduleId}/assessment`);
-    return { assessment: data?.assessment ?? null, generated: Boolean(data?.generated) };
-  } catch (error) {
-    const status = error.response?.status;
-    const message = error.response?.data?.message;
-
-    if (status === 423) {
-      return { locked: true, message: message ?? "Finish this lesson first." };
-    }
-    if (status === 503) {
-      return { unavailable: true, message: message ?? "Your quiz could not be prepared." };
-    }
-    throw error;
-  }
 }
 
 /**

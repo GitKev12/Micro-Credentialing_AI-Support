@@ -7,7 +7,7 @@ import "./assessor.css";
 
 function AssessorLayout() {
   const session = getStoredSession()?.user;
-  // Refetch on navigation so the "To Grade" badge tracks grading actions.
+  // Refetch on navigation so the "Generate Assessment" badge tracks postings.
   const { pathname } = useLocation();
   const [overview, setOverview] = useState(null);
 

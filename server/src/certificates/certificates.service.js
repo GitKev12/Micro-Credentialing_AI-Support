@@ -291,6 +291,9 @@ export async function listIssuedCertificates(studentId) {
         // The release this sheet was stamped from — how the achievements
         // endpoint pairs a certificate with its credential.
         submissionId: row.submissionId ?? null,
+        // Kept beside the code so a caller reading one course's record can
+        // pick out the sheets that belong to it.
+        courseId: row.courseId ? String(row.courseId) : null,
         title: row.title,
         filename: row.filename,
         courseCode: courseCode(course),

@@ -9,7 +9,7 @@ globalThis.TextDecoder ??= TextDecoder;
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
   fetchAssessorOverview: async () => ({
-    summary: { toGrade: 3, aiFlagged: 1, credentials: 2 }
+    summary: { toPost: 3, credentials: 2 }
   }),
   fetchAssessorClasses: async () => [
     {
@@ -21,8 +21,9 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       lessons: 5,
       startsOn: "2026-08-04T00:00:00.000Z",
       endsOn: "2026-10-10T00:00:00.000Z",
-      pending: 3,
-      flagged: 1,
+      assessmentsExpected: 6,
+      assessmentsWritten: 4,
+      assessmentsPosted: 3,
       credentialsIssued: 2,
       credentialsPending: 1,
       lastSubmission: new Date().toISOString()
@@ -34,8 +35,9 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       section: null,
       students: 2,
       lessons: 0,
-      pending: 0,
-      flagged: 0,
+      assessmentsExpected: 1,
+      assessmentsWritten: 0,
+      assessmentsPosted: 0,
       credentialsIssued: 0,
       credentialsPending: 0,
       lastSubmission: null
@@ -69,8 +71,7 @@ describe("ClassesPage", () => {
       "Students",
       "Lessons",
       "Duration",
-      "To grade",
-      "AI flagged",
+      "Assessments",
       "Credentials",
       "Last activity",
       "Open class"
@@ -83,5 +84,35 @@ describe("ClassesPage", () => {
     expect(screen.getByText("1 to approve")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open" })).toHaveLength(2);
     expect(screen.getByText("All classes")).toBeInTheDocument();
+  });
+
+  // The register now reports what has been released to each class rather than
+  // what is waiting to be marked — posted out of one paper per lesson plus the
+  // course's final.
+  it("shows posted papers out of the papers each class is owed", async () => {
+    render(
+      <MemoryRouter>
+        <ClassesPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("3/6")).toBeInTheDocument();
+    expect(screen.getByText("0/1")).toBeInTheDocument();
+    // The footer adds the same column up.
+    expect(screen.getByText("3/7")).toBeInTheDocument();
+  });
+
+  it("leads to the generate screen from the papers-to-post tile", async () => {
+    render(
+      <MemoryRouter>
+        <ClassesPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Papers to Post: 3. Generate Assessment."
+      })
+    ).toBeInTheDocument();
   });
 });

@@ -91,8 +91,7 @@ export function Segmented({ options, value, onChange, label }) {
 /**
  * Avatar disc + name + id number, used across every list.
  *
- * `as` exists for the one caller that renders this inside a <button> — the
- * To Grade group heading, which folds a student's submissions. A button may
+ * `as` is the escape hatch for rendering this inside a <button>: a button may
  * only contain phrasing content, so the default <div> would be invalid there.
  */
 export function Person({ name, sid, size = "md", as: Tag = "div" }) {

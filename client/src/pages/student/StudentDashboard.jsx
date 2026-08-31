@@ -130,7 +130,7 @@ function StudentDashboard() {
         ) : courses.length === 0 ? (
           <section className="sd-card">
             <EmptyState image={noCoursesImage} title="No course analytics yet">
-              Your skill gap analysis appears here once you have sat a course&apos;s final
+              Your skill gap analysis appears here once you have taken a course&apos;s final
               exam. Nothing to do in the meantime — keep working through your modules.
             </EmptyState>
           </section>

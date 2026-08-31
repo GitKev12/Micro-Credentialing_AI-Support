@@ -9,8 +9,10 @@
  *   {
  *     _id, courseId,
  *     scope:   "lesson" | "final",
+ *     status:  "draft" | "posted",   // only a posted paper reaches a student
  *     moduleId,            // the lesson it tests; null when scope is "final"
  *     title, description,
+ *     timeLimitMinutes?,   // how long the sitting runs; null when untimed
  *     credentialName?,     // defaults to "<title> Credential"
  *     pointsPerItem,       // default 1 — see DEFAULT_POINTS_PER_ITEM
  *     itemsPerAttempt,     // how many of `items` one student sits; all of them
@@ -109,6 +111,46 @@ export const DEFAULT_PASS_RATIO = 0.6;
 /** The default pass mark for a paper worth `totalPoints`, rounded up. */
 export function defaultPassMark(totalPoints) {
   return Math.ceil(Number(totalPoints || 0) * DEFAULT_PASS_RATIO);
+}
+
+/**
+ * How long a final examination runs, in minutes.
+ *
+ * An hour is what the department sets a final at, so it is what the assessor's
+ * generator offers before anyone touches it. It is a default and not a rule —
+ * the assessor may clear the box and set their own — which is why it lives here
+ * as a starting value rather than being enforced anywhere.
+ */
+export const DEFAULT_FINAL_MINUTES = 60;
+
+/**
+ * Whether a paper has been released to the students of its course.
+ *
+ * Assessments used to appear the moment they were written, because a student
+ * pressing "Take the Quiz" was what wrote them. Releasing is now the assessor's
+ * act: a generated paper sits as a draft — theirs to read, correct and set the
+ * length of — until they post it, and only then does any student see it.
+ *
+ * A document written before that carries no `status` at all. Those were live
+ * from the moment they existed, so an absent status reads as posted; anything
+ * else would shut every existing course's quizzes on deploy.
+ */
+export function assessmentStatus(doc) {
+  return doc?.status === "draft" ? "draft" : "posted";
+}
+
+/** Shorthand for the gate the student side asks about. */
+export const isPosted = (doc) => assessmentStatus(doc) === "posted";
+
+/**
+ * A sitting's clock, in whole minutes, or null for an untimed paper.
+ *
+ * Null rather than zero: "no limit" and "no time" are opposite answers, and a
+ * zero stored by a stray form field must not become the second one.
+ */
+export function normalizeMinutes(raw) {
+  const minutes = Math.floor(Number(raw));
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
 }
 
 const text = (value) => String(value ?? "").trim();
@@ -220,6 +262,9 @@ export function normalizeAssessment(doc) {
     courseId: doc.courseId ?? null,
     moduleId: scope === "final" ? null : moduleId,
     scope,
+    status: assessmentStatus(doc),
+    postedAt: doc.postedAt ?? null,
+    timeLimitMinutes: normalizeMinutes(doc.timeLimitMinutes),
     title: text(doc.title ?? doc.name),
     description: text(doc.description),
     pointsPerItem,
