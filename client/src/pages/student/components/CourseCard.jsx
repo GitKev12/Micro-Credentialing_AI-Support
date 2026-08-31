@@ -110,9 +110,7 @@ function CourseCard({ course, onOpen }) {
           <TopicColumns skills={skills} courseTitle={course.title} onOpen={onOpen} />
         </>
       ) : (
-        <p className="sd-cc__note">
-          Topic scores appear once this course&apos;s final exam is sat.
-        </p>
+        <p className="sd-cc__note">No topic scores yet.</p>
       )}
     </li>
   );

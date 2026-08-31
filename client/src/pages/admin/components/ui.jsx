@@ -194,6 +194,10 @@ export function AdminSelect({
       case "Escape":
         if (open) {
           event.preventDefault();
+          // Stops here rather than carrying on to the window listener
+          // AdminModal closes on. These dropdowns sit inside forms — closing
+          // the list was taking the half-filled form down with it.
+          event.stopPropagation();
           setOpen(false);
         }
         return;
@@ -295,66 +299,6 @@ export function AdminSelect({
  * `values` is an array of chosen option values; `options` are { value, label,
  * meta? }, the same shape AdminSelect takes.
  */
-export function AdminMultiSelect({
-  values,
-  onChange,
-  options,
-  label,
-  placeholder = "Add…",
-  emptyLabel = "None selected",
-  disabled = false
-}) {
-  const selected = new Set(values);
-  const chosen = values.map((value) => options.find((option) => option.value === value)).filter(Boolean);
-  const available = options.filter((option) => !selected.has(option.value));
-
-  const add = (value) => {
-    if (!selected.has(value)) onChange([...values, value]);
-  };
-  const remove = (value) => onChange(values.filter((entry) => entry !== value));
-
-  return (
-    <div className="admin-field admin-multiselect">
-      {label ? <div className="admin-field__label">{label}</div> : null}
-
-      <div className="admin-tags">
-        {chosen.map((option) => (
-          <span className="admin-tag" key={option.value}>
-            <span className="admin-tag__label">{option.label}</span>
-            <button
-              type="button"
-              className="admin-tag__remove"
-              onClick={() => remove(option.value)}
-              aria-label={`Remove ${option.label}`}
-              disabled={disabled}
-            >
-              <CloseIcon size={12} />
-            </button>
-          </span>
-        ))}
-        {chosen.length === 0 ? <span className="admin-tags__empty">{emptyLabel}</span> : null}
-      </div>
-
-      <AdminSelect
-        value=""
-        onChange={add}
-        options={available}
-        label={label ? `${label} — add one` : "Add one"}
-        placeholder={available.length === 0 ? "All selected" : placeholder}
-        disabled={disabled || available.length === 0}
-      />
-    </div>
-  );
-}
-
-/**
- * A labelled field for the create and edit forms.
- *
- * The label is a real <label> bound by id rather than a styled div, so clicking
- * it focuses the input and a screen reader reads the two as one thing. `hint`
- * is where a field explains itself — a password rule, or what an empty value
- * will mean — which is worth more beneath the box than in a tooltip.
- */
 export function AdminField({
   label,
   value,
@@ -406,6 +350,12 @@ export function AdminField({
  * half-built focus trap would be.
  */
 export function AdminModal({ title, subtitle, onClose, children, footer, tone = "" }) {
+  // Whether the press that is about to become a click started on the backdrop.
+  // Selecting text in a field and releasing outside the panel produces a click
+  // whose target is the backdrop, which used to read as "dismiss" and threw
+  // away everything typed into the form.
+  const fromBackdrop = useRef(false);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key === "Escape") onClose();
@@ -415,7 +365,20 @@ export function AdminModal({ title, subtitle, onClose, children, footer, tone = 
   }, [onClose]);
 
   return (
-    <div className="admin-modal" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onMouseDown={(event) => {
+        fromBackdrop.current = event.target === event.currentTarget;
+      }}
+      onClick={(event) => {
+        const onBackdrop = event.target === event.currentTarget && fromBackdrop.current;
+        fromBackdrop.current = false;
+        if (onBackdrop) onClose();
+      }}
+    >
       <div
         className={`admin-modal__panel admin-modal__panel--form${tone ? ` ${tone}` : ""}`}
         onClick={(event) => event.stopPropagation()}
@@ -568,27 +531,3 @@ export function Avatar({ name }) {
  * modules uploaded reads as exactly that rather than as a student sitting
  * at 0%, which is a different problem with a different fix.
  */
-export function ProgressRow({ label, pct, completed, total }) {
-  const value = Math.max(0, Math.min(100, pct));
-  const counted = Number.isFinite(total) && total > 0;
-  const detail = counted ? `${completed} of ${total} modules · ${value}%` : "No modules yet";
-
-  return (
-    <div>
-      <div className="admin-progress__row">
-        <span className="admin-progress__label">{label}</span>
-        <span className="admin-progress__pct">{detail}</span>
-      </div>
-      <div
-        className="admin-progress__track"
-        role="progressbar"
-        aria-valuenow={value}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`${label}: ${detail}`}
-      >
-        <div className="admin-progress__fill" style={{ width: `${value}%` }} />
-      </div>
-    </div>
-  );
-}

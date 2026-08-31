@@ -53,7 +53,7 @@ function ClassCard({ course, onOpen }) {
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`${posted} of ${expected} papers posted`}
+        aria-label={`${posted} of ${expected} assessments posted`}
       >
         <span className="gen-card__fill" style={{ width: `${pct}%` }} />
       </span>
@@ -69,7 +69,7 @@ function ClassCard({ course, onOpen }) {
             {missing} not written
           </Chip>
         ) : null}
-        {drafts === 0 && missing === 0 ? <Chip tone="info">All papers posted</Chip> : null}
+        {drafts === 0 && missing === 0 ? <Chip tone="info">All assessments posted</Chip> : null}
       </span>
 
       <span className="gen-card__foot">

@@ -72,14 +72,6 @@ export async function syncAssessorsForCourse(courseId) {
   return recompute(assessors);
 }
 
-/** Called after an assessor's course list changes. */
-export async function syncAssessor(assessorId) {
-  const assessor = await collection(ASSESSORS_COLLECTION).findOne({
-    _id: { $in: idCandidates(assessorId) }
-  });
-  return assessor ? recompute([assessor]) : { checked: 0, changed: 0 };
-}
-
 /** Rebuilds every assessor's roster — used to repair existing data. */
 export async function syncAllAssessors() {
   return recompute(await collection(ASSESSORS_COLLECTION).find({}).toArray());

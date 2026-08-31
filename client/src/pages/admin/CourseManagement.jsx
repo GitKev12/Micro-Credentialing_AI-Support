@@ -19,6 +19,7 @@ import { courseImageUrl } from "../../services/courses";
 import { sortedLessons } from "../../lib/lessonOrder";
 import { formatCourseRun, isRunInOrder, toDateInput } from "../../lib/courseDuration";
 import { CheckIcon, ChevronRightIcon, TrashIcon, UploadIcon } from "./components/icons";
+import RangeCalendar from "./components/RangeCalendar";
 import {
   AdminButton,
   AdminField,
@@ -28,12 +29,7 @@ import {
   PageHeader,
   SearchField
 } from "./components/ui";
-
-/** The course's run, on the one line a card has room for — nothing if unset. */
-function CourseRun({ course, className }) {
-  const run = formatCourseRun(course);
-  return run ? <p className={className}>{run}</p> : null;
-}
+import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 
 /** "2.4 MB" — the size as an admin would say it, or nothing if unrecorded. */
 function fileSizeLabel(bytes) {
@@ -226,9 +222,11 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
   // A course runs between two dates, so both are wanted and in that order.
   // The courses stored before the field existed have neither; the form insists
   // on them the first time one of those is opened for editing.
+  // The calendar cannot express an inverted run, but a course stored before it
+  // existed can still hold one, so the guard stays — it is the rule the server
+  // enforces, not a message about what was just typed.
   const orderedRun = isRunInOrder(startsOn, endsOn);
   const wholeRun = Boolean(startsOn && endsOn);
-  const run = orderedRun && wholeRun ? formatCourseRun({ startsOn, endsOn }) : null;
   const ready = code.trim() && title.trim() && wholeRun && orderedRun;
 
   return (
@@ -278,11 +276,6 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         onChange={setCode}
         placeholder="e.g. CC2"
         required
-        hint={
-          editing
-            ? "Renaming this also moves any lesson that was filed under the old code."
-            : "How lessons, badges and blueprints find this course."
-        }
       />
       <AdminField
         label="Course title"
@@ -300,28 +293,20 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         rows={5}
       />
 
-      {/* Two-up, because they are one fact read together — and required
-          together, since one date on its own is not a duration. */}
-      <div className="admin-form-grid">
-        <AdminField
-          label="Starts on"
-          type="date"
-          value={startsOn}
-          onChange={setStartsOn}
-          required
-        />
-        <AdminField
-          label="Ends on"
-          type="date"
-          value={endsOn}
-          onChange={setEndsOn}
-          required
-          // The only thing left to say here is when the pair is wrong.
-          hint={orderedRun ? undefined : "This is before the start date."}
-        />
-      </div>
-
-      {run ? <p className="admin-field__hint admin-field__hint--run">Duration: {run}</p> : null}
+      {/* One field, because the two dates are one fact: the run. As a pair of
+          native date inputs they were picked in separate browser popups that
+          could not show the span between them, and the end could be set before
+          the start and only told off afterwards. On a grid the span is the
+          thing being drawn, and an inverted run cannot be expressed. */}
+      <RangeCalendar
+        startsOn={startsOn}
+        endsOn={endsOn}
+        required
+        onChange={(run) => {
+          setStartsOn(run.startsOn);
+          setEndsOn(run.endsOn);
+        }}
+      />
     </AdminModal>
   );
 }
@@ -417,11 +402,7 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
         >
           Remove picture
         </button>
-      ) : (
-        <p className="admin-empty-note">
-          Without one, the card falls back to a plain colour on the student&apos;s dashboard.
-        </p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -801,7 +782,10 @@ function CourseManagement() {
                 ]
                   .filter(Boolean)
                   .join(" · ")
-              : "Loading course…"
+              : // The card below is already drawing a skeleton and saying so;
+                // a second "loading" line under the title would be the same
+                // message twice on one screen.
+                null
           }
           action={
             detailStatus === "ready" ? (
@@ -844,7 +828,7 @@ function CourseManagement() {
             <h2 className="admin-card__title">Learning Modules</h2>
 
             {detailStatus === "loading" ? (
-              <p className="admin-empty-note">Loading modules…</p>
+              <SkeletonText lines={4} label="Loading modules…" />
             ) : detailStatus === "error" ? (
               <p className="admin-empty-note">Couldn&apos;t load this course.</p>
             ) : (
@@ -962,19 +946,7 @@ function CourseManagement() {
 
   return (
     <div className="admin-main__inner">
-      <PageHeader
-        title="Courses Management"
-        action={
-          <AdminButton
-            onClick={() => {
-              setFormError(null);
-              setCourseForm("new");
-            }}
-          >
-            New course
-          </AdminButton>
-        }
-      />
+      <PageHeader title="Courses Management" />
 
       {/* A deletion closes the detail screen, so its result has to land
           here — the notice inside the detail view would never be seen. It
@@ -988,6 +960,16 @@ function CourseManagement() {
           label="Search courses"
           hint={`${visible.length} of ${courses.length}`}
         />
+
+        <AdminButton
+          variant="admin-toolbar__action"
+          onClick={() => {
+            setFormError(null);
+            setCourseForm("new");
+          }}
+        >
+          New course
+        </AdminButton>
 
         {notice ? (
           <p
@@ -1005,88 +987,92 @@ function CourseManagement() {
       </div>
 
       {status === "loading" ? (
-        <div className="admin-state-card">Loading courses…</div>
+        <SkeletonTable rows={6} cols={5} label="Loading courses…" />
       ) : status === "error" ? (
         <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.
         </div>
       ) : (
         <>
-          <div className="admin-course-grid">
-            {visible.map((course) => (
-              /* An <article> with a real heading, not a <button> wrapping the
-                 whole card. The card used to announce as one control whose
-                 name was every word on it read end to end; now the control is
-                 the title, and the counts below it are content. */
-              <article className="admin-course-card" key={course.id}>
-                <div className="admin-course-card__top">
-                  <span className="admin-course-card__mark" aria-hidden="true">
-                    {courseMark(course)}
-                  </span>
-
-                  <div className="admin-course-card__ident">
-                    {course.code ? (
-                      <p className="admin-course-card__code">{course.code}</p>
-                    ) : null}
-                    <h3 className="admin-course-card__title">
-                      <button
-                        type="button"
-                        className="admin-course-card__open"
-                        onClick={() => openCourse(course.id)}
-                      >
-                        {course.title}
-                      </button>
-                    </h3>
-                    <CourseRun course={course} className="admin-course-card__run" />
-                  </div>
-
-                </div>
-
-                <p
-                  className={`admin-course-card__desc${
-                    course.description ? "" : " is-empty"
-                  }`}
-                >
-                  {course.description || "No description added yet."}
-                </p>
-
-                <div className="admin-course-card__foot">
-                  <p className="admin-course-card__stats">
-                    {/* The one thing an admin is here to act on: a course with
-                        nothing uploaded yet. A bare "0" said this before,
-                        which is invisible in a grid of counts. It stands in
-                        for the module count rather than sitting beside the
-                        title, where it stole the width a long course name
-                        needs. */}
-                    {course.moduleCount === 0 ? (
-                      <span className="admin-count--none">No modules</span>
-                    ) : (
-                      <span className="admin-course-card__stat">
-                        <strong>{course.moduleCount}</strong> modules
+          {/* The same list every other management screen draws: one row per
+              course, columns that line up down the page, and the counts in a
+              column rather than in a sentence at the foot of a card. A grid of
+              cards read well one at a time and badly as a catalogue — nothing
+              could be compared without hopping between two footers. */}
+          <div className="admin-table-card">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Course</th>
+                  <th>Duration</th>
+                  <th className="is-center">Modules</th>
+                  <th className="is-center">Students</th>
+                  <th aria-label="Open" />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((course) => (
+                  <tr key={course.id} onClick={() => openCourse(course.id)}>
+                    <td>
+                      <div className="admin-person">
+                        <span className="admin-avatar admin-avatar--course" aria-hidden="true">
+                          {courseMark(course)}
+                        </span>
+                        <div>
+                          {/* The title is the control. The row click stays a
+                              mouse convenience, but a <tr> takes no focus, so
+                              without this the only keyboard path in would be
+                              the chevron at the far end. */}
+                          <button
+                            type="button"
+                            className="admin-person__name admin-person__link"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCourse(course.id);
+                            }}
+                          >
+                            {course.title}
+                          </button>
+                          {course.code ? (
+                            <div className="admin-person__id">{course.code}</div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="admin-cell__quiet">
+                        {formatCourseRun(course) ?? "Not set"}
                       </span>
-                    )}
-                    <span className="admin-course-card__sep" aria-hidden="true">
-                      ·
-                    </span>
-                    <span className="admin-course-card__stat">
-                      <strong>{course.studentCount}</strong> students
-                    </span>
-                  </p>
+                    </td>
+                    {/* The one thing an admin is here to act on: a course with
+                        nothing uploaded yet. A bare "0" is invisible in a
+                        column of counts. */}
+                    <td className="is-center">
+                      {course.moduleCount === 0 ? (
+                        <span className="admin-count admin-count--none">None</span>
+                      ) : (
+                        <span className="admin-count">{course.moduleCount}</span>
+                      )}
+                    </td>
+                    <td className="is-center">
+                      <strong className="admin-strong-brand">{course.studentCount}</strong>
+                    </td>
+                    <td className="admin-table__chevron">
+                      <span className="admin-table__cue" aria-hidden="true">
+                        <ChevronRightIcon size={15} />
+                      </span>
+                    </td>
+                  </tr>
+                ))}
 
-                  {/* Affordance only — the title button is the control, so
-                      this must not be read out as a second one. */}
-                  <span className="admin-course-card__manage" aria-hidden="true">
-                    Manage
-                    <ChevronRightIcon size={14} />
-                  </span>
-                </div>
-              </article>
-            ))}
+                {visible.length === 0 ? (
+                  <tr className="admin-table__empty">
+                    <td colSpan={5}>No courses match your search.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
-
-          {visible.length === 0 ? (
-            <p className="admin-empty-note">No courses match your search.</p>
-          ) : null}
         </>
       )}
 

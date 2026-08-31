@@ -104,7 +104,7 @@ function ClassesPage() {
         <div className="stat-row">
           <StatCard
             value={summary.toPost}
-            label="Papers to Post"
+            label="Assessments to Post"
             action="Generate Assessment"
             icon={<GenerateIcon />}
             onAction={() => navigate("/assessor/generate")}

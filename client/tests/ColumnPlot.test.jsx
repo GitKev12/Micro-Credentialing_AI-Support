@@ -121,6 +121,6 @@ describe("CourseCard, on the shared plot", () => {
   it("says so plainly when the exam has not been taken", () => {
     const { container } = draw({ skills: [] });
     expect(container.querySelector(".sd-cc-chart")).toBeNull();
-    expect(container.textContent).toContain("Topic scores appear once");
+    expect(container.textContent).toContain("No topic scores yet.");
   });
 });

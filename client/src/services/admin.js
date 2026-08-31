@@ -184,25 +184,39 @@ export async function setStudentSuspended(studentId, suspended) {
 /* ---- Assessors ---- */
 
 /**
- * The assessor list, plus the coverage check the list screen warns with.
+ * The assessor list, plus the three coverage checks the list screen warns with.
  *
- * Resolves to { assessors, coverage } — `coverage.unassigned` are courses no
- * assessor is assigned to, `coverage.shared` are courses more than one is.
- * Each assessor carries a `workload`: { toGrade, flagged, released,
- * credentials, oldestWaiting, lastGraded }.
+ * Resolves to { assessors, coverage }. `coverage.unassigned` are courses no
+ * assessor is assigned to, `coverage.shared` are courses more than one is, and
+ * `coverage.unposted` are courses that have an assessor who has posted nothing
+ * — a class with no quiz it can open, which only exists because posting is now
+ * the assessor's own deliberate act.
+ *
+ * Each assessor carries a `workload`, in the three parts their console is:
+ *   papers      — { papersExpected, papersPosted, papersDraft, toPost }; a
+ *                  course owes one quiz per lesson plus a final
+ *   credentials — { credentialsPending, credentialsIssued }
+ *
+ * Grading is not reported at all: neither the backlog waiting on an assessor
+ * nor the grades they have put out. Their console has no grading section to
+ * work either from — a class roster counts its own.
+ *
+ * and a `lastActive` of { at, kind: "posted" | "graded" } — whichever kind of
+ * work they did last, the same shape a student's carries. The dates behind it
+ * are not sent separately: `lastActive` is the only form anything renders.
  */
 export async function fetchAssessors() {
   const { data } = await api.get("/admin/assessors");
   return {
     assessors: data.assessors ?? [],
-    coverage: data.coverage ?? { unassigned: [], shared: [] }
+    coverage: data.coverage ?? { unassigned: [], shared: [], unposted: [] }
   };
 }
 
 /**
  * One assessor's record. Beyond the list fields it carries `classes` — the
- * assigned courses each with its own students, backlog, releases and
- * credentials.
+ * assigned courses, each with its own students, papers, backlog and
+ * credentials, breaking the same totals down one course at a time.
  */
 export async function fetchAssessor(assessorId) {
   const { data } = await api.get(`/admin/assessors/${assessorId}`);
@@ -219,8 +233,9 @@ export async function updateAssessor(assessorId, changes) {
  * Stop an assessor signing in, or let them back.
  *
  * The assessor half of `setStudentSuspended`, and the same kind of call: a
- * lock rather than a label. Their assigned courses and their grading queue are
- * untouched — the papers simply wait until the account is turned back on.
+ * lock rather than a label. Their assigned courses, their drafts and their
+ * students' submissions are untouched — everything simply waits until the
+ * account is turned back on.
  */
 export async function setAssessorSuspended(assessorId, suspended) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}/suspension`, { suspended });

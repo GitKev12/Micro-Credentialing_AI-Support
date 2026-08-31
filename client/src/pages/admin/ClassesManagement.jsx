@@ -27,6 +27,7 @@ import {
   PageHeader,
   SearchField
 } from "./components/ui";
+import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 
 function errorMessage(error, fallback) {
   return error?.response?.data?.message || fallback;
@@ -309,7 +310,6 @@ function ClassRoster({
   noun,
   action,
   icon,
-  note,
   people,
   ids,
   onChange,
@@ -332,7 +332,7 @@ function ClassRoster({
             <span className="admin-roster-add__title">
               {action} {noun}
             </span>
-            <span className="admin-roster-add__note">{disabled ? hint : note}</span>
+            {disabled ? <span className="admin-roster-add__note">{hint}</span> : null}
           </span>
           <span className="admin-roster-add__plus">
             <PlusIcon size={18} />
@@ -478,9 +478,6 @@ function ClassForm({ klass, courses, assessors, students, busy, error, onCancel,
           label="Course"
           placeholder="Choose a course…"
         />
-        <p className="admin-field__hint">
-          Everyone tagged below is enrolled in or assigned to this course when you save.
-        </p>
       </div>
 
       <ClassRoster
@@ -488,14 +485,13 @@ function ClassForm({ klass, courses, assessors, students, busy, error, onCancel,
         noun="assessors"
         action="Assign"
         icon={<AssessorsIcon size={18} />}
-        note="Anyone not already assigned to this course."
         people={assessors}
         ids={assessorIds}
         onChange={setAssessorIds}
         onAdd={() => setPicking("assessor")}
         busy={busy}
         disabled={!courseId}
-        hint="Choose the course above first — the list is drawn from it."
+        hint="Choose a course first."
       />
 
       <ClassRoster
@@ -503,21 +499,17 @@ function ClassForm({ klass, courses, assessors, students, busy, error, onCancel,
         noun="students"
         action="Enroll"
         icon={<StudentsIcon size={18} />}
-        note="Anyone not already enrolled in this course."
         people={students}
         ids={studentIds}
         onChange={setStudentIds}
         onAdd={() => setPicking("student")}
         busy={busy}
         disabled={!courseId}
-        hint="Choose the course above first — the list is drawn from it."
+        hint="Choose a course first."
       />
 
       <div className="admin-field">
         <div className="admin-field__label">Schedule</div>
-        <p className="admin-field__hint">
-          A label for the timetable — shown on the class, not used to open or lock anything.
-        </p>
         <div className="admin-form-grid">
           <AdminField label="Days" value={schedule.days} onChange={setField("days")} placeholder="e.g. MWF" />
           <AdminField label="Time" value={schedule.time} onChange={setField("time")} placeholder="e.g. 09:00–10:00" />
@@ -708,14 +700,7 @@ function ClassesManagement() {
 
   return (
     <div className="admin-main__inner">
-      <PageHeader
-        title="Classes Management"
-        action={
-          <AdminButton onClick={openNew} disabled={status !== "ready"}>
-            New class
-          </AdminButton>
-        }
-      />
+      <PageHeader title="Classes Management" />
 
       <div className="admin-toolbar">
         <SearchField
@@ -725,6 +710,14 @@ function ClassesManagement() {
           label="Search classes"
           hint={`${visible.length} of ${classes.length}`}
         />
+
+        <AdminButton
+          variant="admin-toolbar__action"
+          onClick={openNew}
+          disabled={status !== "ready"}
+        >
+          New class
+        </AdminButton>
 
         {notice ? (
           <p
@@ -742,7 +735,7 @@ function ClassesManagement() {
       </div>
 
       {status === "loading" ? (
-        <div className="admin-state-card">Loading classes…</div>
+        <SkeletonTable rows={6} cols={7} label="Loading classes…" />
       ) : status === "error" ? (
         <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.
@@ -881,7 +874,7 @@ function ClassesManagement() {
 
       {form && form !== "new" && form.loading ? (
         <AdminModal title="Edit class" onClose={() => setForm(null)}>
-          <p className="admin-empty-note">Loading class…</p>
+          <SkeletonText lines={5} label="Loading class…" />
         </AdminModal>
       ) : null}
 

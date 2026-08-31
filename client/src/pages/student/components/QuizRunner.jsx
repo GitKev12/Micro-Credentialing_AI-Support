@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAssessment, submitAssessment } from "../../../services/assessments";
 import { CheckIcon, LockIcon, QuizIcon } from "./icons";
+import { SkeletonText } from "../../../components/Skeleton";
 
 /**
  * Taking a quiz.
@@ -195,7 +196,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
   };
 
   if (state.status === "loading") {
-    return <p className="student-courses__status">Loading quiz…</p>;
+    return <SkeletonText lines={4} label="Loading quiz…" />;
   }
 
   if (state.status === "locked") {
@@ -245,9 +246,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
             )}
           </p>
           {result.reviewStatus === "pending" ? (
-            <p className="sd-quiz__note">
-              An assessor still reviews this before the badge is released.
-            </p>
+            <p className="sd-quiz__note">Pending assessor review.</p>
           ) : null}
 
           <div className="sd-quiz__retake">

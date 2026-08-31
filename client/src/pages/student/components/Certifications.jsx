@@ -95,10 +95,7 @@ function Certifications({ certifications = [] }) {
       </header>
 
       {certifications.length === 0 ? (
-        <EmptyState title="No credentials yet">
-          Complete a course assessment and your assessor will release its
-          micro-credential here.
-        </EmptyState>
+        <EmptyState title="No credentials yet" />
       ) : (
         <ul className="sd-cert__list">
           {certifications.map((certification) => (

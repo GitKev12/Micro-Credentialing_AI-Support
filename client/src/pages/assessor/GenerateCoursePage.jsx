@@ -11,6 +11,7 @@ import {
 } from "../../services/assessors";
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
 import { Chip, ScreenHeader } from "./components/ui";
+import { SkeletonText } from "../../components/Skeleton";
 
 /**
  * Generating one course's papers.
@@ -349,7 +350,7 @@ function GenerateCoursePage() {
     run("unpost", async () => {
       const result = await unpostCourseAssessment(assessorId, courseId, paper.id);
       if (result.assessment) {
-        setNotice({ tone: "ok", text: "Unposted. Students can no longer see this paper." });
+        setNotice({ tone: "ok", text: "Unposted. Students can no longer see this assessment." });
         await reload();
       }
       return result;
@@ -367,8 +368,11 @@ function GenerateCoursePage() {
       <>
         <ScreenHeader
           back={{ label: "Generate Assessment", onClick: () => navigate("/assessor/generate") }}
-          title="Loading…"
+          title="Assessment"
         />
+        <div className="assessor-body">
+          <SkeletonText lines={5} label="Loading this course's assessments…" />
+        </div>
       </>
     );
   }
@@ -392,7 +396,7 @@ function GenerateCoursePage() {
               <p className="assessor-meta" style={{ marginTop: "var(--sp-1)" }}>
                 {paper
                   ? `${paper.itemsPerAttempt} questions per student · drawn from a bank of ${paper.bankSize} · pass mark ${paper.passMark}`
-                  : "Nothing written for this paper yet."}
+                  : "Nothing written for this assessment yet."}
               </p>
             </div>
 
@@ -439,11 +443,6 @@ function GenerateCoursePage() {
                 <GenerateIcon size={26} />
               </span>
               <p className="gen-empty__title">No questions yet</p>
-              <p className="assessor-meta">
-                {scope === "final"
-                  ? "The final is drawn from the lesson quizzes — generate those first, then assemble it here."
-                  : "The generator reads this lesson's extracted text, not the PDF. Set the paper up on the right and generate it."}
-              </p>
             </div>
           )}
         </section>
@@ -492,17 +491,10 @@ function GenerateCoursePage() {
                     it is worth saying before the button is pressed rather than
                     after the call comes back empty. */}
                 {lesson && !lesson.hasText ? (
-                  <span className="gen-hint is-warn">
-                    This lesson has no extracted text yet, so there is nothing to generate from.
-                  </span>
+                  <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
                 ) : null}
               </label>
-            ) : (
-              <p className="gen-hint">
-                The final is assembled from the lesson quizzes already written — it costs nothing
-                to generate, and every lesson is represented in it.
-              </p>
-            )}
+            ) : null}
 
             <label className="gen-field">
               <span className="field-label">Questions per student</span>
@@ -514,10 +506,6 @@ function GenerateCoursePage() {
                 value={itemCount}
                 onChange={(event) => setItemCount(event.target.value)}
               />
-              <span className="gen-hint">
-                A bank of about three times this many is written, so no two students sit the same
-                paper.
-              </span>
             </label>
 
             <div className="gen-field">
@@ -547,7 +535,6 @@ function GenerateCoursePage() {
                     value={minutes}
                     onChange={(event) => setMinutes(event.target.value)}
                   />
-                  <span className="gen-hint">Leave the box unticked and set 0 for no time limit.</span>
                 </label>
               )}
             </div>
@@ -558,8 +545,8 @@ function GenerateCoursePage() {
               <>
                 <p className="gen-hint is-warn">
                   {paper
-                    ? "This calls the AI and costs money. The questions below are replaced, and the paper goes back to a draft."
-                    : "This calls the AI and costs money — it reads the whole lesson before writing anything."}
+                    ? "This calls the AI and costs money. The questions below are replaced, and the assessment goes back to a draft."
+                    : "This calls the AI and costs money."}
                 </p>
                 <div className="gen-actions">
                   <button
@@ -598,7 +585,7 @@ function GenerateCoursePage() {
                     disabled={Boolean(busy)}
                     onClick={applySettings}
                   >
-                    {busy === "settings" ? "Applying…" : "Update paper"}
+                    {busy === "settings" ? "Applying…" : "Update assessment"}
                   </button>
                 ) : null}
               </div>
@@ -606,7 +593,7 @@ function GenerateCoursePage() {
 
             {locked ? (
               <p className="gen-hint is-warn">
-                {taken} student{taken === 1 ? " has" : "s have"} already taken this paper, so
+                {taken} student{taken === 1 ? " has" : "s have"} already taken this assessment, so
                 its questions can no longer be changed.
               </p>
             ) : null}
@@ -632,20 +619,12 @@ function GenerateCoursePage() {
                     </button>
                   ))}
                 </div>
-                <p className="gen-hint">
-                  Pick the number of a question whose answer is wrong. It opens on the left.
-                </p>
               </>
             ) : (
-              <p className="gen-hint">Generate the paper first — there is nothing to correct yet.</p>
+              <p className="gen-hint">Nothing to correct yet.</p>
             )}
 
             <div className="gen-divider" />
-
-            <p className="gen-hint">
-              Posting releases this paper to all {students} student{students === 1 ? "" : "s"} in
-              the course. Until then none of them can open it.
-            </p>
 
             <div className="gen-actions">
               {posted ? (

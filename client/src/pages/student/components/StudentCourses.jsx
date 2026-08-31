@@ -153,9 +153,6 @@ function StudentCourses() {
           <p className="student-courses__empty-title">
             You aren&apos;t enrolled in any courses yet
           </p>
-          <p className="student-courses__empty-text">
-            Your courses will show up here once you&apos;re enrolled.
-          </p>
         </div>
       ) : (
         <ul className="student-courses__list">

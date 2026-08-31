@@ -61,16 +61,6 @@ function createOpenAiClient() {
   return new OpenAI({ apiKey: openAiApiKey });
 }
 
-export function getOpenAiIntegrationStatus() {
-  const { openAiApiKey, openAiModel } = getEnvironmentConfig();
-
-  return {
-    configured: Boolean(openAiApiKey),
-    model: openAiModel,
-    sdk: "openai"
-  };
-}
-
 /**
  * The half of the prompt that never changes.
  *

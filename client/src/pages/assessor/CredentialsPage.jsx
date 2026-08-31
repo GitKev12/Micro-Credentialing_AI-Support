@@ -7,6 +7,7 @@ import {
 } from "../../services/assessors";
 import { CheckIcon } from "./components/icons";
 import { Chip, Metric, Person, ScreenHeader } from "./components/ui";
+import { SkeletonText } from "../../components/Skeleton";
 
 function CredentialsPage() {
   const navigate = useNavigate();
@@ -101,7 +102,11 @@ function CredentialsPage() {
 
         {rows.length === 0 ? (
           <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            {isLoading ? "Loading credentials…" : "No credentials are waiting for approval."}
+            {isLoading ? (
+              <SkeletonText lines={4} label="Loading credentials…" />
+            ) : (
+              "No credentials are waiting for approval."
+            )}
           </p>
         ) : null}
       </div>

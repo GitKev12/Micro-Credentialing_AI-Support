@@ -299,7 +299,7 @@ const GENERATION_REASONS = {
     "The final is drawn from the lesson quizzes, so generate at least one lesson quiz first.",
   "no-lesson-items": "The lesson quizzes hold no usable questions for a final to draw from.",
   "bank-too-small":
-    "The lesson quizzes together hold fewer questions than the final asks for. Generate more lesson quizzes, or ask for a shorter paper.",
+    "The lesson quizzes together hold fewer questions than the final asks for. Generate more lesson quizzes, or ask for a shorter assessment.",
   "module-not-found": "That lesson no longer exists.",
   "generation-failed": "The generator could not be reached. Try again shortly.",
   "database-not-connected": "The database is not connected."
@@ -342,7 +342,7 @@ export async function generateCourseAssessment(request, response) {
     const taken = (await submissionCounts([existing._id])).get(asId(existing._id)) ?? 0;
     if (taken > 0) {
       return response.status(409).json({
-        message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this paper, so its questions can no longer be rewritten.`,
+        message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this assessment, so its questions can no longer be rewritten.`,
         assessmentId: asId(existing._id)
       });
     }
@@ -372,7 +372,7 @@ export async function generateCourseAssessment(request, response) {
       GENERATION_REASONS[result.reason] ??
       (result.status === "rejected"
         ? `The generated questions did not pass validation: ${(result.problems ?? []).join(" ")}`
-        : "Nothing could be generated for this paper.");
+        : "Nothing could be generated for this assessment.");
 
     return response.status(result.status === "error" ? 503 : 422).json({
       message,
@@ -382,7 +382,7 @@ export async function generateCourseAssessment(request, response) {
 
   const doc = await findCourseAssessment(course, result.assessmentId);
   if (!doc) {
-    return response.status(500).json({ message: "The paper was written but could not be read back." });
+    return response.status(500).json({ message: "The assessment was written but could not be read back." });
   }
 
   return response.json({
@@ -421,7 +421,7 @@ export async function updateCourseAssessment(request, response) {
   const taken = (await submissionCounts([doc._id])).get(asId(doc._id)) ?? 0;
   if (taken > 0) {
     return response.status(409).json({
-      message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this paper, so it can no longer be edited.`
+      message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this assessment, so it can no longer be edited.`
     });
   }
 
@@ -478,7 +478,7 @@ export async function updateCourseAssessment(request, response) {
     const wanted = Math.floor(Number(body.itemsPerAttempt));
     if (!(wanted > 0) || wanted > items.length) {
       return response.status(400).json({
-        message: `A paper has to be between 1 and ${items.length} questions — that is how many the bank holds.`
+        message: `An assessment has to be between 1 and ${items.length} questions — that is how many the bank holds.`
       });
     }
 
@@ -515,7 +515,7 @@ export async function postCourseAssessment(request, response) {
   if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
 
   if ((doc.items ?? []).length === 0) {
-    return response.status(422).json({ message: "This paper has no questions to post." });
+    return response.status(422).json({ message: "This assessment has no questions to post." });
   }
 
   if (assessmentStatus(doc) === "posted") {
@@ -555,7 +555,7 @@ export async function unpostCourseAssessment(request, response) {
   const taken = (await submissionCounts([doc._id])).get(asId(doc._id)) ?? 0;
   if (taken > 0) {
     return response.status(409).json({
-      message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this paper, so it cannot be unposted.`
+      message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this assessment, so it cannot be unposted.`
     });
   }
 

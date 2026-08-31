@@ -1027,6 +1027,10 @@
 
 .assessor-table-wrap {
   overflow-x: auto;
+  /* The same brand keyline the admin console puts round its tables, off the
+     same token: maroon in the light theme, navy in the dark one. Both consoles
+     mark a table the same way, so a list reads as a list on either side. */
+  border: 1px solid var(--brand);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-card);
@@ -1567,6 +1571,8 @@
    the full-width tables elsewhere set theirs at 68rem. */
 .card-table {
   overflow-x: auto;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-md);
 }
 
 .card-table .assessor-table {

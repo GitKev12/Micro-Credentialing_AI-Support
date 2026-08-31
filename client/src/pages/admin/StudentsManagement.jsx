@@ -19,6 +19,7 @@ import {
   SearchField,
   StatTile
 } from "./components/ui";
+import { SkeletonDetail, SkeletonTable } from "../../components/Skeleton";
 
 function formatDate(value) {
   if (!value) return null;
@@ -197,7 +198,6 @@ function StudentForm({ student, busy, error, onCancel, onSave }) {
         value={email}
         onChange={setEmail}
         required
-        hint="Also how they sign in."
       />
       <AdminField
         label="Student number"
@@ -213,7 +213,7 @@ function StudentForm({ student, busy, error, onCancel, onSave }) {
         value={password}
         onChange={setPassword}
         autoComplete="new-password"
-        hint={`Leave blank to keep their current password. Otherwise at least ${MIN_PASSWORD_LENGTH} characters.`}
+        placeholder="Leave blank to keep the current one"
       />
     </AdminModal>
   );
@@ -399,7 +399,7 @@ function StudentsManagement() {
         <BackLink onClick={() => setSelected(null)}>Students Management</BackLink>
 
         {detailStatus === "loading" ? (
-          <p className="admin-empty-note">Loading student…</p>
+          <SkeletonDetail label="Loading student…" />
         ) : detailStatus === "error" ? (
           <p className="admin-empty-note">Couldn&apos;t load this student.</p>
         ) : (
@@ -485,9 +485,6 @@ function StudentsManagement() {
               <section className="admin-table-card">
                 <div className="admin-table-head">
                   <h2 className="admin-card__title">Enrolled Courses</h2>
-                  <p className="admin-empty-note">
-                    Set on Classes Management — a student is enrolled by being added to a class.
-                  </p>
                 </div>
 
                 <table className="admin-table">
@@ -536,7 +533,7 @@ function StudentsManagement() {
                     {rows.length === 0 ? (
                       <tr className="admin-table__empty">
                         <td colSpan={5}>
-                          Not enrolled in any course yet — add this student to a class.
+                          Not enrolled in any course yet.
                         </td>
                       </tr>
                     ) : null}
@@ -608,7 +605,7 @@ function StudentsManagement() {
       </div>
 
       {status === "loading" ? (
-        <div className="admin-state-card">Loading students…</div>
+        <SkeletonTable rows={6} cols={7} label="Loading students…" />
       ) : status === "error" ? (
         <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.

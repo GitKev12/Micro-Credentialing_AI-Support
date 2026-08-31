@@ -75,15 +75,6 @@ export function BandChip({ band, size = 13 }) {
 }
 
 /** Value + unit, split so the "%" stays quiet next to the number. */
-export function Score({ value, className }) {
-  return (
-    <span className={className}>
-      {toScore(value)}
-      <small>%</small>
-    </span>
-  );
-}
-
 export function StatTile({ icon, label, value, unit, note }) {
   return (
     <li className="sd-tile">
@@ -105,7 +96,7 @@ export function EmptyState({ image, title, children }) {
     <div className="sd-empty">
       {image ? <img className="sd-empty__img" src={image} alt="" aria-hidden="true" /> : null}
       <p className="sd-empty__title">{title}</p>
-      <p className="sd-empty__text">{children}</p>
+      {children ? <p className="sd-empty__text">{children}</p> : null}
     </div>
   );
 }

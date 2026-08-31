@@ -144,9 +144,7 @@ function Badges({ badges = [] }) {
       </header>
 
       {groups.length === 0 ? (
-        <p className="sd-sub">
-          Your badges appear here once you are enrolled in a course with lessons.
-        </p>
+        <p className="sd-sub">No badges yet.</p>
       ) : selected ? (
         <>
           <div className="sd-breadcrumb sd-badge-back">

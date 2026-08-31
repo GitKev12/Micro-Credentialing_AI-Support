@@ -58,10 +58,7 @@ function SkillGapAnalysis({ skills = [] }) {
     return (
       <section className="sd-card">
         <h2 className="sd-h3">Skill gap analysis</h2>
-        <p className="sd-sub">
-          No topic scores for this course yet. They appear here once you have taken the
-          final exam, which is what measures every lesson at once.
-        </p>
+        <p className="sd-sub">No topic scores for this course yet.</p>
       </section>
     );
   }

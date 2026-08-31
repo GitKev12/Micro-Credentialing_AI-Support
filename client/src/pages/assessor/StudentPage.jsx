@@ -5,6 +5,7 @@ import { certificateFileUrl } from "../../services/achievements";
 import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
 import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
 import { Chip, ScreenHeader } from "./components/ui";
+import { SkeletonDetail } from "../../components/Skeleton";
 
 /** The server's own pass ratio, used until a run reports its own threshold. */
 const PASS_MARK = 60;
@@ -183,14 +184,16 @@ function StudentPage() {
         <ScreenHeader
           back={{ label: "Students", onClick: () => navigate(`/assessor/classes/${classId}`) }}
           eyebrow="Student"
-          title={loadError ? "Student not found" : "Loading student…"}
+          title={loadError ? "Student not found" : "Student"}
         />
         <div className="assessor-body">
-          <p className="assessor-meta">
-            {loadError
-              ? "This student could not be loaded for this class."
-              : "Fetching module progress and credentials…"}
-          </p>
+          {loadError ? (
+            <p className="assessor-meta">
+              This student could not be loaded for this class.
+            </p>
+          ) : (
+            <SkeletonDetail label="Fetching module progress and credentials…" />
+          )}
         </div>
       </>
     );

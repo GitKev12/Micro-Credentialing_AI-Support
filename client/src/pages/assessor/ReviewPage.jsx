@@ -7,6 +7,7 @@ import {
 } from "../../services/assessors";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from "./components/icons";
 import { Chip, ScreenHeader, Segmented } from "./components/ui";
+import { SkeletonText } from "../../components/Skeleton";
 
 const LAYOUTS = [
   { key: "focus", label: "Focus" },
@@ -164,10 +165,10 @@ function ReviewPage() {
         <ScreenHeader
           back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
           eyebrow="Review"
-          title="Loading submission…"
+          title="Submission"
         />
         <div className="assessor-body">
-          <p className="assessor-meta">Fetching answers and AI grading…</p>
+          <SkeletonText lines={5} label="Fetching answers and AI grading…" />
         </div>
       </>
     );
@@ -298,7 +299,7 @@ function ReviewPage() {
     ) : (
       <div className="ai-note ai-note--manual">
         <span className="ai-note__tag ai-note__tag--manual">Manual</span>
-        <span className="ai-note__body">No AI note for this item — compare the answer with the key and mark it yourself.</span>
+        <span className="ai-note__body">No AI note for this item.</span>
       </div>
     );
 

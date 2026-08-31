@@ -84,7 +84,7 @@ export async function generateCourseAssessment(assessorId, courseId, body) {
     const { data } = await api.post(`${assessmentsPath(assessorId, courseId)}/generate`, body);
     return { assessment: data?.assessment ?? null, replaced: Boolean(data?.replaced) };
   } catch (error) {
-    return { error: errorMessage(error, "This paper could not be generated.") };
+    return { error: errorMessage(error, "This assessment could not be generated.") };
   }
 }
 
@@ -115,7 +115,7 @@ export async function postCourseAssessment(assessorId, courseId, assessmentId) {
     );
     return { assessment: data?.assessment ?? null };
   } catch (error) {
-    return { error: errorMessage(error, "This paper could not be posted.") };
+    return { error: errorMessage(error, "This assessment could not be posted.") };
   }
 }
 
@@ -127,7 +127,7 @@ export async function unpostCourseAssessment(assessorId, courseId, assessmentId)
     );
     return { assessment: data?.assessment ?? null };
   } catch (error) {
-    return { error: errorMessage(error, "This paper could not be unposted.") };
+    return { error: errorMessage(error, "This assessment could not be unposted.") };
   }
 }
 
@@ -168,17 +168,3 @@ export async function issueCredential(assessorId, submissionId) {
   return data;
 }
 
-/** "2 hours ago" style label for a submission timestamp. */
-export function timeAgo(iso) {
-  if (!iso) return "recently";
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}

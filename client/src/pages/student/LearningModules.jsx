@@ -18,6 +18,7 @@ import LessonNav from "./components/LessonNav";
 import QuizRunner from "./components/QuizRunner";
 import BadgeToast from "./components/BadgeToast";
 import { LockIcon, QuizIcon } from "./components/icons";
+import { SkeletonText } from "../../components/Skeleton";
 
 // Breathing room left above a section heading when jumping to it.
 const SECTION_SCROLL_MARGIN = 12;
@@ -570,7 +571,7 @@ function LearningModules() {
           {/* Only the list scrolls — the progress block and heading stay put. */}
           <div className="modules-layout__scroll">
             {isLoading ? (
-              <p className="student-courses__status">Loading lessons…</p>
+              <SkeletonText lines={5} label="Loading lessons…" />
             ) : modules.length === 0 ? (
               <p className="student-courses__status">
                 No lessons have been uploaded for this course yet.
@@ -649,9 +650,7 @@ function LearningModules() {
         <div className="modules-layout__main">
           {!selected ? (
             <div className="module-viewer module-viewer--empty">
-              <p className="student-courses__status">
-                Select a lesson or assessment on the left to open it here.
-              </p>
+              <p className="student-courses__status">Select a lesson or assessment.</p>
             </div>
           ) : selected.type === "lesson" ? (
             <div className="module-viewer">
@@ -696,10 +695,7 @@ function LearningModules() {
                     </button>
                   </div>
                 ) : lessonText && !lessonText.hasText ? (
-                  <p className="student-courses__status">
-                    This module looks like a scanned document — it has no
-                    embedded text to extract.
-                  </p>
+                  <p className="student-courses__status">No text to extract from this module.</p>
                 ) : lessonText ? (
                   <div className="lesson-reader__content">
                     {lessonText.blocks?.length ? (

@@ -156,13 +156,6 @@ function RawComputation({ course }) {
               </dd>
             </div>
           </dl>
-
-          <p className="sd-raw__note">
-            Overall performance is the exam mark. The weighted score uses W<sub>i</sub>, which is
-            built from correct answers — so a topic answered entirely wrong carries no weight and
-            drops out of it. That is why the two figures differ, and why the one reported above is
-            the exam mark.
-          </p>
         </div>
       ) : null}
     </section>

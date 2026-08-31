@@ -2044,14 +2044,6 @@ body:has(.student-app) {
   color: var(--sd-ink);
 }
 
-.sd-raw__note {
-  margin: var(--sd-4) 0 0;
-  font-size: var(--sd-fs-label);
-  line-height: 1.55;
-  color: var(--sd-muted);
-  text-wrap: pretty;
-}
-
 /* ── Callout ────────────────────────────────────────────── */
 
 .sd-callout {
@@ -3164,24 +3156,6 @@ body:has(.student-app) {
 .sd-quiz__offer-btn:focus-visible {
   outline: 2px solid var(--sd-brand-text);
   outline-offset: 2px;
-}
-
-/* Deliberately a spinner rather than a progress bar: the model gives no
-   progress to report, and a bar that fills at an invented rate would be a
-   promise about how long this takes. */
-.sd-quiz__offer-spinner {
-  width: 26px;
-  height: 26px;
-  border: 2.5px solid var(--sd-border-strong);
-  border-top-color: var(--sd-brand);
-  border-radius: 50%;
-  animation: sd-quiz-spin 0.8s linear infinite;
-}
-
-@keyframes sd-quiz-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .sd-quiz__locked-icon {

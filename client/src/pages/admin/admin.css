@@ -54,8 +54,12 @@
   --text-body: var(--gray-700);
   --text-muted: var(--gray-600);
   /* Readable amber for "nothing here yet" — used by the warning pill and by
-     the bare counts that say the same thing without pill chrome. */
+     the bare counts that say the same thing without pill chrome. --fill and
+     --line are the standing-warning panel: a warm surface of its own, ringed
+     rather than railed, so the amber marks the whole block. */
   --warning-text: #96600a;
+  --warning-fill: #fdf8ef;
+  --warning-line: rgba(150, 96, 10, 0.35);
 
   /* ---- Typography ----
      The storyboards mix Poppins/Rubik/Mulish; we use the project's own
@@ -128,6 +132,11 @@
 
   --teal-700: #1ec8a5;
   --warning-text: #f5bd58;
+  /* A known-good panel colour from this ramp — on a near-black page the fill's
+     only job is to lift the block off it, and the ring and the headline carry
+     the amber. A warm tint here would go muddy against the navy. */
+  --warning-fill: var(--surface-raised);
+  --warning-line: rgba(245, 189, 88, 0.32);
   --shadow-tint: rgba(255, 255, 255, 0.04);
   --shadow-sidebar: 0 0 26px 4px rgba(0, 0, 0, 0.4);
   --shadow-avatar: 0 4px 18px 6px rgba(0, 0, 0, 0.35);
@@ -144,9 +153,7 @@
 }
 
 /* Cards sit on a near-black page — give them a hairline edge. */
-[data-theme="dark"] .admin-app .admin-table-card,
 [data-theme="dark"] .admin-app .admin-card,
-[data-theme="dark"] .admin-app .admin-course-card,
 [data-theme="dark"] .admin-app .admin-tos-card {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -578,21 +585,34 @@
 
 /* ── Button (design-system Button family) ───────────────── */
 
+/* The screen's one primary action.
+
+   Brand red rather than the teal it used to be, and squared to the search
+   field's radius rather than a 999px pill — it stands in the toolbar beside
+   that field now, and a lozenge next to a 12px box read as a control borrowed
+   from another interface. The inset ring it used to carry was the same colour
+   as its own fill, so it only ever showed on the focus state; --shadow-sm
+   alone does the same work. */
 .admin-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 44px;
-  padding: 10px 20px;
+  /* The height centres the label on its own, so the vertical padding was only
+     ever inflating the box; the horizontal was making it wide. Sized under the
+     44px search field it stands beside rather than level with it — the toolbar
+     centres them, and the lighter block keeps the row from reading as two
+     equal slabs. */
+  height: 38px;
+  padding: 0 15px;
   border: none;
-  border-radius: 999px;
-  background: var(--teal-700);
+  border-radius: var(--radius-sm);
+  background: var(--brand);
   color: var(--white);
-  box-shadow: inset 0 0 0 1px var(--teal-700), var(--shadow-sm);
+  box-shadow: var(--shadow-sm);
   font-family: var(--font-alt);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
@@ -616,26 +636,32 @@
 
 .admin-btn--block {
   width: 100%;
-  height: 46px;
+  height: 40px;
   border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 700;
 }
 
 .admin-btn--compact {
-  height: 42px;
-  padding: 0 20px;
+  height: 34px;
+  padding: 0 13px;
   border-radius: var(--radius-xs);
   font-size: 14px;
   font-weight: 700;
 }
 
-/* The button that destroys something. It has to stop reading as the same
-   teal "yes, go ahead" every other primary action here uses, or a confirm
-   dialog is dismissed with the same muscle memory as a save. */
+/* The button that destroys something. It must not read as the same "yes, go
+   ahead" a save does, or a confirm dialog gets dismissed on muscle memory.
+
+   That used to be easy: every primary was teal and this one was maroon. Now
+   the primary is maroon too, so hue can no longer carry the difference and
+   depth does instead — the deep --brand-strong under a --brand keyline, which
+   is the inset-ring idiom the module rows and fields already use. It is a
+   narrower gap than the old teal-against-maroon, and worth revisiting if a
+   deletion is ever confirmed by accident. */
 .admin-btn--danger {
-  background: var(--maroon-700);
-  box-shadow: inset 0 0 0 1px var(--maroon-700), var(--shadow-sm);
+  background: var(--brand-strong);
+  box-shadow: inset 0 0 0 1px var(--brand), var(--shadow-sm);
 }
 
 /* The same pair, but on a detail screen's identity block, pushed to the far
@@ -685,7 +711,7 @@
   padding: 8px 14px;
   background: var(--surface);
   border: 1px solid var(--gray-400);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -777,6 +803,12 @@
 .admin-table-card {
   overflow: hidden;
   background: var(--surface);
+  /* Every list in this console is a table, and the brand keyline is what marks
+     one out as the page's content rather than another panel floating on the
+     sunken page. --brand, not --maroon-700: TSU maroon in the light theme and
+     the navy the dark one uses everywhere else, the same way the stat tiles
+     and the rail follow it. */
+  border: 1px solid var(--brand);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
@@ -840,6 +872,7 @@
 /* Inside a card that already draws the surface and the shadow. */
 .admin-table-card--flush {
   background: transparent;
+  border: 0;
   box-shadow: none;
   border-radius: 0;
 }
@@ -995,6 +1028,12 @@
   color: var(--brand-text);
   font-weight: 600;
   font-size: 13px;
+}
+
+/* A course is not a person: same disc, squared off, so the two kinds of row
+   are told apart before the name beside them is read. */
+.admin-avatar--course {
+  border-radius: var(--radius-xs);
 }
 
 /* ── Back link ──────────────────────────────────────────── */
@@ -1353,6 +1392,14 @@
   margin-bottom: 18px;
 }
 
+/* The screen's primary action, at the end of the row. margin-left:auto rather
+   than an order or a fixed slot, so it lands in the same corner whether the
+   toolbar carries a filter and a search or only a search — and it is pushed
+   past the inline notice that rides this row rather than being shunted by it. */
+.admin-toolbar__action {
+  margin-left: auto;
+}
+
 .admin-toolbar__filter {
   width: 260px;
   flex-shrink: 0;
@@ -1623,15 +1670,22 @@
   background: var(--surface-sunken);
 }
 
-/* Ink, not brand. These are counts that mean neither good nor bad; the brand
-   colour is reserved for actions, so spending it here made a figure look like
-   a link. */
+/* The figure takes the brand colour; the tile keeps the sunken hollow it has
+   always had. This note used to argue the other way — that a count means
+   neither good nor bad, and that brand type would read as a link — but the
+   figure is the thing each of these tiles exists to report, and it is not a
+   control, so nothing here is actually offered to be clicked.
+
+   --brand-text rather than --brand: the two are the same maroon in the light
+   theme and diverge in the dark one, where --brand is a fill navy that would
+   all but vanish as type on the sunken tile. Measured on the tile it sits on,
+   this is 8.5:1 in light and 11.1:1 in dark. */
 .admin-stat__value {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 34px;
   line-height: 1;
-  color: var(--admin-ink);
+  color: var(--brand-text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1652,36 +1706,6 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
-}
-
-/* ── Progress bars ──────────────────────────────────────── */
-
-.admin-progress-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.admin-progress__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 5px;
-  font-size: 13px;
-  color: var(--text-body);
-}
-
-.admin-progress__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-progress__pct {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }
 
 .admin-progress__track {
@@ -1711,196 +1735,6 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-/* ── Course cards (Course Management list) ──────────────── */
-
-.admin-course-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 18px;
-}
-
-.admin-course-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px;
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
-}
-
-.admin-course-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card-hover);
-}
-
-/* The control is the title button, but the ring belongs on the card, whose
-   bounds are the button's actual hit area. Keyed to :focus-visible so a
-   mouse click doesn't paint a keyboard affordance.
-
-   Both rules are inside @supports together: without :has() the card cannot
-   take the ring, so the button must keep the UA outline it would otherwise
-   have given up — never trade a working focus indicator for none. */
-@supports selector(:has(*)) {
-  .admin-course-card:has(.admin-course-card__open:focus-visible) {
-    box-shadow: var(--ring-focus), var(--shadow-card-hover);
-  }
-
-  .admin-course-card__open:focus-visible {
-    outline: none;
-  }
-}
-
-.admin-course-card__top {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-/* Identity mark in place of the old full-width maroon band: same brand
-   presence, a fraction of the area, and it differs per course. */
-.admin-course-card__mark {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-xs);
-  background: var(--brand-soft);
-  color: var(--brand-text);
-  font-family: var(--font-label);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.admin-course-card__ident {
-  flex: 1;
-  min-width: 0;
-}
-
-.admin-course-card__code {
-  margin: 0 0 2px;
-  font-family: var(--font-label);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.admin-course-card__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--admin-ink);
-}
-
-.admin-course-card__open {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-/* Stretches the title's hit area over the whole card without nesting the
-   card's content inside the button. */
-.admin-course-card__open::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius-md);
-}
-
-/* When the course runs, under its title. Same register as the code above
-   it — this is identity, not a statistic, so it stays out of the footer where
-   the counts live. */
-.admin-course-card__run {
-  margin: 4px 0 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.admin-course-card__desc {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin: 0;
-  font-weight: 300;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text-muted);
-}
-
-/* Was italic at 0.7 opacity, which flattened to 2.79:1 on the light surface
-   and 3.71:1 on the dark one — both under the 4.5 floor, on the line shown
-   by every course that has no description. Full-strength muted measures
-   4.97:1 and still reads as secondary; the italic carries the rest. */
-.admin-course-card__desc.is-empty {
-  font-style: italic;
-}
-
-.admin-course-card__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  /* Pins the footer to the bottom so a row of cards lines up even when one
-     has no description — the old card reserved 44px of blank space for a
-     description that might not exist. */
-  margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px solid var(--gray-150);
-}
-
-.admin-course-card__stats {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-/* The count is the figure; brand colour belongs to the action, not to a
-   number that means neither good nor bad. */
-.admin-course-card__stat strong {
-  color: var(--admin-ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.admin-course-card__sep {
-  color: var(--gray-400);
-}
-
-.admin-course-card__manage {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  color: var(--brand-text);
-  font-weight: 500;
-  font-size: 13px;
-}
-
-.admin-course-card__manage svg {
-  transition: transform 0.18s ease;
-}
-
-.admin-course-card:hover .admin-course-card__manage svg {
-  transform: translateX(2px);
 }
 
 /* ── Module rows (Course detail) ────────────────────────── */
@@ -2028,37 +1862,40 @@
 }
 
 /* Standing condition rather than the result of an action — a course nobody
-   assesses stays wrong until someone assigns one, so it is bordered rather
-   than tinted: it is not going to be dismissed by the next successful write. */
+   assesses stays wrong until someone assigns one, so it is not going to be
+   dismissed by the next successful write.
+
+   It used to say that with a 3px rail down its left edge, and two things were
+   wrong with that. The fill was --surface-sunken, which is the exact colour
+   .admin-app paints the page, so there was no block on the screen at all —
+   only a bar hanging in the margin with nothing behind it. And the bar itself
+   followed the card's 12px radius, so it curled away from the text at both
+   ends rather than running beside it.
+
+   Now the amber rings the whole shape instead of leaning on one edge of it,
+   over a warm surface that is a panel in its own right. That also keeps the
+   family legible at a glance: --ok and --error are tinted blocks, which is
+   how this console says "that just happened"; --note and --warn are outlined
+   ones, which is how it says "this is still true". */
 .admin-notice--warn {
-  border-left: 3px solid var(--warning-text);
-  background: var(--surface-sunken);
+  padding: 12px 16px;
+  background: var(--warning-fill);
   color: var(--text-body);
+  box-shadow: inset 0 0 0 1px var(--warning-line);
+  line-height: 1.55;
 }
 
+/* The count that opens the sentence carries the colour. The console already
+   says "look here" with an amber figure and no pill chrome — see
+   .admin-count--none/--warn — and this is the same signal in a sentence. */
 .admin-notice--warn strong {
   color: var(--warning-text);
+  font-weight: 600;
 }
-
-/* The add panel stacks under the module list instead of sitting in a grid,
-   so it carries the gap itself. Kept to its own modifier — a rule on adjacent
-   cards would also push the second column of every `admin-grid-2` down. */
-.admin-card--stacked {
-  margin-top: 18px;
-}
-
 /* ── Upload panel ───────────────────────────────────────── */
 
 .admin-field {
   margin-bottom: 14px;
-}
-
-/* The two date fields add up to something the admin did not type, so the
-   form says it back to them before they save. */
-.admin-field__hint--run {
-  margin-top: -6px;
-  margin-bottom: 14px;
-  font-weight: 500;
 }
 
 .admin-field__label {
@@ -3198,20 +3035,286 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-
-  .admin-course-card,
   .admin-nav-item,
   .admin-btn {
     transition: none;
   }
+}
 
-  .admin-course-card:hover {
-    transform: none;
+/* ── Course-run picker ──────────────────────────────────────
+   A trigger shaped like every other field, with the calendar dropping out of
+   it. Six weeks of cells standing permanently open is most of a modal spent on
+   one field, so the grid is behind the trigger and the field is one line until
+   it is wanted. The trigger and the panel borrow AdminSelect's shape and its
+   opening animation, so the console has one dropdown, not two.
+   ───────────────────────────────────────────────────────── */
+
+.admin-runpick {
+  position: relative;
+}
+
+.admin-runpick__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  color: var(--admin-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-runpick__trigger:hover:not(:disabled) {
+  border-color: var(--gray-600);
+}
+
+.admin-runpick__trigger:focus-visible {
+  outline: none;
+  border-color: var(--action);
+  box-shadow: var(--ring-focus);
+}
+
+.admin-runpick.is-open .admin-runpick__trigger {
+  border-color: var(--action);
+}
+
+.admin-runpick__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.admin-runpick__icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--brand-text);
+}
+
+.admin-runpick__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-runpick__value.is-placeholder {
+  color: var(--text-muted);
+}
+
+.admin-runpick__caret {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--gray-600);
+  transition: transform 0.18s ease;
+}
+
+.admin-runpick.is-open .admin-runpick__caret {
+  transform: rotate(180deg);
+}
+
+.admin-runpick__panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  /* Wide enough that seven columns and a two-figure day never crowd, and
+     narrow enough to sit inside the form it drops into. */
+  width: min(320px, calc(100 * var(--vw) - 48px));
+  padding: 12px 12px 4px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-card-hover);
+  animation: admin-select-in 0.14s ease both;
+}
+
+.admin-runpick__panel[data-placement="top"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: admin-select-in-up;
+}
+
+.admin-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.admin-cal__month {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--admin-ink);
+}
+
+.admin-cal__page {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--brand-text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-cal__page:hover {
+  background: var(--brand-hover);
+}
+
+.admin-cal__page:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.admin-cal__weekdays,
+.admin-cal__week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.admin-cal__weekdays {
+  margin-bottom: 4px;
+}
+
+.admin-cal__weekdays span {
+  padding-bottom: 4px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* The cell carries the band and the button carries the day, so the highlight
+   runs edge to edge with no gap between one day and the next. */
+.admin-cal__cell {
+  position: relative;
+  padding: 1px 0;
+}
+
+.admin-cal__day {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-body);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.admin-cal__day:hover:not(.is-start):not(.is-end) {
+  background: var(--brand-hover);
+}
+
+.admin-cal__day:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+/* Days either side of the month are kept rather than blanked — a ragged grid
+   is harder to track along than a quiet one, and a run often crosses the edge. */
+.admin-cal__day.is-outside {
+  color: var(--gray-400);
+}
+
+/* Today is marked under the figure, so a day can be today and an end of the
+   run at once without the two marks fighting. */
+.admin-cal__day.is-today::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--brand-text);
+}
+
+.admin-cal__day.is-between {
+  background: var(--brand-soft);
+  border-radius: 0;
+  color: var(--brand-text);
+}
+
+.admin-cal__day.is-start,
+.admin-cal__day.is-end {
+  background: var(--brand);
+  color: var(--white);
+  font-weight: 600;
+}
+
+.admin-cal__day.is-start.is-today::after,
+.admin-cal__day.is-end.is-today::after {
+  background: var(--white);
+}
+
+/* Square the inner edge of each cap so it meets the band it starts, and keep
+   the outer edge round. A single day that is both ends stays fully rounded. */
+.admin-cal__day.is-start:not(.is-end) {
+  border-radius: var(--radius-xs) 0 0 var(--radius-xs);
+}
+
+.admin-cal__day.is-end:not(.is-start) {
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+
+/* Not yet clicked — the end the pointer is over. Drawn as an outline of the
+   committed cap so the length can be read before it is committed. */
+.admin-cal__day.is-end.is-pending {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
+.admin-cal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  margin-top: 8px;
+  padding: 6px 2px;
+  border-top: 1px solid var(--gray-150);
+}
+
+.admin-cal__prompt {
+  font-family: var(--font-label);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-runpick__panel {
+    animation: none;
   }
 
-  .admin-course-card__manage svg,
-  .admin-course-card:hover .admin-course-card__manage svg {
+  .admin-cal__day,
+  .admin-cal__page,
+  .admin-runpick__caret {
     transition: none;
-    transform: none;
   }
 }

@@ -111,7 +111,7 @@ describe("ClassesPage", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "Papers to Post: 3. Generate Assessment."
+        name: "Assessments to Post: 3. Generate Assessment."
       })
     ).toBeInTheDocument();
   });

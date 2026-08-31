@@ -5,6 +5,7 @@ import {
 } from "../../services/admin";
 import { TrashIcon } from "./components/icons";
 import { AdminButton, AdminSelect, PageHeader } from "./components/ui";
+import { SkeletonTable } from "../../components/Skeleton";
 
 /**
  * A blueprint is identified by its course, but the collection allows a
@@ -151,7 +152,8 @@ function TableOfSpecification() {
   if (status === "loading") {
     return (
       <div className="admin-main__inner admin-main__inner--wide">
-        <PageHeader title="Table of Specification" subtitle="Loading blueprint…" />
+        <PageHeader title="Table of Specification" />
+        <SkeletonTable rows={5} cols={8} label="Loading blueprint…" />
       </div>
     );
   }
@@ -169,14 +171,7 @@ function TableOfSpecification() {
 
   return (
     <div className="admin-main__inner admin-main__inner--wide">
-      <PageHeader
-        title="Table of Specification"
-        action={
-          <AdminButton onClick={save} disabled={saveState === "saving" || !selected?.courseId}>
-            {saveLabel}
-          </AdminButton>
-        }
-      />
+      <PageHeader title="Table of Specification" />
 
       {/* Each course keeps its own blueprint, so the table below shows one at
           a time and the save applies only to the blueprint chosen here.
@@ -211,6 +206,14 @@ function TableOfSpecification() {
         <span className="admin-tos-count">
           {blueprints.length} {blueprints.length === 1 ? "blueprint" : "blueprints"}
         </span>
+
+        <AdminButton
+          variant="admin-toolbar__action"
+          onClick={save}
+          disabled={saveState === "saving" || !selected?.courseId}
+        >
+          {saveLabel}
+        </AdminButton>
       </div>
 
       <div className="admin-tos-card">
@@ -326,11 +329,7 @@ function TableOfSpecification() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={LEVELS.length + 5} style={{ textAlign: "center", padding: 24 }}>
-                    <span className="admin-empty-note">
-                      No blueprint saved yet. Build one per course from the official spreadsheet
-                      with
-                      <code> node scripts/import-tos.mjs &lt;file.xlsx&gt; --all-courses --write</code>.
-                    </span>
+                    <span className="admin-empty-note">No blueprint saved yet.</span>
                   </td>
                 </tr>
               ) : (
@@ -355,11 +354,9 @@ function TableOfSpecification() {
           <button type="button" className="admin-ghost-btn" onClick={addRow}>
             <span aria-hidden="true">+</span> Add Course Row
           </button>
-          <span className="admin-tos-hint">
-            {saveState === "error"
-              ? "Couldn't save — check the API and try again."
-              : "Click any cell to edit — totals update automatically"}
-          </span>
+          {saveState === "error" ? (
+            <span className="admin-tos-hint">Couldn't save — check the API and try again.</span>
+          ) : null}
         </div>
       </div>
     </div>

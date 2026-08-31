@@ -1487,3 +1487,134 @@ ol.lesson-reader__list li::marker {
   color: #2e9e5b;
   font-weight: 600;
 }
+
+/* ── Skeletons ─────────────────────────────────────────────
+   What the app shows while it waits: the shape of the thing that is coming,
+   rather than a spinner that could be standing in for anything.
+
+   Two tokens do all the colouring, set once per theme below, so a skeleton
+   dropped into any of the three consoles is already the right weight for the
+   surface it lands on.
+   ───────────────────────────────────────────────────────── */
+
+:root {
+  --skel-bg: rgba(15, 23, 42, 0.09);
+  --skel-shine: rgba(255, 255, 255, 0.62);
+}
+
+[data-theme="dark"] {
+  --skel-bg: rgba(255, 255, 255, 0.09);
+  /* A white sweep at 0.62 blows out on a near-black surface; the highlight
+     only has to be a step above the base, not a flash across it. */
+  --skel-shine: rgba(255, 255, 255, 0.11);
+}
+
+.skel {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--skel-bg);
+}
+
+.skel--circle {
+  border-radius: 50%;
+}
+
+/* The sweep is a child rather than an animated background-position: a gradient
+   moving across the element's own background stretches with the element, so a
+   wide bar and a narrow one would shimmer at different speeds. */
+.skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, var(--skel-shine) 50%, transparent 100%);
+  animation: skel-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes skel-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.skel-text {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* A mark beside a name, which is what the first cell of every list here is. */
+.skel-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+}
+
+.skel-person__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.skel-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.skel-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.skel-detail__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.skel-detail__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* A sweep travelling across the screen is the part that causes trouble. The
+   shapes stay, and breathe in place instead, so the page still reads as busy
+   to someone who cannot take the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .skel::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .skel {
+    animation: skel-pulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes skel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* A skeleton standing on its own as a screen's loading state, rather than as
+   part of a larger one. */
+.skel-block {
+  display: block;
+  padding: 4px 0;
+}

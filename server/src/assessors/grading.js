@@ -15,10 +15,3 @@ export const isReleased = (result) => result?.review?.status === "released";
 /** Whether the AI managed to grade this paper at all. */
 export const aiStatusOf = (result) => result?.aiGrading?.status ?? "unavailable";
 
-/** Items the AI would not commit to and the assessor has not yet ruled on. */
-export function openFlags(result) {
-  const overrides = result?.review?.overrides ?? {};
-  return (result?.aiGrading?.items ?? []).filter(
-    (item) => item.verdict === "flagged" && !overrides[String(item.itemId)]
-  ).length;
-}

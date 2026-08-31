@@ -2,13 +2,14 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges, passedFromResults, summarizeBadges } from "../badges/badges.service.js";
 import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
+import { isPosted } from "../assessments/assessments.format.js";
 import {
   assembleFinalAssessment,
   ensureAssessmentIndexes,
   generateModuleAssessment,
   getGenerationStatus
 } from "../assessments/assessments.generate.js";
-import { aiStatusOf, isReleased, openFlags } from "../assessors/grading.js";
+import { isReleased } from "../assessors/grading.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -28,6 +29,8 @@ import { sortLessons } from "../lib/lessonOrder.js";
  *   student.progress     <- ModuleProgress completions vs. modules per course
  *   student.activity     <- lessons, badges and last-seen, folded per student
  *   assessor.students    <- assigned_students on the Assessor document
+ *   assessor.papers      <- Assessments posted to their courses, against the
+ *                           lessons those courses hold
  *   assessor.workload    <- StudentResults in the courses they are assigned to
  */
 const ADMIN_COLLECTION = "Admin";
@@ -570,63 +573,196 @@ export async function getStudent(request, response) {
 
 /* ─────────────────────────── Assessors ─────────────────────────── */
 
+/**
+ * What an assessor's console can do, and therefore what this screen reports.
+ *
+ * Their console reports two numbers about itself — papers still to post and
+ * credentials still to issue — and those are the two this screen carries:
+ *
+ *   Papers      — a course owes one quiz per lesson plus one final, and none of
+ *                 them reaches a student until the assessor posts it. This is
+ *                 the bulk of their console and the half this screen used to be
+ *                 silent about: an assessor who has posted nothing leaves a
+ *                 class with nothing to take, and no other screen says so.
+ *   Credentials — a released pass leaves a credential still to issue. That is
+ *                 its own section of their console, and the last step a student
+ *                 is actually waiting on.
+ *
+ * Three counts have gone, all of them belonging to a console that marked
+ * papers with a model and worked them off a queue:
+ *
+ *   flagged — "needs a decision", the items the AI would not commit to a
+ *     verdict on. Marking is an exact key comparison now (see
+ *     `gradeSubmission`), which returns only correct or incorrect, so nothing
+ *     has written a flagged verdict since and the figure could only read zero.
+ *   toGrade, and the age of the oldest paper under it — the unreleased
+ *     backlog. The assessor's console has no grading section to work it from:
+ *     their rail is classes, generating and credentials. Reviewing one
+ *     student's paper is still reachable from inside a class roster, and that
+ *     roster counts it there; it is not a figure this screen reports.
+ *   released — how many grades had been put out. A running total of finished
+ *     work, which is a different thing from a screen for spotting work that is
+ *     not moving: it only ever grew, so it read the same whether an assessor
+ *     had stopped last week or was still going. What is left of it here is the
+ *     part somebody is waiting on, the credentials below.
+ *
+ * Marking itself is untouched — releasing a grade still overrides the automatic
+ * mark, and a passing release is what creates the pending credential. It is the
+ * reporting of it that has gone, not the act.
+ */
+function blankCourseTally() {
+  return {
+    papersExpected: 0,
+    papersPosted: 0,
+    papersDraft: 0,
+    credentialsPending: 0,
+    credentialsIssued: 0
+  };
+}
+
 function blankTally() {
   return {
-    toGrade: 0,
-    flagged: 0,
-    released: 0,
-    credentials: 0,
-    oldestWaiting: null,
+    ...blankCourseTally(),
+    // Only the assessor's own totals carry these: the two dates decide
+    // `lastActive`, and no table breaks a date down per course.
+    lastPosted: null,
     lastGraded: null,
     perCourse: new Map()
   };
 }
 
 function courseTally(tally, courseKey) {
-  if (!tally.perCourse.has(courseKey)) {
-    tally.perCourse.set(courseKey, {
-      toGrade: 0,
-      flagged: 0,
-      released: 0,
-      credentials: 0,
-      oldestWaiting: null
-    });
-  }
+  if (!tally.perCourse.has(courseKey)) tally.perCourse.set(courseKey, blankCourseTally());
   return tally.perCourse.get(courseKey);
 }
 
 /**
- * Folds submissions into a tally per assessor.
+ * Papers per course: what it owes, what is posted, and what is written but not.
  *
- * Until now these screens said who an assessor was and what they had been
- * given, and nothing about whether any of it was being done — an assessor with
- * a two-month backlog looked exactly like one who was up to date. The list
- * shows a total per assessor and the detail breaks the same total down per
- * course, so both are folded together in one pass rather than queried per row.
+ * One per lesson plus one final — the same arithmetic the assessor's own
+ * "Generate Assessment" badge does, so the two consoles cannot disagree about
+ * how much a class is still waiting on.
  *
- * A submission counts toward whoever is assigned to its course today.
- * `lastGraded` is the exception: it follows `review.gradedBy`, so an assessor
- * keeps credit for work they did on a course they have since been unassigned
- * from — the question it answers is whether this person is working at all.
+ * Posted lessons are counted as a set rather than added up. Regenerating a
+ * lesson's paper replaces it, and two documents for one lesson must not read as
+ * two papers delivered — that would let a course report more posted than it has
+ * lessons, and `toPost` would reach zero with lessons still uncovered.
  *
- * Kept separate from the query that feeds it so the arithmetic can be
- * exercised without a database. StudentResult stays empty until the first
- * assessments are generated, which would otherwise leave every number on these
- * screens unchecked until the day it first mattered.
+ * Kept separate from the query that feeds it so the arithmetic can be exercised
+ * without a database, the same way `tallyWorkload` and `tallyActivity` are.
  */
-export function tallyWorkload(assessors, results) {
+export function papersByCourse(assessments, lessonCounts) {
+  const papers = new Map();
+
+  const rowFor = (courseKey) => {
+    if (!papers.has(courseKey)) {
+      papers.set(courseKey, {
+        expected: (lessonCounts.get(courseKey) ?? 0) + 1,
+        postedLessons: new Set(),
+        finalPosted: false,
+        draft: 0,
+        lastPosted: null
+      });
+    }
+    return papers.get(courseKey);
+  };
+
+  // Every course owes papers whether or not one has ever been written for it,
+  // and the course with none written is the one worth reporting.
+  lessonCounts.forEach((_count, courseKey) => rowFor(courseKey));
+
+  for (const doc of assessments) {
+    const row = rowFor(asId(doc.courseId));
+
+    // `isPosted` rather than a status check of our own: a document written
+    // before releasing existed carries no status at all, and those were live
+    // from the moment they were generated. It is what the student side reads,
+    // so it is what decides here.
+    if (!isPosted(doc)) {
+      row.draft += 1;
+      continue;
+    }
+
+    if (doc.scope === "final" || !doc.moduleId) row.finalPosted = true;
+    else row.postedLessons.add(asId(doc.moduleId));
+
+    const postedAt = toDate(doc.postedAt);
+    if (postedAt && (!row.lastPosted || postedAt > row.lastPosted)) row.lastPosted = postedAt;
+  }
+
+  papers.forEach((row) => {
+    row.posted = row.postedLessons.size + (row.finalPosted ? 1 : 0);
+    row.toPost = Math.max(0, row.expected - row.posted);
+  });
+
+  return papers;
+}
+
+/**
+ * Folds papers and submissions into a tally per assessor.
+ *
+ * The list shows a total per assessor and the detail breaks the same total down
+ * per course, so both are folded together in one pass rather than queried per
+ * row.
+ *
+ * Papers and submissions both count toward whoever is assigned to the course
+ * today. `lastGraded` is the exception: it follows `review.gradedBy`, so an
+ * assessor keeps credit for work they did on a course they have since been
+ * unassigned from — the question it answers is whether this person is working
+ * at all, not what their current classes look like.
+ *
+ * Kept separate from the queries that feed it so the arithmetic can be
+ * exercised without a database. StudentResult stays empty until the first paper
+ * is posted and somebody takes it, which would otherwise leave every number on
+ * these screens unchecked until the day it first mattered.
+ */
+export function tallyWorkload(assessors, sources) {
+  const { results = [], papers = new Map() } = sources ?? {};
+
   const tallies = new Map(assessors.map((assessor) => [asId(assessor._id), blankTally()]));
 
   const assessorsByCourse = new Map();
   assessors.forEach((assessor) => {
-    (assessor.assigned_courses ?? []).forEach((courseId) => {
-      const key = asId(courseId);
-      if (!assessorsByCourse.has(key)) assessorsByCourse.set(key, []);
-      assessorsByCourse.get(key).push(asId(assessor._id));
+    // Deduped: a course listed twice on one assessor is an assignment mistake,
+    // not two classes, and must not double every figure they carry.
+    new Set((assessor.assigned_courses ?? []).map(asId)).forEach((courseKey) => {
+      if (!assessorsByCourse.has(courseKey)) assessorsByCourse.set(courseKey, []);
+      assessorsByCourse.get(courseKey).push(asId(assessor._id));
     });
   });
 
+  // ── Papers owed and posted ──
+  for (const [courseKey, owners] of assessorsByCourse) {
+    const paper = papers.get(courseKey);
+    if (!paper) continue;
+
+    for (const assessorId of owners) {
+      const tally = tallies.get(assessorId);
+      if (!tally) continue;
+      const perCourse = courseTally(tally, courseKey);
+
+      perCourse.papersExpected = paper.expected;
+      perCourse.papersPosted = paper.posted;
+      perCourse.papersDraft = paper.draft;
+
+      tally.papersExpected += paper.expected;
+      tally.papersPosted += paper.posted;
+      tally.papersDraft += paper.draft;
+
+      if (paper.lastPosted && (!tally.lastPosted || paper.lastPosted > tally.lastPosted)) {
+        tally.lastPosted = paper.lastPosted;
+      }
+    }
+  }
+
+  // ── Submissions ──
   for (const result of results) {
+    // A retired attempt is history, not work. A lesson quiz may be retaken
+    // without limit, so counting every attempt would let one student add to an
+    // assessor's backlog indefinitely — and the assessor's own screens, the
+    // badge wall and the student tally beside this one all drop them already.
+    if (result.superseded === true) continue;
+
     const gradedBy = result.review?.gradedBy ? asId(result.review.gradedBy) : null;
     const gradedAt = toDate(result.review?.gradedAt);
     const grader = gradedBy ? tallies.get(gradedBy) : null;
@@ -638,42 +774,29 @@ export function tallyWorkload(assessors, results) {
     const owners = assessorsByCourse.get(courseKey) ?? [];
     if (owners.length === 0) continue;
 
-    const pending = !isReleased(result);
-    // Counted per paper rather than per question, matching the assessor's own
-    // overview: what an admin is looking at is how many papers need a human.
-    const hasFlags = pending && aiStatusOf(result) === "graded" && openFlags(result) > 0;
-    const submittedAt = toDate(result.submittedAt);
-    const issued = result.credential?.status === "issued";
+    // A submission reaches this screen only through its credential. Neither
+    // the backlog before the grade goes out nor the count of grades that have
+    // is reported here any more, so nothing else about it is read.
+    const released = isReleased(result);
+    const credential = result.credential?.status;
 
     for (const assessorId of owners) {
       const tally = tallies.get(assessorId);
       if (!tally) continue;
       const perCourse = courseTally(tally, courseKey);
 
-      if (pending) {
-        tally.toGrade += 1;
-        perCourse.toGrade += 1;
-
-        if (hasFlags) {
-          tally.flagged += 1;
-          perCourse.flagged += 1;
-        }
-        if (submittedAt) {
-          if (!tally.oldestWaiting || submittedAt < tally.oldestWaiting) {
-            tally.oldestWaiting = submittedAt;
-          }
-          if (!perCourse.oldestWaiting || submittedAt < perCourse.oldestWaiting) {
-            perCourse.oldestWaiting = submittedAt;
-          }
-        }
-      } else {
-        tally.released += 1;
-        perCourse.released += 1;
+      // Released and still pending: the grade is out and the credential behind
+      // it is not. The pair matches the condition behind the assessor's own
+      // Credentials screen exactly, so the two cannot disagree about what is
+      // waiting on them.
+      if (released && credential === "pending") {
+        tally.credentialsPending += 1;
+        perCourse.credentialsPending += 1;
       }
 
-      if (issued) {
-        tally.credentials += 1;
-        perCourse.credentials += 1;
+      if (credential === "issued") {
+        tally.credentialsIssued += 1;
+        perCourse.credentialsIssued += 1;
       }
     }
   }
@@ -681,41 +804,64 @@ export function tallyWorkload(assessors, results) {
   return tallies;
 }
 
-/** The submissions behind `tallyWorkload`, in one query for the whole page. */
-async function workloadByAssessor(assessors) {
-  // The collection only exists once assessments have been generated, and an
-  // empty console is the honest answer before then.
-  if (!(await collectionExists(RESULTS_COLLECTION))) {
-    return tallyWorkload(assessors, []);
-  }
+/**
+ * The records behind `tallyWorkload`, one query per collection for the page.
+ *
+ * Every collection read here may be missing on a database where nothing has
+ * been generated yet, and an empty console is the honest answer before then.
+ */
+async function workloadByAssessor(assessors, courses) {
+  const load = async (name, projection) =>
+    (await collectionExists(name))
+      ? collection(name)
+          .find({}, projection ? { projection } : {})
+          .toArray()
+      : [];
 
-  const results = await collection(RESULTS_COLLECTION)
-    .find(
-      {},
-      {
-        projection: {
-          courseId: 1,
-          submittedAt: 1,
-          review: 1,
-          credential: 1,
-          "aiGrading.status": 1,
-          "aiGrading.items": 1
-        }
-      }
-    )
-    .toArray();
+  const [results, assessments, modules] = await Promise.all([
+    load(RESULTS_COLLECTION, {
+      courseId: 1,
+      superseded: 1,
+      review: 1,
+      credential: 1
+    }),
+    load(ASSESSMENTS_COLLECTION, {
+      courseId: 1,
+      moduleId: 1,
+      scope: 1,
+      status: 1,
+      postedAt: 1
+    }),
+    load(MODULES_COLLECTION, { courseId: 1, courseCode: 1 })
+  ]);
 
-  return tallyWorkload(assessors, results);
+  // Lessons counted the way the student screens count them — a module names its
+  // course by id on some rows and by code on others — so one course cannot owe
+  // nine papers here and eight somewhere else.
+  const papers = papersByCourse(assessments, modulesPerCourse(courses, modules));
+
+  return { tallies: tallyWorkload(assessors, { results, papers }), papers };
 }
 
 function publicWorkload(tally) {
   return {
-    toGrade: tally.toGrade,
-    flagged: tally.flagged,
-    released: tally.released,
-    credentials: tally.credentials,
-    oldestWaiting: tally.oldestWaiting?.toISOString() ?? null,
-    lastGraded: tally.lastGraded?.toISOString() ?? null
+    // Papers. `toPost` is the assessor's own rail badge, reported here against
+    // the two figures it is the difference of, so an admin can tell a course
+    // that is nearly covered from one that has never been touched.
+    papersExpected: tally.papersExpected,
+    papersPosted: tally.papersPosted,
+    papersDraft: tally.papersDraft,
+    toPost: Math.max(0, tally.papersExpected - tally.papersPosted),
+
+    // Credentials, split by which side of the issue they are on. The screen
+    // only ever showed the issued ones, which is the half nobody is waiting on.
+    //
+    // No `lastPosted` or `lastGraded` beside them: both are folded into
+    // `lastActive`, which is the only form any screen renders. Sending them
+    // as well would be the same fact three times, and two of the three would
+    // be a second answer nothing keeps true.
+    credentialsPending: tally.credentialsPending,
+    credentialsIssued: tally.credentialsIssued
   };
 }
 
@@ -744,25 +890,52 @@ function publicAssessor(assessor, courses, tally = blankTally()) {
     // true locks anyone out. `loginUser` searches both collections with one
     // identifier and refuses either, so this is the same lock, not a label.
     suspended: assessor.suspended === true,
-    workload: publicWorkload(tally)
+    workload: publicWorkload(tally),
+    // Whichever kind of work happened last, named — the same shape a student's
+    // `lastActive` carries. Posting a paper and releasing a grade are both
+    // work, and reporting only the second said "has not graded anything yet"
+    // about an assessor who had spent the week writing papers.
+    lastActive: latestAssessorWork(tally)
   };
 }
 
 /**
- * Courses nobody assesses, and courses more than one person does.
+ * The newer of an assessor's two kinds of work, named.
  *
- * Both are assignment mistakes and this is the screen where assignments are
- * made. An unassessed course is the serious one: its students can submit for
- * a whole term and no one will ever see the papers, and no other screen in the
- * console shows that — a course looks fine from Course Management whether it
- * has an assessor or not.
+ * `latestActivity` answers the same question for a student, but over a fixed
+ * pair of kinds; this is the assessor's pair. Posting is assignment-based and
+ * releasing follows `gradedBy`, so the two are not measured the same way — what
+ * they share is that either one means somebody was working.
  */
-function coverageFor(assessors, courses) {
+function latestAssessorWork(tally) {
+  const { lastPosted, lastGraded } = tally;
+  if (!lastPosted && !lastGraded) return { at: null, kind: null };
+
+  const postedIsNewer = lastPosted && (!lastGraded || lastPosted > lastGraded);
+  return {
+    at: (postedIsNewer ? lastPosted : lastGraded).toISOString(),
+    kind: postedIsNewer ? "posted" : "graded"
+  };
+}
+
+/**
+ * Courses nobody assesses, courses more than one person does, and courses whose
+ * students have nothing to take.
+ *
+ * All three are problems this screen is the place to fix, and none of them is
+ * visible from Course Management — a course looks the same there whether it has
+ * an assessor, has three, or has one who has posted nothing.
+ *
+ * The third is new with the posting rule. A generated paper used to be live the
+ * moment it existed, so a staffed course could not be a silent one; now that
+ * releasing is a deliberate act, a course can sit fully assigned all term with
+ * not one quiz its students can open.
+ */
+function coverageFor(assessors, courses, papers) {
   const counts = new Map();
   assessors.forEach((assessor) => {
-    (assessor.assigned_courses ?? []).forEach((courseId) => {
-      const key = asId(courseId);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+    new Set((assessor.assigned_courses ?? []).map(asId)).forEach((courseKey) => {
+      counts.set(courseKey, (counts.get(courseKey) ?? 0) + 1);
     });
   });
 
@@ -778,7 +951,13 @@ function coverageFor(assessors, courses) {
     unassigned: all.filter((course) => !counts.has(asId(course._id))).map(brief),
     shared: all
       .filter((course) => (counts.get(asId(course._id)) ?? 0) > 1)
-      .map((course) => ({ ...brief(course), assessors: counts.get(asId(course._id)) }))
+      .map((course) => ({ ...brief(course), assessors: counts.get(asId(course._id)) })),
+    // Only courses that have an assessor. One with nobody on it is the warning
+    // above, and a course listed under both would just be said twice.
+    unposted: all
+      .filter((course) => counts.has(asId(course._id)))
+      .filter((course) => (papers.get(asId(course._id))?.posted ?? 0) === 0)
+      .map(brief)
   };
 }
 
@@ -790,22 +969,55 @@ export async function listAssessors(_request, response) {
     courseMap()
   ]);
 
-  const workload = await workloadByAssessor(assessors);
+  const { tallies, papers } = await workloadByAssessor(assessors, courses);
 
   return response.json({
-    assessors: assessors.map((a) => publicAssessor(a, courses, workload.get(asId(a._id)))),
-    coverage: coverageFor(assessors, courses)
+    assessors: assessors.map((a) => publicAssessor(a, courses, tallies.get(asId(a._id)))),
+    coverage: coverageFor(assessors, courses, papers)
   });
+}
+
+/**
+ * How many assessors each course is assigned to, across the whole collection.
+ *
+ * `coverageFor` counts the same thing for the list screen, but from the full
+ * assessor documents it already has in hand. The detail screen loads one
+ * assessor, so it has nothing to count from — and the number it needs is about
+ * everyone else. Only the assignment lists are read back.
+ */
+async function assessorCountByCourse() {
+  const assessors = await collection(ASSESSORS_COLLECTION)
+    .find({}, { projection: { assigned_courses: 1 } })
+    .toArray();
+
+  const counts = new Map();
+  assessors.forEach((assessor) => {
+    // Deduped like `tallyWorkload` does it: a course listed twice on one
+    // assessor is an assignment mistake, not two people on the course.
+    new Set((assessor.assigned_courses ?? []).map(asId)).forEach((key) => {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+  });
+
+  return counts;
 }
 
 /**
  * The assigned courses, each with the work it carries.
  *
- * This is what the detail screen's second card holds now. It used to re-render
- * the assigned-course list verbatim under a different heading, which told an
- * admin nothing the card beside it had not already said.
+ * This is what the detail screen's second card holds. It used to re-render the
+ * assigned-course list verbatim under a different heading, which told an admin
+ * nothing the card beside it had not already said.
+ *
+ * `sharedWith` is how many OTHER assessors are on the course. Every figure in
+ * the row is the course's rather than this person's — `tallyWorkload` gives
+ * each owner of a course the same posted and credential counts — so on a shared
+ * course "6 of 9 posted" is the course's progress, not this assessor's six. The
+ * list screen already warns which courses are shared; without this the detail
+ * screen is where that fact goes missing, and it is the screen where the
+ * numbers get read as one person's output.
  */
-async function classesFor(assessor, courses, tally) {
+async function classesFor(assessor, courses, tally, sharing = new Map()) {
   const assigned = (assessor.assigned_courses ?? [])
     .map((courseId) => courses.get(asId(courseId)))
     .filter(Boolean);
@@ -827,18 +1039,22 @@ async function classesFor(assessor, courses, tally) {
 
   return assigned.map((course) => {
     const key = asId(course._id);
-    const row = tally.perCourse.get(key);
+    const row = tally.perCourse.get(key) ?? blankCourseTally();
 
     return {
       id: key,
       code: courseCode(course),
       title: courseTitle(course),
       students: enrolled.get(key) ?? 0,
-      toGrade: row?.toGrade ?? 0,
-      flagged: row?.flagged ?? 0,
-      released: row?.released ?? 0,
-      credentials: row?.credentials ?? 0,
-      oldestWaiting: row?.oldestWaiting?.toISOString() ?? null
+      // Falls back to 1 — this assessor — so an unseeded map reads as unshared
+      // rather than as a negative count.
+      sharedWith: Math.max(0, (sharing.get(key) ?? 1) - 1),
+      papersExpected: row.papersExpected,
+      papersPosted: row.papersPosted,
+      papersDraft: row.papersDraft,
+      toPost: Math.max(0, row.papersExpected - row.papersPosted),
+      credentialsPending: row.credentialsPending,
+      credentialsIssued: row.credentialsIssued
     };
   });
 }
@@ -851,13 +1067,14 @@ export async function getAssessor(request, response) {
   });
   if (!assessor) return response.status(404).json({ message: "Assessor not found." });
 
-  const courses = await courseMap();
-  const tally = (await workloadByAssessor([assessor])).get(asId(assessor._id)) ?? blankTally();
+  const [courses, sharing] = await Promise.all([courseMap(), assessorCountByCourse()]);
+  const { tallies } = await workloadByAssessor([assessor], courses);
+  const tally = tallies.get(asId(assessor._id)) ?? blankTally();
 
   return response.json({
     assessor: {
       ...publicAssessor(assessor, courses, tally),
-      classes: await classesFor(assessor, courses, tally)
+      classes: await classesFor(assessor, courses, tally, sharing)
     }
   });
 }
