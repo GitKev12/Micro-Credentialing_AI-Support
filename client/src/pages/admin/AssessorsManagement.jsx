@@ -4,222 +4,21 @@ import {
   fetchAssessors,
   fetchCourses,
   setAssessorSuspended,
-  updateAssessor,
-  MIN_PASSWORD_LENGTH
+  updateAssessor
 } from "../../services/admin";
-import { CheckIcon, ChevronRightIcon, UserIcon } from "./components/icons";
-import {
-  AdminButton,
-  AdminField,
-  AdminModal,
-  AdminSelect,
-  Avatar,
-  BackLink,
-  PageHeader,
-  SearchField,
-  StatTile
-} from "./components/ui";
-import { SkeletonDetail, SkeletonTable } from "../../components/Skeleton";
-
-function formatDate(value) {
-  if (!value) return null;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-/**
- * "Last posted 15 Aug 2026", or "Last graded 15 Aug 2026".
- *
- * Being assigned six courses says what an assessor was given. This says
- * whether they have done any of it — the question the screen is usually open
- * to answer.
- *
- * It named only grading, which was the whole job when marking was all an
- * assessor did here. Writing and posting a course's papers is now the bulk of
- * their console, and reporting only the other half said "has not graded
- * anything yet" about someone who had been working all week.
- */
-const ACTIVITY_LABELS = { posted: "Last posted", graded: "Last graded" };
-
-/**
- * "16 days ago", "3 weeks ago", "5 months ago".
- *
- * Deliberately coarser than the assessor console's `timeAgo`, which falls back
- * to a bare date after a week: the date is already on this line, and what a
- * date alone does not answer is how long the account has been quiet — which is
- * the question an admin opens the screen with.
- */
-function agoLabel(value) {
-  if (!value) return null;
-
-  const then = new Date(value);
-  if (Number.isNaN(then.getTime())) return null;
-
-  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-
-  if (days < 31) {
-    const weeks = Math.floor(days / 7);
-    return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
-  }
-
-  const months = Math.floor(days / 30);
-  return `${months} month${months === 1 ? "" : "s"} ago`;
-}
-
-function lastActiveLabel(lastActive) {
-  const when = formatDate(lastActive?.at);
-  if (!when) return "Has not posted or graded anything yet";
-
-  const label = `${ACTIVITY_LABELS[lastActive.kind] ?? "Last active"} ${when}`;
-  const ago = agoLabel(lastActive.at);
-  return ago ? `${label} · ${ago}` : label;
-}
-
-/** What the last thing they did was, for the row under the date. */
-function activityKindLabel(kind) {
-  if (kind === "posted") return "posted an assessment";
-  return kind === "graded" ? "released a grade" : null;
-}
-
-/**
- * "6 of 9 posted · 2 drafts written".
- *
- * The number still owed does not on its own separate an assessor who has never
- * opened the generator from one who has written every paper and posted all but
- * two, and those are different conversations.
- */
-function papersNote(workload) {
-  if (!workload.papersExpected) return null;
-
-  const posted = `${workload.papersPosted} of ${workload.papersExpected} posted`;
-  if (!workload.papersDraft) return posted;
-
-  const drafts =
-    workload.papersDraft === 1 ? "1 draft written" : `${workload.papersDraft} drafts written`;
-  return `${posted} · ${drafts}`;
-}
-
-/**
- * "9 assessments to post and 3 credentials to issue", either half dropped when
- * it is zero. Only ever read on a suspended account, where the work is the
- * consequence of the suspension rather than a workload figure.
- */
-function backlogPhrase(workload) {
-  const parts = [];
-
-  if (workload.toPost > 0) {
-    parts.push(`${workload.toPost} assessment${workload.toPost === 1 ? "" : "s"} to post`);
-  }
-  if (workload.credentialsPending > 0) {
-    const n = workload.credentialsPending;
-    parts.push(`${n} credential${n === 1 ? "" : "s"} to issue`);
-  }
-
-  return parts.join(" and ");
-}
+import { CheckIcon, ChevronRightIcon } from "./components/icons";
+import { AdminSelect, Avatar, PageHeader, SearchField } from "./components/ui";
+import { SkeletonTable } from "../../components/Skeleton";
+import AssessorDetail from "./components/assessors/AssessorDetail";
+import { activityKindLabel, EMPTY_WORKLOAD } from "./components/assessors/assessorText";
+import { formatDate } from "./lib/format";
 
 // The two categories that are not a course: everyone, and everyone with no
 // course at all. The students list is narrowed by the same two.
 const CATEGORY_ALL = "all";
 const CATEGORY_NONE = "none";
 
-// The three parts of the job, in the order the assessor's own rail runs them:
-// write and post a course's papers, release the marks, issue the credentials.
-const EMPTY_WORKLOAD = {
-  papersExpected: 0,
-  papersPosted: 0,
-  papersDraft: 0,
-  toPost: 0,
-  credentialsPending: 0,
-  credentialsIssued: 0
-};
-
 const EMPTY_COVERAGE = { unassigned: [], shared: [], unposted: [] };
-
-/**
- * Correct an existing assessor's details.
- *
- * Editing only, as with students — this console does not create accounts. An
- * empty password box keeps the current one rather than clearing it.
- */
-function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
-  const [name, setName] = useState(assessor?.name ?? "");
-  const [email, setEmail] = useState(assessor?.email ?? "");
-  const [assessorNumber, setAssessorNumber] = useState(assessor?.assessorNumber ?? "");
-  const [password, setPassword] = useState("");
-
-  const passwordOk = password === "" || password.length >= MIN_PASSWORD_LENGTH;
-  const ready = name.trim() && email.trim() && passwordOk;
-
-  return (
-    <AdminModal
-      title="Edit assessor"
-      subtitle={assessor.name}
-      onClose={onCancel}
-      footer={
-        <>
-          <button
-            type="button"
-            className="admin-chip-btn admin-chip-btn--quiet"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <AdminButton
-            variant="admin-btn--compact"
-            disabled={busy || !ready}
-            onClick={() =>
-              onSave({
-                name: name.trim(),
-                email: email.trim(),
-                assessorNumber: assessorNumber.trim(),
-                ...(password ? { password } : {})
-              })
-            }
-          >
-            {busy ? "Saving…" : "Save changes"}
-          </AdminButton>
-        </>
-      }
-    >
-      {error ? (
-        <p className="admin-notice admin-notice--error" role="status">
-          {error}
-        </p>
-      ) : null}
-
-      <AdminField label="Full name" value={name} onChange={setName} required />
-      <AdminField
-        label="Email"
-        type="email"
-        value={email}
-        onChange={setEmail}
-        required
-      />
-      <AdminField
-        label="Assessor number"
-        value={assessorNumber}
-        onChange={setAssessorNumber}
-        placeholder="e.g. ASS007"
-      />
-      <AdminField
-        label="New password"
-        type="password"
-        value={password}
-        onChange={setPassword}
-        autoComplete="new-password"
-        placeholder="Leave blank to keep the current one"
-      />
-    </AdminModal>
-  );
-}
 
 function AssessorsManagement() {
   const [assessors, setAssessors] = useState([]);
@@ -383,198 +182,22 @@ function AssessorsManagement() {
   }, [assessors, query, category]);
 
   if (selected) {
-    const classes = selected.classes ?? [];
-    const workload = selected.workload ?? EMPTY_WORKLOAD;
-
     return (
-      <div className="admin-main__inner">
-        <BackLink onClick={() => setSelected(null)}>Assessors Management</BackLink>
-
-        {detailStatus === "loading" ? (
-          <SkeletonDetail label="Loading assessor…" />
-        ) : detailStatus === "error" ? (
-          <p className="admin-empty-note">Couldn&apos;t load this assessor.</p>
-        ) : (
-          <>
-            <div className="admin-identity">
-              <div className="admin-identity__disc">
-                <UserIcon size={46} color="var(--brand)" />
-              </div>
-              <div>
-                <h1 className="admin-identity__name">
-                  {selected.name}
-                  <span
-                    className={`admin-status-pill${
-                      selected.suspended ? " admin-status-pill--off" : ""
-                    }`}
-                  >
-                    {selected.suspended ? "Suspended" : "Active"}
-                  </span>
-                </h1>
-                <p className="admin-identity__meta">
-                  {[selected.assessorNumber, selected.email].filter(Boolean).join(" · ")}
-                </p>
-                <p className="admin-identity__meta">{lastActiveLabel(selected.lastActive)}</p>
-              </div>
-
-              <div className="admin-identity__actions">
-                <button
-                  type="button"
-                  className="admin-chip-btn admin-chip-btn--quiet"
-                  disabled={busy}
-                  onClick={() => {
-                    setFormError(null);
-                    setForm(selected);
-                  }}
-                >
-                  Edit details
-                </button>
-              </div>
-            </div>
-
-            {notice ? (
-              <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
-                {notice.text}
-              </p>
-            ) : null}
-
-            {/* The pill above says the account is locked and the tiles below
-                say what it owes, and until now nothing joined the two. A
-                suspended assessor cannot sign in, so their share of the work
-                is not late — it is stopped, and the courses under it are
-                silent for as long as the suspension stands. */}
-            {selected.suspended && backlogPhrase(workload) ? (
-              <p className="admin-notice admin-notice--warn" role="status">
-                <strong>Suspended with work outstanding</strong> — {backlogPhrase(workload)}.
-              </p>
-            ) : null}
-
-            <div className="admin-detail-stack">
-              <section className="admin-card">
-                {/* The two numbers the assessor's own console reports about
-                    itself, in the order it runs them. Papers first, because
-                    nothing else can happen until something is posted: no
-                    student can take a quiz, so no mark arrives to release and
-                    no credential comes of it. */}
-                <div className="admin-stats admin-stats--flush admin-stats--compact">
-                  <StatTile
-                    value={workload.toPost}
-                    label="Assessments to post"
-                    note={papersNote(workload)}
-                  />
-                  <StatTile
-                    value={workload.credentialsPending}
-                    label="Credentials to issue"
-                    note={
-                      workload.credentialsIssued > 0
-                        ? `${workload.credentialsIssued} issued so far`
-                        : null
-                    }
-                  />
-                </div>
-              </section>
-
-              {/* One row per assigned course, because the course is the unit of
-                  work here: a paper is written for a course and posted to all
-                  of it at once, and the marks and credentials that follow are
-                  counted against that one. The courses and the numbers about
-                  them used to be two cards that had to be read against each
-                  other to answer a question about a single course.
-
-                  Read-only — assignment is made on Classes Management, where an
-                  assessor takes a course by being put on one of its classes. */}
-              <section className="admin-table-card">
-                <div className="admin-table-head">
-                  <h2 className="admin-card__title">Assigned Courses</h2>
-                </div>
-
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Code</th>
-                      <th className="is-center">Students</th>
-                      <th className="is-center">Assessments posted</th>
-                      <th className="is-center">To issue</th>
-                      <th className="is-center">Issued</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classes.map((row) => {
-                      return (
-                        <tr className="admin-table__static" key={row.id}>
-                          <td>
-                            <span className="admin-cell__quiet">{row.title || row.code}</span>
-                            {/* Qualifies every figure on the row, so it sits on
-                                the course rather than on any one column: the
-                                counts are the course's, and a co-assessor's
-                                posting shows here as though it were this
-                                assessor's own. */}
-                            {row.sharedWith > 0 ? (
-                              <span className="admin-cell__sub">
-                                Shared with {row.sharedWith} other assessor
-                                {row.sharedWith === 1 ? "" : "s"}
-                              </span>
-                            ) : null}
-                          </td>
-                          <td>
-                            <span className="admin-cell__quiet">{row.code}</span>
-                          </td>
-                          <td className="is-center">{row.students}</td>
-                          {/* Against what the course owes, not on its own: six
-                              papers is most of the way through a five-lesson
-                              course and barely started on a twenty-lesson one. */}
-                          <td className="is-center">
-                            <span
-                              className={`admin-count${row.toPost > 0 ? " admin-count--warn" : ""}`}
-                            >
-                              {row.papersPosted} / {row.papersExpected}
-                            </span>
-                            {row.papersDraft > 0 ? (
-                              <span className="admin-cell__sub">
-                                {row.papersDraft === 1 ? "1 draft" : `${row.papersDraft} drafts`}
-                              </span>
-                            ) : null}
-                          </td>
-                          <td className="is-center">
-                            <span
-                              className={`admin-count${
-                                row.credentialsPending > 0 ? " admin-count--warn" : ""
-                              }`}
-                            >
-                              {row.credentialsPending}
-                            </span>
-                          </td>
-                          <td className="is-center">
-                            <strong className="admin-strong-brand">{row.credentialsIssued}</strong>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {classes.length === 0 ? (
-                      <tr className="admin-table__empty">
-                        <td colSpan={6}>
-                          Not assigned to any course yet.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </section>
-            </div>
-          </>
-        )}
-
-        {form ? (
-          <AssessorForm
-            assessor={form}
-            busy={busy}
-            error={formError}
-            onCancel={() => setForm(null)}
-            onSave={saveAssessor}
-          />
-        ) : null}
-      </div>
+      <AssessorDetail
+        assessor={selected}
+        detailStatus={detailStatus}
+        busy={busy}
+        notice={notice}
+        form={form}
+        formError={formError}
+        onBack={() => setSelected(null)}
+        onEdit={() => {
+          setFormError(null);
+          setForm(selected);
+        }}
+        onCancelForm={() => setForm(null)}
+        onSave={saveAssessor}
+      />
     );
   }
 

@@ -4,116 +4,13 @@ import {
   fetchStudent,
   fetchStudents,
   setStudentSuspended,
-  updateStudent,
-  MIN_PASSWORD_LENGTH
+  updateStudent
 } from "../../services/admin";
-import { CheckIcon, ChevronRightIcon, UserIcon } from "./components/icons";
-import {
-  AdminButton,
-  AdminField,
-  AdminModal,
-  AdminSelect,
-  Avatar,
-  BackLink,
-  PageHeader,
-  SearchField,
-  StatTile
-} from "./components/ui";
-import { SkeletonDetail, SkeletonTable } from "../../components/Skeleton";
-
-function formatDate(value) {
-  if (!value) return null;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-/**
- * "Last active 15 Aug 2026 · submitted a quiz".
- *
- * Enrolment only says a student was signed up. This says whether they have
- * turned up since, which is the question this screen is usually open to answer.
- */
-function lastActiveLabel(lastActive) {
-  const when = formatDate(lastActive?.at);
-  if (!when) return "No activity recorded yet";
-
-  return `Last active ${when} · ${
-    lastActive.kind === "quiz" ? "submitted a quiz" : "finished a lesson"
-  }`;
-}
-
-/** "Latest: Binary Search Trees · Aug 20, 2026" — for a tile that counts them. */
-function latestLine(name, at) {
-  const when = formatDate(at);
-  return `Latest: ${name}${when ? ` · ${when}` : ""}`;
-}
-
-/**
- * One row per enrolled course, carrying everything the record says about that
- * course: how far through it the student is, how many of its badges they hold,
- * and who assesses it.
- *
- * These arrived as four separate lists because they were four separate cards.
- * They are one table now, so they are joined back together here — on course id,
- * which every one of them carries, rather than on the course title they happen
- * to print.
- */
-function courseRows(enrolled, progress, badges, assessors) {
-  const progressBy = new Map(progress.map((row) => [String(row.courseId ?? ""), row]));
-
-  // Badges key on the course they belong to, but a badge written before its
-  // course had an id keys on the code instead, so both are looked up.
-  const badgesById = new Map(badges.map((row) => [String(row.courseId ?? ""), row]));
-  const badgesByCode = new Map(badges.map((row) => [String(row.code ?? ""), row]));
-
-  // Assessors arrive per assessor, listing the courses they cover; the table
-  // reads the other way round.
-  const assessorsByCourse = new Map();
-  assessors.forEach((assessor) => {
-    (assessor.courses ?? []).forEach((course) => {
-      const key = String(course.id ?? "");
-      if (!assessorsByCourse.has(key)) assessorsByCourse.set(key, []);
-      assessorsByCourse.get(key).push(assessor.name);
-    });
-  });
-
-  return enrolled.map((course) => ({
-    ...course,
-    progress: progressBy.get(String(course.id)) ?? null,
-    badges: badgesById.get(String(course.id)) ?? badgesByCode.get(String(course.code)) ?? null,
-    assessors: assessorsByCourse.get(String(course.id)) ?? []
-  }));
-}
-
-/** How far through a course, as a figure and the bar that shows it. */
-function ProgressCell({ progress }) {
-  const total = progress?.total ?? 0;
-  if (total === 0) {
-    return <span className="admin-count admin-count--none">No lessons yet</span>;
-  }
-
-  const pct = Math.max(0, Math.min(100, progress.pct ?? 0));
-  const detail = `${progress.completed} of ${total} · ${pct}%`;
-
-  return (
-    <div className="admin-cell-progress">
-      <span className="admin-cell-progress__figure">{detail}</span>
-      <div
-        className="admin-progress__track"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Lessons finished: ${detail}`}
-      >
-        <div className="admin-progress__fill" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
+import { CheckIcon, ChevronRightIcon } from "./components/icons";
+import { AdminSelect, Avatar, PageHeader, SearchField } from "./components/ui";
+import { SkeletonTable } from "../../components/Skeleton";
+import StudentDetail from "./components/students/StudentDetail";
+import { formatDate } from "./lib/format";
 
 // The two categories that are not a course: everyone, and everyone with no
 // course at all. The server knows the same two names.
@@ -128,96 +25,6 @@ const EMPTY_ACTIVITY = {
   pending: 0,
   lastActive: { at: null, kind: null }
 };
-
-
-/**
- * Correct an existing student's details.
- *
- * Editing only — this console does not create accounts, so there is no blank
- * version of this form. An empty password box means "keep the current one"
- * rather than "clear it", and says so: a form that silently blanked a password
- * because a name was being fixed would lock someone out without ever saying it
- * had.
- */
-function StudentForm({ student, busy, error, onCancel, onSave }) {
-  const [firstName, setFirstName] = useState(student?.name?.split(" ")[0] ?? "");
-  const [lastName, setLastName] = useState(
-    student?.name?.split(" ").slice(1).join(" ") ?? ""
-  );
-  const [email, setEmail] = useState(student?.email ?? "");
-  const [studentNumber, setStudentNumber] = useState(student?.studentNumber ?? "");
-  const [password, setPassword] = useState("");
-
-  const passwordOk = password === "" || password.length >= MIN_PASSWORD_LENGTH;
-  const ready = firstName.trim() && lastName.trim() && email.trim() && passwordOk;
-
-  return (
-    <AdminModal
-      title="Edit student"
-      subtitle={student.name}
-      onClose={onCancel}
-      footer={
-        <>
-          <button
-            type="button"
-            className="admin-chip-btn admin-chip-btn--quiet"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <AdminButton
-            variant="admin-btn--compact"
-            disabled={busy || !ready}
-            onClick={() =>
-              onSave({
-                firstName: firstName.trim(),
-                lastName: lastName.trim(),
-                email: email.trim(),
-                studentNumber: studentNumber.trim(),
-                ...(password ? { password } : {})
-              })
-            }
-          >
-            {busy ? "Saving…" : "Save changes"}
-          </AdminButton>
-        </>
-      }
-    >
-      {error ? (
-        <p className="admin-notice admin-notice--error" role="status">
-          {error}
-        </p>
-      ) : null}
-
-      <AdminField label="First name" value={firstName} onChange={setFirstName} required />
-      <AdminField label="Last name" value={lastName} onChange={setLastName} required />
-      <AdminField
-        label="Email"
-        type="email"
-        value={email}
-        onChange={setEmail}
-        required
-      />
-      <AdminField
-        label="Student number"
-        value={studentNumber}
-        onChange={setStudentNumber}
-        placeholder="e.g. 202300007"
-      />
-      {/* No program or year. A degree batch is not what a micro-credential is
-          awarded against, so the form does not collect one. */}
-      <AdminField
-        label="New password"
-        type="password"
-        value={password}
-        onChange={setPassword}
-        autoComplete="new-password"
-        placeholder="Leave blank to keep the current one"
-      />
-    </AdminModal>
-  );
-}
 
 function StudentsManagement() {
   const [students, setStudents] = useState([]);
@@ -385,175 +192,22 @@ function StudentsManagement() {
   }, [students, query, category]);
 
   if (selected) {
-    const enrolled = selected.enrolled ?? [];
-    const progress = selected.progress ?? [];
-    const badges = selected.badges ?? { earned: 0, total: 0, courses: [], latest: null };
-    const assessors = selected.assessors ?? [];
-    const rows = courseRows(enrolled, progress, badges.courses ?? [], assessors);
-    const latestCredential = progress
-      .filter((row) => row.total > 0 && row.pct === 100 && row.completedAt)
-      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0];
-
     return (
-      <div className="admin-main__inner">
-        <BackLink onClick={() => setSelected(null)}>Students Management</BackLink>
-
-        {detailStatus === "loading" ? (
-          <SkeletonDetail label="Loading student…" />
-        ) : detailStatus === "error" ? (
-          <p className="admin-empty-note">Couldn&apos;t load this student.</p>
-        ) : (
-          <>
-            <div className="admin-identity">
-              <div className="admin-identity__disc">
-                <UserIcon size={46} color="var(--brand)" />
-              </div>
-              <div>
-                <h1 className="admin-identity__name">
-                  {selected.name}
-                  <span
-                    className={`admin-status-pill${
-                      selected.suspended ? " admin-status-pill--off" : ""
-                    }`}
-                  >
-                    {selected.suspended ? "Suspended" : "Active"}
-                  </span>
-                </h1>
-                {/* A degree batch belongs to a registrar, not to a
-                    micro-credential record — the student number and a way to
-                    reach them are what this screen actually needs. */}
-                <p className="admin-identity__meta">
-                  {[selected.studentNumber, selected.email].filter(Boolean).join(" · ")}
-                </p>
-                <p className="admin-identity__meta">{lastActiveLabel(selected.lastActive)}</p>
-              </div>
-
-              <div className="admin-identity__actions">
-                <button
-                  type="button"
-                  className="admin-chip-btn admin-chip-btn--quiet"
-                  disabled={busy}
-                  onClick={() => {
-                    setFormError(null);
-                    setForm(selected);
-                  }}
-                >
-                  Edit details
-                </button>
-              </div>
-            </div>
-
-            {notice ? (
-              <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
-                {notice.text}
-              </p>
-            ) : null}
-
-            <div className="admin-detail-stack">
-              <section className="admin-card">
-                <div className="admin-stats admin-stats--flush admin-stats--compact">
-                  <StatTile
-                    value={badges.earned ?? 0}
-                    label="Badges earned"
-                    note={
-                      badges.latest
-                        ? latestLine(badges.latest.name, badges.latest.earnedAt)
-                        : null
-                    }
-                  />
-                  <StatTile
-                    value={selected.credentials ?? 0}
-                    label="Micro-credentials"
-                    note={
-                      latestCredential
-                        ? latestLine(latestCredential.label, latestCredential.completedAt)
-                        : null
-                    }
-                  />
-                  <StatTile value={enrolled.length} label="Active courses" />
-                </div>
-              </section>
-
-              {/* One row per course, because the course is the record this system
-                  keeps: a credential is earned per course, and progress, badges
-                  and an assessor are all facts about one. They were four cards
-                  that had to be read against each other to answer a question
-                  about a single course; the row answers it across.
-
-                  Read-only — enrolment is made on Classes Management, where a
-                  student joins a course by being put in one of its classes. */}
-              <section className="admin-table-card">
-                <div className="admin-table-head">
-                  <h2 className="admin-card__title">Enrolled Courses</h2>
-                </div>
-
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Code</th>
-                      <th>Progress</th>
-                      <th className="is-center">Badges</th>
-                      <th>Assessor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr className="admin-table__static" key={row.id}>
-                        <td>
-                          <span className="admin-cell__quiet">{row.title}</span>
-                        </td>
-                        <td>
-                          <span className="admin-cell__quiet">{row.code}</span>
-                        </td>
-                        <td>
-                          <ProgressCell progress={row.progress} />
-                        </td>
-                        <td className="is-center">
-                          {row.badges && row.badges.total > 0 ? (
-                            <span
-                              className="admin-count admin-count--badges"
-                              data-earned={row.badges.earned > 0 ? "yes" : "no"}
-                            >
-                              {row.badges.earned} of {row.badges.total}
-                            </span>
-                          ) : (
-                            <span className="admin-count admin-count--none">None yet</span>
-                          )}
-                        </td>
-                        <td>
-                          {row.assessors.length > 0 ? (
-                            <span className="admin-cell__quiet">{row.assessors.join(", ")}</span>
-                          ) : (
-                            <span className="admin-count admin-count--none">Unassigned</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {rows.length === 0 ? (
-                      <tr className="admin-table__empty">
-                        <td colSpan={5}>
-                          Not enrolled in any course yet.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </section>
-            </div>
-          </>
-        )}
-
-        {form ? (
-          <StudentForm
-            student={form}
-            busy={busy}
-            error={formError}
-            onCancel={() => setForm(null)}
-            onSave={saveStudent}
-          />
-        ) : null}
-      </div>
+      <StudentDetail
+        student={selected}
+        detailStatus={detailStatus}
+        busy={busy}
+        notice={notice}
+        form={form}
+        formError={formError}
+        onBack={() => setSelected(null)}
+        onEdit={() => {
+          setFormError(null);
+          setForm(selected);
+        }}
+        onCancelForm={() => setForm(null)}
+        onSave={saveStudent}
+      />
     );
   }
 

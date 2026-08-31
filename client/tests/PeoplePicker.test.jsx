@@ -53,7 +53,7 @@ const assessors = [
 let PeoplePicker;
 
 beforeAll(async () => {
-  ({ PeoplePicker } = await import("../src/pages/admin/ClassesManagement.jsx"));
+  ({ PeoplePicker } = await import("../src/pages/admin/components/classes/PeoplePicker.jsx"));
 });
 
 const open = (props = {}) => {

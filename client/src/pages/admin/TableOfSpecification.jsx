@@ -3,44 +3,11 @@ import {
   fetchTableOfSpecification,
   saveTableOfSpecification
 } from "../../services/admin";
-import { TrashIcon } from "./components/icons";
 import { AdminButton, AdminSelect, PageHeader } from "./components/ui";
+import BlueprintSummary from "./components/tos/BlueprintSummary";
+import BlueprintTable from "./components/tos/BlueprintTable";
+import { blueprintKey, blueprintTotals, EMPTY_ROW } from "./components/tos/blueprint";
 import { SkeletonTable } from "../../components/Skeleton";
-
-/**
- * A blueprint is identified by its course, but the collection allows a
- * document with no courseId, and two of those would collide on `null`. Its own
- * _id is the stable fallback — the save still posts the courseId.
- */
-function blueprintKey(entry) {
-  return entry.courseId ?? entry.id;
-}
-
-// Bloom's taxonomy columns, in the order the blueprint lists them.
-const LEVELS = [
-  { key: "remember", label: "Remembering" },
-  { key: "understand", label: "Understanding" },
-  { key: "apply", label: "Applying" },
-  { key: "analyze", label: "Analyzing" },
-  { key: "evaluate", label: "Evaluating" },
-  { key: "create", label: "Creating" }
-];
-
-const EMPTY_ROW = {
-  course: "",
-  hours: 0,
-  remember: 0,
-  understand: 0,
-  apply: 0,
-  analyze: 0,
-  evaluate: 0,
-  create: 0
-};
-
-function toNumber(value) {
-  const parsed = parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
 
 function TableOfSpecification() {
   // One blueprint per course, edited one at a time. `rows` is the working copy
@@ -130,17 +97,7 @@ function TableOfSpecification() {
     }
   };
 
-  const rowItems = (row) => LEVELS.reduce((sum, level) => sum + (row[level.key] || 0), 0);
-  const totalHours = rows.reduce((sum, row) => sum + (row.hours || 0), 0);
-  const grandTotal = rows.reduce((sum, row) => sum + rowItems(row), 0);
-
-  // Each row states one quiz's worth of items. When every row agrees, that is
-  // the size of every generated quiz; when they differ there is no single
-  // figure to show and generation follows each row instead.
-  const perRowItems = rows.map(rowItems);
-  const uniformItems =
-    perRowItems.length > 0 && perRowItems.every((n) => n === perRowItems[0]);
-  const itemsPerQuiz = uniformItems ? perRowItems[0] : null;
+  const { totalHours, grandTotal, itemsPerQuiz } = blueprintTotals(rows);
 
   const saveLabel = {
     idle: "Save Blueprint",
@@ -217,138 +174,26 @@ function TableOfSpecification() {
       </div>
 
       <div className="admin-tos-card">
-        <div className="admin-tos-summary">
-          <div>
-            <div className="admin-tos-summary__label">Course</div>
-            <div className="admin-tos-summary__value">
-              {selected?.courseCode || "—"} · {rows.length} lessons
-            </div>
-          </div>
-          <div>
-            <div className="admin-tos-summary__label">Examination</div>
-            <input
-              className="admin-tos-summary__input"
-              value={exam}
-              aria-label="Examination name"
-              onChange={(event) => {
-                setSaveState("idle");
-                setExam(event.target.value);
-              }}
-            />
-          </div>
-          <div>
-            <div className="admin-tos-summary__label">Total Items</div>
-            <div className="admin-tos-summary__value admin-tos-summary__value--brand">
-              {grandTotal}
-            </div>
-          </div>
-          <div>
-            <div className="admin-tos-summary__label">Items per Quiz</div>
-            <div className="admin-tos-summary__value admin-tos-summary__value--brand">
-              {itemsPerQuiz ?? "varies"}
-            </div>
-          </div>
-          <div>
-            <div className="admin-tos-summary__label">Contact Hours</div>
-            <div className="admin-tos-summary__value admin-tos-summary__value--brand">
-              {totalHours}
-            </div>
-          </div>
-        </div>
+        <BlueprintSummary
+          courseCode={selected?.courseCode}
+          lessons={rows.length}
+          exam={exam}
+          onExamChange={(value) => {
+            setSaveState("idle");
+            setExam(value);
+          }}
+          grandTotal={grandTotal}
+          itemsPerQuiz={itemsPerQuiz}
+          totalHours={totalHours}
+        />
 
-        <div className="admin-tos-scroll">
-          <table className="admin-tos-table">
-            <thead>
-              <tr>
-                {/* One row per lesson of the selected course. The coverage
-                    label is editable; the lesson it points at is held in the
-                    row's moduleId, which renaming must not disturb. */}
-                <th className="is-course">Coverage</th>
-                <th>Hours</th>
-                <th>% Weight</th>
-                {LEVELS.map((level) => (
-                  <th key={level.key}>{level.label}</th>
-                ))}
-                <th className="is-items">Items</th>
-                <th className="is-items" aria-label="Remove row" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={index}>
-                  <td className="is-course">
-                    <input
-                      className="tos-cell"
-                      style={{ fontWeight: 500 }}
-                      value={row.course}
-                      aria-label={`Coverage topic, row ${index + 1}`}
-                      onChange={(event) => updateCell(index, "course", event.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tos-cell tos-num"
-                      inputMode="numeric"
-                      value={row.hours}
-                      aria-label={`Contact hours, row ${index + 1}`}
-                      onChange={(event) =>
-                        updateCell(index, "hours", toNumber(event.target.value))
-                      }
-                    />
-                  </td>
-                  <td className="is-weight">
-                    {totalHours ? Math.round(((row.hours || 0) / totalHours) * 100) : 0}%
-                  </td>
-                  {LEVELS.map((level) => (
-                    <td key={level.key}>
-                      <input
-                        className="tos-cell tos-num"
-                        inputMode="numeric"
-                        value={row[level.key]}
-                        aria-label={`${level.label}, row ${index + 1}`}
-                        onChange={(event) =>
-                          updateCell(index, level.key, toNumber(event.target.value))
-                        }
-                      />
-                    </td>
-                  ))}
-                  <td className="is-items">{rowItems(row)}</td>
-                  <td style={{ textAlign: "center" }}>
-                    <button
-                      type="button"
-                      className="admin-icon-btn"
-                      onClick={() => removeRow(index)}
-                      aria-label={`Remove row ${index + 1}`}
-                    >
-                      <TrashIcon size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={LEVELS.length + 5} style={{ textAlign: "center", padding: 24 }}>
-                    <span className="admin-empty-note">No blueprint saved yet.</span>
-                  </td>
-                </tr>
-              ) : (
-                <tr className="admin-tos-total">
-                  <td className="is-label">TOTAL</td>
-                  <td>{totalHours}</td>
-                  <td>100%</td>
-                  {LEVELS.map((level) => (
-                    <td key={level.key}>
-                      {rows.reduce((sum, row) => sum + (row[level.key] || 0), 0)}
-                    </td>
-                  ))}
-                  <td className="is-grand">{grandTotal}</td>
-                  <td />
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <BlueprintTable
+          rows={rows}
+          totalHours={totalHours}
+          grandTotal={grandTotal}
+          onCellChange={updateCell}
+          onRemoveRow={removeRow}
+        />
 
         <div className="admin-tos-foot">
           <button type="button" className="admin-ghost-btn" onClick={addRow}>
