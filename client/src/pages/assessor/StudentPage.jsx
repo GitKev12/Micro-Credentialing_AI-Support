@@ -124,6 +124,7 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
         bars={bars}
         target={threshold}
         height={96}
+        barWidth="92%"
         lineColor="--gray-300"
         textColor="--text-muted"
         ariaLabel={

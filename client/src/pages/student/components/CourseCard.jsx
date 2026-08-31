@@ -43,7 +43,9 @@ function TopicColumns({ skills, courseTitle, onOpen }) {
         target={TARGET}
         height={74}
         axes={false}
+        barWidth={22}
         lineColor="--sd-muted"
+        lineOpacity={0.45}
         textColor="--sd-muted"
         surfaceColor="--sd-surface"
         onClick={onOpen}

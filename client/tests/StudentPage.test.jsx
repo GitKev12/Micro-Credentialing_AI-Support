@@ -74,8 +74,8 @@ const rows = () => charts[charts.length - 1].data.slice(1);
 /** Label and score of every plotted bar. */
 const plotted = () => rows().map((row) => [row[0], row[1]]);
 
-/** The pass-mark series, which is the last cell of each row. */
-const passMark = () => rows().map((row) => row[row.length - 1]);
+/** The pass mark, now a lone vAxis tick rather than a column in every row. */
+const passMark = () => charts[charts.length - 1].options.vAxis.ticks;
 
 describe("student hero", () => {
   it("identifies the student by number and address, as the admin console does", async () => {
@@ -108,7 +108,7 @@ describe("PerformanceChart", () => {
       ["3", 100]
     ]);
     // The pass mark is drawn even with nothing standing against it.
-    expect(passMark()).toEqual([60, 60, 60]);
+    expect(passMark()).toEqual([{ v: 60, f: "60%" }]);
     expect(screen.getByText("Not taken yet")).toBeInTheDocument();
     expect(container.querySelector(".hero-chart__score--waiting").textContent).toBe("—");
   });
@@ -136,7 +136,7 @@ describe("PerformanceChart", () => {
       ["1", 80],
       ["2", 40]
     ]);
-    expect(passMark()).toEqual([60, 60]);
+    expect(passMark()).toEqual([{ v: 60, f: "60%" }]);
 
     // Every bar carries a resolved colour string. Which one it resolves to is
     // the theme's business and needs a real stylesheet, so it is not asserted

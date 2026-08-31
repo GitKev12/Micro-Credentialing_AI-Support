@@ -39,27 +39,45 @@ const bars = [
 ];
 
 describe("ScoreBarChart", () => {
-  it("draws a combo chart, because the pass mark needs a line series", () => {
+  it("draws a plain column chart", () => {
     render(<ScoreBarChart bars={bars} target={60} />);
-
-    expect(last().chartType).toBe("ComboChart");
-    expect(last().options.seriesType).toBe("bars");
-    expect(last().options.series[1].type).toBe("line");
-    expect(last().options.series[1].enableInteractivity).toBe(false);
+    expect(last().chartType).toBe("ColumnChart");
   });
 
-  it("pins the pass mark to the same value at every bar", () => {
+  // A line series only spans the first bar's centre to the last one's, so it
+  // stopped short of both edges. The gridline runs the full plot width, which
+  // is where the hand-drawn hairline sat.
+  it("draws the pass mark as a full-width gridline, not a series", () => {
     render(<ScoreBarChart bars={bars} target={60} />);
 
-    expect(rows().map((row) => row[row.length - 1])).toEqual([60, 60]);
-    expect(last().data[0][last().data[0].length - 1]).toBe("Pass mark");
+    expect(last().options.vAxis.ticks).toEqual([{ v: 60, f: "60%" }]);
+    expect(last().options.vAxis.gridlines.color).not.toBe("transparent");
+    expect(last().options.series).toBeUndefined();
+    // No extra column smuggled into every row for it.
+    expect(last().data[0]).toHaveLength(4);
+    expect(rows()[0]).toHaveLength(4);
   });
 
-  it("carries no pass-mark series when there is no threshold", () => {
+  it("draws no gridline at all when there is no threshold", () => {
     render(<ScoreBarChart bars={bars} />);
 
-    expect(last().options.series).toEqual({});
-    expect(last().data[0]).toHaveLength(4);
+    expect(last().options.vAxis.ticks).toEqual([]);
+    expect(last().options.vAxis.gridlines.color).toBe("transparent");
+  });
+
+  // The hand-drawn columns capped at 22px so a short course did not draw
+  // slabs; the group width is where Google Charts takes that.
+  it("caps the bar width where the caller asks", () => {
+    render(<ScoreBarChart bars={bars} target={60} barWidth={22} />);
+    expect(last().options.bar.groupWidth).toBe(22);
+  });
+
+  it("rounds the bar tops once the engine is ready", () => {
+    render(<ScoreBarChart bars={bars} target={60} />);
+
+    const ready = last().chartEvents.find((e) => e.eventName === "ready");
+    expect(ready).toBeDefined();
+    expect(typeof ready.callback).toBe("function");
   });
 
   // The two hand-written charts this replaced disagreed on clamping: one
@@ -96,7 +114,7 @@ describe("ScoreBarChart", () => {
     render(<ScoreBarChart bars={[{ label: "1", score: 50, color: "rgba(255,255,255,0.3)" }]} target={60} />);
 
     expect(rows()[0][2]).not.toMatch(/rgba/);
-    expect(last().options.series[1].color).not.toMatch(/rgba/);
+    expect(last().options.vAxis.gridlines.color).not.toMatch(/rgba/);
     expect(last().options.vAxis.textStyle.color).not.toMatch(/rgba/);
   });
 
@@ -175,7 +193,8 @@ describe("CourseCard, on the shared chart", () => {
     );
 
     expect(rows().map((row) => row[1])).toEqual([90, 45]);
-    expect(rows().map((row) => row[row.length - 1])).toEqual([60, 60]);
+    expect(last().options.vAxis.ticks).toEqual([{ v: 60, f: "60%" }]);
+    expect(last().options.bar.groupWidth).toBe(22);
     expect(rows().every((row) => typeof row[2] === "string" && row[2].length > 0)).toBe(true);
   });
 
