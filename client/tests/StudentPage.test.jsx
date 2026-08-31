@@ -13,15 +13,17 @@ const MODULES = [
 
 let detail = {};
 
-// Google Charts fetches its engine from gstatic at runtime and paints to a
-// canvas, so there is nothing for jsdom to render or query. What is worth
-// pinning is the other side of the boundary: the rows and options handed over.
+// The chart itself is covered by ScoreBarChart.test.jsx against real Recharts.
+// What this file is for is the page's side of that boundary: which bars it
+// hands over, at what threshold, and how it describes the plot.
 const charts = [];
 
-jest.unstable_mockModule("react-google-charts", () => ({
-  Chart: (props) => {
+jest.unstable_mockModule("../src/components/ScoreBarChart.jsx", () => ({
+  ScoreBarChart: (props) => {
     charts.push(props);
-    return <div data-testid="gchart" />;
+    return (
+      <div className={props.className} role="img" aria-label={props.ariaLabel} />
+    );
   }
 }));
 
@@ -68,14 +70,14 @@ const draw = () =>
     </MemoryRouter>
   );
 
-/** Every plotted row, header dropped. */
-const rows = () => charts[charts.length - 1].data.slice(1);
+/** Every bar handed to the chart. */
+const rows = () => charts[charts.length - 1].bars;
 
-/** Label and score of every plotted bar. */
-const plotted = () => rows().map((row) => [row[0], row[1]]);
+/** Label and score of each one. */
+const plotted = () => rows().map((bar) => [bar.label, bar.score]);
 
-/** The pass mark, now a lone vAxis tick rather than a column in every row. */
-const passMark = () => charts[charts.length - 1].options.vAxis.ticks;
+/** The threshold the bars are drawn against. */
+const passMark = () => charts[charts.length - 1].target;
 
 describe("student hero", () => {
   it("identifies the student by number and address, as the admin console does", async () => {
@@ -108,7 +110,7 @@ describe("PerformanceChart", () => {
       ["3", 100]
     ]);
     // The pass mark is drawn even with nothing standing against it.
-    expect(passMark()).toEqual([{ v: 60, f: "60%" }]);
+    expect(passMark()).toBe(60);
     expect(screen.getByText("Not taken yet")).toBeInTheDocument();
     expect(container.querySelector(".hero-chart__score--waiting").textContent).toBe("—");
   });
@@ -136,19 +138,18 @@ describe("PerformanceChart", () => {
       ["1", 80],
       ["2", 40]
     ]);
-    expect(passMark()).toEqual([{ v: 60, f: "60%" }]);
+    expect(passMark()).toBe(60);
 
-    // Every bar carries a resolved colour string. Which one it resolves to is
-    // the theme's business and needs a real stylesheet, so it is not asserted
-    // here — only that the row is filled in.
-    expect(rows().every((row) => typeof row[2] === "string" && row[2].length > 0)).toBe(true);
+    // Weak below the mark, strong above — named as tokens, so the theme still
+    // decides what colour that actually is.
+    expect(rows().map((bar) => bar.color)).toEqual(["--skill-strong", "--skill-weak"]);
 
     expect(
       screen.getByText("1 of 2 topics below 60% — weakest is Two at 40%.")
     ).toBeInTheDocument();
   });
 
-  it("describes the plot for a screen reader, which cannot read the canvas", async () => {
+  it("describes the plot for a screen reader", async () => {
     detail = { ...base, skillGap: null };
     const { container } = draw();
 
