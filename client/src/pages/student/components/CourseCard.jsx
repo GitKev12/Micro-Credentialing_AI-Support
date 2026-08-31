@@ -1,6 +1,6 @@
-import { ScoreBarChart } from "../../../components/ScoreBarChart";
+import { ColumnPlot } from "../../../components/ColumnPlot";
 import { TARGET, bandFor, toScore } from "../performance";
-import { BandChip, Meter } from "./ui";
+import { BandChip, Meter, useGrown } from "./ui";
 
 /**
  * One course's performance, as a card.
@@ -18,54 +18,51 @@ import { BandChip, Meter } from "./ui";
  */
 
 function TopicColumns({ skills, courseTitle, onOpen }) {
-  const bars = skills.map((skill) => {
+  const grown = useGrown();
+
+  // The whole slot is the hover target, not the bar — a 14% column is 8px of
+  // hittable height on its own, so the tooltip hangs off the column.
+  const columns = skills.map((skill, index) => {
     const score = toScore(skill.score);
     const band = bandFor(score);
 
     return {
-      label: "",
+      key: skill.moduleId ?? `${skill.topic}:${index}`,
       score,
-      color: band.id === "weak" ? "--sd-crit" : "--sd-good",
-      tooltip: `${skill.topic} — ${score}% · ${band.label}`
+      band: band.id,
+      after: (
+        <>
+          <span className="sd-tip" role="tooltip">
+            <strong>{skill.topic}</strong>
+            {score}% · <span className="sd-tip__band">{band.label}</span>
+          </span>
+          <span className="sd-sr-only">
+            {`${skill.topic} in ${courseTitle}: ${score} percent, ${band.label}`}
+          </span>
+        </>
+      )
     };
   });
 
   return (
-    <>
-      {/* The plot sits above the card's click overlay so a bar can be hovered,
-          which costs it the overlay's click — so it carries the same action
-          itself. Mouse-only by design: the overlay button behind it is still
-          the one control keyboards and screen readers see, and the list under
-          this one is what they are actually read. */}
-      <ScoreBarChart
-        className="sd-cc-chart"
-        bars={bars}
-        target={TARGET}
-        height={74}
-        axes={false}
-        barWidth={22}
-        lineColor="--sd-muted"
-        lineOpacity={0.45}
-        textColor="--sd-muted"
-        surfaceColor="--sd-surface"
-        onClick={onOpen}
-      />
-
-      {/* Google Charts paints to a canvas nothing can read, so the same
-          figures are stated here for a screen reader. */}
-      <ul className="sd-sr-only">
-        {skills.map((skill, index) => {
-          const score = toScore(skill.score);
-          const band = bandFor(score);
-
-          return (
-            <li key={skill.moduleId ?? `${skill.topic}:${index}`}>
-              {`${skill.topic} in ${courseTitle}: ${score} percent, ${band.label}`}
-            </li>
-          );
-        })}
-      </ul>
-    </>
+    // The plot sits above the card's click overlay so the columns can be
+    // hovered, which costs it the overlay's click — so it carries the same
+    // action itself. Mouse-only by design: the overlay button behind it is
+    // still the one control keyboards and screen readers see.
+    //
+    // The passing mark rides across the plot as the same recessive hairline
+    // the meters use, and the legend below names it rather than leaving the
+    // reader to guess — so it needs no label of its own here.
+    <ColumnPlot
+      prefix="sd-cc-chart"
+      columns={columns}
+      target={TARGET}
+      grown={grown}
+      as="ul"
+      item="li"
+      role="presentation"
+      onClick={onOpen}
+    />
   );
 }
 
@@ -114,7 +111,7 @@ function CourseCard({ course, onOpen }) {
         </>
       ) : (
         <p className="sd-cc__note">
-          Topic scores appear once this course&apos;s final exam is taken.
+          Topic scores appear once this course&apos;s final exam is sat.
         </p>
       )}
     </li>

@@ -13,20 +13,6 @@ const MODULES = [
 
 let detail = {};
 
-// The chart itself is covered by ScoreBarChart.test.jsx against real Recharts.
-// What this file is for is the page's side of that boundary: which bars it
-// hands over, at what threshold, and how it describes the plot.
-const charts = [];
-
-jest.unstable_mockModule("../src/components/ScoreBarChart.jsx", () => ({
-  ScoreBarChart: (props) => {
-    charts.push(props);
-    return (
-      <div className={props.className} role="img" aria-label={props.ariaLabel} />
-    );
-  }
-}));
-
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
   fetchStudentDetail: async () => detail
@@ -40,10 +26,6 @@ let StudentPage, MemoryRouter, Routes, Route;
 beforeAll(async () => {
   ({ MemoryRouter, Routes, Route } = await import("react-router-dom"));
   ({ default: StudentPage } = await import("../src/pages/assessor/StudentPage.jsx"));
-});
-
-beforeEach(() => {
-  charts.length = 0;
 });
 
 const base = {
@@ -70,14 +52,12 @@ const draw = () =>
     </MemoryRouter>
   );
 
-/** Every bar handed to the chart. */
-const rows = () => charts[charts.length - 1].bars;
-
-/** Label and score of each one. */
-const plotted = () => rows().map((bar) => [bar.label, bar.score]);
-
-/** The threshold the bars are drawn against. */
-const passMark = () => charts[charts.length - 1].target;
+/** Every column the plot drew, as [lesson number, height]. */
+const plotted = (container) =>
+  [...container.querySelectorAll(".hero-chart__col")].map((col) => [
+    col.querySelector(".hero-chart__tick").textContent,
+    col.querySelector(".hero-chart__bar").style.height
+  ]);
 
 describe("student hero", () => {
   it("identifies the student by number and address, as the admin console does", async () => {
@@ -104,13 +84,16 @@ describe("PerformanceChart", () => {
 
     // Full height so the plot shows its scale, in a neutral rather than a
     // score colour — one seat per lesson, numbered off the lesson.
-    expect(plotted()).toEqual([
-      ["1", 100],
-      ["2", 100],
-      ["3", 100]
+    expect(plotted(container)).toEqual([
+      ["1", "100%"],
+      ["2", "100%"],
+      ["3", "100%"]
     ]);
+    expect(container.querySelectorAll(".hero-chart__bar--waiting")).toHaveLength(3);
+
     // The pass mark is drawn even with nothing standing against it.
-    expect(passMark()).toBe(60);
+    expect(container.querySelector(".hero-chart__target").style.bottom).toBe("60%");
+    expect(screen.getByText("60% pass")).toBeInTheDocument();
     expect(screen.getByText("Not taken yet")).toBeInTheDocument();
     expect(container.querySelector(".hero-chart__score--waiting").textContent).toBe("—");
   });
@@ -128,28 +111,31 @@ describe("PerformanceChart", () => {
         ]
       }
     };
-    draw();
+    const { container } = draw();
 
     await screen.findByText("72%");
 
-    // Bars carry the lesson number, so a bar and a table row point at the
-    // same lesson.
-    expect(plotted()).toEqual([
-      ["1", 80],
-      ["2", 40]
+    // Columns carry the lesson number, so a column and a table row point at
+    // the same lesson.
+    expect(plotted(container)).toEqual([
+      ["1", "80%"],
+      ["2", "40%"]
     ]);
-    expect(passMark()).toBe(60);
+    expect(container.querySelectorAll(".hero-chart__bar--waiting")).toHaveLength(0);
 
-    // Weak below the mark, strong above — named as tokens, so the theme still
-    // decides what colour that actually is.
-    expect(rows().map((bar) => bar.color)).toEqual(["--skill-strong", "--skill-weak"]);
+    // Weak below the mark, strong above — the band drives the colour, and it
+    // has to reach the column element for the CSS to see it.
+    const bands = [...container.querySelectorAll(".hero-chart__col")].map((col) =>
+      col.getAttribute("data-band")
+    );
+    expect(bands).toEqual(["strong", "weak"]);
 
     expect(
       screen.getByText("1 of 2 topics below 60% — weakest is Two at 40%.")
     ).toBeInTheDocument();
   });
 
-  it("describes the plot for a screen reader", async () => {
+  it("describes the plot for a screen reader, which cannot read the columns", async () => {
     detail = { ...base, skillGap: null };
     const { container } = draw();
 

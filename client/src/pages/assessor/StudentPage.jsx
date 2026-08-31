@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ScoreBarChart } from "../../components/ScoreBarChart";
+import { ColumnPlot } from "../../components/ColumnPlot";
 import { certificateFileUrl } from "../../services/achievements";
 import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
 import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
@@ -75,27 +75,33 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
     null
   );
 
-  // A scored bar per topic once the exam is taken; before that, a waiting seat
-  // per lesson — full height in a flat neutral, so the plot shows the scale it
-  // will be read against without any bar reading as a perfect score.
-  const bars = taken
+  // A scored column per topic once the exam is taken; before that, a waiting
+  // seat per lesson, full height in a neutral so it reads as an empty slot
+  // rather than a perfect score.
+  const columns = taken
     ? skills.map((skill, index) => {
         const isWeak = skill.score < threshold;
 
         return {
-          label: String(lessonNumbers.get(skill.moduleId) ?? index + 1),
+          key: skill.moduleId ?? `${skill.topic}:${index}`,
           score: skill.score,
-          color: isWeak ? "--skill-weak" : "--skill-strong",
-          tooltip: `${skill.topic} — ${skill.score}% (${skill.correct}/${skill.total}), ${
+          band: isWeak ? "weak" : "strong",
+          title: `${skill.topic} — ${skill.score}% (${skill.correct}/${skill.total}), ${
             isWeak ? "weak" : "strong"
-          }`
+          }`,
+          before: isWeak ? <span className="hero-chart__value">{skill.score}</span> : null,
+          after: (
+            <span className="hero-chart__tick">
+              {lessonNumbers.get(skill.moduleId) ?? index + 1}
+            </span>
+          )
         };
       })
     : modules.map((module) => ({
-        label: String(module.n),
+        key: module.moduleId,
         score: 100,
-        color: "--gray-150",
-        tooltip: `Lesson ${module.n} — not taken yet`
+        barClass: "hero-chart__bar--waiting",
+        after: <span className="hero-chart__tick">{module.n}</span>
       }));
 
   let caption = "Not taken yet";
@@ -119,18 +125,16 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
         )}
       </div>
 
-      <ScoreBarChart
-        className="hero-chart"
-        bars={bars}
+      <ColumnPlot
+        prefix="hero-chart"
+        columns={columns}
         target={threshold}
-        height={96}
-        barWidth="92%"
-        lineColor="--gray-300"
-        textColor="--text-muted"
+        targetLabel={`${threshold}% pass`}
+        role="img"
         ariaLabel={
           taken
-            ? `${skills.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")}. The pass mark is ${threshold} percent.`
-            : `One bar per lesson, empty — the final exam has not been taken. The pass mark is ${threshold} percent.`
+            ? skills.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")
+            : `One column per lesson, empty — the final exam has not been taken. The pass mark is ${threshold} percent.`
         }
       />
 

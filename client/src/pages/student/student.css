@@ -1739,16 +1739,70 @@ body:has(.student-app) {
   color: var(--sd-muted);
 }
 
-/* ── The per-topic bar chart ────────────────────────────── */
+/* ── The per-topic column chart ─────────────────────────── */
 
-/* The chart's box. Google Charts owns everything inside it and sizes itself to
-   the height the component sets, so all this does is lift the plot above the
-   card's click overlay — the overlay covers the whole card, and without this
-   it swallows the pointer before it reaches a bar, so the per-topic tooltips
-   never fire. */
 .sd-cc-chart {
   position: relative;
+  /* Height is the plot only — there is no axis band to clip, since the topics
+     are named in the tooltip rather than under the columns. */
+  height: 74px;
+  /* Above the card's click overlay. The overlay covers the whole card, so
+     without this it swallows the pointer before it reaches a column and the
+     per-topic tooltips never fire — the chart's only way to name a topic. */
   z-index: 2;
+}
+
+/* The passing mark: the same hairline the meters carry, run across the plot.
+   Solid and one step off the surface, so it never competes with the data. */
+.sd-cc-chart__target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--sd-muted);
+  opacity: 0.45;
+}
+
+.sd-cc-chart__plot {
+  display: flex;
+  align-items: flex-end;
+  /* Centred, because the columns are capped: a course with three topics would
+     otherwise draw three bars against the left edge and leave two-thirds of the
+     plot empty, which reads as a broken chart rather than a short one. */
+  justify-content: center;
+  /* Touching marks are separated by surface, not by a stroke. */
+  gap: 2px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-cc-chart__col {
+  position: relative;
+  /* Grows to share the plot, but never past the cap — a column that fills its
+     slot stops being a mark and becomes a slab. */
+  flex: 1 1 0;
+  min-width: 10px;
+  max-width: 22px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.sd-cc-chart__bar {
+  width: 100%;
+  min-height: 2px;
+  /* Rounded at the data end, square where it meets the baseline. */
+  border-radius: 4px 4px 0 0;
+  background: var(--sd-band);
+  transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sd-cc-chart__col:hover .sd-tip,
+.sd-cc-chart__col:focus-within .sd-tip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .sd-cc__note {
@@ -1757,7 +1811,8 @@ body:has(.student-app) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sd-cc {
+  .sd-cc,
+  .sd-cc-chart__bar {
     transition: none;
   }
 
@@ -2426,25 +2481,10 @@ body:has(.student-app) {
   color: inherit;
 }
 
-.sd-lesson__quiz-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
 .sd-lesson__quiz-title {
+  flex: 1;
+  min-width: 0;
   line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-/* The lock reason, which now names the assessor rather than something the
-   student can finish — so it wraps rather than truncating. */
-.sd-lesson__quiz-note {
-  font-size: var(--sd-fs-micro);
-  line-height: 1.35;
-  color: var(--sd-muted);
   overflow-wrap: anywhere;
 }
 
@@ -3059,6 +3099,89 @@ body:has(.student-app) {
   border: 1px dashed var(--sd-border-strong);
   border-radius: var(--sd-r-md);
   color: var(--sd-muted);
+}
+
+/* ── "Take the Quiz" ──────────────────────────────────────
+   The panel a quiz opens on before its questions exist, and the one it shows
+   while they are being written. Centred and roomy on purpose: it is a decision
+   point, not a row in a list, and the student is being asked whether now is a
+   good time. */
+.sd-quiz__offer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sd-2);
+  padding: var(--sd-6) var(--sd-4);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-md);
+}
+
+.sd-quiz__offer-icon {
+  display: flex;
+  color: var(--sd-brand-text);
+}
+
+.sd-quiz__offer-title {
+  margin: 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-quiz__offer-text {
+  max-width: 46ch;
+  margin: 0;
+  font-size: var(--sd-fs-body);
+  color: var(--sd-muted);
+}
+
+/* A failed attempt returns here rather than to an error screen, so the reason
+   sits with the button that will try again. */
+.sd-quiz__offer-note {
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-crit-text);
+}
+
+.sd-quiz__offer-btn {
+  margin-top: var(--sd-2);
+  padding: 10px 22px;
+  border: none;
+  border-radius: 999px;
+  background: var(--sd-brand);
+  color: var(--sd-band-text);
+  font-family: inherit;
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-semibold);
+  cursor: pointer;
+}
+
+.sd-quiz__offer-btn:hover {
+  filter: brightness(0.94);
+}
+
+.sd-quiz__offer-btn:focus-visible {
+  outline: 2px solid var(--sd-brand-text);
+  outline-offset: 2px;
+}
+
+/* Deliberately a spinner rather than a progress bar: the model gives no
+   progress to report, and a bar that fills at an invented rate would be a
+   promise about how long this takes. */
+.sd-quiz__offer-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid var(--sd-border-strong);
+  border-top-color: var(--sd-brand);
+  border-radius: 50%;
+  animation: sd-quiz-spin 0.8s linear infinite;
+}
+
+@keyframes sd-quiz-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sd-quiz__locked-icon {

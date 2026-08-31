@@ -1384,16 +1384,106 @@
   color: var(--text-strong);
 }
 
-/* The plot's box. Google Charts draws the bars, the pass mark and the axis
-   inside it now, so all that is left here is the room it stands in — the
-   engine sizes itself to this. */
+/* The plot's box: the ground the pass line is positioned against, and the
+   gutter at the right for that line's label. Without the gutter the label
+   lands on whatever column happens to be last and one of them loses. */
 .hero-chart {
-  margin-bottom: var(--sp-2);
+  position: relative;
+  height: 76px;
+  padding-right: 4.25rem;
+  margin-bottom: 1.25em;
+}
+
+/* The columns, sharing the width inside it. */
+.hero-chart__plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 100%;
+}
+
+/* The pass mark. One hairline, solid — the only rule in the plot, so it needs
+   no dashes to say it is not data. */
+.hero-chart__target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--gray-300);
+  pointer-events: none;
+}
+
+.hero-chart__target span {
+  position: absolute;
+  right: 0;
+  bottom: -0.6em;
+  padding-left: 6px;
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* Nothing caps a column, and nothing caps the bar inside it either: the
+   columns split the plot evenly and each bar fills the one it is in, so the
+   only space between two bars is the plot's 2px gap. Filling the column keeps
+   the pass line honest too, because the bars run the full width the line is
+   drawn across. */
+.hero-chart__col {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+
+.hero-chart__bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--skill-strong);
+}
+
+.hero-chart__col[data-band="weak"] .hero-chart__bar {
+  background-color: var(--skill-weak);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.38) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+/* Before the exam is taken. The seat is drawn full height so the plot shows
+   the scale it will be read against, in a neutral that is neither of the two
+   data colours — an empty column can never be misread as a score. */
+.hero-chart__bar--waiting {
+  background: var(--gray-150);
 }
 
 /* The figure that is not there yet. */
 .hero-chart__score--waiting {
   font-weight: var(--fw-regular);
+  color: var(--text-muted);
+}
+
+/* Only the gaps carry a number: a value on every column is a value nobody
+   reads, and these are the ones being looked for. */
+.hero-chart__value {
+  margin-bottom: 2px;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  color: var(--text-body);
+}
+
+.hero-chart__tick {
+  position: absolute;
+  bottom: -1.2em;
+  font-size: var(--fs-micro);
+  line-height: 1;
   color: var(--text-muted);
 }
 
