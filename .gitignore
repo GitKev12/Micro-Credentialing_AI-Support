@@ -27,3 +27,7 @@ client/.env.production.local
 
 # Jest
 coverage/
+
+# Cygwin/Git-Bash crash dumps. Written wherever the shell happened to be
+# standing when it fell over, so they turn up at any depth.
+*.stackdump
