@@ -310,3 +310,33 @@ export async function findIssuedCertificate(certificateId) {
   if (!(await collectionExists(ISSUED_COLLECTION))) return null;
   return collection(ISSUED_COLLECTION).findOne({ _id: { $in: idCandidates(certificateId) } });
 }
+
+/**
+ * Every certificate issued to a student, records and files together.
+ *
+ * Deleting the documents on their own leaves their PDFs in the bucket with
+ * nothing pointing at them — bytes that no longer belong to anybody and that
+ * nothing will ever clean up. The file goes with the record here, the same way
+ * `issueCertificate` drops the old file when it replaces one.
+ *
+ * Lives in this module rather than in the account controller because the
+ * bucket is this module's to know about.
+ */
+export async function removeIssuedCertificatesFor(studentId) {
+  if (!(await collectionExists(ISSUED_COLLECTION))) return 0;
+
+  const match = { studentId: String(studentId) };
+  const rows = await collection(ISSUED_COLLECTION).find(match).toArray();
+
+  for (const row of rows) {
+    if (!row.fileId) continue;
+    try {
+      await gridFsBucket(ISSUED_BUCKET).delete(row.fileId);
+    } catch {
+      // Already gone. The record below is the part that must not be left.
+    }
+  }
+
+  const result = await collection(ISSUED_COLLECTION).deleteMany(match);
+  return result.deletedCount ?? 0;
+}

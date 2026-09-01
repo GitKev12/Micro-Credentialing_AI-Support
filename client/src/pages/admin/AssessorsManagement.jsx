@@ -1,17 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  createAssessor,
+  deleteAssessor,
   fetchAssessor,
+  fetchAssessorImpact,
   fetchAssessors,
   fetchCourses,
   setAssessorSuspended,
   updateAssessor
 } from "../../services/admin";
-import { CheckIcon, ChevronRightIcon } from "./components/icons";
-import { AdminSelect, Avatar, PageHeader, SearchField } from "./components/ui";
+import { AssessorsIcon, ChevronRightIcon } from "./components/icons";
+import {
+  AdminButton,
+  AdminSelect,
+  Avatar,
+  ConfirmDeleteModal,
+  PageHeader,
+  SearchField
+} from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import AssessorDetail from "./components/assessors/AssessorDetail";
-import { activityKindLabel, EMPTY_WORKLOAD } from "./components/assessors/assessorText";
+import AssessorForm from "./components/assessors/AssessorForm";
+import {
+  activityKindLabel,
+  assessorKeeps,
+  assessorLosses,
+  EMPTY_WORKLOAD
+} from "./components/assessors/assessorText";
 import { formatDate } from "./lib/format";
+import { useLatestRequest } from "../../lib/useLatestRequest";
+import { useNotice } from "../../lib/useNotice";
 
 // The two categories that are not a course: everyone, and everyone with no
 // course at all. The students list is narrowed by the same two.
@@ -33,11 +51,14 @@ function AssessorsManagement() {
   const [busy, setBusy] = useState(false);
   // The result of the last write, which is now only an edit to the assessor's
   // own details. A write that failed used to leave no trace on screen at all.
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useNotice();
 
   // The assessor whose details are being corrected, if any.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
+  // The assessor awaiting a "yes, delete", with the cost filled in once read.
+  const [deleting, setDeleting] = useState(null);
+  const [impact, setImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -59,26 +80,46 @@ function AssessorsManagement() {
     };
   }, []);
 
+  const detailRequest = useLatestRequest();
+  const impactRequest = useLatestRequest();
+
   const openAssessor = (assessorId) => {
+    // Claimed before the fetch, so a slower reply for a record the
+    // admin has already clicked past is dropped rather than shown.
+    const token = detailRequest.next();
     setDetailStatus("loading");
     setSelected({ id: assessorId });
     setNotice(null);
     fetchAssessor(assessorId)
       .then((assessor) => {
+        if (!detailRequest.isCurrent(token)) return;
         setSelected(assessor);
         setDetailStatus("ready");
       })
-      .catch(() => setDetailStatus("error"));
+      .catch(() => {
+        if (detailRequest.isCurrent(token)) setDetailStatus("error");
+      });
   };
 
   const saveAssessor = async (values) => {
     setBusy(true);
     setFormError(null);
     try {
-      const saved = await updateAssessor(form.id, values);
-      setAssessors((list) => list.map((a) => (a.id === saved.id ? { ...a, ...saved } : a)));
-      setSelected((assessor) => (assessor ? { ...assessor, ...saved } : assessor));
-      setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
+      if (form === "new") {
+        const created = await createAssessor(values);
+        // Re-read rather than append: the list is sorted by name on the server,
+        // so an appended row sits at the bottom until the next load and then
+        // jumps. The shared-course note is recounted with it.
+        const fresh = await fetchAssessors();
+        setAssessors(fresh.assessors);
+        setCoverage(fresh.coverage);
+        setNotice({ tone: "ok", text: `${created.name} was added.` });
+      } else {
+        const saved = await updateAssessor(form.id, values);
+        setAssessors((list) => list.map((a) => (a.id === saved.id ? { ...a, ...saved } : a)));
+        setSelected((assessor) => (assessor ? { ...assessor, ...saved } : assessor));
+        setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
+      }
       setForm(null);
     } catch (error) {
       setFormError(error?.response?.data?.message || "Couldn't save this assessor. Try again.");
@@ -96,6 +137,48 @@ function AssessorsManagement() {
    * papers waiting on them stay waiting. The row moves first and goes back if
    * the write fails.
    */
+  const askToDelete = (assessor) => {
+    // The costs are read for one record; a reply that arrives after the
+    // admin has cancelled and opened another must not fill in that one.
+    const token = impactRequest.next();
+    setDeleting(assessor);
+    setImpact(null);
+    fetchAssessorImpact(assessor.id)
+      .then((data) => {
+        if (impactRequest.isCurrent(token)) setImpact(data);
+      })
+      .catch(() => {
+        if (impactRequest.isCurrent(token)) setImpact({ unknown: true });
+      });
+  };
+
+  const removeAssessor = async () => {
+    setBusy(true);
+    try {
+      const { assessor } = await deleteAssessor(deleting.id);
+      // Re-read rather than filter: losing an assessor changes who else is on
+      // their courses, and the shared-course note above the table is counted on
+      // the server. Filtering the row out locally would drop the assessor from
+      // view while that note went on naming a course they no longer share.
+      const fresh = await fetchAssessors();
+      setAssessors(fresh.assessors);
+      setCoverage(fresh.coverage);
+      setDeleting(null);
+      setImpact(null);
+      // The detail screen is looking at a record that no longer exists.
+      if (selected?.id === deleting.id) setSelected(null);
+      setNotice({ tone: "ok", text: `${assessor.name} was deleted.` });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error?.response?.data?.message || "Couldn't delete this assessor."
+      });
+      setDeleting(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggleSuspended = async (assessor) => {
     const next = !assessor.suspended;
     const patch = (list) =>
@@ -181,9 +264,34 @@ function AssessorsManagement() {
     });
   }, [assessors, query, category]);
 
+  /**
+   * Rendered by both branches below.
+   *
+   * The detail screen returns before the list's JSX is reached, so a confirm
+   * that lived only down there opened for a row and did nothing at all for the
+   * Delete button on the detail — which is the one place the account is fully
+   * in view when you decide.
+   */
+  const deleteConfirm = deleting ? (
+    <ConfirmDeleteModal
+      title="Delete this assessor?"
+      subject={`${deleting.name}${deleting.assessorNumber ? ` · ${deleting.assessorNumber}` : ""}`}
+      losses={assessorLosses(impact)}
+      keeps={assessorKeeps(impact)}
+      busy={busy}
+      confirmLabel="Delete assessor"
+      onCancel={() => {
+        setDeleting(null);
+        setImpact(null);
+      }}
+      onConfirm={removeAssessor}
+    />
+  ) : null;
+
   if (selected) {
     return (
-      <AssessorDetail
+      <>
+        <AssessorDetail
         assessor={selected}
         detailStatus={detailStatus}
         busy={busy}
@@ -195,9 +303,12 @@ function AssessorsManagement() {
           setFormError(null);
           setForm(selected);
         }}
+        onDelete={() => askToDelete(selected)}
         onCancelForm={() => setForm(null)}
         onSave={saveAssessor}
       />
+        {deleteConfirm}
+      </>
     );
   }
 
@@ -205,6 +316,7 @@ function AssessorsManagement() {
     <div className="admin-main__inner">
       <PageHeader
         title="Assessors Management"
+        icon={AssessorsIcon}
       />
 
       {/* Category first, then type. One dropdown holds any number of courses
@@ -230,61 +342,24 @@ function AssessorsManagement() {
             placeholder="Search assessors…"
             label="Search assessors"
             hint={`${visible.length} of ${assessors.length}`}
+            notice={notice}
           />
         </div>
 
-        {/* The switch is in the table, so what it did has to be sayable from
-            the list — the detail screen's copy of this is never on screen when
-            a row is toggled. */}
-        {notice ? (
-          <p
-            className={`admin-notice admin-notice--inline admin-notice--${notice.tone}`}
-            role="status"
-          >
-            {notice.tone === "ok" ? (
-              <span className="admin-notice__icon">
-                <CheckIcon size={14} />
-              </span>
-            ) : null}
-            {notice.text}
-          </p>
-        ) : null}
+        <AdminButton
+          variant="admin-toolbar__action"
+          onClick={() => {
+            setFormError(null);
+            setForm("new");
+          }}
+          disabled={status !== "ready"}
+        >
+          New assessor
+        </AdminButton>
       </div>
 
-      {/* An unassessed course is invisible everywhere else in the console: it
-          looks normal from Course Management whether anyone grades it or not.
-          This is the screen that can fix it, so this is where it is said. */}
-      {coverage.unassigned.length > 0 ? (
-        <p className="admin-notice admin-notice--warn" role="status">
-          <strong>
-            {coverage.unassigned.length === 1
-              ? "1 course has no assessor"
-              : `${coverage.unassigned.length} courses have no assessor`}
-          </strong>{" "}
-          — {coverage.unassigned.map((course) => course.code || course.title).join(", ")}.
-        </p>
-      ) : null}
-
-      {/* A course can now be fully staffed and still be silent. A generated
-          paper used to be live the moment it existed; posting is the assessor's
-          own act, so an assigned course can go a whole term with nothing its
-          students are able to open — and that looks identical from every other
-          screen in the console. */}
-      {coverage.unposted.length > 0 ? (
-        <p className="admin-notice admin-notice--warn" role="status">
-          <strong>
-            {coverage.unposted.length === 1
-              ? "1 course has no assessment posted"
-              : `${coverage.unposted.length} courses have no assessment posted`}
-          </strong>{" "}
-          — {coverage.unposted.map((course) => course.code || course.title).join(", ")}. Their
-          students have nothing to take.
-        </p>
-      ) : null}
-
-      {/* Follows the warnings rather than riding the search row: a shared course
-          is a fact about the list, not a problem to act on, and the toolbar is
-          now the category-and-search row the students list uses. */}
+      {/* Sits under the toolbar rather than riding the search row: a shared
+          course is a fact about the list, not a problem to act on. */}
       {coverage.shared.length > 0 ? (
         <p className="admin-notice admin-notice--note" role="status">
           Shared by more than one assessor:{" "}
@@ -454,6 +529,17 @@ function AssessorsManagement() {
         </div>
       )}
 
+      {form ? (
+        <AssessorForm
+          assessor={form === "new" ? null : form}
+          busy={busy}
+          error={formError}
+          onCancel={() => setForm(null)}
+          onSave={saveAssessor}
+        />
+      ) : null}
+
+      {deleteConfirm}
     </div>
   );
 }

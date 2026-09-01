@@ -160,13 +160,33 @@ export const MIN_PASSWORD_LENGTH = 8;
  * Patches names, email, student number or password. Send only the fields being
  * changed; an omitted or empty password is left alone.
  *
- * There is no create or delete for accounts. Provisioning them is outside this
- * system, so the console corrects records rather than adding to or removing
- * from the roster.
  */
 export async function updateStudent(studentId, changes) {
   const { data } = await api.patch(`/admin/students/${studentId}`, changes);
   return data.student;
+}
+
+/**
+ * Add a student to the roster.
+ *
+ * A password is required here in a way it is not on an edit: there is no
+ * existing one to leave alone. Enrolment is not sent — a new student starts on
+ * no courses, and Classes Management is where they are put on one.
+ */
+export async function createStudent(details) {
+  const { data } = await api.post("/admin/students", details);
+  return data.student;
+}
+
+/** What deleting this student would take with them, read before it is agreed to. */
+export async function fetchStudentImpact(studentId) {
+  const { data } = await api.get(`/admin/students/${studentId}/impact`);
+  return data.impact ?? {};
+}
+
+export async function deleteStudent(studentId) {
+  const { data } = await api.delete(`/admin/students/${studentId}`);
+  return data;
 }
 
 /**
@@ -224,6 +244,28 @@ export async function fetchAssessor(assessorId) {
 }
 
 /** Patches name, email, ID number or password. Send only what is changing. */
+/**
+ * Add an assessor to the roster.
+ *
+ * Assignment is not sent: a new assessor starts on no courses, and Classes
+ * Management is where they are put on one.
+ */
+export async function createAssessor(details) {
+  const { data } = await api.post("/admin/assessors", details);
+  return data.assessor;
+}
+
+/** What deleting this assessor would take, and what survives them. */
+export async function fetchAssessorImpact(assessorId) {
+  const { data } = await api.get(`/admin/assessors/${assessorId}/impact`);
+  return data.impact ?? {};
+}
+
+export async function deleteAssessor(assessorId) {
+  const { data } = await api.delete(`/admin/assessors/${assessorId}`);
+  return data;
+}
+
 export async function updateAssessor(assessorId, changes) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}`, changes);
   return data.assessor;

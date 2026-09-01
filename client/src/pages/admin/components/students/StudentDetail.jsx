@@ -1,5 +1,5 @@
-import { UserIcon } from "../icons";
-import { Avatar, BackLink, StatTile } from "../ui";
+import { BadgeIcon, CoursesIcon, CredentialIcon, UserIcon } from "../icons";
+import { Avatar, BackLink, SectionTitle, StatTile } from "../ui";
 import { SkeletonDetail } from "../../../../components/Skeleton";
 import ProgressCell from "./ProgressCell";
 import StudentForm from "./StudentForm";
@@ -21,6 +21,7 @@ export default function StudentDetail({
   formError,
   onBack,
   onEdit,
+  onDelete,
   onCancelForm,
   onSave
 }) {
@@ -78,6 +79,14 @@ export default function StudentDetail({
                 >
                   Edit details
                 </button>
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--danger"
+                  disabled={busy}
+                  onClick={onDelete}
+                >
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -91,6 +100,7 @@ export default function StudentDetail({
               <section className="admin-card">
                 <div className="admin-stats admin-stats--flush admin-stats--compact">
                   <StatTile
+                    icon={BadgeIcon}
                     value={badges.earned ?? 0}
                     label="Badges earned"
                     note={
@@ -100,6 +110,7 @@ export default function StudentDetail({
                     }
                   />
                   <StatTile
+                    icon={CredentialIcon}
                     value={selected.credentials ?? 0}
                     label="Micro-credentials"
                     note={
@@ -108,7 +119,7 @@ export default function StudentDetail({
                         : null
                     }
                   />
-                  <StatTile value={enrolled.length} label="Active courses" />
+                  <StatTile icon={CoursesIcon} value={enrolled.length} label="Active courses" />
                 </div>
               </section>
 
@@ -122,7 +133,7 @@ export default function StudentDetail({
                   student joins a course by being put in one of its classes. */}
               <section className="admin-table-card">
                 <div className="admin-table-head">
-                  <h2 className="admin-card__title">Enrolled Courses</h2>
+                  <SectionTitle icon={CoursesIcon}>Enrolled Courses</SectionTitle>
                 </div>
 
                 <table className="admin-table">

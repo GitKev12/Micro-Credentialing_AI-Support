@@ -1,16 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  createStudent,
+  deleteStudent,
   fetchCourses,
   fetchStudent,
+  fetchStudentImpact,
   fetchStudents,
   setStudentSuspended,
   updateStudent
 } from "../../services/admin";
-import { CheckIcon, ChevronRightIcon } from "./components/icons";
-import { AdminSelect, Avatar, PageHeader, SearchField } from "./components/ui";
+import { ChevronRightIcon, StudentsIcon } from "./components/icons";
+import {
+  AdminButton,
+  AdminSelect,
+  Avatar,
+  ConfirmDeleteModal,
+  PageHeader,
+  SearchField
+} from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import StudentDetail from "./components/students/StudentDetail";
+import StudentForm from "./components/students/StudentForm";
+import { studentKeeps, studentLosses } from "./components/students/studentText";
 import { formatDate } from "./lib/format";
+import { useLatestRequest } from "../../lib/useLatestRequest";
+import { useNotice } from "../../lib/useNotice";
 
 // The two categories that are not a course: everyone, and everyone with no
 // course at all. The server knows the same two names.
@@ -38,11 +52,14 @@ function StudentsManagement() {
   const [busy, setBusy] = useState(false);
   // The result of the last write, which is now only an edit to the student's
   // own details. A write that failed used to leave no trace on screen at all.
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useNotice();
 
   // The student whose details are being corrected, if any.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
+  // The student awaiting a "yes, delete", with the cost filled in once read.
+  const [deleting, setDeleting] = useState(null);
+  const [impact, setImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -63,31 +80,94 @@ function StudentsManagement() {
     };
   }, []);
 
+  const detailRequest = useLatestRequest();
+  const impactRequest = useLatestRequest();
+
   const openStudent = (studentId) => {
+    // Claimed before the fetch, so a slower reply for a record the
+    // admin has already clicked past is dropped rather than shown.
+    const token = detailRequest.next();
     setDetailStatus("loading");
     setSelected({ id: studentId });
     setNotice(null);
     fetchStudent(studentId)
       .then((student) => {
+        if (!detailRequest.isCurrent(token)) return;
         setSelected(student);
         setDetailStatus("ready");
       })
-      .catch(() => setDetailStatus("error"));
+      .catch(() => {
+        if (detailRequest.isCurrent(token)) setDetailStatus("error");
+      });
   };
 
   const saveStudent = async (values) => {
     setBusy(true);
     setFormError(null);
     try {
-      const saved = await updateStudent(form.id, values);
-      setStudents((list) => list.map((s) => (s.id === saved.id ? { ...s, ...saved } : s)));
-      setSelected((student) => (student ? { ...student, ...saved } : student));
-      setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
+      if (form === "new") {
+        const created = await createStudent(values);
+        // Re-read rather than append: the list is sorted by surname on the
+        // server, so an appended row sits at the bottom until the next load
+        // and then jumps. Refetching also gives the new row the same shape the
+        // others have — a created account comes back in the detail shape,
+        // which carries no activity figures.
+        setStudents(await fetchStudents());
+        setNotice({ tone: "ok", text: `${created.name} was added.` });
+      } else {
+        const saved = await updateStudent(form.id, values);
+        setStudents((list) => list.map((s) => (s.id === saved.id ? { ...s, ...saved } : s)));
+        setSelected((student) => (student ? { ...student, ...saved } : student));
+        setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
+      }
       setForm(null);
     } catch (error) {
       // Kept in the form: a taken email or a short password is fixed in the
       // field the admin is still looking at.
       setFormError(error?.response?.data?.message || "Couldn't save this student. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Ask first, and say what it would cost.
+   *
+   * The counts are read rather than assumed: a student who has never opened a
+   * lesson and one who has finished the course both look the same from a row,
+   * and only one of those deletions throws work away.
+   */
+  const askToDelete = (student) => {
+    // The costs are read for one record; a reply that arrives after the
+    // admin has cancelled and opened another must not fill in that one.
+    const token = impactRequest.next();
+    setDeleting(student);
+    setImpact(null);
+    fetchStudentImpact(student.id)
+      .then((data) => {
+        if (impactRequest.isCurrent(token)) setImpact(data);
+      })
+      .catch(() => {
+        if (impactRequest.isCurrent(token)) setImpact({ unknown: true });
+      });
+  };
+
+  const removeStudent = async () => {
+    setBusy(true);
+    try {
+      const { student } = await deleteStudent(deleting.id);
+      setStudents((list) => list.filter((row) => row.id !== deleting.id));
+      setDeleting(null);
+      setImpact(null);
+      // The detail screen is looking at a record that no longer exists.
+      if (selected?.id === deleting.id) setSelected(null);
+      setNotice({ tone: "ok", text: `${student.name} was deleted.` });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error?.response?.data?.message || "Couldn't delete this student."
+      });
+      setDeleting(null);
     } finally {
       setBusy(false);
     }
@@ -191,9 +271,34 @@ function StudentsManagement() {
     });
   }, [students, query, category]);
 
+  /**
+   * Rendered by both branches below.
+   *
+   * The detail screen returns before the list's JSX is reached, so a confirm
+   * that lived only down there opened for a row and did nothing at all for the
+   * Delete button on the detail — which is the one place the account is fully
+   * in view when you decide.
+   */
+  const deleteConfirm = deleting ? (
+    <ConfirmDeleteModal
+      title="Delete this student?"
+      subject={`${deleting.name}${deleting.studentNumber ? ` · ${deleting.studentNumber}` : ""}`}
+      losses={studentLosses(impact)}
+      keeps={studentKeeps(impact)}
+      busy={busy}
+      confirmLabel="Delete student"
+      onCancel={() => {
+        setDeleting(null);
+        setImpact(null);
+      }}
+      onConfirm={removeStudent}
+    />
+  ) : null;
+
   if (selected) {
     return (
-      <StudentDetail
+      <>
+        <StudentDetail
         student={selected}
         detailStatus={detailStatus}
         busy={busy}
@@ -205,9 +310,12 @@ function StudentsManagement() {
           setFormError(null);
           setForm(selected);
         }}
+        onDelete={() => askToDelete(selected)}
         onCancelForm={() => setForm(null)}
         onSave={saveStudent}
       />
+        {deleteConfirm}
+      </>
     );
   }
 
@@ -215,6 +323,7 @@ function StudentsManagement() {
     <div className="admin-main__inner">
       <PageHeader
         title="Students Management"
+        icon={StudentsIcon}
       />
 
       {/* Category first, then type. One dropdown holds any number of courses
@@ -240,22 +349,20 @@ function StudentsManagement() {
             placeholder="Search students…"
             label="Search students"
             hint={`${visible.length} of ${students.length}`}
+            notice={notice}
           />
         </div>
 
-        {notice ? (
-          <p
-            className={`admin-notice admin-notice--inline admin-notice--${notice.tone}`}
-            role="status"
-          >
-            {notice.tone === "ok" ? (
-              <span className="admin-notice__icon">
-                <CheckIcon size={14} />
-              </span>
-            ) : null}
-            {notice.text}
-          </p>
-        ) : null}
+        <AdminButton
+          variant="admin-toolbar__action"
+          onClick={() => {
+            setFormError(null);
+            setForm("new");
+          }}
+          disabled={status !== "ready"}
+        >
+          New student
+        </AdminButton>
       </div>
 
       {status === "loading" ? (
@@ -413,6 +520,17 @@ function StudentsManagement() {
         </div>
       )}
 
+      {form ? (
+        <StudentForm
+          student={form === "new" ? null : form}
+          busy={busy}
+          error={formError}
+          onCancel={() => setForm(null)}
+          onSave={saveStudent}
+        />
+      ) : null}
+
+      {deleteConfirm}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { formatDate } from "../../lib/format";
+import { formatDate, plural } from "../../lib/format";
 
 /**
  * "Last active 15 Aug 2026 · submitted a quiz".
@@ -56,4 +56,42 @@ export function courseRows(enrolled, progress, badges, assessors) {
     badges: badgesById.get(String(course.id)) ?? badgesByCode.get(String(course.code)) ?? null,
     assessors: assessorsByCourse.get(String(course.id)) ?? []
   }));
+}
+
+/**
+ * What deleting a student destroys, and what survives it.
+ *
+ * The split is the point of the dialog. Their own record goes — the answers
+ * they gave, the lessons they finished, the certificates they hold. The
+ * courses and classes do not: those belong to the institution, and a roster
+ * simply gets shorter.
+ */
+export function studentLosses(impact) {
+  if (!impact) return null;
+  if (impact.unknown) {
+    return [
+      "their quiz submissions and the marks on them",
+      "their lesson completions",
+      "any certificate they have been issued"
+    ];
+  }
+
+  return [
+    impact.submissions ? plural(impact.submissions, "quiz submission") : "",
+    impact.completions ? plural(impact.completions, "lesson completion") : "",
+    impact.certificates ? plural(impact.certificates, "issued certificate") : ""
+  ].filter(Boolean);
+}
+
+export function studentKeeps(impact) {
+  if (!impact || impact.unknown) return [];
+
+  return [
+    impact.classes
+      ? `${plural(impact.classes, "class")} — the class stays, its roster is one shorter`
+      : "",
+    impact.enrolled
+      ? `${plural(impact.enrolled, "course")} — the course and its lessons are untouched`
+      : ""
+  ].filter(Boolean);
 }

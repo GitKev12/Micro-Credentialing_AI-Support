@@ -31,3 +31,8 @@ coverage/
 # Cygwin/Git-Bash crash dumps. Written wherever the shell happened to be
 # standing when it fell over, so they turn up at any depth.
 *.stackdump
+
+# Written before the Assessment collection is pruned. One machine's rollback
+# for one run, and it carries question keys — not something the repository
+# should hold.
+assessment-backup-*.json

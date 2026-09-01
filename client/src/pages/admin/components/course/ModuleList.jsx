@@ -1,4 +1,5 @@
-import { TrashIcon } from "../icons";
+import { ModulesIcon, TrashIcon } from "../icons";
+import { SectionTitle } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
 import { impactLabel, moduleMeta } from "./impact";
 
@@ -23,7 +24,7 @@ export default function ModuleList({
 }) {
   return (
     <div className="admin-card">
-            <h2 className="admin-card__title">Learning Modules</h2>
+            <SectionTitle icon={ModulesIcon}>Learning Modules</SectionTitle>
 
             {detailStatus === "loading" ? (
               <SkeletonText lines={4} label="Loading modules…" />

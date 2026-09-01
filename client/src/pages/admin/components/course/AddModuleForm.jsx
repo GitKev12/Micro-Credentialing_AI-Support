@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 
-import { UploadIcon } from "../icons";
-import { AdminButton } from "../ui";
+import { PlusIcon, UploadIcon } from "../icons";
+import { AdminButton, SectionTitle } from "../ui";
 import { fileSizeLabel } from "../../lib/format";
 
 /** Title + file picker for a new lesson. Drag-and-drop or click to browse. */
@@ -30,7 +30,7 @@ function AddModuleForm({ busy, progress, onAdd }) {
 
   return (
     <section className="admin-card admin-card--stacked">
-      <h2 className="admin-card__title">Add a Learning Module</h2>
+      <SectionTitle icon={PlusIcon}>Add a Learning Module</SectionTitle>
 
       <div className="admin-field">
         <div className="admin-field__label">Module title</div>

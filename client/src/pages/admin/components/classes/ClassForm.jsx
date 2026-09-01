@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AssessorsIcon, StudentsIcon } from "../icons";
+import { AssessorsIcon, StudentsIcon, TrashIcon } from "../icons";
 import { AdminButton, AdminField, AdminModal, AdminSelect } from "../ui";
 import ClassRoster from "./ClassRoster";
 import PeoplePicker from "./PeoplePicker";
@@ -11,8 +11,30 @@ import PeoplePicker from "./PeoplePicker";
  * be a second place to fix. The course is a single choice; assessors and
  * students are tagged from dropdowns, any number of each. The schedule is four
  * plain labels — shown on the class, never used to gate anything.
+ *
+ * Deleting lives at the bottom of the edit form rather than on the list row.
+ * On the row it sat one careless click from a roster, beside a Manage that did
+ * something ordinary; here it is somewhere the admin arrived deliberately,
+ * under everything the class holds — which is the thing being weighed. It is
+ * absent while creating: there is nothing yet to destroy.
+ *
+ * `confirming` is true while the confirmation it opens is on screen. The form
+ * stops answering Escape and backdrop clicks for as long as that is up, so one
+ * press cannot dismiss both dialogs and leave the admin wondering which of
+ * them it answered.
  */
-function ClassForm({ klass, courses, assessors, students, busy, error, onCancel, onSave }) {
+function ClassForm({
+  klass,
+  courses,
+  assessors,
+  students,
+  busy,
+  error,
+  confirming = false,
+  onCancel,
+  onDelete,
+  onSave
+}) {
   const editing = Boolean(klass);
   const [name, setName] = useState(klass?.name ?? "");
   const [courseId, setCourseId] = useState(klass?.course?.id ?? "");
@@ -52,7 +74,7 @@ function ClassForm({ klass, courses, assessors, students, busy, error, onCancel,
       // Dropped the moment the panel starts leaving, so the form travels back
       // alongside it rather than after it.
       tone={picking && !closingPicker ? "admin-modal__panel--paired" : ""}
-      onClose={picking ? () => {} : onCancel}
+      onClose={picking || confirming ? () => {} : onCancel}
       footer={
         <>
           <button
@@ -148,6 +170,21 @@ function ClassForm({ klass, courses, assessors, students, busy, error, onCancel,
           <AdminField label="Room" value={schedule.room} onChange={setField("room")} placeholder="e.g. Lab 201" />
         </div>
       </div>
+
+      {editing && onDelete ? (
+        <section className="admin-danger">
+          <h3 className="admin-danger__title">Danger Zone</h3>
+          <button
+            type="button"
+            className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
+            disabled={busy}
+            onClick={() => onDelete(klass)}
+          >
+            <TrashIcon />
+            Delete class
+          </button>
+        </section>
+      ) : null}
 
       {picking ? (
         <PeoplePicker

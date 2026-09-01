@@ -203,3 +203,64 @@ export function UploadIcon({ size = 26 }) {
     </svg>
   );
 }
+
+/** A stack of lessons — the modules that make up a course. */
+export function ModulesIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="5" rx="1.5" {...stroke} />
+      <rect x="3" y="12" width="18" height="5" rx="1.5" {...stroke} />
+      <path d="M6.5 20h11" {...stroke} />
+    </svg>
+  );
+}
+
+/** A framed picture — the course's card art. */
+export function ImageIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" {...stroke} />
+      <circle cx="8.5" cy="10" r="1.6" {...stroke} />
+      <path d="M4 17l4.5-4.5a1.5 1.5 0 012 0L15 17M14 15l1.8-1.8a1.5 1.5 0 012 0L21 16" {...stroke} />
+    </svg>
+  );
+}
+
+/* ── Stat-tile glyphs ───────────────────────────────────────────────────────
+   Small by default: these sit inline at the head of a tile's label, not in a
+   filled square, so they are drawn at label size rather than nav size. */
+
+/** A clipboard, marked — a paper written and posted to a course. */
+export function AssessmentIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M9 4H6.5A1.5 1.5 0 005 5.5v14A1.5 1.5 0 006.5 21h11a1.5 1.5 0 001.5-1.5v-14A1.5 1.5 0 0017.5 4H15"
+        {...stroke}
+      />
+      <rect x="9" y="2.5" width="6" height="3.2" rx="1.1" {...stroke} />
+      <path d="M8.8 13.2l2.2 2.2 4.2-4.4" {...stroke} />
+    </svg>
+  );
+}
+
+/** A sealed certificate — the micro-credential a finished course awards. */
+export function CredentialIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="3.5" width="18" height="11.5" rx="2" {...stroke} />
+      <path d="M6.5 7.5h9M6.5 11h5.5" {...stroke} />
+      <circle cx="16.8" cy="18" r="3.2" {...stroke} />
+    </svg>
+  );
+}
+
+/** A medal on its ribbon — one badge, earned by passing a quiz. */
+export function BadgeIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8.5" r="5" {...stroke} />
+      <path d="M8.8 12.3L7.6 21l4.4-2.4 4.4 2.4-1.2-8.7" {...stroke} />
+    </svg>
+  );
+}

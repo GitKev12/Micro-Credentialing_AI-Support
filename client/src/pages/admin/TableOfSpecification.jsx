@@ -4,6 +4,7 @@ import {
   saveTableOfSpecification
 } from "../../services/admin";
 import { AdminButton, AdminSelect, PageHeader } from "./components/ui";
+import { TosIcon } from "./components/icons";
 import BlueprintSummary from "./components/tos/BlueprintSummary";
 import BlueprintTable from "./components/tos/BlueprintTable";
 import { blueprintKey, blueprintTotals, EMPTY_ROW } from "./components/tos/blueprint";
@@ -109,7 +110,7 @@ function TableOfSpecification() {
   if (status === "loading") {
     return (
       <div className="admin-main__inner admin-main__inner--wide">
-        <PageHeader title="Table of Specification" />
+        <PageHeader title="Table of Specification" icon={TosIcon} />
         <SkeletonTable rows={5} cols={8} label="Loading blueprint…" />
       </div>
     );
@@ -120,6 +121,7 @@ function TableOfSpecification() {
       <div className="admin-main__inner admin-main__inner--wide">
         <PageHeader
           title="Table of Specification"
+          icon={TosIcon}
           subtitle="Couldn't reach the API. Check that the server is running."
         />
       </div>
@@ -128,7 +130,7 @@ function TableOfSpecification() {
 
   return (
     <div className="admin-main__inner admin-main__inner--wide">
-      <PageHeader title="Table of Specification" />
+      <PageHeader title="Table of Specification" icon={TosIcon} />
 
       {/* Each course keeps its own blueprint, so the table below shows one at
           a time and the save applies only to the blueprint chosen here.

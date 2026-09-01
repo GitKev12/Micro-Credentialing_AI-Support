@@ -1,4 +1,4 @@
-import { CloseIcon, SearchIcon } from "../icons";
+import { CheckIcon, CloseIcon, SearchIcon } from "../icons";
 
 /**
  * Filter field for the list screens.
@@ -11,8 +11,14 @@ import { CloseIcon, SearchIcon } from "../icons";
  * `hint` is optional and is where a screen reports how much its filter
  * matched — typing into a search that silently narrows a list below the fold
  * leaves you guessing whether it did anything.
+ *
+ * `notice` is the receipt for the last write — `{ tone, text }`, the shape
+ * `useNotice` holds. It rides the right of this row rather than sitting above
+ * the table, where a notice arriving and clearing shunted the whole list down
+ * and back. Every list screen rendered the same block itself; it lives here
+ * now so the four cannot drift apart.
  */
-export function SearchField({ value, onChange, placeholder, label, hint }) {
+export function SearchField({ value, onChange, placeholder, label, hint, notice }) {
   return (
     <div className="admin-search">
       <div className="admin-search__field">
@@ -39,6 +45,20 @@ export function SearchField({ value, onChange, placeholder, label, hint }) {
         ) : null}
       </div>
       {hint && value ? <span className="admin-search__hint">{hint}</span> : null}
+
+      {notice ? (
+        <p
+          className={`admin-notice admin-notice--inline admin-notice--${notice.tone}`}
+          role="status"
+        >
+          {notice.tone === "ok" ? (
+            <span className="admin-notice__icon">
+              <CheckIcon size={14} />
+            </span>
+          ) : null}
+          {notice.text}
+        </p>
+      ) : null}
     </div>
   );
 }

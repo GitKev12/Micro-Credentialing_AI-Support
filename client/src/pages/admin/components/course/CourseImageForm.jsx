@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 
 import { MAX_COURSE_IMAGE_BYTES } from "../../../../services/admin";
 import { courseImageUrl } from "../../../../services/courses";
-import { UploadIcon } from "../icons";
+import { ImageIcon, UploadIcon } from "../icons";
+import { SectionTitle } from "../ui";
 import { fileSizeLabel } from "../../lib/format";
 
 /**
@@ -34,7 +35,7 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
 
   return (
     <section className="admin-card admin-card--stacked">
-      <h2 className="admin-card__title">Course Picture</h2>
+      <SectionTitle icon={ImageIcon}>Course Picture</SectionTitle>
 
       {course.hasImage ? (
         <img

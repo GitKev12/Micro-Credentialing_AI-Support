@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+
+import { useNotice } from "../../lib/useNotice";
 import {
   createClass,
   deleteClass,
@@ -9,7 +11,7 @@ import {
   updateClass
 } from "../../services/classes";
 import { fetchAssessors, fetchCourses, fetchStudents } from "../../services/admin";
-import { CheckIcon, TrashIcon } from "./components/icons";
+import { ChevronRightIcon, ClassesIcon } from "./components/icons";
 import { AdminButton, AdminModal, ConfirmDeleteModal, PageHeader, SearchField } from "./components/ui";
 import ClassForm from "./components/classes/ClassForm";
 import { classKeeps, classLosses, scheduleSummary } from "./components/classes/classText";
@@ -25,7 +27,7 @@ function ClassesManagement() {
   const [query, setQuery] = useState("");
 
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useNotice();
 
   // The form is "new", a loaded class object being edited, or null. `deleting`
   // is the class awaiting a "yes, delete", with its impact filled in once read.
@@ -33,6 +35,10 @@ function ClassesManagement() {
   const [formError, setFormError] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [impact, setImpact] = useState(null);
+  // A refused delete. It belongs in the confirmation, which stays open rather
+  // than dropping the admin back on the list with a line they have to connect
+  // to what they were doing.
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -132,6 +138,7 @@ function ClassesManagement() {
   const askToDelete = (cls) => {
     setDeleting(cls);
     setImpact(null);
+    setDeleteError(null);
     fetchClassImpact(cls.id)
       .then(setImpact)
       .catch(() => setImpact({ unknown: true }));
@@ -139,11 +146,14 @@ function ClassesManagement() {
 
   const removeClass = async () => {
     setBusy(true);
+    setDeleteError(null);
     try {
       const removed = await deleteClass(deleting.id);
       setClasses((list) => list.filter((cls) => cls.id !== deleting.id));
       setDeleting(null);
       setImpact(null);
+      // The class it was editing has gone with it.
+      setForm(null);
       const also = classKeeps(impact);
       setNotice({
         tone: "ok",
@@ -152,8 +162,9 @@ function ClassesManagement() {
         }`
       });
     } catch (error) {
-      setNotice({ tone: "error", text: errorMessage(error, "Couldn't delete this class.") });
-      setDeleting(null);
+      // Kept open, with the reason in it — closing the dialog to report a
+      // failure throws away the confirmation the admin just typed.
+      setDeleteError(errorMessage(error, "Couldn't delete this class."));
     } finally {
       setBusy(false);
     }
@@ -178,7 +189,7 @@ function ClassesManagement() {
 
   return (
     <div className="admin-main__inner">
-      <PageHeader title="Classes Management" />
+      <PageHeader title="Classes Management" icon={ClassesIcon} />
 
       <div className="admin-toolbar">
         <SearchField
@@ -187,6 +198,7 @@ function ClassesManagement() {
           placeholder="Search classes…"
           label="Search classes"
           hint={`${visible.length} of ${classes.length}`}
+          notice={notice}
         />
 
         <AdminButton
@@ -196,20 +208,6 @@ function ClassesManagement() {
         >
           New class
         </AdminButton>
-
-        {notice ? (
-          <p
-            className={`admin-notice admin-notice--inline admin-notice--${notice.tone}`}
-            role="status"
-          >
-            {notice.tone === "ok" ? (
-              <span className="admin-notice__icon">
-                <CheckIcon size={14} />
-              </span>
-            ) : null}
-            {notice.text}
-          </p>
-        ) : null}
       </div>
 
       {status === "loading" ? (
@@ -302,22 +300,22 @@ function ClassesManagement() {
                       </button>
                     </td>
                     <td className="admin-table__actions">
+                      {/* The cue the student and assessor lists end their rows
+                          on. Deleting used to sit beside it and is now in the
+                          form's Danger Zone, so the row carries one action and
+                          it is the harmless one.
+
+                          A real button and not their decorative chevron: those
+                          rows are one target with the name as the keyboard
+                          entry, and this cell is a cell of its own. */}
                       <button
                         type="button"
-                        className="admin-chip-btn admin-chip-btn--quiet"
+                        className="admin-table__manage"
                         disabled={busy}
                         onClick={() => openEdit(cls)}
                       >
                         Manage
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-chip-btn admin-chip-btn--icon admin-chip-btn--danger"
-                        disabled={busy}
-                        onClick={() => askToDelete(cls)}
-                        aria-label={`Delete ${cls.name}`}
-                      >
-                        <TrashIcon />
+                        <ChevronRightIcon size={14} />
                       </button>
                     </td>
                   </tr>
@@ -364,7 +362,9 @@ function ClassesManagement() {
           students={students}
           busy={busy}
           error={formError}
+          confirming={Boolean(deleting)}
           onCancel={() => setForm(null)}
+          onDelete={askToDelete}
           onSave={saveClass}
         />
       ) : null}
@@ -377,9 +377,12 @@ function ClassesManagement() {
           keeps={classKeeps(impact)}
           busy={busy}
           confirmLabel="Delete class"
+          confirmWord="CONFIRM"
+          error={deleteError}
           onCancel={() => {
             setDeleting(null);
             setImpact(null);
+            setDeleteError(null);
           }}
           onConfirm={removeClass}
         />

@@ -1,4 +1,4 @@
-import { formatDate } from "../../lib/format";
+import { formatDate, plural } from "../../lib/format";
 
 /**
  * "Last posted 15 Aug 2026", or "Last graded 15 Aug 2026".
@@ -104,3 +104,36 @@ export const EMPTY_WORKLOAD = {
   credentialsPending: 0,
   credentialsIssued: 0
 };
+
+/**
+ * What deleting an assessor destroys, and what survives it.
+ *
+ * Almost everything survives, and saying so is the point. A mark they released
+ * and a paper they posted are facts about a course and its students; neither
+ * stops being true because the account that recorded it has gone. What is lost
+ * is the account itself and their place on a staff list.
+ */
+export function assessorLosses(impact) {
+  if (!impact) return null;
+  if (impact.unknown) return ["their sign-in, and their place on any class they staff"];
+
+  return [
+    "their sign-in",
+    impact.classes
+      ? `their place on ${plural(impact.classes, "class")} — the class stays, one assessor short`
+      : ""
+  ].filter(Boolean);
+}
+
+export function assessorKeeps(impact) {
+  if (!impact || impact.unknown) return [];
+
+  return [
+    impact.graded
+      ? `${plural(impact.graded, "released grade")} — the mark stands, and the student keeps it`
+      : "",
+    impact.assigned
+      ? `${plural(impact.assigned, "course")} — its lessons and posted papers are untouched`
+      : ""
+  ].filter(Boolean);
+}

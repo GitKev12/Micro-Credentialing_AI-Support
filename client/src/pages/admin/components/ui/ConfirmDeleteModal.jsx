@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import { AdminField } from "./AdminField";
 import { AdminModal } from "./AdminModal";
 import { AdminButton } from "./primitives";
 
@@ -9,6 +12,16 @@ import { AdminButton } from "./primitives";
  * button waits for it. Agreeing to a deletion whose cost has not arrived is
  * agreeing to nothing in particular, and these deletions take student records
  * with them.
+ *
+ * `confirmWord` is a word that has to be typed out before the dialog will
+ * agree — pass "CONFIRM" and nothing happens until it is in the box. Reading
+ * the list of what goes is a decision; typing the word is the act, and it is
+ * what a mis-aimed click cannot do on its own. Matched trimmed and without
+ * regard to case: caps-lock is friction, not intent.
+ *
+ * `error` is what came back from a refused attempt. It belongs in the dialog
+ * rather than behind it: the dialog stays open, so the admin can see what went
+ * wrong without having to start again.
  */
 export function ConfirmDeleteModal({
   title,
@@ -17,9 +30,15 @@ export function ConfirmDeleteModal({
   keeps = [],
   busy = false,
   confirmLabel = "Delete",
+  confirmWord = null,
+  error = null,
   onCancel,
   onConfirm
 }) {
+  const [typed, setTyped] = useState("");
+  const wordTyped = typed.trim().toLowerCase() === String(confirmWord).toLowerCase();
+  const confirmable = Boolean(losses) && (!confirmWord || wordTyped);
+
   return (
     <AdminModal
       title={title}
@@ -38,7 +57,7 @@ export function ConfirmDeleteModal({
           </button>
           <AdminButton
             variant="admin-btn--compact admin-btn--danger"
-            disabled={busy || !losses}
+            disabled={busy || !confirmable}
             onClick={onConfirm}
           >
             {busy ? "Deleting…" : confirmLabel}
@@ -75,6 +94,25 @@ export function ConfirmDeleteModal({
           ) : null}
 
           <p className="admin-empty-note">This cannot be undone.</p>
+
+          {confirmWord ? (
+            <div className="admin-confirm-word">
+              <AdminField
+                label={`Type ${confirmWord} to continue`}
+                value={typed}
+                onChange={setTyped}
+                autoComplete="off"
+                placeholder={confirmWord}
+                required
+              />
+            </div>
+          ) : null}
+
+          {error ? (
+            <p className="admin-notice admin-notice--error" role="status">
+              {error}
+            </p>
+          ) : null}
         </>
       )}
     </AdminModal>

@@ -1,5 +1,5 @@
-import { UserIcon } from "../icons";
-import { BackLink, StatTile } from "../ui";
+import { AssessmentIcon, CoursesIcon, CredentialIcon, UserIcon } from "../icons";
+import { BackLink, SectionTitle, StatTile } from "../ui";
 import { SkeletonDetail } from "../../../../components/Skeleton";
 import AssessorForm from "./AssessorForm";
 import { backlogPhrase, EMPTY_WORKLOAD, lastActiveLabel, papersNote } from "./assessorText";
@@ -20,6 +20,7 @@ export default function AssessorDetail({
   formError,
   onBack,
   onEdit,
+  onDelete,
   onCancelForm,
   onSave
 }) {
@@ -67,6 +68,14 @@ export default function AssessorDetail({
                 >
                   Edit details
                 </button>
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--danger"
+                  disabled={busy}
+                  onClick={onDelete}
+                >
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -96,11 +105,13 @@ export default function AssessorDetail({
                     no credential comes of it. */}
                 <div className="admin-stats admin-stats--flush admin-stats--compact">
                   <StatTile
+                    icon={AssessmentIcon}
                     value={workload.toPost}
                     label="Assessments to post"
                     note={papersNote(workload)}
                   />
                   <StatTile
+                    icon={CredentialIcon}
                     value={workload.credentialsPending}
                     label="Credentials to issue"
                     note={
@@ -123,7 +134,7 @@ export default function AssessorDetail({
                   assessor takes a course by being put on one of its classes. */}
               <section className="admin-table-card">
                 <div className="admin-table-head">
-                  <h2 className="admin-card__title">Assigned Courses</h2>
+                  <SectionTitle icon={CoursesIcon}>Assigned Courses</SectionTitle>
                 </div>
 
                 <table className="admin-table">

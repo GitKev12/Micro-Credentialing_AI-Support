@@ -794,6 +794,15 @@
   white-space: nowrap;
 }
 
+/* The write receipt, at the far right of the search row. margin-left:auto
+   rather than a fixed slot, so it hugs the right edge whether the row is the
+   flexed one on the screens with a category filter or only as wide as the
+   field on the screens without — and the row keeps its height when the notice
+   goes, because the field beside it is the taller of the two. */
+.admin-search .admin-notice--inline {
+  margin-left: auto;
+}
+
 /* ── Table (list screens) ───────────────────────────────── */
 
 /* No padding: 6px of it held the table off the card edge, so the header's
@@ -1379,6 +1388,53 @@
   margin-left: 6px;
 }
 
+/* "Manage ›" on a class row — the same brand-coloured cue the student and
+   assessor lists end their rows on, in place of the filled chip that used to
+   sit here. The chip read as heavy as the delete beside it, so opening a class
+   to look at it and destroying one carried the same weight.
+
+   Still a button rather than the decorative chevron those lists use: their
+   rows are one target with the name as the keyboard entry, and a class row has
+   a delete of its own, so the cue has to be reachable in its own right. */
+.admin-table__manage {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--brand-text);
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.admin-table__manage:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-table__manage:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Every other control on the row dims while a write is in flight. */
+.admin-table__manage:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The delete sits before it now, so the gap belongs on this side. Its own
+   left padding is 4px against the chip's 12px, which is what keeps the two
+   from reading as one control. */
+.admin-chip-btn+.admin-table__manage {
+  margin-left: 6px;
+}
+
 /* ── List toolbar (category + search) ───────────────────── */
 
 /* The category dropdown and the search field share one row: pick a category,
@@ -1690,9 +1746,21 @@
 }
 
 .admin-stat__label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin-top: 5px;
   font-size: 14px;
   color: var(--text-muted);
+}
+
+/* The glyph takes the label's colour rather than the figure's brand: it names
+   what is being counted, so it belongs to the label it leads, and leaving the
+   brand to the figure alone keeps the number the one thing the tile says
+   loudly. */
+.admin-stat__mark {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 /* The most recent of whatever the tile counts. Ruled off rather than merely
@@ -1836,8 +1904,9 @@
 
 /* In the search row instead of above it: a notice arriving and clearing used
    to shunt the whole table down and back. A chip on the search field's own
-   radius, sitting centred against it, wrapping to its own line rather than
-   squeezing the field when the text runs long. */
+   radius, sitting centred against it at the right end of the row — see
+   .admin-search .admin-notice--inline — and wrapping to its own line rather
+   than squeezing the field when the text runs long. */
 .admin-notice--inline {
   display: inline-flex;
   align-items: center;
@@ -2891,6 +2960,63 @@
   border-top: 3px solid var(--warning-text);
 }
 
+/* ── Danger Zone (foot of an edit form) ─────────────────── */
+
+/* The destructive action, kept at the bottom of the form and fenced off from
+   it. The fence is the point: everything above this line is a correction that
+   can be made again tomorrow, and the thing below it cannot be taken back, so
+   it must not read as one more field in the same stack.
+
+   Outlined in the warning colour rather than filled in it — a filled block
+   this size would shout from a form the admin opened to rename a room. Same
+   family as .admin-notice--warn: an outline is how this console says "this is
+   still true", and that a class can be deleted is a standing fact about it,
+   not something that just happened. */
+.admin-danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--warning-line);
+  background: var(--warning-fill);
+}
+
+.admin-danger__title {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--warning-text);
+}
+
+/* The one control in the console that is outlined in its own colour. It is
+   the last thing a reader meets on the form, so it says what it is before it
+   is pressed rather than only in the dialog that follows. */
+.admin-danger__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--maroon-700);
+}
+
+.admin-danger__btn:hover:not(:disabled) {
+  background: var(--maroon-700-23);
+}
+
+/* The word that has to be typed before a deletion goes through. Spaced off the
+   "cannot be undone" line above it, because it is the answer to it. */
+.admin-confirm-word {
+  margin-top: 18px;
+}
+
 .admin-modal__head {
   display: flex;
   align-items: flex-start;
@@ -3317,4 +3443,51 @@
   .admin-runpick__caret {
     transition: none;
   }
+}
+
+/* ── Section marks ──────────────────────────────────────────
+   The glyph for a section, beside its heading. The page header carries the
+   same icon the sidebar uses for that section, so the rail and the page agree
+   about where you are; a card carries the icon for what it holds.
+   ───────────────────────────────────────────────────────── */
+
+.admin-header__lead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* A tile rather than a bare glyph: at 32px the title would tower over a loose
+   icon, and the soft brand square gives it enough weight to sit beside it. */
+.admin-header__mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+/* Card headings are 20px, so the glyph is small enough to sit inline without
+   a tile — a second filled square inside a card competes with the page's. */
+.admin-card__title--icon {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.admin-card__title-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--brand-text);
+}
+
+/* The picker drawer's heading takes the same inline mark a card's does. */
+.admin-drawer__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
 }

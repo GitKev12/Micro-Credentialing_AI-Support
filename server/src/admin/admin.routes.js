@@ -14,6 +14,12 @@ import {
   saveTableOfSpecification
 } from "./admin.controller.js";
 import {
+  createAssessor,
+  createStudent,
+  deleteAssessor,
+  deleteStudent,
+  getAssessorImpact,
+  getStudentImpact,
   setAssessorSuspension,
   setStudentSuspension,
   updateAssessor,
@@ -56,16 +62,19 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/modules/:moduleId/impact         — what deleting it would take
 //   DELETE /api/admin/modules/:moduleId                — remove a lesson
 //   GET    /api/admin/students                         — list
+//   POST   /api/admin/students                         — create   { firstName, lastName, email, studentNumber?, password }
 //   GET    /api/admin/students/:id                     — detail + progress
 //   PATCH  /api/admin/students/:id                     — edit     { names, email, studentNumber, password }
-//   POST   /api/admin/students/:id/courses             — enroll   { courseId }
-//   DELETE /api/admin/students/:id/courses/:courseId   — unenroll
+//   PATCH  /api/admin/students/:id/suspension          — lock/unlock { suspended }
+//   GET    /api/admin/students/:id/impact              — what deleting them would take
+//   DELETE /api/admin/students/:id                     — delete the account and their records
 //   GET    /api/admin/assessors                        — list
+//   POST   /api/admin/assessors                        — create   { name, email, assessorNumber?, password }
 //   GET    /api/admin/assessors/:id                    — detail
 //   PATCH  /api/admin/assessors/:id                    — edit     { name, email, assessorNumber, password }
 //   PATCH  /api/admin/assessors/:id/suspension         — lock/unlock { suspended }
-//   POST   /api/admin/assessors/:id/courses            — assign   { courseId }
-//   DELETE /api/admin/assessors/:id/courses/:courseId  — unassign
+//   GET    /api/admin/assessors/:id/impact             — what deleting them would take
+//   DELETE /api/admin/assessors/:id                    — delete the account, off every class
 //   GET    /api/admin/classes                          — list, joined to course + assessors
 //   POST   /api/admin/classes                          — create   { name, courseId, assessorIds, studentIds, schedule }
 //   GET    /api/admin/classes/:id                      — detail (full assessor + student lists)
@@ -144,14 +153,20 @@ router.delete("/modules/:moduleId", deleteCourseModule);
 // enrolled or assigned is settled by the class, below, and there is no second
 // way in here to put a person on a course without one.
 router.get("/students", listStudents);
+router.post("/students", createStudent);
 router.get("/students/:id", getStudent);
 router.patch("/students/:id", updateStudent);
 router.patch("/students/:id/suspension", setStudentSuspension);
+router.get("/students/:id/impact", getStudentImpact);
+router.delete("/students/:id", deleteStudent);
 
 router.get("/assessors", listAssessors);
+router.post("/assessors", createAssessor);
 router.get("/assessors/:id", getAssessor);
 router.patch("/assessors/:id", updateAssessor);
 router.patch("/assessors/:id/suspension", setAssessorSuspension);
+router.get("/assessors/:id/impact", getAssessorImpact);
+router.delete("/assessors/:id", deleteAssessor);
 
 // A class ties a course to its assessors and students in one place, instead of
 // enrolling students on one screen and assigning assessors on another. It writes

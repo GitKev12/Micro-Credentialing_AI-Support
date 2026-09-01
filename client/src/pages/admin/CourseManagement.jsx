@@ -15,7 +15,7 @@ import {
 } from "../../services/admin";
 import { sortedLessons } from "../../lib/lessonOrder";
 import { formatCourseRun } from "../../lib/courseDuration";
-import { CheckIcon, ChevronRightIcon } from "./components/icons";
+import { ChevronRightIcon, CoursesIcon } from "./components/icons";
 import { AdminButton, BackLink, ConfirmDeleteModal, PageHeader, SearchField } from "./components/ui";
 import AddModuleForm from "./components/course/AddModuleForm";
 import CourseForm from "./components/course/CourseForm";
@@ -25,6 +25,8 @@ import ModulePreview from "./components/course/ModulePreview";
 import { courseKeeps, courseLosses, courseMark } from "./components/course/impact";
 import { errorMessage } from "./lib/format";
 import { SkeletonTable } from "../../components/Skeleton";
+import { useLatestRequest } from "../../lib/useLatestRequest";
+import { useNotice } from "../../lib/useNotice";
 
 function CourseManagement() {
   const [courses, setCourses] = useState([]);
@@ -44,7 +46,7 @@ function CourseManagement() {
   const [impact, setImpact] = useState(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useNotice();
 
   // The course itself, rather than its lessons: which form is open ("new", or
   // the course being edited), and the deletion waiting on its impact count.
@@ -73,17 +75,29 @@ function CourseManagement() {
     };
   }, []);
 
+  const detailRequest = useLatestRequest();
+  const impactRequest = useLatestRequest();
+  // Its own guard: the module confirm sits inline in a row and the course
+  // confirm is a dialog, so both can be open at the same time.
+  const moduleImpactRequest = useLatestRequest();
+
   const openCourse = (courseId) => {
+    // Claimed before the fetch, so a slower reply for a record the
+    // admin has already clicked past is dropped rather than shown.
+    const token = detailRequest.next();
     setDetailStatus("loading");
     setSelected({ id: courseId });
     setNotice(null);
     setConfirming(null);
     fetchCourse(courseId)
       .then((course) => {
+        if (!detailRequest.isCurrent(token)) return;
         setSelected(course);
         setDetailStatus("ready");
       })
-      .catch(() => setDetailStatus("error"));
+      .catch(() => {
+        if (detailRequest.isCurrent(token)) setDetailStatus("error");
+      });
   };
 
   const closeCourse = () => {
@@ -118,11 +132,18 @@ function CourseManagement() {
   };
 
   const askToDeleteCourse = (course) => {
+    // The costs are read for one record; a reply that arrives after the
+    // admin has cancelled and opened another must not fill in that one.
+    const token = impactRequest.next();
     setDeleting(course);
     setCourseImpact(null);
     fetchCourseImpact(course.id)
-      .then(setCourseImpact)
-      .catch(() => setCourseImpact({ unknown: true }));
+      .then((data) => {
+        if (impactRequest.isCurrent(token)) setCourseImpact(data);
+      })
+      .catch(() => {
+        if (impactRequest.isCurrent(token)) setCourseImpact({ unknown: true });
+      });
   };
 
   const removeCourse = async () => {
@@ -253,13 +274,20 @@ function CourseManagement() {
    * student has worked through it.
    */
   const askToRemove = (module) => {
+    // The costs are read for one record; a reply that arrives after the
+    // admin has cancelled and opened another must not fill in that one.
+    const token = moduleImpactRequest.next();
     setConfirming(module.id);
     setImpact(null);
     fetchModuleImpact(module.id)
-      .then(setImpact)
+      .then((data) => {
+        if (moduleImpactRequest.isCurrent(token)) setImpact(data);
+      })
       // A failed count must not read as "nothing will be lost". The confirm
       // falls back to naming the categories without numbers.
-      .catch(() => setImpact({ unknown: true }));
+      .catch(() => {
+        if (moduleImpactRequest.isCurrent(token)) setImpact({ unknown: true });
+      });
   };
 
   const removeModule = async (module) => {
@@ -307,6 +335,7 @@ function CourseManagement() {
         <BackLink onClick={closeCourse}>Courses Management</BackLink>
 
         <PageHeader
+          icon={CoursesIcon}
           title={selected.title ?? "Course"}
           subtitle={
             detailStatus === "ready"
@@ -421,7 +450,7 @@ function CourseManagement() {
 
   return (
     <div className="admin-main__inner">
-      <PageHeader title="Courses Management" />
+      <PageHeader title="Courses Management" icon={CoursesIcon} />
 
       {/* A deletion closes the detail screen, so its result has to land
           here — the notice inside the detail view would never be seen. It
@@ -434,6 +463,7 @@ function CourseManagement() {
           placeholder="Search courses…"
           label="Search courses"
           hint={`${visible.length} of ${courses.length}`}
+          notice={notice}
         />
 
         <AdminButton
@@ -445,20 +475,6 @@ function CourseManagement() {
         >
           New course
         </AdminButton>
-
-        {notice ? (
-          <p
-            className={`admin-notice admin-notice--inline admin-notice--${notice.tone}`}
-            role="status"
-          >
-            {notice.tone === "ok" ? (
-              <span className="admin-notice__icon">
-                <CheckIcon size={14} />
-              </span>
-            ) : null}
-            {notice.text}
-          </p>
-        ) : null}
       </div>
 
       {status === "loading" ? (

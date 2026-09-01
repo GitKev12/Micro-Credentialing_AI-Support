@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AssessorsIcon, StudentsIcon } from "../icons";
 import { AdminButton, SearchField } from "../ui";
 
 /**
@@ -12,6 +13,7 @@ import { AdminButton, SearchField } from "../ui";
 const PICKER_KINDS = {
   student: {
     title: "Add students",
+    Icon: StudentsIcon,
     noun: ["student", "students"],
     courses: (person) => person.enrolled ?? [],
     number: (person) => person.studentNumber,
@@ -23,6 +25,7 @@ const PICKER_KINDS = {
   },
   assessor: {
     title: "Add assessors",
+    Icon: AssessorsIcon,
     noun: ["assessor", "assessors"],
     courses: (person) => person.assigned ?? [],
     number: (person) => person.assessorNumber,
@@ -144,7 +147,12 @@ export function PeoplePicker({
       >
         <header className="admin-drawer__head">
           <div>
-            <h2 className="admin-drawer__title">{words.title}</h2>
+            <h2 className="admin-drawer__title">
+              <span className="admin-card__title-mark" aria-hidden="true">
+                <words.Icon size={18} />
+              </span>
+              {words.title}
+            </h2>
             <p className="admin-drawer__sub">{courseLabel || "This class"}</p>
           </div>
           <button type="button" className="admin-modal__close" onClick={onClose} aria-label="Close">

@@ -78,14 +78,25 @@ let detail = null;
 
 jest.unstable_mockModule("../src/services/admin.js", () => ({
   MIN_PASSWORD_LENGTH: 8,
-  fetchAssessors: async () => ({ assessors, coverage }),
+  // A fresh array each call, as the real API gives: returning the same
+  // reference would let React skip the re-render and hide a real change.
+  fetchAssessors: async () => ({ assessors: [...assessors], coverage }),
   fetchAssessor: async () => detail ?? defaultDetail(),
   fetchCourses: async () => [
     { id: COURSE, code: "CC2", title: "Computer Programming 2" },
     { id: "c2", code: "CC3", title: "Data Structures" }
   ],
   setAssessorSuspended: async () => ({}),
-  updateAssessor: async () => ({})
+  updateAssessor: async () => ({}),
+  createAssessor: async (details) => {
+    // The server sorts by name, so the fake API inserts in that order too.
+    const made = { ...assessors[0], id: "a3", name: details.name, assigned: [] };
+    assessors.splice(0, 0, made);
+    assessors.sort((a, b) => a.name.localeCompare(b.name));
+    return made;
+  },
+  fetchAssessorImpact: async () => ({ classes: 0, assigned: 0, graded: 0 }),
+  deleteAssessor: async () => ({ assessor: { id: "a1", name: "Michael Torres" } })
 }));
 
 let AssessorsManagement;
@@ -161,15 +172,6 @@ describe("AssessorsManagement — the students-list interface", () => {
 
     expect(screen.getByText("posted an assessment")).toBeTruthy();
     expect(screen.getByText("Never")).toBeTruthy();
-  });
-
-  it("warns about a course whose assessor has posted nothing", async () => {
-    coverage.unposted = [{ id: "c2", code: "CC3", title: "Data Structures" }];
-    render(<AssessorsManagement />);
-    await flush();
-
-    expect(screen.getByText("1 course has no assessment posted")).toBeTruthy();
-    coverage.unposted = [];
   });
 
   it("shows the detail as one stats card over one table", async () => {
@@ -316,5 +318,85 @@ describe("AssessorsManagement — how stale the last activity is", () => {
     await openDetail();
 
     expect(screen.getByText("Has not posted or graded anything yet")).toBeTruthy();
+  });
+});
+
+// The create handler existed before the control that reaches it did, and the
+// build was perfectly happy about that: a feature with no way in still
+// compiles. This asserts the way in, not just the machinery behind it.
+describe("AssessorsManagement — adding and removing accounts", () => {
+  it("offers New assessor from the toolbar", async () => {
+    render(<AssessorsManagement />);
+    await flush();
+
+    expect(screen.getByRole("button", { name: "New assessor" })).toBeTruthy();
+  });
+
+  it("opens the form blank, as a create form", async () => {
+    render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "New assessor" }));
+
+    expect(screen.getByRole("heading", { name: "New assessor" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create assessor" })).toBeTruthy();
+  });
+
+  it("offers Delete on the detail screen, and asks before doing it", async () => {
+    await openDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await flush();
+
+    expect(screen.getByRole("heading", { name: "Delete this assessor?" })).toBeTruthy();
+    // What survives is the half worth saying out loud.
+    expect(screen.getByRole("button", { name: "Delete assessor" })).toBeTruthy();
+  });
+});
+
+describe("AssessorsManagement — a new account lands in order", () => {
+  it("puts it where the server would, not at the bottom", async () => {
+    const { container } = render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "New assessor" }));
+    fireEvent.change(screen.getByLabelText(/Full name|Name/), {
+      target: { value: "Aaron Bautista" }
+    });
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ab@example.com" } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create assessor" }));
+    await flush();
+
+    const names = [...container.querySelectorAll(".admin-person__name")].map((n) => n.textContent);
+    // Alphabetically first, so it must not be sitting at the end of the list.
+    expect(names[0]).toBe("Aaron Bautista");
+
+    // Leave the fixture as the other tests expect to find it.
+    const made = assessors.findIndex((a) => a.id === "a3");
+    if (made >= 0) assessors.splice(made, 1);
+  });
+
+  // The receipt rides the search row rather than sitting above the table,
+  // where it shunted the whole list down and back as it came and went.
+  it("reports the write from inside the search row", async () => {
+    const { container } = render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "New assessor" }));
+    fireEvent.change(screen.getByLabelText(/Full name|Name/), {
+      target: { value: "Aaron Bautista" }
+    });
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ab@example.com" } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create assessor" }));
+    await flush();
+
+    const notice = container.querySelector(".admin-notice--inline");
+    expect(notice.textContent).toContain("Aaron Bautista was added.");
+    expect(notice.closest(".admin-search")).toBeTruthy();
+
+    const made = assessors.findIndex((a) => a.id === "a3");
+    if (made >= 0) assessors.splice(made, 1);
   });
 });

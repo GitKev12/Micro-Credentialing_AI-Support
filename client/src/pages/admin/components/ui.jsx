@@ -6,7 +6,7 @@
  * now; this stays as the front door so every `from "./components/ui"` in the
  * console keeps working and nothing had to be rewritten to gain the split.
  */
-export { PageHeader, AdminButton, BackLink, StatTile, Avatar } from "./ui/primitives";
+export { PageHeader, SectionTitle, AdminButton, BackLink, StatTile, Avatar } from "./ui/primitives";
 export { SearchField } from "./ui/SearchField";
 export { AdminSelect } from "./ui/AdminSelect";
 export { AdminField } from "./ui/AdminField";
