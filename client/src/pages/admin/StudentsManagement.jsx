@@ -12,11 +12,15 @@ import {
 import { ChevronRightIcon, StudentsIcon } from "./components/icons";
 import {
   AdminButton,
-  AdminSelect,
+  chosenOption,
   Avatar,
   ConfirmDeleteModal,
+  FILTER_ALL,
+  ListFilter,
   PageHeader,
-  SearchField
+  passesFilter,
+  SearchField,
+  useListFilter
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import StudentDetail from "./components/students/StudentDetail";
@@ -26,10 +30,8 @@ import { formatDate } from "./lib/format";
 import { useLatestRequest } from "../../lib/useLatestRequest";
 import { useNotice } from "../../lib/useNotice";
 
-// The two categories that are not a course: everyone, and everyone with no
-// course at all. The server knows the same two names.
-const CATEGORY_ALL = "all";
-const CATEGORY_NONE = "none";
+// The course option that is not a course: everyone holding none at all.
+const NONE = "none";
 
 const EMPTY_ACTIVITY = {
   lessonsDone: 0,
@@ -45,7 +47,7 @@ function StudentsManagement() {
   const [courses, setCourses] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState(CATEGORY_ALL);
+  const filter = useListFilter("course");
 
   const [selected, setSelected] = useState(null);
   const [detailStatus, setDetailStatus] = useState("idle");
@@ -217,29 +219,79 @@ function StudentsManagement() {
    * holds. One control whatever the catalog does — six courses and sixty read
    * the same way, which a row of chips cannot claim.
    */
-  const categories = useMemo(() => {
+  /**
+   * The two things a students list is narrowed by: the course they hold, and
+   * whether the account is still open. Course first, being the one an admin
+   * comes to this screen with; status answers a different question about the
+   * same person and used to need a read of every row to answer.
+   *
+   * Every course is offered whether or not anyone holds it — that nobody does
+   * is the answer to a question this screen is opened with.
+   */
+  const fields = useMemo(() => {
+    const all = { value: FILTER_ALL, label: "All students", meta: `${students.length}` };
+
     const perCourse = new Map(courses.map((course) => [course.id, 0]));
-    let unenrolled = 0;
+    let withoutCourse = 0;
+    let suspended = 0;
 
     for (const student of students) {
+      if (student.suspended) suspended += 1;
+
       const enrolled = student.enrolled ?? [];
-      if (enrolled.length === 0) {
-        unenrolled += 1;
-        continue;
-      }
-      for (const course of enrolled) {
-        perCourse.set(course.id, (perCourse.get(course.id) ?? 0) + 1);
-      }
+      if (enrolled.length === 0) withoutCourse += 1;
+      enrolled.forEach((course) =>
+        perCourse.set(course.id, (perCourse.get(course.id) ?? 0) + 1)
+      );
     }
 
     return [
-      { id: CATEGORY_ALL, label: "All students", meta: `${students.length}` },
-      ...courses.map((course) => ({
-        id: course.id,
-        label: course.title || course.code,
-        meta: `${course.code} · ${perCourse.get(course.id) ?? 0}`
-      })),
-      { id: CATEGORY_NONE, label: "Not enrolled in any course", meta: `${unenrolled}` }
+      {
+        id: "course",
+        label: "Course",
+        options: [
+          all,
+          ...courses.map((course) => ({
+            value: course.id,
+            label: course.title || course.code,
+            meta: `${course.code} · ${perCourse.get(course.id) ?? 0}`,
+            empty: "No student on this course yet."
+          })),
+          {
+            value: NONE,
+            label: "Not enrolled in any course",
+            meta: `${withoutCourse}`,
+            empty: "Every student is enrolled in a course."
+          }
+        ],
+        match: (student, value) => {
+          const enrolled = student.enrolled ?? [];
+          return value === NONE
+            ? enrolled.length === 0
+            : enrolled.some((course) => course.id === value);
+        }
+      },
+      {
+        id: "status",
+        label: "Status",
+        options: [
+          all,
+          {
+            value: "active",
+            label: "Active",
+            meta: `${students.length - suspended}`,
+            empty: "Every student is suspended."
+          },
+          {
+            value: "suspended",
+            label: "Suspended",
+            meta: `${suspended}`,
+            empty: "No student is suspended."
+          }
+        ],
+        match: (student, value) =>
+          value === "active" ? !student.suspended : Boolean(student.suspended)
+      }
     ];
   }, [students, courses]);
 
@@ -252,24 +304,16 @@ function StudentsManagement() {
     const term = query.trim().toLowerCase();
 
     return students.filter((student) => {
-      const enrolled = student.enrolled ?? [];
-
-      // The category narrows first, so the search only ever runs over the
-      // rows already on screen.
-      const inCategory =
-        category === CATEGORY_ALL
-          ? true
-          : category === CATEGORY_NONE
-            ? enrolled.length === 0
-            : enrolled.some((course) => course.id === category);
-      if (!inCategory) return false;
+      // The filter narrows first, so the search only ever runs over the rows
+      // already on screen.
+      if (!passesFilter(fields, filter.field, filter.value, student)) return false;
       if (!term) return true;
 
       return `${student.name} ${student.studentNumber ?? ""} ${student.email ?? ""}`
         .toLowerCase()
         .includes(term);
     });
-  }, [students, query, category]);
+  }, [students, query, fields, filter.field, filter.value]);
 
   /**
    * Rendered by both branches below.
@@ -310,6 +354,7 @@ function StudentsManagement() {
           setFormError(null);
           setForm(selected);
         }}
+        onToggleSuspended={() => toggleSuspended(selected)}
         onDelete={() => askToDelete(selected)}
         onCancelForm={() => setForm(null)}
         onSave={saveStudent}
@@ -326,20 +371,11 @@ function StudentsManagement() {
         icon={StudentsIcon}
       />
 
-      {/* Category first, then type. One dropdown holds any number of courses
-          without growing sideways, which a row of chips does not. */}
+      {/* Filter first, then type. Dropdowns rather than a row of chips: they
+          hold any number of courses without growing sideways. */}
       <div className="admin-toolbar">
-        <div className="admin-toolbar__filter">
-          <AdminSelect
-            value={category}
-            onChange={setCategory}
-            label="Filter students by category"
-            options={categories.map((entry) => ({
-              value: entry.id,
-              label: entry.label,
-              meta: entry.meta
-            }))}
-          />
+        <div className="admin-toolbar__filter admin-toolbar__filter--wide">
+          <ListFilter fields={fields} noun="students" {...filter} />
         </div>
 
         <div className="admin-toolbar__search">
@@ -421,16 +457,15 @@ function StudentsManagement() {
                         </div>
                       </div>
                     </td>
-                    {/* A bare "0" disappears in a column of counts, and an
-                        unenrolled student is the row worth acting on, so it is
-                        marked with weight and colour rather than left to be
-                        read off as a digit. */}
+                    {/* An unenrolled student is the row worth acting on, so
+                        the zero takes the warning colour rather than sitting in
+                        the column as an unremarkable digit. It stays a figure:
+                        the column is counts, and a word in it does not line up
+                        with the numbers above and below it. */}
                     <td className="is-center">
-                      {courseCount > 0 ? (
-                        <span className="admin-count">{courseCount}</span>
-                      ) : (
-                        <span className="admin-count admin-count--none">None</span>
-                      )}
+                      <span className={`admin-count${courseCount > 0 ? "" : " admin-count--none"}`}>
+                        {courseCount}
+                      </span>
                     </td>
                     {/* Lessons and badges both read "x of y": the numerator on
                         its own cannot say whether nought is a student who has
@@ -468,30 +503,19 @@ function StudentsManagement() {
                         <span className="admin-count admin-count--none">Never</span>
                       )}
                     </td>
+                    {/* Reported here, set on the student's own screen. A
+                        switch in a row is a control you can hit while aiming
+                        at the row itself, and suspending someone is not a
+                        thing to do by near-miss — it is done where the person
+                        is named and their record is in front of you. */}
                     <td className="is-center">
-                      <button
-                        type="button"
-                        className={`admin-switch${student.suspended ? "" : " is-on"}`}
-                        role="switch"
-                        aria-checked={!student.suspended}
-                        disabled={busy}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleSuspended(student);
-                        }}
-                        title={
-                          student.suspended
-                            ? `Activate ${student.name}`
-                            : `Suspend ${student.name}`
-                        }
+                      <span
+                        className={`admin-status-pill${
+                          student.suspended ? " admin-status-pill--off" : ""
+                        }`}
                       >
-                        <span className="admin-switch__track">
-                          <span className="admin-switch__thumb" />
-                        </span>
-                        <span className="admin-switch__label">
-                          {student.suspended ? "Suspended" : "Active"}
-                        </span>
-                      </button>
+                        {student.suspended ? "Suspended" : "Active"}
+                      </span>
                     </td>
                     <td className="admin-table__chevron" aria-hidden="true">
                       <span className="admin-table__cue">
@@ -509,9 +533,8 @@ function StudentsManagement() {
                   <td colSpan={7}>
                     {query.trim()
                       ? "No students match your search."
-                      : category === CATEGORY_NONE
-                        ? "Every student is enrolled in a course."
-                        : "No students in this category yet."}
+                      : chosenOption(fields, filter.field, filter.value)?.empty ??
+                        "No students match this filter."}
                   </td>
                 </tr>
               ) : null}

@@ -664,14 +664,41 @@
   box-shadow: inset 0 0 0 1px var(--brand), var(--shadow-sm);
 }
 
-/* The same pair, but on a detail screen's identity block, pushed to the far
-   end so they read as acting on the person named beside them. */
+/* The controls on a detail screen's identity block, pushed to the far end so
+   they read as acting on the person named beside them.
+
+   It holds two different kinds of thing now: the account switch, which is a
+   *state* — what this account is at the moment, and reversible in one press —
+   and Edit and Delete, which are *acts* performed on it. A hairline between
+   them is what stops three chips in a row reading as one menu of equal
+   choices, because "Suspended" and "Delete" are nothing like equal.
+
+   Wraps rather than squeezing: at a narrow width the switch drops onto its own
+   line under the buttons, and the divider goes with it — a rule hanging off
+   the left of a wrapped row is just a stray mark. */
 .admin-identity__actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-left: auto;
   flex-shrink: 0;
+}
+
+.admin-identity__acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 16px;
+  border-left: 1px solid var(--gray-200);
+}
+
+@media (max-width: 860px) {
+  .admin-identity__acts {
+    padding-left: 0;
+    border-left: none;
+  }
 }
 
 /* Pair of actions in a page header — edit beside the destructive one. */
@@ -1568,6 +1595,63 @@
   transform: rotate(180deg);
 }
 
+/* ── The list screens' filter ─────────────────────────────
+   Two AdminSelects drawn as one control: the left names what is being
+   filtered on, the right narrows within it. Joined rather than spaced, so the
+   pair reads as a single object in the toolbar and the field reads as the
+   value's heading rather than as a second, unrelated dropdown.
+
+   The seam is one border, not two: the value segment is pulled a pixel left so
+   the two edges land on each other, and whichever segment is hovered, focused
+   or open is raised so the border you see along the seam is that segment's own
+   and its focus ring is not clipped by its neighbour. */
+.admin-filter {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Hugs its label — "Course" and "Assessor" are short and fixed, and a field
+   name stretched to half the control would read as the thing being chosen
+   rather than as the heading over it. */
+.admin-select--field {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.admin-select--field .admin-select__trigger {
+  gap: 6px;
+  padding-right: 9px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-select--field .admin-select__value {
+  flex: 0 0 auto;
+}
+
+.admin-select--value {
+  flex: 1 1 auto;
+  margin-left: -1px;
+}
+
+.admin-select--value .admin-select__trigger {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.admin-filter .admin-select__trigger:hover:not(:disabled),
+.admin-filter .admin-select__trigger:focus-visible,
+.admin-filter .admin-select.is-open .admin-select__trigger {
+  position: relative;
+  z-index: 1;
+}
+
 .admin-select__list {
   position: absolute;
   z-index: 30;
@@ -2439,10 +2523,10 @@
   color: var(--brand-text);
 }
 
-/* ── Class status switch ────────────────────────────────
+/* ── Class status switch ──────────────────────
    A cell that is both the state and the control: the word says which way the
    class stands, the track says it can be changed. Teal for running, matching
-   the console's completed-action colour; a hollow track for stood down. */
+   the console's completed-action colour; red for stood down. */
 
 .admin-switch {
   display: inline-flex;
@@ -2480,8 +2564,20 @@
   width: 30px;
   height: 17px;
   border-radius: 999px;
-  background: var(--gray-400);
+  background: var(--maroon-700);
   transition: background 0.18s ease;
+}
+
+/* --maroon-700 is the one accent the dark theme does not lighten, being a
+   brand colour there rather than a signal: left as it is, the stood-down track
+   is a near-black block beside a --teal-700 that dark takes all the way up to
+   #1ec8a5. Lightened on the same hue, the way --warning-text is.
+
+   Held off the running switch by :not(.is-on) rather than by sitting above it
+   in the file: the two selectors are the same weight, so source order is all
+   that would keep a dark Active switch teal. */
+[data-theme="dark"] .admin-app .admin-switch:not(.is-on) .admin-switch__track {
+  background: #e0655a;
 }
 
 .admin-switch.is-on .admin-switch__track {
@@ -2507,14 +2603,55 @@
   white-space: nowrap;
 }
 
+/* The same switch beside a 28px name and a 68px avatar, where the row-sized
+   one read as a stray label rather than a control. Given a surface and a
+   hairline of its own for the same reason: on a detail screen this is the one
+   control that reports as much as it does, and it has to look pressable
+   before it is pressed. */
+.admin-switch--lg {
+  gap: 10px;
+  padding: 7px 12px;
+  /* 999px, not the --radius-xl the row-sized switch inherits: that is 8px, and
+     an 8px corner around a track that is a full pill left the chip and the
+     toggle inside it drawn to two different curves. The outline follows the
+     shape of the thing it holds. */
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--gray-200);
+  font-size: 14px;
+}
+
+.admin-switch--lg .admin-switch__track {
+  width: 38px;
+  height: 21px;
+}
+
+.admin-switch--lg .admin-switch__thumb {
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+}
+
+.admin-switch--lg.is-on .admin-switch__thumb {
+  transform: translateX(17px);
+}
+
 .admin-switch.is-on .admin-switch__label {
   color: var(--teal-700);
   font-weight: 600;
 }
 
-/* The status beside a name on a detail screen. Sits with the name because that
-   is the first thing read on the page and a locked account has to be part of
-   that first read — not a fact found further down. */
+/* The account's status, read-only.
+
+   It was the detail screen's pill beside a name; the list screens use it too
+   now that setting the status has moved to the detail screen and the row only
+   reports it. In a cell it needs no left margin — that gap exists to hold it
+   off the name it follows. */
+.admin-table .admin-status-pill {
+  margin-left: 0;
+}
+
 .admin-status-pill {
   display: inline-block;
   margin-left: 12px;
@@ -2953,13 +3090,6 @@
   padding: 16px 22px;
   border-top: 1px solid var(--gray-150);
 }
-
-/* A dialog whose confirm destroys something. The rule is the whole signal —
-   tinting the panel would fight the form fields inside it. */
-.admin-modal__panel--danger {
-  border-top: 3px solid var(--warning-text);
-}
-
 /* ── Danger Zone (foot of an edit form) ─────────────────── */
 
 /* The destructive action, kept at the bottom of the form and fenced off from

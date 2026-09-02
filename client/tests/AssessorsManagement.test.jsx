@@ -125,21 +125,82 @@ const openDetail = async () => {
 };
 
 describe("AssessorsManagement — the students-list interface", () => {
-  it("renders the category dropdown, the search field and the status switches", async () => {
+  it("renders both halves of the filter and the search field", async () => {
     render(<AssessorsManagement />);
     await flush();
 
-    expect(screen.getByLabelText("Filter assessors by category")).toBeTruthy();
+    // What to filter on, and which one: the pair says both.
+    expect(screen.getByLabelText("Choose what to filter assessors by")).toBeTruthy();
+    expect(screen.getByLabelText("Filter assessors by course")).toBeTruthy();
     expect(screen.getByLabelText("Search assessors")).toBeTruthy();
-    expect(screen.getByTitle("Suspend Michael Torres")).toBeTruthy();
-    expect(screen.getByTitle("Activate Patricia Mendoza")).toBeTruthy();
   });
 
-  it("narrows by category before searching", async () => {
+  it("renames the value half after the field it is now narrowing", async () => {
+    render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByLabelText("Choose what to filter assessors by"));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /^Status$/ }));
+
+    expect(screen.getByLabelText("Filter assessors by status")).toBeTruthy();
+    expect(screen.queryByLabelText("Filter assessors by course")).toBeNull();
+  });
+
+  it("narrows by status, which no dropdown here could answer before", async () => {
     const { container } = render(<AssessorsManagement />);
     await flush();
 
-    fireEvent.click(screen.getByLabelText("Filter assessors by category"));
+    fireEvent.click(screen.getByLabelText("Choose what to filter assessors by"));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /^Status$/ }));
+    fireEvent.click(screen.getByLabelText("Filter assessors by status"));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /Suspended/ }));
+
+    const body = container.querySelector(".admin-table tbody");
+    expect(within(body).queryByText("Michael Torres")).toBeNull();
+    expect(within(body).getByText("Patricia Mendoza")).toBeTruthy();
+  });
+
+  // A course id means nothing to the status field, so keeping it would filter
+  // the table to nothing the moment you changed what you were filtering on.
+  it("goes back to everyone when the field changes under a chosen value", async () => {
+    const { container } = render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByLabelText("Filter assessors by course"));
+    fireEvent.mouseDown(screen.getByText("Not assigned to any course"));
+    expect(within(container.querySelector(".admin-table tbody")).queryByText("Michael Torres"))
+      .toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Choose what to filter assessors by"));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /^Status$/ }));
+
+    const body = container.querySelector(".admin-table tbody");
+    expect(within(body).getByText("Michael Torres")).toBeTruthy();
+    expect(within(body).getByText("Patricia Mendoza")).toBeTruthy();
+  });
+
+  // The switch moved to the assessor's own screen; the row reports the status
+  // and no longer sets it, so nothing here should be pressable.
+  it("reports each account's status without offering to change it", async () => {
+    const { container } = render(<AssessorsManagement />);
+    await flush();
+
+    const rows = container.querySelectorAll(".admin-table tbody tr");
+    const statusOf = (name) => {
+      const row = [...rows].find((tr) => tr.textContent.includes(name));
+      return row.querySelector(".admin-status-pill");
+    };
+
+    expect(statusOf("Michael Torres").textContent).toBe("Active");
+    expect(statusOf("Patricia Mendoza").textContent).toBe("Suspended");
+    expect(container.querySelector(".admin-table .admin-switch")).toBeNull();
+  });
+
+  it("narrows by course before searching", async () => {
+    const { container } = render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByLabelText("Filter assessors by course"));
     // The options select on mouseDown, not click.
     fireEvent.mouseDown(screen.getByText("Not assigned to any course"));
 

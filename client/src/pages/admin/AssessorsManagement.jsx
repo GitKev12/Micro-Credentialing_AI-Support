@@ -12,11 +12,15 @@ import {
 import { AssessorsIcon, ChevronRightIcon } from "./components/icons";
 import {
   AdminButton,
-  AdminSelect,
+  chosenOption,
   Avatar,
   ConfirmDeleteModal,
+  FILTER_ALL,
+  ListFilter,
   PageHeader,
-  SearchField
+  passesFilter,
+  SearchField,
+  useListFilter
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import AssessorDetail from "./components/assessors/AssessorDetail";
@@ -31,10 +35,8 @@ import { formatDate } from "./lib/format";
 import { useLatestRequest } from "../../lib/useLatestRequest";
 import { useNotice } from "../../lib/useNotice";
 
-// The two categories that are not a course: everyone, and everyone with no
-// course at all. The students list is narrowed by the same two.
-const CATEGORY_ALL = "all";
-const CATEGORY_NONE = "none";
+// The course option that is not a course: everyone holding none at all.
+const NONE = "none";
 
 const EMPTY_COVERAGE = { unassigned: [], shared: [], unposted: [] };
 
@@ -44,7 +46,7 @@ function AssessorsManagement() {
   const [coverage, setCoverage] = useState(EMPTY_COVERAGE);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState(CATEGORY_ALL);
+  const filter = useListFilter("course");
 
   const [selected, setSelected] = useState(null);
   const [detailStatus, setDetailStatus] = useState("idle");
@@ -215,29 +217,79 @@ function AssessorsManagement() {
    * holds. One control whatever the catalog does — six courses and sixty read
    * the same way, which a row of chips cannot claim.
    */
-  const categories = useMemo(() => {
+  /**
+   * The two things a assessors list is narrowed by: the course they hold, and
+   * whether the account is still open. Course first, being the one an admin
+   * comes to this screen with; status answers a different question about the
+   * same person and used to need a read of every row to answer.
+   *
+   * Every course is offered whether or not anyone holds it — that nobody does
+   * is the answer to a question this screen is opened with.
+   */
+  const fields = useMemo(() => {
+    const all = { value: FILTER_ALL, label: "All assessors", meta: `${assessors.length}` };
+
     const perCourse = new Map(courses.map((course) => [course.id, 0]));
-    let unassigned = 0;
+    let withoutCourse = 0;
+    let suspended = 0;
 
     for (const assessor of assessors) {
+      if (assessor.suspended) suspended += 1;
+
       const assigned = assessor.assigned ?? [];
-      if (assigned.length === 0) {
-        unassigned += 1;
-        continue;
-      }
-      for (const course of assigned) {
-        perCourse.set(course.id, (perCourse.get(course.id) ?? 0) + 1);
-      }
+      if (assigned.length === 0) withoutCourse += 1;
+      assigned.forEach((course) =>
+        perCourse.set(course.id, (perCourse.get(course.id) ?? 0) + 1)
+      );
     }
 
     return [
-      { id: CATEGORY_ALL, label: "All assessors", meta: `${assessors.length}` },
-      ...courses.map((course) => ({
-        id: course.id,
-        label: course.title || course.code,
-        meta: `${course.code} · ${perCourse.get(course.id) ?? 0}`
-      })),
-      { id: CATEGORY_NONE, label: "Not assigned to any course", meta: `${unassigned}` }
+      {
+        id: "course",
+        label: "Course",
+        options: [
+          all,
+          ...courses.map((course) => ({
+            value: course.id,
+            label: course.title || course.code,
+            meta: `${course.code} · ${perCourse.get(course.id) ?? 0}`,
+            empty: "No assessor on this course yet."
+          })),
+          {
+            value: NONE,
+            label: "Not assigned to any course",
+            meta: `${withoutCourse}`,
+            empty: "Every assessor is assigned to a course."
+          }
+        ],
+        match: (assessor, value) => {
+          const assigned = assessor.assigned ?? [];
+          return value === NONE
+            ? assigned.length === 0
+            : assigned.some((course) => course.id === value);
+        }
+      },
+      {
+        id: "status",
+        label: "Status",
+        options: [
+          all,
+          {
+            value: "active",
+            label: "Active",
+            meta: `${assessors.length - suspended}`,
+            empty: "Every assessor is suspended."
+          },
+          {
+            value: "suspended",
+            label: "Suspended",
+            meta: `${suspended}`,
+            empty: "No assessor is suspended."
+          }
+        ],
+        match: (assessor, value) =>
+          value === "active" ? !assessor.suspended : Boolean(assessor.suspended)
+      }
     ];
   }, [assessors, courses]);
 
@@ -245,24 +297,16 @@ function AssessorsManagement() {
     const term = query.trim().toLowerCase();
 
     return assessors.filter((assessor) => {
-      const assigned = assessor.assigned ?? [];
-
-      // The category narrows first, so the search only ever runs over the
-      // rows already on screen.
-      const inCategory =
-        category === CATEGORY_ALL
-          ? true
-          : category === CATEGORY_NONE
-            ? assigned.length === 0
-            : assigned.some((course) => course.id === category);
-      if (!inCategory) return false;
+      // The filter narrows first, so the search only ever runs over the rows
+      // already on screen.
+      if (!passesFilter(fields, filter.field, filter.value, assessor)) return false;
       if (!term) return true;
 
       return `${assessor.name} ${assessor.assessorNumber ?? ""} ${assessor.email ?? ""}`
         .toLowerCase()
         .includes(term);
     });
-  }, [assessors, query, category]);
+  }, [assessors, query, fields, filter.field, filter.value]);
 
   /**
    * Rendered by both branches below.
@@ -303,6 +347,7 @@ function AssessorsManagement() {
           setFormError(null);
           setForm(selected);
         }}
+        onToggleSuspended={() => toggleSuspended(selected)}
         onDelete={() => askToDelete(selected)}
         onCancelForm={() => setForm(null)}
         onSave={saveAssessor}
@@ -319,20 +364,11 @@ function AssessorsManagement() {
         icon={AssessorsIcon}
       />
 
-      {/* Category first, then type. One dropdown holds any number of courses
-          without growing sideways, which a row of chips does not. */}
+      {/* Filter first, then type. Dropdowns rather than a row of chips: they
+          hold any number of courses without growing sideways. */}
       <div className="admin-toolbar">
-        <div className="admin-toolbar__filter">
-          <AdminSelect
-            value={category}
-            onChange={setCategory}
-            label="Filter assessors by category"
-            options={categories.map((entry) => ({
-              value: entry.id,
-              label: entry.label,
-              meta: entry.meta
-            }))}
-          />
+        <div className="admin-toolbar__filter admin-toolbar__filter--wide">
+          <ListFilter fields={fields} noun="assessors" {...filter} />
         </div>
 
         <div className="admin-toolbar__search">
@@ -428,11 +464,13 @@ function AssessorsManagement() {
                       </div>
                     </td>
                     <td className="is-center">
-                      {assessor.assigned.length > 0 ? (
-                        <span className="admin-count">{assessor.assigned.length}</span>
-                      ) : (
-                        <span className="admin-count admin-count--none">None</span>
-                      )}
+                      <span
+                        className={`admin-count${
+                          assessor.assigned.length > 0 ? "" : " admin-count--none"
+                        }`}
+                      >
+                        {assessor.assigned.length}
+                      </span>
                     </td>
                     <td className="is-center">
                       <strong className="admin-strong-brand">{assessor.students}</strong>
@@ -444,7 +482,7 @@ function AssessorsManagement() {
                         rather than because the work is done. */}
                     <td className="is-center">
                       {workload.papersExpected === 0 ? (
-                        <span className="admin-count admin-count--none">None</span>
+                        <span className="admin-count admin-count--none">0</span>
                       ) : workload.toPost > 0 ? (
                         <>
                           <span className="admin-count admin-count--warn">{workload.toPost}</span>
@@ -477,30 +515,19 @@ function AssessorsManagement() {
                         <span className="admin-count admin-count--none">Never</span>
                       )}
                     </td>
+                    {/* Reported here, set on the assessor's own screen — the
+                        student list works the same way. A switch in a row is a
+                        control you can hit while aiming at the row itself, and
+                        locking someone out of a grading queue is not a thing to
+                        do by near-miss. */}
                     <td className="is-center">
-                      <button
-                        type="button"
-                        className={`admin-switch${assessor.suspended ? "" : " is-on"}`}
-                        role="switch"
-                        aria-checked={!assessor.suspended}
-                        disabled={busy}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleSuspended(assessor);
-                        }}
-                        title={
-                          assessor.suspended
-                            ? `Activate ${assessor.name}`
-                            : `Suspend ${assessor.name}`
-                        }
+                      <span
+                        className={`admin-status-pill${
+                          assessor.suspended ? " admin-status-pill--off" : ""
+                        }`}
                       >
-                        <span className="admin-switch__track">
-                          <span className="admin-switch__thumb" />
-                        </span>
-                        <span className="admin-switch__label">
-                          {assessor.suspended ? "Suspended" : "Active"}
-                        </span>
-                      </button>
+                        {assessor.suspended ? "Suspended" : "Active"}
+                      </span>
                     </td>
                     <td className="admin-table__chevron" aria-hidden="true">
                       <span className="admin-table__cue">
@@ -518,9 +545,8 @@ function AssessorsManagement() {
                   <td colSpan={8}>
                     {query.trim()
                       ? "No assessors match your search."
-                      : category === CATEGORY_NONE
-                        ? "Every assessor is assigned to a course."
-                        : "No assessors in this category yet."}
+                      : chosenOption(fields, filter.field, filter.value)?.empty ??
+                        "No assessors match this filter."}
                   </td>
                 </tr>
               ) : null}

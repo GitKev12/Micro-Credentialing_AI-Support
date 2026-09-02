@@ -88,7 +88,7 @@ export function studentKeeps(impact) {
 
   return [
     impact.classes
-      ? `${plural(impact.classes, "class")} — the class stays, its roster is one shorter`
+      ? `${plural(impact.classes, "class", "es")} — the class stays, its roster is one shorter`
       : "",
     impact.enrolled
       ? `${plural(impact.enrolled, "course")} — the course and its lessons are untouched`

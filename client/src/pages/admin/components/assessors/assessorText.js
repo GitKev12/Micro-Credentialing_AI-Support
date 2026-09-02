@@ -120,7 +120,7 @@ export function assessorLosses(impact) {
   return [
     "their sign-in",
     impact.classes
-      ? `their place on ${plural(impact.classes, "class")} — the class stays, one assessor short`
+      ? `their place on ${plural(impact.classes, "class", "es")} — the class stays, one assessor short`
       : ""
   ].filter(Boolean);
 }

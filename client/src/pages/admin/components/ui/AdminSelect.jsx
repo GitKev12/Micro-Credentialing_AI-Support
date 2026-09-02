@@ -15,6 +15,11 @@ import { CheckIcon, ChevronDownIcon } from "../icons";
  * track the highlight without focus ever moving into the list.
  *
  * `options` are { value, label, meta? }.
+ *
+ * `variant` is an extra class on the root, so a caller can restyle the trigger
+ * without this component knowing what it is being used for. `ListFilter` uses
+ * it to draw two of these as one joined control; a select standing on its own
+ * passes nothing and is unchanged.
  */
 export function AdminSelect({
   value,
@@ -22,7 +27,8 @@ export function AdminSelect({
   options,
   label,
   placeholder = "Select…",
-  disabled = false
+  disabled = false,
+  variant = ""
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -152,7 +158,10 @@ export function AdminSelect({
   const isEmpty = options.length === 0;
 
   return (
-    <div className={`admin-select${open ? " is-open" : ""}`} ref={rootRef}>
+    <div
+      className={["admin-select", variant, open ? "is-open" : ""].filter(Boolean).join(" ")}
+      ref={rootRef}
+    >
       <button
         type="button"
         className="admin-select__trigger"

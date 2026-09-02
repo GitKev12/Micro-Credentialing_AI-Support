@@ -21,6 +21,7 @@ export default function AssessorDetail({
   onBack,
   onEdit,
   onDelete,
+  onToggleSuspended,
   onCancelForm,
   onSave
 }) {
@@ -43,39 +44,57 @@ export default function AssessorDetail({
                 <UserIcon size={46} color="var(--brand)" />
               </div>
               <div>
-                <h1 className="admin-identity__name">
-                  {selected.name}
-                  <span
-                    className={`admin-status-pill${
-                      selected.suspended ? " admin-status-pill--off" : ""
-                    }`}
-                  >
-                    {selected.suspended ? "Suspended" : "Active"}
-                  </span>
-                </h1>
+                <h1 className="admin-identity__name">{selected.name}</h1>
                 <p className="admin-identity__meta">
                   {[selected.assessorNumber, selected.email].filter(Boolean).join(" · ")}
                 </p>
                 <p className="admin-identity__meta">{lastActiveLabel(selected.lastActive)}</p>
               </div>
 
+              {/* The switch is a state and the two buttons are acts, kept
+                  apart by a hairline — same rail the student screen uses. */}
               <div className="admin-identity__actions">
                 <button
                   type="button"
-                  className="admin-chip-btn admin-chip-btn--quiet"
+                  className={`admin-switch admin-switch--lg${
+                    selected.suspended ? "" : " is-on"
+                  }`}
+                  role="switch"
+                  aria-checked={!selected.suspended}
                   disabled={busy}
-                  onClick={onEdit}
+                  onClick={onToggleSuspended}
+                  title={
+                    selected.suspended
+                      ? `Activate ${selected.name}`
+                      : `Suspend ${selected.name}`
+                  }
                 >
-                  Edit details
+                  <span className="admin-switch__track">
+                    <span className="admin-switch__thumb" />
+                  </span>
+                  <span className="admin-switch__label">
+                    {selected.suspended ? "Suspended" : "Active"}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  className="admin-chip-btn admin-chip-btn--danger"
-                  disabled={busy}
-                  onClick={onDelete}
-                >
-                  Delete
-                </button>
+
+                <div className="admin-identity__acts">
+                  <button
+                    type="button"
+                    className="admin-chip-btn admin-chip-btn--quiet"
+                    disabled={busy}
+                    onClick={onEdit}
+                  >
+                    Edit details
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-chip-btn admin-chip-btn--danger"
+                    disabled={busy}
+                    onClick={onDelete}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
 
