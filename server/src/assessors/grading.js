@@ -1,17 +1,24 @@
 /**
- * The three questions both consoles ask of a StudentResult.
+ * The one question both consoles ask of a StudentResult.
  *
- * The assessor's screens report their own backlog and the admin's screens
- * report the same backlog from the other direction, so "still to grade" has to
- * mean one thing. Defined once here rather than once per console, where one
- * copy could quietly start counting a released paper or overlooking a flag the
- * assessor never ruled on — and the two screens would then disagree about the
- * same person with no way to tell which was right.
+ * A paper used to be marked twice: once against the key when it was handed in,
+ * and again by an assessor who could override any item and then release the
+ * grade. Nothing between those two steps counted — a score existed but was
+ * provisional, a credential waited on a release, and every screen had to say
+ * which of the two marks it meant.
+ *
+ * The second step is gone. A paper is marked against its key at hand-in and
+ * that mark is final, so there is one score and no state to read alongside it.
+ * Defined here rather than in each console because the assessor's screens, the
+ * admin's screens and the student's own all have to report the same number.
  */
 
-/** A paper the assessor has finished with: its grade is out. */
-export const isReleased = (result) => result?.review?.status === "released";
+/** What a paper scored. Marked at hand-in, and final there. */
+export const scoreOf = (result) => Number(result?.aiGrading?.score ?? 0);
 
-/** Whether the AI managed to grade this paper at all. */
-export const aiStatusOf = (result) => result?.aiGrading?.status ?? "unavailable";
-
+/** Whether that score cleared the paper's pass mark. */
+export function passedResult(result, assessment) {
+  const passMark = Number(assessment?.passMark);
+  if (!result || !Number.isFinite(passMark)) return false;
+  return scoreOf(result) >= passMark;
+}

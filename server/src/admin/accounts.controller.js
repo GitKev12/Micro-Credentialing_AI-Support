@@ -523,10 +523,10 @@ export async function getAssessorImpact(request, response) {
       id: asId(assessor._id),
       classes: await countIn(CLASSES_COLLECTION, { assessorIds: { $in: keys } }),
       assigned: (assessor.assigned_courses ?? []).length,
-      // Reported so the dialog can say it survives: a mark is a record of what
-      // happened, not a possession of the account that made it.
-      graded: await countIn(RESULTS_COLLECTION, {
-        "review.gradedBy": { $in: keys.map(asId) }
+      // Reported so the dialog can say it survives: an issued credential is a
+      // record of what happened, not a possession of the account that made it.
+      issued: await countIn(RESULTS_COLLECTION, {
+        "credential.issuedBy": { $in: keys.map(asId) }
       })
     }
   });

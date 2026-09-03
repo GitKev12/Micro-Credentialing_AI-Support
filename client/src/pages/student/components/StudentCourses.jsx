@@ -134,7 +134,6 @@ function StudentCourses() {
   return (
     <section className="student-courses">
       <h2 className="student-courses__title">Your Courses</h2>
-      {!isLoading && summary ? <p className="student-courses__summary">{summary}</p> : null}
 
       {isLoading ? (
         <ul className="student-courses__list" aria-hidden="true">

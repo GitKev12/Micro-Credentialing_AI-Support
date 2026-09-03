@@ -8,9 +8,6 @@ globalThis.TextDecoder ??= TextDecoder;
 
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
-  fetchAssessorOverview: async () => ({
-    summary: { toPost: 3, credentials: 2 }
-  }),
   fetchAssessorClasses: async () => [
     {
       id: "c1",
@@ -102,17 +99,24 @@ describe("ClassesPage", () => {
     expect(screen.getByText("3/7")).toBeInTheDocument();
   });
 
-  it("leads to the generate screen from the papers-to-post tile", async () => {
-    render(
+  // The two tiles that used to sit above the register are gone. Both restated
+  // a number already on screen twice over — the rail badges the same papers-to-
+  // post count and links to the same screen, and the footer adds up the same
+  // columns the tiles summarised.
+  it("leaves the totals to the register rather than repeating them above it", async () => {
+    const { container } = render(
       <MemoryRouter>
         <ClassesPage />
       </MemoryRouter>
     );
 
-    expect(
-      await screen.findByRole("button", {
-        name: "Assessments to Post: 3. Generate Assessment."
-      })
-    ).toBeInTheDocument();
+    await screen.findByText("Intro to Computing");
+    expect(screen.queryByText("Assessments to Post")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Approve & Issue/ })).not.toBeInTheDocument();
+
+    // What they said is still said, once, by the footer.
+    const footer = within(container.querySelector("tfoot"));
+    expect(footer.getByText("3/7")).toBeInTheDocument();
+    expect(footer.getByText(/1 to approve/)).toBeInTheDocument();
   });
 });

@@ -4,17 +4,44 @@ import { ColumnPlot } from "../../components/ColumnPlot";
 import { certificateFileUrl } from "../../services/achievements";
 import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
 import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
-import { Chip, ScreenHeader } from "./components/ui";
+import { ScreenHeader } from "./components/ui";
 import { SkeletonDetail } from "../../components/Skeleton";
 
 /** The server's own pass ratio, used until a run reports its own threshold. */
 const PASS_MARK = 60;
 
-const MODULE_CHIP = {
-  done: { tone: "info", label: "Graded" },
-  pending: { tone: "brand", label: "Awaiting your grade" },
-  locked: { tone: "neutral", label: "Not started" }
-};
+/**
+ * How long a sitting took, written the way a person says it.
+ *
+ * Hours only appear once there are any — "5m" rather than "0h 5m", because a
+ * column of leading zeroes is harder to scan than the numbers themselves. A
+ * sitting under a minute still reads as "1m": the point of the column is how
+ * long somebody worked, and "0m" reads as a failure to record rather than as a
+ * very fast paper.
+ */
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+
+  const minutes = Math.max(1, Math.round(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  if (hours === 0) return `${rest}m`;
+  if (rest === 0) return `${hours}h`;
+  return `${hours}h ${rest}m`;
+}
+
+/** The clock the assessor set, when they set one. Most papers are untimed. */
+function formatLimit(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  if (hours === 0) return `${rest}m`;
+  if (rest === 0) return `${hours}h`;
+  return `${hours}h ${rest}m`;
+}
 
 /** Dates here are read off the record, so they are written out rather than
  *  counted back from today. */
@@ -117,10 +144,7 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
       <div className="hero-chart__head">
         <span className="metric__label">Performance — final exam</span>
         {taken ? (
-          <span className="hero-chart__score">
-            {skillGap.performance}%
-            {skillGap.released ? null : <Chip tone="brand-soft">Provisional</Chip>}
-          </span>
+          <span className="hero-chart__score">{skillGap.performance}%</span>
         ) : (
           <span className="hero-chart__score hero-chart__score--waiting">—</span>
         )}
@@ -149,6 +173,64 @@ function credentialMeta(credential) {
 
   const date = formatDate(credential.issuedAt, { year: false });
   return date ? `Issued ${date}` : "Issued";
+}
+
+/**
+ * The three columns a sitting fills: when it was taken, what it scored, and how
+ * long it ran.
+ *
+ * One component because the final exam's row and a lesson's row are the same
+ * question asked of different papers, and a column that formatted one of them
+ * differently would read as a difference in the data.
+ */
+/**
+ * The line under the final's title.
+ *
+ * The final is the only paper with a ceiling on sittings, so a taken one says
+ * which of the three this was. An untaken one says what it is waiting on, and
+ * "not posted" is the assessor's own doing rather than the student's — those
+ * are different facts and the row should not report both as "not taken".
+ */
+function finalNote(final) {
+  if (final.state !== "done") return final.posted ? "Not taken" : "Not posted yet";
+  return `Attempt ${final.attempt} of ${final.attemptsAllowed}`;
+}
+
+function SittingCells({ row }) {
+  const takenOn = formatDate(row.submittedAt);
+  const took = formatDuration(row.durationMs);
+  const limit = formatLimit(row.timeLimitMinutes);
+
+  return (
+    <>
+      <td className="assessor-table__when">
+        {takenOn ?? <span className="assessor-table__dash">—</span>}
+      </td>
+
+      <td className="assessor-table__num">
+        {row.score !== null ? (
+          `${row.score}/${row.total}`
+        ) : (
+          <span className="assessor-table__dash">—</span>
+        )}
+      </td>
+
+      {/* A time limit is the assessor's to set and most papers have none, so it
+          only appears where one was given — and then as what the sitting ran
+          against, which is the only thing that makes a duration mean
+          anything. */}
+      <td className="assessor-table__when">
+        {took ? (
+          <>
+            {took}
+            {limit ? <span className="assessor-table__sub">of {limit} allowed</span> : null}
+          </>
+        ) : (
+          <span className="assessor-table__dash">—</span>
+        )}
+      </td>
+    </>
+  );
 }
 
 function StudentPage() {
@@ -199,11 +281,12 @@ function StudentPage() {
     );
   }
 
-  const { student, course, modules, credentials, waiting } = detail;
+  const { student, course, modules, credentials } = detail;
+  const final = detail.final ?? null;
   const badges = detail.badges ?? { earned: 0, total: detail.totalModules ?? 0 };
   const badgeItems = badges.items ?? [];
   const issuedCount = credentials.filter((credential) => credential.status === "issued").length;
-  const gradedCount = modules.filter((module) => module.state === "done").length;
+  const takenCount = modules.filter((module) => module.state === "done").length;
   const skillGap = detail.skillGap ?? null;
   // The chart's columns carry the lesson numbers the table uses, so a column
   // and a row point at the same lesson.
@@ -256,7 +339,7 @@ function StudentPage() {
               </h2>
               {modules.length ? (
                 <span className="assessor-meta">
-                  {gradedCount} of {modules.length} graded
+                  {takenCount} of {modules.length} taken
                 </span>
               ) : null}
             </header>
@@ -268,7 +351,7 @@ function StudentPage() {
                 <table className="assessor-table">
                   <caption className="assessor-sr-only">
                     Every lesson in this course, when its quiz was taken, what it
-                    scored and where it stands.
+                    scored and how long the student took over it.
                   </caption>
 
                   <thead>
@@ -278,28 +361,16 @@ function StudentPage() {
                       <th scope="col" className="assessor-table__num">
                         Score
                       </th>
-                      <th scope="col">Status</th>
+                      <th scope="col">Time taken</th>
                     </tr>
                   </thead>
 
                   <tbody>
                     {modules.map((module) => {
-                      const chip = MODULE_CHIP[module.state];
                       const locked = module.state === "locked";
-                      const takenOn = formatDate(module.submittedAt);
-
-                      // An attempt can be opened; a lesson nobody has taken
-                      // has nothing to open.
-                      const openReview = module.submissionId
-                        ? () => navigate(`/assessor/review/${module.submissionId}`)
-                        : undefined;
 
                       return (
-                        <tr
-                          key={module.moduleId}
-                          className={openReview ? "assessor-table__row" : undefined}
-                          onClick={openReview}
-                        >
+                        <tr key={module.moduleId}>
                           <th scope="row">
                             <span className="module-cell">
                               <span className={`module-row__num${locked ? " is-locked" : ""}`}>
@@ -316,25 +387,34 @@ function StudentPage() {
                             </span>
                           </th>
 
-                          <td className="assessor-table__when">
-                            {takenOn ?? <span className="assessor-table__dash">—</span>}
-                          </td>
-
-                          <td className="assessor-table__num">
-                            {module.score !== null ? (
-                              `${module.score}/${module.total}`
-                            ) : (
-                              <span className="assessor-table__dash">—</span>
-                            )}
-                          </td>
-
-                          <td>
-                            <Chip tone={chip.tone}>{chip.label}</Chip>
-                          </td>
+                          <SittingCells row={module} />
                         </tr>
                       );
                     })}
                   </tbody>
+
+                  {/* The final is not a lesson and carries no lesson number, so
+                      it sits in its own row below the numbered list rather than
+                      at the end of it. */}
+                  {final ? (
+                    <tfoot>
+                      <tr className="module-row--final">
+                        <th scope="row">
+                          <span className="module-cell">
+                            <span className="module-row__num module-row__num--none" aria-hidden="true" />
+                            <span style={{ minWidth: 0 }}>
+                              <span className="assessor-table__name">{final.title}</span>
+                              <span className="assessor-table__sub">
+                                {finalNote(final)}
+                              </span>
+                            </span>
+                          </span>
+                        </th>
+
+                        <SittingCells row={final} />
+                      </tr>
+                    </tfoot>
+                  ) : null}
                 </table>
               </div>
             )}
@@ -431,24 +511,6 @@ function StudentPage() {
               )}
             </section>
 
-            {waiting ? (
-              <section className="callout">
-                <div className="callout__eyebrow">Waiting on you</div>
-                <h2 className="callout__title">{waiting.credentialName}</h2>
-                <p className="callout__body">
-                  {waiting.aiScore !== null
-                    ? `AI scored ${waiting.assessmentTitle} at ${waiting.aiScore}/${waiting.total}. Confirm or adjust the grade to release this credential.`
-                    : `${waiting.assessmentTitle} needs manual grading. Approve a final grade to release this credential.`}
-                </p>
-                <button
-                  type="button"
-                  className="btn btn--light"
-                  onClick={() => navigate(`/assessor/review/${waiting.submissionId}`)}
-                >
-                  Open assessment review
-                </button>
-              </section>
-            ) : null}
           </div>
         </div>
       </div>

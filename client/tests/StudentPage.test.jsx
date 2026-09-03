@@ -39,7 +39,7 @@ const base = {
   course: { id: "c1", code: "IT 101", name: "Intro" },
   modules: MODULES,
   credentials: [],
-  waiting: null,
+  final: null,
   badges: { earned: 1, total: 3, items: [] }
 };
 
@@ -144,5 +144,102 @@ describe("PerformanceChart", () => {
     const plot = container.querySelector(".hero-chart");
     expect(plot.getAttribute("role")).toBe("img");
     expect(plot.getAttribute("aria-label")).toContain("pass mark is 60 percent");
+  });
+});
+
+describe("modules table", () => {
+  beforeEach(() => {
+    detail = { ...base };
+  });
+
+  it("writes a sitting's length in hours and minutes", async () => {
+    detail = {
+      ...base,
+      modules: [{ ...MODULES[0], durationMs: 75 * 60 * 1000, timeLimitMinutes: null }]
+    };
+
+    draw();
+    expect(await screen.findByText("1h 15m")).toBeInTheDocument();
+  });
+
+  it("names the clock a timed paper ran against", async () => {
+    // A limit is the assessor's to set and most papers have none, so it appears
+    // only where one was given.
+    detail = {
+      ...base,
+      modules: [{ ...MODULES[0], durationMs: 20 * 60 * 1000, timeLimitMinutes: 60 }]
+    };
+
+    draw();
+    expect(await screen.findByText("20m")).toBeInTheDocument();
+    expect(screen.getByText("of 1h allowed")).toBeInTheDocument();
+  });
+
+  it("leaves a sitting nobody timed blank rather than at zero", async () => {
+    // Every paper handed in before duration was recorded has none, and "0m"
+    // would read as a very fast attempt rather than as no answer.
+    detail = { ...base, modules: [{ ...MODULES[0], durationMs: null }] };
+
+    const { container } = draw();
+    await screen.findByText("One");
+    expect(container.querySelectorAll(".assessor-table__dash").length).toBeGreaterThan(0);
+  });
+
+  it("sets the final below the lessons, with no lesson number", async () => {
+    detail = {
+      ...base,
+      final: {
+        assessmentId: "f1",
+        title: "Final Exam",
+        state: "done",
+        score: 42,
+        total: 60,
+        durationMs: 55 * 60 * 1000,
+        timeLimitMinutes: 60,
+        submissionId: "sf",
+        submittedAt: "2026-09-01T00:00:00.000Z",
+        attempt: 2,
+        attemptsAllowed: 3,
+        posted: true
+      }
+    };
+
+    const { container } = draw();
+
+    const row = await screen.findByText("Final Exam");
+    expect(row).toBeInTheDocument();
+    expect(screen.getByText("Attempt 2 of 3")).toBeInTheDocument();
+    expect(screen.getByText("42/60")).toBeInTheDocument();
+
+    // Its own row under the numbered list, and the number slot is empty.
+    const finalRow = container.querySelector(".module-row--final");
+    expect(finalRow).not.toBeNull();
+    expect(finalRow.querySelector(".module-row__num--none").textContent).toBe("");
+    expect(container.querySelector("tfoot .module-row--final")).not.toBeNull();
+  });
+
+  it("says a final nobody posted is not posted, rather than not taken", async () => {
+    // Not posting it is the assessor's own doing, and the row should not read
+    // as if the student had failed to turn up.
+    detail = {
+      ...base,
+      final: {
+        assessmentId: null,
+        title: "Final Exam",
+        state: "locked",
+        score: null,
+        total: null,
+        durationMs: null,
+        timeLimitMinutes: null,
+        submissionId: null,
+        submittedAt: null,
+        attempt: 0,
+        attemptsAllowed: 3,
+        posted: false
+      }
+    };
+
+    draw();
+    expect(await screen.findByText("Not posted yet")).toBeInTheDocument();
   });
 });

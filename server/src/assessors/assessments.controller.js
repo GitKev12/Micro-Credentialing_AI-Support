@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { loadAuthoringRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 import {
   DEFAULT_FINAL_MINUTES,
@@ -17,7 +18,6 @@ import {
 import {
   courseCode,
   courseTitle,
-  findAssessor,
   findAssignedCourse,
   moduleFilterForCourse
 } from "./assessors.controller.js";
@@ -36,7 +36,7 @@ import {
  *   generate — write a draft from the lesson's extracted text. Nothing a
  *              student can see changes; this is the only step that costs.
  *   correct  — read the questions and their answers, and fix the ones that are
- *              wrong. The whole bank is editable, one item at a time.
+ *              wrong. Every question is editable, one item at a time.
  *   post     — release it to the course. Every student enrolled in it gets the
  *              same paper from that moment; before it, none of them do.
  *
@@ -67,12 +67,13 @@ function serviceUnavailable(response) {
 }
 
 /**
- * The assessor and the course from the route, or the response that says which
- * of the two was not found.
+ * The assessor and the course from the route, or the response that says the
+ * course was not found.
  *
- * Every endpoint here begins the same way, and this check is the only thing
- * stopping one assessor writing papers into another's course — so it is one
- * function rather than six copies that could drift apart.
+ * The assessor is already settled: requireOwnAssessor resolved `:assessorId`
+ * and refused anyone it does not belong to. What is left is whether this course
+ * is one of theirs, which is what stops an assessor writing papers into a
+ * colleague's course — one function rather than six copies that could drift.
  */
 async function resolveScope(request, response) {
   if (!databaseReady()) {
@@ -80,11 +81,8 @@ async function resolveScope(request, response) {
     return null;
   }
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) {
-    response.status(404).json({ message: "Assessor not found." });
-    return null;
-  }
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const course = await findAssignedCourse(assessor, request.params.courseId);
   if (!course) {
@@ -93,6 +91,31 @@ async function resolveScope(request, response) {
   }
 
   return { assessor, course };
+}
+
+/**
+ * The same scope, but only while the course is still open to authoring.
+ *
+ * Two things close one: its run ends, or the last of its classes is switched
+ * off in the admin console (see lib/courseAccess.js). Either way there is
+ * nobody who can be given a paper, and the console used to let one be written
+ * and posted anyway — the assessor found out when a student was refused.
+ *
+ * Guards the three presses that put something new in front of a class.
+ * Reading a paper is never refused, and neither is unposting one: both leave a
+ * class with less than it had, which a closed course is no reason to prevent.
+ */
+async function resolveWritableScope(request, response) {
+  const scope = await resolveScope(request, response);
+  if (!scope) return null;
+
+  const restriction = await loadAuthoringRestriction(scope.course);
+  if (restriction) {
+    refuseRestrictedCourse(response, restriction);
+    return null;
+  }
+
+  return scope;
 }
 
 /** Every assessment written for a course, drafts included. */
@@ -144,11 +167,9 @@ function assessmentRow(doc, submissions = 0) {
     status: normalized.status,
     postedAt: normalized.postedAt,
     postedBy: doc.postedBy ?? null,
-    // The paper's length and the bank it is drawn from are two different
-    // numbers, and the screen has to show both — otherwise the assessor reads
-    // "30 questions" for a ten-question quiz.
-    itemsPerAttempt: normalized.itemsPerAttempt,
-    bankSize: normalized.items.length,
+    // One number: the paper is its questions, and every student sits all of
+    // them.
+    itemCount: normalized.itemCount,
     timeLimitMinutes: normalized.timeLimitMinutes,
     totalPoints: normalized.totalPoints,
     passMark: normalized.passMark,
@@ -162,8 +183,8 @@ function assessmentRow(doc, submissions = 0) {
  *
  * The opposite of `toStudentAssessment`, and deliberately so: correcting a
  * question means seeing which answer the model marked as right. This is the one
- * place a full bank leaves the server with its keys attached — to the assessor
- * the course is assigned to, and to nobody else.
+ * place a paper leaves the server with its keys attached — to the assessor the
+ * course is assigned to, and to nobody else.
  */
 function assessmentDetail(doc, submissions = 0) {
   const normalized = normalizeAssessment(doc);
@@ -171,7 +192,7 @@ function assessmentDetail(doc, submissions = 0) {
   return {
     ...assessmentRow(doc, submissions),
     description: normalized.description,
-    // Numbered for the screen. The stored `n` follows the bank as it was
+    // Numbered for the screen. The stored `n` follows the paper as it was
     // written; this follows the list as it is being read.
     items: normalized.items.map((item, index) => ({ ...item, n: index + 1 }))
   };
@@ -239,6 +260,11 @@ export async function getCourseAssessments(request, response) {
       })
     : 0;
 
+  // Why the buttons on this screen are off, before they are pressed. The
+  // endpoints refuse a closed course either way; sending the reason here is
+  // what lets the screen say so rather than leave a dead button.
+  const closed = await loadAuthoringRestriction(course);
+
   const rows = lessons.map((lesson, index) => {
     const quiz = quizByModule.get(asId(lesson._id)) ?? null;
     const text = textByModule.get(asId(lesson._id));
@@ -260,7 +286,8 @@ export async function getCourseAssessments(request, response) {
       id: asId(course._id),
       code: courseCode(course),
       name: courseTitle(course),
-      students: enrolled
+      students: enrolled,
+      closed
     },
     defaultFinalMinutes: DEFAULT_FINAL_MINUTES,
     lessons: rows,
@@ -317,7 +344,7 @@ const GENERATION_REASONS = {
  * every one of those marks pointing at a question that no longer exists.
  */
 export async function generateCourseAssessment(request, response) {
-  const scope = await resolveScope(request, response);
+  const scope = await resolveWritableScope(request, response);
   if (!scope) return undefined;
 
   const { course } = scope;
@@ -396,22 +423,25 @@ export async function generateCourseAssessment(request, response) {
 
 /**
  * PUT /api/assessors/:assessorId/classes/:courseId/assessments/:assessmentId
- * Body: { items?: [{ id, q?, choices?, key?, type? }], timeLimitMinutes?,
- *         itemsPerAttempt? }
+ * Body: { items?: [{ id, q?, choices?, key?, type? }], timeLimitMinutes? }
  *
  * The correction step: the assessor found a question whose stated answer is
  * wrong, and fixes it.
  *
  * `items` is a patch rather than a replacement. The assessor sends only the
- * questions they changed, keyed by id, and the rest of the bank is left exactly
- * as it was — sending the whole bank back would let a stale screen quietly undo
- * a fix made from another one.
+ * questions they changed, keyed by id, and the rest of the paper is left
+ * exactly as it was — sending the whole paper back would let a stale screen
+ * quietly undo a fix made from another one.
+ *
+ * The paper's length is not editable here. It is however many questions the
+ * paper has, and changing it would mean adding or deleting questions rather
+ * than moving a number.
  *
  * An edited item goes through the same normaliser a generated one does, so a
  * key naming no choice is refused here rather than marking a whole class wrong.
  */
 export async function updateCourseAssessment(request, response) {
-  const scope = await resolveScope(request, response);
+  const scope = await resolveWritableScope(request, response);
   if (!scope) return undefined;
 
   const { course } = scope;
@@ -474,20 +504,10 @@ export async function updateCourseAssessment(request, response) {
 
   if ("timeLimitMinutes" in body) update.timeLimitMinutes = normalizeMinutes(body.timeLimitMinutes);
 
-  if ("itemsPerAttempt" in body) {
-    const wanted = Math.floor(Number(body.itemsPerAttempt));
-    if (!(wanted > 0) || wanted > items.length) {
-      return response.status(400).json({
-        message: `An assessment has to be between 1 and ${items.length} questions — that is how many the bank holds.`
-      });
-    }
-
-    // The three move together, or a shortened paper is still marked out of what
-    // the longer one was worth.
-    update.itemsPerAttempt = wanted;
-    update.totalPoints = wanted * (Number(doc.pointsPerItem) || 1);
-    update.passMark = Math.ceil(update.totalPoints * DEFAULT_PASS_RATIO);
-  }
+  // What the paper is worth follows its questions, so it is rewritten here
+  // rather than left to drift from a length that no longer matches.
+  update.totalPoints = items.length * (Number(doc.pointsPerItem) || 1);
+  update.passMark = Math.ceil(update.totalPoints * DEFAULT_PASS_RATIO);
 
   await collection(ASSESSMENTS_COLLECTION).updateOne({ _id: doc._id }, { $set: update });
 
@@ -507,7 +527,7 @@ export async function updateCourseAssessment(request, response) {
  * that student to finish the lesson, and the final still waits for all of them.
  */
 export async function postCourseAssessment(request, response) {
-  const scope = await resolveScope(request, response);
+  const scope = await resolveWritableScope(request, response);
   if (!scope) return undefined;
 
   const { assessor, course } = scope;

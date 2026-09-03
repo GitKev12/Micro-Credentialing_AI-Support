@@ -74,10 +74,13 @@ function CredentialsPage() {
               </div>
             </div>
 
-            <Metric label="Final" value={`${row.finalScore}/${row.totalPoints}`} />
+            <Metric label="Score" value={`${row.score}/${row.totalPoints}`} />
 
+            {/* What the pass was measured against. The score alone does not say
+                whether it was a near miss or a clear one, and that is the whole
+                question in front of the assessor here. */}
             <span>
-              <Chip tone="info">{row.source}</Chip>
+              <Chip tone="info">Passed · {row.passMark} to pass</Chip>
             </span>
 
             <span style={{ justifySelf: "end" }}>

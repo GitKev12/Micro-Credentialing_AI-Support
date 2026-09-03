@@ -75,7 +75,7 @@ function RosterPage() {
         <div className="row-head roster-grid">
           <span>Student</span>
           <span>Module progress</span>
-          <span>Credentials</span>
+          <span>Badges</span>
           <span>Status</span>
           <span />
         </div>
@@ -96,9 +96,12 @@ function RosterPage() {
 
               <CredentialDots earned={student.creds} total={total} />
 
+              {/* Nothing here waits on a grade — a paper is marked as it is
+                  handed in. What can still be waiting is a pass whose
+                  credential nobody has issued. */}
               <span>
-                <Chip tone={student.pending ? "brand" : "neutral"}>
-                  {student.pending ? `${student.pending} to grade` : "Up to date"}
+                <Chip tone={student.awaiting ? "brand" : "neutral"}>
+                  {student.awaiting ? `${student.awaiting} to approve` : "Up to date"}
                 </Chip>
               </span>
 

@@ -15,11 +15,10 @@
  *     timeLimitMinutes?,   // how long the sitting runs; null when untimed
  *     credentialName?,     // defaults to "<title> Credential"
  *     pointsPerItem,       // default 1 — see DEFAULT_POINTS_PER_ITEM
- *     itemsPerAttempt,     // how many of `items` one student sits; all of them
- *                          // when unset
- *     itemsPerModule?,     // { <moduleId>: count } — a final's per-lesson quota,
- *                          // see selectItemsFor. Absent on a lesson quiz.
- *     totalPoints,         // default pointsPerItem * itemsPerAttempt
+ *     itemsPerModule?,     // { <moduleId>: count } — how a final's questions
+ *                          // divide between lessons, which is the denominator
+ *                          // of each Skill Score. Absent on a lesson quiz.
+ *     totalPoints,         // pointsPerItem * items.length
  *     passMark,            // default 60% of totalPoints, rounded up (TSU)
  *     source: {            // which Table of Specification row this came from
  *       tosRow,            // the TOS row's `course` label
@@ -29,14 +28,19 @@
  *     items: [ … ]
  *   }
  *
- * ── Banks ──────────────────────────────────────────────────────────────────
- * `items` is a bank, not a paper. The generator is asked for several times the
- * questions a quiz needs, because the cost of generating is dominated by the
- * model *reading* the lesson — which it does once whether it then writes eight
- * questions or twenty-four. `itemsPerAttempt` is how many of them any one
- * student sits, and every function below that reports a total or a mark counts
- * that many rather than the size of the bank. Get this wrong and a student who
- * answers all eight questions correctly scores 40 out of 120.
+ * ── The paper is its questions ─────────────────────────────────────────────
+ * `items` is the paper. Every student sits every question in it, so its length,
+ * what it is worth and what passes it are one arithmetic and are derived here
+ * rather than stored — a paper cannot be marked out of a number that disagrees
+ * with the questions on it.
+ *
+ * There was a bank: the generator wrote three times what a quiz needed and each
+ * student was dealt a subset. It bought variety between students at the cost of
+ * a second number on every screen, and it gave a student the same subset on
+ * every retake anyway — so a lesson quiz with unlimited retakes never reached
+ * the other two thirds. What makes two sittings differ now is the order of the
+ * questions and of their choices, which is re-drawn every time the paper is
+ * served.
  *
  * ── Items ──────────────────────────────────────────────────────────────────
  * Two types, because those are the two the generator produces from a TOS row:
@@ -61,7 +65,7 @@
  * without them a graded final is a single number with no way back to a topic.
  */
 
-import { hashSeed, sample, seededRandom, shuffled } from "../lib/random.js";
+import { shuffled } from "../lib/random.js";
 
 export const ITEM_TYPES = ["multiple-choice", "true-false"];
 
@@ -108,6 +112,18 @@ export const DEFAULT_POINTS_PER_ITEM = 1;
  */
 export const DEFAULT_PASS_RATIO = 0.6;
 
+/**
+ * What passing this paper is worth, by name.
+ *
+ * Read in two places that must agree — the submission that earns a credential
+ * and the console that issues it — so it is defined once here rather than
+ * once on each side, where the two could name the same award differently.
+ */
+export function credentialNameFor(assessment) {
+  if (assessment?.credentialName) return assessment.credentialName;
+  return assessment?.title ? `${assessment.title} Credential` : "Course Credential";
+}
+
 /** The default pass mark for a paper worth `totalPoints`, rounded up. */
 export function defaultPassMark(totalPoints) {
   return Math.ceil(Number(totalPoints || 0) * DEFAULT_PASS_RATIO);
@@ -131,12 +147,16 @@ export const DEFAULT_FINAL_MINUTES = 60;
  * act: a generated paper sits as a draft — theirs to read, correct and set the
  * length of — until they post it, and only then does any student see it.
  *
- * A document written before that carries no `status` at all. Those were live
- * from the moment they existed, so an absent status reads as posted; anything
- * else would shut every existing course's quizzes on deploy.
+ * Posting is the only thing that writes `status: "posted"`, so a paper that does
+ * not say it is posted has not been. An absent status used to read as posted,
+ * to keep papers written before this gate existed live — what it did instead
+ * was hand students the drafts left over from before the assessor had a say,
+ * which is the one thing the gate is here to prevent. Nothing else opens it:
+ * a paper nobody posted stays the assessor's, and their console shows it as
+ * the draft it is with a Post button beside it.
  */
 export function assessmentStatus(doc) {
-  return doc?.status === "draft" ? "draft" : "posted";
+  return doc?.status === "posted" ? "posted" : "draft";
 }
 
 /** Shorthand for the gate the student side asks about. */
@@ -218,8 +238,8 @@ export function normalizeItem(raw, index) {
 
 /**
  * A final's per-lesson quota, cleaned. Null when the paper has none, which is
- * every lesson quiz and any final assembled before quotas existed — both then
- * fall back to the plain draw in selectItemsFor.
+ * every lesson quiz and any final assembled before quotas existed. It is what
+ * each lesson's Skill Score is read out of.
  */
 function normalizeModuleQuota(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -244,14 +264,12 @@ export function normalizeAssessment(doc) {
     ? Number(doc.pointsPerItem)
     : DEFAULT_POINTS_PER_ITEM;
 
-  // A quiz written before banks existed has no itemsPerAttempt, and sits its
-  // whole list — so leaving it unset keeps the old behaviour exactly.
-  const requested = Math.floor(Number(doc.itemsPerAttempt));
-  const itemsPerAttempt = requested > 0 ? Math.min(requested, items.length) : items.length;
-
-  const totalPoints = Number(doc.totalPoints) > 0
-    ? Number(doc.totalPoints)
-    : pointsPerItem * itemsPerAttempt;
+  // The paper is its questions. There is no bank to draw a shorter paper from,
+  // so its length, what it is worth and what passes it are all one arithmetic
+  // from `items` — derived rather than read, so a stored `totalPoints` left
+  // over from a document that did hold a bank cannot mark a paper out of five
+  // when fifteen questions are being served.
+  const totalPoints = pointsPerItem * items.length;
 
   // "final" when the document says so, or when it belongs to no single lesson.
   const moduleId = doc.moduleId ?? doc.module_id ?? null;
@@ -268,69 +286,17 @@ export function normalizeAssessment(doc) {
     title: text(doc.title ?? doc.name),
     description: text(doc.description),
     pointsPerItem,
-    itemsPerAttempt,
+    itemCount: items.length,
+    // A final still records how its questions divide between the lessons: that
+    // is the denominator every Skill Score is read against, and it survives the
+    // bank it used to be a drawing quota for.
     itemsPerModule: normalizeModuleQuota(doc.itemsPerModule),
     topics: Array.isArray(doc.topics) ? doc.topics : null,
     totalPoints,
-    passMark: Number(doc.passMark) > 0 ? Number(doc.passMark) : defaultPassMark(totalPoints),
+    passMark: defaultPassMark(totalPoints),
     source: doc.source ?? null,
     items
   };
-}
-
-/**
- * The questions one student sits, drawn from the bank.
- *
- * Seeded by who is sitting it, so the draw is the same on every visit: a
- * reload must not cost a student their answers, and must not let them keep
- * refreshing until an easier paper comes up. Two students get different
- * papers; one student gets the same one all week.
- *
- * Grading calls this too, with the same student, which is how the mark is
- * counted against the paper that was actually shown.
- */
-export function selectItemsFor(assessment, studentId) {
-  if (!assessment) return [];
-
-  const random = seededRandom(hashSeed(String(studentId ?? ""), String(assessment.id)));
-
-  // A lesson quiz draws from one lesson, so any sample of it is a fair paper.
-  if (!assessment.itemsPerModule) {
-    return sample(assessment.items, assessment.itemsPerAttempt, random);
-  }
-
-  // A final must not be drawn that way. Its bank holds every lesson's
-  // questions, and a plain sample of 60 out of 180 can miss a lesson entirely —
-  // which skill gap analysis cannot report on, and cannot divide by. So the
-  // draw is per lesson, to the quota the blueprint set when the paper was
-  // assembled. Same seed, so the paper is still stable across reloads.
-  const byModule = new Map();
-  for (const item of assessment.items) {
-    const key = String(item.moduleId ?? "");
-    if (!byModule.has(key)) byModule.set(key, []);
-    byModule.get(key).push(item);
-  }
-
-  const drawn = [];
-  for (const [moduleId, count] of Object.entries(assessment.itemsPerModule)) {
-    drawn.push(...sample(byModule.get(moduleId) ?? [], count, random));
-  }
-
-  // A lesson whose bank came up short would leave the paper below its stated
-  // length, and totalPoints is already written on the document — so make the
-  // count up from whatever is left rather than quietly serving a shorter paper.
-  if (drawn.length < assessment.itemsPerAttempt) {
-    const taken = new Set(drawn.map((item) => item.id));
-    drawn.push(
-      ...sample(
-        assessment.items.filter((item) => !taken.has(item.id)),
-        assessment.itemsPerAttempt - drawn.length,
-        random
-      )
-    );
-  }
-
-  return drawn.slice(0, assessment.itemsPerAttempt);
 }
 
 /**
@@ -338,23 +304,22 @@ export function selectItemsFor(assessment, studentId) {
  *
  * `key` is removed here and nowhere else — this is the boundary. Sending the
  * answer key to the browser would make every quiz self-solving, so no route
- * may serve a raw Assessment document. The bank is trimmed here for the same
- * reason: the questions a student was not given are as good as an answer key
- * if they can read them.
+ * may serve a raw Assessment document.
  *
- * Order is re-drawn on every call, questions and choices both. It is free, it
- * is what makes the quiz look shuffled, and it cannot affect the mark because
- * answers come back keyed by item id. Note the choices are shuffled *after*
- * normalizeItem has assigned their ids — shuffling raw choices would hand the
- * id of the right answer to whichever option happened to land in its place.
+ * Every student sits every question: the paper is its item list, and what makes
+ * two sittings differ is the order, not the questions. Order is re-drawn on
+ * every call, questions and choices both. It is free, and it cannot affect the
+ * mark because answers come back keyed by item id. Note the choices are
+ * shuffled *after* normalizeItem has assigned their ids — shuffling raw choices
+ * would hand the id of the right answer to whichever option happened to land in
+ * its place.
  */
-export function toStudentAssessment(doc, { studentId = "", shuffle = true } = {}) {
+export function toStudentAssessment(doc, { shuffle = true } = {}) {
   const assessment = normalizeAssessment(doc);
   if (!assessment) return null;
 
-  const { items: _bank, itemsPerModule: _quota, topics: _topics, ...rest } = assessment;
-  const drawn = selectItemsFor(assessment, studentId);
-  const ordered = shuffle ? shuffled(drawn) : drawn;
+  const { items, itemsPerModule: _quota, topics: _topics, ...rest } = assessment;
+  const ordered = shuffle ? shuffled(items) : items;
 
   return {
     ...rest,
@@ -380,7 +345,7 @@ export function toAssessmentSummary(doc) {
   // The quota and the topic list are how a final is built and scored, not part
   // of a rail row — the rail only needs to say how long the paper is.
   const { items: _items, itemsPerModule: _quota, topics: _topics, ...rest } = assessment;
-  return { ...rest, itemCount: assessment.itemsPerAttempt };
+  return { ...rest, itemCount: assessment.itemCount };
 }
 
 /**
@@ -391,13 +356,13 @@ export function toAssessmentSummary(doc) {
  * are still written in the `aiGrading` shape the assessor console already
  * reads, with `source: "auto"` recording that a rule marked it, not a model.
  */
-export function gradeSubmission(assessmentDoc, answers, { studentId = "" } = {}) {
+export function gradeSubmission(assessmentDoc, answers) {
   const assessment = normalizeAssessment(assessmentDoc);
 
-  // The paper this student was given, re-derived rather than trusted from the
-  // submission. A client that could name its own questions could name the
-  // eight it liked the look of.
-  const served = selectItemsFor(assessment, studentId);
+  // The paper, read from the document rather than from the submission. A client
+  // that could name its own questions could name the five it liked the look of
+  // and leave the rest unmarked.
+  const served = assessment.items;
 
   const chosenByItem = new Map(
     (Array.isArray(answers) ? answers : []).map((answer) => [
@@ -430,8 +395,8 @@ export function gradeSubmission(assessmentDoc, answers, { studentId = "" } = {})
     total: assessment.totalPoints,
     passMark: assessment.passMark,
     passed: score >= assessment.passMark,
-    // Recorded on the submission so the assessor console reviews the paper the
-    // student sat, not the bank it came from.
+    // Recorded on the submission so a result still says which questions it
+    // answered even after the paper behind it is regenerated.
     servedItemIds: served.map((item) => item.id)
   };
 }
@@ -462,12 +427,12 @@ export function validateAssessment(doc) {
     }
   });
 
-  // A bank that cannot fill one paper is worth catching here: normalizeAssessment
-  // would quietly shrink the quiz instead, and the shrinking is invisible.
+  // A paper with nothing left on it is worth catching here rather than letting
+  // an empty quiz reach a class: normalizeAssessment would report it as zero
+  // questions worth zero points, which is a valid document and a useless paper.
   const usable = raw.map(normalizeItem).filter(Boolean).length;
-  const wanted = Math.floor(Number(doc.itemsPerAttempt));
-  if (wanted > 0 && usable < wanted) {
-    problems.push(`itemsPerAttempt is ${wanted} but only ${usable} item(s) survived normalisation.`);
+  if (usable === 0) {
+    problems.push("no item survived normalisation, so the paper has no questions.");
   }
 
   return { valid: problems.length === 0, problems };

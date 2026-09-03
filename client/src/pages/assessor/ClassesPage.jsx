@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  fetchAssessorClasses,
-  fetchAssessorOverview,
-  storedAssessorId
-} from "../../services/assessors";
-import { ChevronRightIcon, CredentialIcon, GenerateIcon } from "./components/icons";
-import { Chip, ScreenHeader, StatCard } from "./components/ui";
+import { fetchAssessorClasses, storedAssessorId } from "../../services/assessors";
+import { ChevronRightIcon } from "./components/icons";
+import { Chip, ScreenHeader } from "./components/ui";
 import { formatCourseLength, formatCourseRange } from "../../lib/courseDuration";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,7 +42,6 @@ const EMPTY_TOTALS = {
 
 function ClassesPage() {
   const navigate = useNavigate();
-  const [summary, setSummary] = useState({ toPost: 0, credentials: 0 });
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -58,11 +53,9 @@ function ClassesPage() {
       return undefined;
     }
 
-    Promise.all([fetchAssessorOverview(assessorId), fetchAssessorClasses(assessorId)])
-      .then(([overview, classList]) => {
-        if (!active) return;
-        setSummary(overview?.summary ?? { toPost: 0, credentials: 0 });
-        setClasses(classList);
+    fetchAssessorClasses(assessorId)
+      .then((classList) => {
+        if (active) setClasses(classList);
       })
       .catch(() => {
         if (active) setClasses([]);
@@ -101,23 +94,6 @@ function ClassesPage() {
       <ScreenHeader eyebrow="Assessor console" title="Classes" />
 
       <div className="assessor-body assessor-stack">
-        <div className="stat-row">
-          <StatCard
-            value={summary.toPost}
-            label="Assessments to Post"
-            action="Generate Assessment"
-            icon={<GenerateIcon />}
-            onAction={() => navigate("/assessor/generate")}
-          />
-          <StatCard
-            value={summary.credentials}
-            label="Credentials"
-            action="Approve & Issue"
-            icon={<CredentialIcon />}
-            onAction={() => navigate("/assessor/credentials")}
-          />
-        </div>
-
         {/* A class register, which is what a course list is in an LMS: one row
             per class, and one column per thing the assessor has to decide on —
             how big the class is, how much of it there is, how many of its
@@ -171,6 +147,14 @@ function ClassesPage() {
                           {course.section ? ` · ${course.section}` : ""}
                         </span>
                         <span className="assessor-table__name">{course.name}</span>
+                        {/* Closed to new papers. A finished run is the expected
+                            end of a course; every class switched off usually is
+                            not, so the two do not read alike. */}
+                        {course.closed ? (
+                          <Chip tone={course.closed.suspended ? "danger" : "neutral"}>
+                            {course.closed.suspended ? "Classes off" : "Ended"}
+                          </Chip>
+                        ) : null}
                       </th>
 
                       <td className="assessor-table__num">{students}</td>

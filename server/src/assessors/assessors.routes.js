@@ -5,9 +5,7 @@ import {
   getPendingCredentials,
   getRoster,
   getStudentDetail,
-  getSubmission,
-  issueCredential,
-  saveReview
+  issueCredential
 } from "./assessors.controller.js";
 import {
   generateCourseAssessment,
@@ -18,6 +16,7 @@ import {
   updateCourseAssessment
 } from "./assessments.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireOwnAssessor } from "./assessors.guard.js";
 
 // Mounted at /api/assessors. :assessorId accepts the Mongo id or the ASS###
 // number, so the client can pass whichever the auth session carries.
@@ -35,21 +34,23 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   POST /:assessorId/classes/:courseId/assessments/:id/post      — release to the course
 //   POST /:assessorId/classes/:courseId/assessments/:id/unpost    — take it back off
 //
-//   GET  /:assessorId/submissions/:submissionId             — full review payload
-//   PUT  /:assessorId/submissions/:submissionId/review      — { action: "draft"|"release",
-//                                                              overrides?, finalScore? }
-//   GET  /:assessorId/credentials                           — approved grades awaiting issue
+//   GET  /:assessorId/credentials                           — passes awaiting issue
 //   POST /:assessorId/credentials/:submissionId/issue       — issue the micro-credential
 const router = Router();
 
-// Grading, review and credential issuing are staff work.
-//
-// This guards the *role*, not the individual: because :assessorId accepts
-// either the Mongo id or the ASS### number, matching it against the session id
-// would reject half the client's own calls. One assessor can therefore still
-// read another's queue — a narrower problem than the open API this replaces,
-// and one to close once the client settles on a single id form.
+// Writing papers and issuing credentials are staff work, and each assessor's
+// work is their own. The role guard says you are staff; `requireOwnAssessor`
+// says the :assessorId in the path is yours — resolving it to a document first,
+// so the Mongo id and the ASS### number both answer the same question. It
+// leaves the assessor on `request.assessor`, which is why no handler below
+// looks one up.
 router.use(requireAuth, requireRole("assessor", "admin"));
+
+// Mounted on the path rather than added to the line above, because a
+// `router.use` with no path of its own never has the route's parameters
+// filled in — `request.params.assessorId` would be undefined and every call,
+// including an assessor's own, would be refused.
+router.use("/:assessorId", requireOwnAssessor);
 
 router.get("/:assessorId/overview", getOverview);
 
@@ -67,9 +68,9 @@ router.put("/:assessorId/classes/:courseId/assessments/:assessmentId", updateCou
 router.post("/:assessorId/classes/:courseId/assessments/:assessmentId/post", postCourseAssessment);
 router.post("/:assessorId/classes/:courseId/assessments/:assessmentId/unpost", unpostCourseAssessment);
 
-router.get("/:assessorId/submissions/:submissionId", getSubmission);
-router.put("/:assessorId/submissions/:submissionId/review", saveReview);
-
+// A paper is marked against its key when it is handed in, and that mark is
+// final — there is nothing here to reopen a submission with. A pass writes its
+// own pending credential; these two are what an assessor does about it.
 router.get("/:assessorId/credentials", getPendingCredentials);
 router.post("/:assessorId/credentials/:submissionId/issue", issueCredential);
 

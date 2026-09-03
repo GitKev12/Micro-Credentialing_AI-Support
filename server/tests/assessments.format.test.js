@@ -5,7 +5,6 @@ import {
   gradeSubmission,
   normalizeAssessment,
   normalizeItem,
-  selectItemsFor,
   toStudentAssessment,
   validateAssessment
 } from "../src/assessments/assessments.format.js";
@@ -91,14 +90,17 @@ describe("normalizeAssessment", () => {
     expect(assessment.passMark).toBe(3);
   });
 
-  it("keeps a stored pass mark, which was a decision someone made", () => {
-    const assessment = normalizeAssessment(doc([mc("1"), mc("2")], { passMark: 2 }));
-    expect(assessment.passMark).toBe(2);
-  });
+  it("counts the paper rather than what an older document claimed it was worth", () => {
+    // A paper written while assessments held a bank carries the totals of the
+    // shorter paper that used to be drawn out of it. Marking today's sitting
+    // against those would let a student score fifteen out of five.
+    const assessment = normalizeAssessment(
+      doc([mc("1"), mc("2"), mc("3")], { itemsPerAttempt: 1, totalPoints: 1, passMark: 1 })
+    );
 
-  it("cannot serve more items than the bank holds", () => {
-    const assessment = normalizeAssessment(doc([mc("1"), mc("2")], { itemsPerAttempt: 10 }));
-    expect(assessment.itemsPerAttempt).toBe(2);
+    expect(assessment.itemCount).toBe(3);
+    expect(assessment.totalPoints).toBe(3);
+    expect(assessment.passMark).toBe(2);
   });
 
   it("treats an assessment belonging to no lesson as the final", () => {
@@ -108,80 +110,84 @@ describe("normalizeAssessment", () => {
 });
 
 describe("toStudentAssessment", () => {
-  const bank = [mc("1"), mc("2"), mc("3"), mc("4"), mc("5"), mc("6")];
+  const questions = [mc("1"), mc("2"), mc("3"), mc("4"), mc("5"), mc("6")];
 
   it("never sends the answer key to the browser", () => {
     // The boundary the whole quiz rests on: with the key attached, every paper
     // is self-solving.
-    const served = toStudentAssessment(doc(bank), { studentId: "student-1" });
+    const served = toStudentAssessment(doc(questions));
     for (const item of served.items) {
       expect(item).not.toHaveProperty("key");
     }
     expect(JSON.stringify(served)).not.toContain('"key"');
   });
 
-  it("does not send the bank a student was not asked", () => {
-    const served = toStudentAssessment(doc(bank, { itemsPerAttempt: 3 }), { studentId: "student-1" });
-    expect(served.items).toHaveLength(3);
-    expect(served.items.length).toBeLessThan(bank.length);
+  it("serves every question on the paper", () => {
+    // There is no bank to hold anything back from: the paper is its questions,
+    // and what makes two sittings differ is their order.
+    const served = toStudentAssessment(doc(questions));
+    expect(served.items).toHaveLength(questions.length);
+    expect(served.items.map((item) => item.id).sort()).toEqual(
+      questions.map((item) => item.id).sort()
+    );
   });
 
   it("strips the lesson tags the paper is scored by", () => {
     const tagged = [mc("1", "a", { moduleId: "module-9", topic: "Planning" })];
-    const served = toStudentAssessment(doc(tagged), { studentId: "student-1" });
+    const served = toStudentAssessment(doc(tagged));
     expect(served.items[0]).not.toHaveProperty("moduleId");
     expect(served.items[0]).not.toHaveProperty("topic");
   });
 });
 
-describe("selectItemsFor", () => {
-  const assessment = normalizeAssessment(
-    doc([mc("1"), mc("2"), mc("3"), mc("4"), mc("5"), mc("6")], { itemsPerAttempt: 3 })
-  );
-
-  it("gives the same student the same paper every time", () => {
-    // A reload must not cost a student their answers, and must not let them
-    // refresh until an easier paper comes up.
-    const first = selectItemsFor(assessment, "student-1").map((item) => item.id);
-    const second = selectItemsFor(assessment, "student-1").map((item) => item.id);
-    expect(second).toEqual(first);
-  });
-
-  it("draws a final per lesson, to the quota the blueprint set", () => {
+describe("a paper is its questions", () => {
+  it("serves a final's whole quota, so every lesson is examined", () => {
+    // Skill gap analysis reports one score per lesson and divides by that
+    // lesson's quota — a paper missing a lesson entirely is one it cannot
+    // report on.
     const finalDoc = doc(
       [
         mc("a1", "a", { moduleId: "m1" }),
         mc("a2", "a", { moduleId: "m1" }),
-        mc("a3", "a", { moduleId: "m1" }),
         mc("b1", "a", { moduleId: "m2" }),
-        mc("b2", "a", { moduleId: "m2" }),
-        mc("b3", "a", { moduleId: "m2" })
+        mc("b2", "a", { moduleId: "m2" })
       ],
-      { moduleId: null, scope: "final", itemsPerAttempt: 4, itemsPerModule: { m1: 2, m2: 2 } }
+      { moduleId: null, scope: "final", itemsPerModule: { m1: 2, m2: 2 } }
     );
 
-    const drawn = selectItemsFor(normalizeAssessment(finalDoc), "student-1");
-    const perModule = drawn.reduce((counts, item) => {
+    const served = toStudentAssessment(finalDoc, { shuffle: false });
+    const perModule = normalizeAssessment(finalDoc).items.reduce((counts, item) => {
       counts[item.moduleId] = (counts[item.moduleId] ?? 0) + 1;
       return counts;
     }, {});
 
-    // A plain sample could miss a lesson entirely, which skill gap analysis
-    // cannot report on and cannot divide by.
+    expect(served.items).toHaveLength(4);
     expect(perModule).toEqual({ m1: 2, m2: 2 });
+  });
+
+  it("serves the same questions on every sitting, whatever the order", () => {
+    // A retake is the same paper. Nothing is held back for a second attempt,
+    // which is exactly why the bank went: an unlimited lesson quiz never
+    // reached the questions it was hiding.
+    const paper = doc([mc("1"), mc("2"), mc("3"), mc("4")]);
+
+    const first = toStudentAssessment(paper).items.map((item) => item.id).sort();
+    const second = toStudentAssessment(paper).items.map((item) => item.id).sort();
+
+    expect(second).toEqual(first);
   });
 });
 
 describe("gradeSubmission", () => {
-  const bank = [mc("1", "a"), mc("2", "b"), mc("3", "c"), mc("4", "d")];
-  const paper = doc(bank, { passMark: 3 });
-  const servedIds = () => selectItemsFor(normalizeAssessment(paper), "student-1").map((item) => item.id);
-  const keyById = new Map(bank.map((item) => [item.id, item.key]));
+  const questions = [mc("1", "a"), mc("2", "b"), mc("3", "c"), mc("4", "d")];
+  const paper = doc(questions);
+  const servedIds = () => questions.map((item) => item.id);
+  const keyById = new Map(questions.map((item) => [item.id, item.key]));
 
   it("marks every served item against its key", () => {
     const answers = servedIds().map((id) => ({ itemId: id, choice: keyById.get(id) }));
 
-    const graded = gradeSubmission(paper, answers, { studentId: "student-1" });
+    const graded = gradeSubmission(paper, answers);
     expect(graded.correct).toBe(4);
     expect(graded.score).toBe(4);
     expect(graded.passed).toBe(true);
@@ -197,7 +203,7 @@ describe("gradeSubmission", () => {
   });
 
   it("counts an unanswered item as incorrect rather than skipping it", () => {
-    const graded = gradeSubmission(paper, [], { studentId: "student-1" });
+    const graded = gradeSubmission(paper, []);
     expect(graded.correct).toBe(0);
     expect(graded.items).toHaveLength(4);
     expect(graded.items.every((item) => item.verdict === "incorrect")).toBe(true);
@@ -206,15 +212,13 @@ describe("gradeSubmission", () => {
 
   it("ignores answers to questions the student was never served", () => {
     // A client that could name its own questions could name the easy ones.
-    const graded = gradeSubmission(paper, [{ itemId: "not-on-this-paper", choice: "a" }], {
-      studentId: "student-1"
-    });
+    const graded = gradeSubmission(paper, [{ itemId: "not-on-this-paper", choice: "a" }]);
     expect(graded.items).toHaveLength(4);
     expect(graded.servedItemIds).not.toContain("not-on-this-paper");
   });
 
   it("records which paper was sat, for the assessor to review", () => {
-    const graded = gradeSubmission(paper, [], { studentId: "student-1" });
+    const graded = gradeSubmission(paper, []);
     expect(graded.servedItemIds).toEqual(servedIds());
   });
 });

@@ -512,7 +512,7 @@
 
 /* Dark-mode switch, sits just above Sign Out. */
 .assessor-rail__theme {
-  outline: 2px solid var(--brand);
+  outline: 1px solid var(--brand);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1564,6 +1564,19 @@
 .module-row__num.is-locked {
   background: var(--gray-200);
   color: var(--text-muted);
+}
+
+/* The final exam carries no lesson number. The slot is held open rather than
+   removed, so its title starts on the same line as every lesson's above it. */
+.module-row__num--none {
+  background: none;
+}
+
+/* Set below the numbered lessons, not at the end of them: the final is the
+   course's, not a lesson's. The rule is the separation. */
+.module-row--final > * {
+  border-top: 2px solid var(--brand);
+  padding-top: var(--sp-4);
 }
 
 /* A table inside a card. The card is already the surface, so this adds only

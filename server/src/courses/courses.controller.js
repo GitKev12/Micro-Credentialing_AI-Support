@@ -321,7 +321,7 @@ async function buildCertifications(studentId, student, courses) {
         assessmentTitle: assessment?.title ?? "",
         status: result.credential?.status,
         issuedAt: isoDate(result.credential?.issuedAt),
-        score: result.review?.status === "released" ? (result.review?.finalScore ?? null) : null,
+        score: Number(result.aiGrading?.score ?? 0),
         totalPoints: assessment?.totalPoints ?? null
       };
     })

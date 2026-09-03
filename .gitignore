@@ -36,3 +36,8 @@ coverage/
 # for one run, and it carries question keys — not something the repository
 # should hold.
 assessment-backup-*.json
+
+# Written by scripts/trim-assessment-banks.mjs --write before it cuts each
+# paper down from the bank it used to be. Holds the whole discarded bank, keys
+# included, and exists only to be fed back through that script's --restore.
+assessment-bank-backup-*.json

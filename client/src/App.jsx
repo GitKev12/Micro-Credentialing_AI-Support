@@ -12,7 +12,6 @@ import RosterPage from "./pages/assessor/RosterPage";
 import GeneratePage from "./pages/assessor/GeneratePage";
 import GenerateCoursePage from "./pages/assessor/GenerateCoursePage";
 import StudentPage from "./pages/assessor/StudentPage";
-import ReviewPage from "./pages/assessor/ReviewPage";
 import CredentialsPage from "./pages/assessor/CredentialsPage";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -58,7 +57,6 @@ function App() {
           <Route path="classes/:classId/students/:studentId" element={<StudentPage />} />
           <Route path="generate" element={<GeneratePage />} />
           <Route path="generate/:courseId" element={<GenerateCoursePage />} />
-          <Route path="review/:submissionId" element={<ReviewPage />} />
           <Route path="credentials" element={<CredentialsPage />} />
         </Route>
         <Route

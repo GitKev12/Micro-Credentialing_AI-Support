@@ -161,7 +161,7 @@ function LessonNav({
                       aria-current={open ? "true" : undefined}
                       title={
                         locked
-                          ? (quiz.reason ?? "Your assessor will unlock this quiz.")
+                          ? (quiz.reason ?? " Your assessor will unlock this quiz.")
                           : (quiz.title || undefined)
                       }
                     >

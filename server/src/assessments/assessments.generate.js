@@ -8,6 +8,7 @@ import {
   ITEM_TYPES,
   TOS_LEVELS,
   defaultPassMark,
+  isPosted,
   normalizeItem,
   normalizeMinutes,
   validateAssessment
@@ -46,8 +47,6 @@ const ASSESSMENTS_COLLECTION = "Assessment";
 const MODULES_COLLECTION = "LearningModule";
 const COURSES_COLLECTION = "Course";
 const TEXT_COLLECTION = "ModuleText";
-
-const DEFAULT_BANK_MULTIPLIER = 3;
 
 /**
  * How long a final assessment is, whatever the blueprint adds up to.
@@ -242,7 +241,6 @@ export function buildAssessmentDocument({
   module: lesson,
   blueprintRow,
   items,
-  itemsPerAttempt,
   itemsPerModule = null,
   topics = null,
   scope = "lesson",
@@ -254,8 +252,9 @@ export function buildAssessmentDocument({
   usage = null
 }) {
   const pointsPerItem = DEFAULT_POINTS_PER_ITEM;
-  const perAttempt = Math.max(1, Math.min(itemsPerAttempt, items.length));
-  const totalPoints = pointsPerItem * perAttempt;
+  // The paper is its questions, so what it is worth follows from how many
+  // there are — there is no shorter paper to be drawn out of it.
+  const totalPoints = pointsPerItem * items.length;
 
   const title =
     scope === "final"
@@ -279,9 +278,9 @@ export function buildAssessmentDocument({
         : `Covers ${blueprintRow?.coverage ?? lesson?.title ?? "this lesson"}.`,
     credentialName: `${title} Credential`,
     pointsPerItem,
-    itemsPerAttempt: perAttempt,
-    // A final says how its questions are divided between the lessons; a lesson
-    // quiz has one lesson and needs neither. See selectItemsFor.
+    // A final says how its questions are divided between the lessons, which is
+    // what each Skill Score is read out of; a lesson quiz has one lesson and
+    // needs none.
     itemsPerModule,
     topics,
     totalPoints,
@@ -289,7 +288,7 @@ export function buildAssessmentDocument({
     source: {
       tosRow: blueprintRow?.coverage ?? null,
       distribution: blueprintRow?.distribution ?? null,
-      bankSize: items.length,
+      itemCount: items.length,
       generatedAt: new Date(),
       model,
       usage
@@ -321,7 +320,6 @@ async function existingAssessment(courseId, moduleId, scope) {
 export async function generateModuleAssessment({
   courseId,
   moduleId,
-  bankMultiplier = DEFAULT_BANK_MULTIPLIER,
   dryRun = false,
   model = null,
   // The assessor's three decisions, all optional: how long the paper is, how
@@ -366,16 +364,17 @@ export async function generateModuleAssessment({
     return { status: "skipped", reason: "no-source-text", moduleId: asId(moduleId), title: lesson.title };
   }
 
-  const itemsPerAttempt = wantedItems;
-  const bankSize = Math.min(itemsPerAttempt * Math.max(1, bankMultiplier), MAX_REQUESTED_ITEMS * 2);
+  // Exactly the paper that was asked for. The generator used to be asked for
+  // three times this and each student dealt a subset — see assessments.format.js
+  // for why that went.
+  const paperLength = Math.min(wantedItems, MAX_REQUESTED_ITEMS);
 
   if (dryRun) {
     return {
       status: "planned",
       moduleId: asId(moduleId),
       title: lesson.title,
-      itemsPerAttempt,
-      bankSize,
+      itemCount: paperLength,
       sourceChars: sourceText.length,
       estimatedInputTokens: Math.round(sourceText.length / CHARS_PER_TOKEN),
       distribution: blueprintRow?.distribution ?? null
@@ -388,7 +387,7 @@ export async function generateModuleAssessment({
       courseTitle: course?.title ?? course?.courseCode ?? "",
       moduleTitle: lesson.title ?? blueprintRow.coverage,
       sourceText,
-      itemCount: bankSize,
+      itemCount: paperLength,
       distribution: blueprintRow?.distribution ?? null,
       model
     });
@@ -402,7 +401,6 @@ export async function generateModuleAssessment({
     module: lesson,
     blueprintRow,
     items,
-    itemsPerAttempt,
     status,
     timeLimitMinutes,
     model: generated.model,
@@ -416,7 +414,7 @@ export async function generateModuleAssessment({
       moduleId: asId(moduleId),
       problems: check.problems,
       usableItems: items.length,
-      wanted: bankSize,
+      wanted: paperLength,
       usage: generated.usage
     };
   }
@@ -433,8 +431,7 @@ export async function generateModuleAssessment({
         assessmentId: asId(already._id),
         moduleId: asId(moduleId),
         title: document.title,
-        itemsPerAttempt: document.itemsPerAttempt,
-        bankSize: items.length,
+        itemCount: items.length,
         usage: generated.usage
       };
     }
@@ -446,8 +443,7 @@ export async function generateModuleAssessment({
       assessmentId: asId(inserted.insertedId),
       moduleId: asId(moduleId),
       title: document.title,
-      itemsPerAttempt: document.itemsPerAttempt,
-      bankSize: items.length,
+      itemCount: items.length,
       usage: generated.usage
     };
   } catch (error) {
@@ -721,24 +717,21 @@ export async function assembleFinalAssessment({
     items: itemsPerModule[moduleId] ?? 0
   }));
 
-  // The final gets a bank too, or every student would sit the identical paper —
-  // there is no point drawing 60 questions from a pool of exactly 60. Take a
-  // multiple of each lesson's quota, so the bank holds enough of every lesson
-  // for any student's paper to be fillable from it.
-  const scale = Math.max(1, Math.min(DEFAULT_BANK_MULTIPLIER, Math.floor(pool.length / wanted)));
-
+  // Exactly each lesson's quota. The final used to draw a multiple of it so
+  // that students could be dealt different subsets; every student now sits the
+  // same paper in a different order, so the quota is the paper.
   const items = lessons
     .flatMap((moduleId) =>
       drawFromLesson(
         poolByModule.get(moduleId),
-        (itemsPerModule[moduleId] ?? 0) * scale,
+        itemsPerModule[moduleId] ?? 0,
         rowByModule.get(moduleId)?.distribution,
         random
       )
     )
     .map((item, index) => ({ ...item, n: index + 1 }));
 
-  // Reported rather than assumed: the mix a bank actually came out with can
+  // Reported rather than assumed: the mix a paper actually came out with can
   // differ from the blueprint when a lesson's questions skew to one level.
   const byLevel = Object.fromEntries(TOS_LEVELS.map((level) => [level, 0]));
   for (const item of items) {
@@ -750,8 +743,7 @@ export async function assembleFinalAssessment({
       status: "planned",
       scope: "final",
       pooled: pool.length,
-      itemsPerAttempt: wanted,
-      bankSize: items.length,
+      itemCount: items.length,
       byLevel,
       topics,
       // Named so the operator sees it before the paper is written, not after a
@@ -765,7 +757,7 @@ export async function assembleFinalAssessment({
     module: null,
     blueprintRow: { coverage: blueprint?.examination ?? "", distribution: byLevel },
     items,
-    itemsPerAttempt: wanted,
+    itemCount: items.length,
     itemsPerModule,
     topics,
     scope: "final",
@@ -786,8 +778,7 @@ export async function assembleFinalAssessment({
         status: "replaced",
         assessmentId: asId(already._id),
         scope: "final",
-        itemsPerAttempt: document.itemsPerAttempt,
-        bankSize: items.length
+        itemCount: items.length
       };
     }
 
@@ -796,8 +787,7 @@ export async function assembleFinalAssessment({
       status: "created",
       assessmentId: asId(inserted.insertedId),
       scope: "final",
-      itemsPerAttempt: document.itemsPerAttempt,
-      bankSize: items.length
+      itemCount: items.length
     };
   } catch (error) {
     if (error?.code === 11000) return { status: "skipped", reason: "already-exists" };
@@ -841,10 +831,12 @@ export async function getGenerationStatus(courseId) {
       coverage: row.coverage,
       itemsWanted: row.items,
       hasQuiz: Boolean(quiz),
-      // Written and released are two different states now, and "has a quiz" no
-      // longer means the students of the course can see one.
-      posted: Boolean(quiz) && quiz.status !== "draft",
-      bankSize: quiz?.items?.length ?? 0,
+      // Written and released are two different states, and "has a quiz" does
+      // not mean the students of the course can see one. `isPosted` decides,
+      // as it does on the student side — a status check of our own here is how
+      // this screen once called a paper live that no student could open.
+      posted: isPosted(quiz),
+      itemCount: quiz?.items?.length ?? 0,
       hasText: Boolean(text?.hasText),
       textLength: text?.textLength ?? 0,
       readyToGenerate: !quiz && Boolean(text?.hasText) && row.items > 0
@@ -857,7 +849,7 @@ export async function getGenerationStatus(courseId) {
     hasBlueprint: true,
     totalItems: blueprint.totalItems,
     hasFinal: assessments.some((doc) => doc.scope === "final"),
-    finalPosted: assessments.some((doc) => doc.scope === "final" && doc.status !== "draft"),
+    finalPosted: assessments.some((doc) => doc.scope === "final" && isPosted(doc)),
     counts: {
       lessons: rows.length,
       withQuiz: rows.filter((row) => row.hasQuiz).length,

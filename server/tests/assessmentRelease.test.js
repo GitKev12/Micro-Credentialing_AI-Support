@@ -27,14 +27,18 @@ const item = (id) => ({
   key: "a"
 });
 
-/** A stored Assessment, in the shape the generator writes. */
+/**
+ * A stored Assessment, in the shape the generator writes.
+ *
+ * Two questions, so it is worth two points and passes at two — the pass mark
+ * follows the paper rather than being stored, since a paper is its questions.
+ */
 const paper = (extra = {}) => ({
   _id: "a1",
   courseId: "c1",
   moduleId: "m1",
   scope: "lesson",
   title: "Lesson 1 Quiz",
-  itemsPerAttempt: 1,
   items: [item("g1"), item("g2")],
   ...extra
 });
@@ -48,12 +52,14 @@ const state = ({ done = [], modules = [], assessments = [], results = new Map() 
 });
 
 describe("assessmentStatus", () => {
-  it("reads a document written before posting existed as posted", () => {
-    // Those papers were live the moment they existed — a student pressing
-    // "Take the Quiz" is what wrote them. Treating a missing status as a draft
-    // would shut every existing course's quizzes on deploy.
-    expect(assessmentStatus({})).toBe("posted");
-    expect(isPosted({})).toBe(true);
+  it("holds a paper nobody posted shut, however it was written", () => {
+    // Posting is the only thing that writes the status, so a document without
+    // one was never released — including the papers written before the gate
+    // existed, which reached students as finished quizzes their assessor had
+    // never read.
+    expect(assessmentStatus({})).toBe("draft");
+    expect(isPosted({})).toBe(false);
+    expect(isPosted({ status: "" })).toBe(false);
   });
 
   it("holds a draft shut and lets a posted paper through", () => {
@@ -134,7 +140,7 @@ describe("lockStateFor", () => {
   });
 
   it("holds the final until every posted lesson quiz has been passed", () => {
-    const quiz = paper({ _id: "a1", moduleId: "m1", status: "posted", passMark: 1 });
+    const quiz = paper({ _id: "a1", moduleId: "m1", status: "posted" });
     const final = paper({ _id: "f1", moduleId: null, scope: "final", status: "posted" });
 
     const failed = new Map([["a1", { aiGrading: { score: 0 } }]]);
@@ -145,7 +151,7 @@ describe("lockStateFor", () => {
     expect(shut.locked).toBe(true);
     expect(shut.reason).toBe("Complete 1 quiz to unlock the final assessment.");
 
-    const passed = new Map([["a1", { aiGrading: { score: 1 } }]]);
+    const passed = new Map([["a1", { aiGrading: { score: 2 } }]]);
     const open = lockStateFor(
       final,
       state({ done: ["m1"], modules: [{ _id: "m1" }], assessments: [quiz, final], results: passed })

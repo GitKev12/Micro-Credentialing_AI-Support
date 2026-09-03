@@ -8,10 +8,12 @@ import { getStoredSession } from "../auth/services/authService";
  *   GET  /api/assessors/:id/classes                               → { classes: [...] }
  *   GET  /api/assessors/:id/classes/:courseId/roster              → { course, totalModules, roster }
  *   GET  /api/assessors/:id/classes/:courseId/students/:studentId → per-student detail
- *   GET  /api/assessors/:id/submissions/:sid                      → full review payload
- *   PUT  /api/assessors/:id/submissions/:sid/review               → save draft / release grade
  *   GET  /api/assessors/:id/credentials                           → { pendingCredentials }
  *   POST /api/assessors/:id/credentials/:sid/issue                → { credential }
+ *
+ * Nothing here reads or writes a grade. A paper is marked against its key when
+ * the student hands it in, and a pass writes its own pending credential — so
+ * the only thing left to do about a submission is issue that credential.
  *
  * Generating and releasing a course's papers — the Generate Assessment screen:
  *   GET  /api/assessors/:id/classes/:courseId/assessments         → { course, lessons, final }
@@ -92,8 +94,9 @@ export async function generateCourseAssessment(assessorId, courseId, body) {
  * Saves corrections to specific questions.
  *
  * `items` is a patch: send only the questions that changed, each as
- * { id, q?, choices?, key?, type? }. `timeLimitMinutes` and `itemsPerAttempt`
- * may travel with them.
+ * { id, q?, choices?, key?, type? }. `timeLimitMinutes` may travel with them.
+ * A paper's length is however many questions it has, so it is not settable
+ * here.
  */
 export async function updateCourseAssessment(assessorId, courseId, assessmentId, body) {
   try {
@@ -140,20 +143,6 @@ export async function unpostCourseAssessment(assessorId, courseId, assessmentId)
  */
 function errorMessage(error, fallback) {
   return error?.response?.data?.message ?? fallback;
-}
-
-export async function fetchSubmissionReview(assessorId, submissionId) {
-  const { data } = await api.get(`/assessors/${assessorId}/submissions/${submissionId}`);
-  return data;
-}
-
-// body: { action: "draft" | "release", overrides, finalScore }
-export async function saveSubmissionReview(assessorId, submissionId, body) {
-  const { data } = await api.put(
-    `/assessors/${assessorId}/submissions/${submissionId}/review`,
-    body
-  );
-  return data;
 }
 
 export async function fetchPendingCredentials(assessorId) {

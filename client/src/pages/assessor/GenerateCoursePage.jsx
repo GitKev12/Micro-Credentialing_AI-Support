@@ -50,7 +50,7 @@ const DEFAULT_FINAL_ITEMS = 60;
  *
  * Both live in one component because they are one thing to the assessor: the
  * question they are reading is the question they are fixing, and swapping a
- * separate editor in over the top would lose their place in a bank of thirty.
+ * separate editor in over the top would lose their place in a paper of thirty.
  */
 function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnly }) {
   const [text, setText] = useState(item.q);
@@ -224,7 +224,7 @@ function GenerateCoursePage() {
   const target = scope === "final" ? (overview?.final ?? null) : (lesson?.assessment ?? null);
 
   // Load the questions whenever the target changes, and clear them when the
-  // target has no paper — a stale bank under a lesson that has none is worse
+  // target has no paper — a stale question list under a lesson that has none is worse
   // than an empty panel.
   useEffect(() => {
     let active = true;
@@ -243,7 +243,7 @@ function GenerateCoursePage() {
         if (!active) return;
         setPaper(loaded);
         setEditingId(null);
-        setItemCount(loaded?.itemsPerAttempt ?? DEFAULT_ITEMS);
+        setItemCount(loaded?.itemCount ?? DEFAULT_ITEMS);
         setTimed(Boolean(loaded?.timeLimitMinutes));
         setMinutes(loaded?.timeLimitMinutes ?? STANDARD_MINUTES);
       })
@@ -270,6 +270,14 @@ function GenerateCoursePage() {
   const posted = target?.status === "posted";
   const taken = target?.submissions ?? 0;
   const locked = taken > 0;
+
+  // The course itself is shut to new papers: its run is over, or every class
+  // on it has been switched off. The server refuses generating, correcting and
+  // posting either way, so the screen turns those off rather than offering a
+  // press that comes back 423. Unposting stays available — see the server's
+  // resolveWritableScope.
+  const closed = course?.closed ?? null;
+  const frozen = locked || Boolean(closed);
 
   const requestedMinutes = timed ? clampCount(minutes) : null;
 
@@ -300,7 +308,7 @@ function GenerateCoursePage() {
         setEditingId(null);
         setNotice({
           tone: "ok",
-          text: `${result.assessment.bankSize} questions written. Read them before posting.`
+          text: `${result.assessment.itemCount} questions written. Read them before posting.`
         });
         await reload();
       }
@@ -310,7 +318,6 @@ function GenerateCoursePage() {
   const applySettings = () =>
     run("settings", async () => {
       const result = await updateCourseAssessment(assessorId, courseId, paper.id, {
-        itemsPerAttempt: clampCount(itemCount),
         timeLimitMinutes: requestedMinutes
       });
       if (result.assessment) {
@@ -395,7 +402,7 @@ function GenerateCoursePage() {
               </h2>
               <p className="assessor-meta" style={{ marginTop: "var(--sp-1)" }}>
                 {paper
-                  ? `${paper.itemsPerAttempt} questions per student · drawn from a bank of ${paper.bankSize} · pass mark ${paper.passMark}`
+                  ? `${paper.itemCount} questions · ${paper.totalPoints} points · pass mark ${paper.passMark}`
                   : "Nothing written for this assessment yet."}
               </p>
             </div>
@@ -413,8 +420,15 @@ function GenerateCoursePage() {
                 </Chip>
               ) : null}
               {locked ? <Chip tone="outline">{taken} taken</Chip> : null}
+              {closed ? (
+                <Chip tone="danger" dot>
+                  {closed.suspended ? "Classes off" : "Course ended"}
+                </Chip>
+              ) : null}
             </div>
           </header>
+
+          {closed ? <p className="gen-notice is-error">{closed.reason}</p> : null}
 
           {notice ? (
             <p className={`gen-notice${notice.tone === "error" ? " is-error" : ""}`}>
@@ -430,7 +444,7 @@ function GenerateCoursePage() {
                   item={item}
                   editing={editingId === item.id}
                   saving={busy === "question"}
-                  readOnly={locked}
+                  readOnly={frozen}
                   onEdit={() => setEditingId(item.id)}
                   onCancel={() => setEditingId(null)}
                   onSave={saveQuestion}
@@ -497,7 +511,7 @@ function GenerateCoursePage() {
             ) : null}
 
             <label className="gen-field">
-              <span className="field-label">Questions per student</span>
+              <span className="field-label">Number of questions</span>
               <input
                 type="number"
                 className="gen-input"
@@ -569,7 +583,7 @@ function GenerateCoursePage() {
                   className="btn btn--primary"
                   disabled={
                     Boolean(busy) ||
-                    locked ||
+                    frozen ||
                     (scope === "lesson" && (!moduleId || !lesson?.hasText))
                   }
                   onClick={scope === "final" ? generate : () => setConfirming(true)}
@@ -578,14 +592,14 @@ function GenerateCoursePage() {
                   {busy === "generate" ? "Generating…" : paper ? "Regenerate" : "Generate"}
                 </button>
 
-                {paper && !locked ? (
+                {paper && !frozen ? (
                   <button
                     type="button"
                     className="btn btn--ghost"
                     disabled={Boolean(busy)}
                     onClick={applySettings}
                   >
-                    {busy === "settings" ? "Applying…" : "Update assessment"}
+                    {busy === "settings" ? "Applying…" : "Update time limit"}
                   </button>
                 ) : null}
               </div>
@@ -612,7 +626,7 @@ function GenerateCoursePage() {
                       type="button"
                       className={`gen-number${editingId === item.id ? " is-active" : ""}`}
                       onClick={() => openQuestion(item)}
-                      disabled={locked}
+                      disabled={frozen}
                       title={item.q}
                     >
                       {item.n}
@@ -640,7 +654,7 @@ function GenerateCoursePage() {
                 <button
                   type="button"
                   className="btn btn--primary"
-                  disabled={Boolean(busy) || !paper || items.length === 0}
+                  disabled={Boolean(busy) || !paper || items.length === 0 || Boolean(closed)}
                   onClick={post}
                 >
                   <CheckIcon size={15} />

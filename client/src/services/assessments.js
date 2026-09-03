@@ -55,12 +55,17 @@ export async function fetchAssessment(studentId, assessmentId) {
  * and is null on a fail, on a final, and on a re-submission. It is what the
  * "You Earned …" popup is drawn from, so it arrives only when the badge was
  * earned by *this* submission rather than at some earlier point.
+ *
+ * `durationMs` is how long the sitting ran, timed from the moment the questions
+ * arrived. Sent from here because the server never sees the paper being worked
+ * on — only fetched and handed in — and the gap between those two is a student
+ * who opened a quiz and went to lunch. The server clamps what it is given.
  */
-export async function submitAssessment(studentId, assessmentId, answers) {
+export async function submitAssessment(studentId, assessmentId, answers, durationMs = null) {
   try {
     const { data } = await api.post(
       `/students/${studentId}/assessments/${assessmentId}/submit`,
-      { answers }
+      { answers, durationMs }
     );
     return { result: data?.result ?? null, badge: data?.badge ?? null };
   } catch (error) {

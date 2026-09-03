@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchAssessment, submitAssessment } from "../../../services/assessments";
 import { CheckIcon, LockIcon, QuizIcon } from "./icons";
 import { SkeletonText } from "../../../components/Skeleton";
@@ -29,6 +29,11 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
   const [retaking, setRetaking] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  // When this sitting began. A ref rather than state because nothing on screen
+  // depends on it — it must not cause a redraw, and a redraw must not reset it.
+  // The server never sees the paper being worked on, only fetched and handed
+  // in, so this is the only place the length of a sitting can be observed.
+  const startedAt = useRef(null);
 
   // Opening a different quiz starts it over.
   useEffect(() => {
@@ -37,6 +42,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     setCurrent(0);
     setResult(null);
     setError("");
+    startedAt.current = null;
   }, [assessmentId]);
 
   useEffect(() => {
@@ -53,6 +59,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
           return;
         }
         setState({ status: "ready", assessment: data.assessment });
+        startedAt.current = Date.now();
 
         // A quiz already sat opens straight to its mark — and to the answers
         // that earned it. Restoring them is what makes reopening a paper a
@@ -137,7 +144,10 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
 
     try {
       const payload = items.map((item) => ({ itemId: item.id, choice: answers[item.id] }));
-      const response = await submitAssessment(studentId, assessmentId, payload);
+      // Null when the paper was reopened rather than taken — there is no
+      // sitting to measure then, and sending zero would record one.
+      const took = startedAt.current ? Date.now() - startedAt.current : null;
+      const response = await submitAssessment(studentId, assessmentId, payload, took);
 
       if (response.locked) {
         setState({ status: "locked", message: response.message });
@@ -188,6 +198,9 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
       setResult(null);
       setAnswers({});
       setCurrent(0);
+      // A retake is its own sitting, timed from here — not from whenever the
+      // first attempt was opened.
+      startedAt.current = Date.now();
     } catch (_error) {
       setError("Could not start another attempt. Try again.");
     } finally {
@@ -245,10 +258,6 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
               `Not passed. ${result.passMark} needed to earn the badge.`
             )}
           </p>
-          {result.reviewStatus === "pending" ? (
-            <p className="sd-quiz__note">Pending assessor review.</p>
-          ) : null}
-
           <div className="sd-quiz__retake">
             <span className="sd-quiz__attempts">
               {result.attemptsAllowed

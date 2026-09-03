@@ -100,11 +100,24 @@ const SUSPENDED_REASON =
  * out — the same reasoning `inAnotherClass` uses when a class is deleted.
  */
 export function classSuspensionFrom(classes) {
-  const holding = Array.isArray(classes) ? classes : [];
-  if (holding.length === 0) return null;
-  if (holding.some((cls) => cls?.active !== false)) return null;
+  if (!allSwitchedOff(classes)) return null;
 
   return { suspended: true, reason: SUSPENDED_REASON };
+}
+
+/**
+ * Whether a set of classes is switched off to the last one.
+ *
+ * The shared half of two questions: a student asks it of the classes holding
+ * them, staff ask it of every class on the course. Both read an empty list as
+ * open, because there is no switch to read, and both treat a class with no
+ * `active` field as running — every class written before the switch existed
+ * was.
+ */
+function allSwitchedOff(classes) {
+  const list = Array.isArray(classes) ? classes : [];
+  if (list.length === 0) return false;
+  return !list.some((cls) => cls?.active !== false);
 }
 
 /** The classes a student is in on one course. */
@@ -220,6 +233,110 @@ export async function loadStudentRestriction(studentId, courseRef, at = new Date
   );
 
   return suspension ?? courseRestriction(course, at);
+}
+
+/* ─────────────────────────── The staff side ─────────────────────────── */
+
+/**
+ * The staff wording for the same switch.
+ *
+ * A student is told their own class is closed. An assessor is told the course
+ * has nobody left to give a paper to, which is the fact that decides whether
+ * pressing generate is worth anything.
+ */
+const CLASSES_OFF_REASON =
+  "Every class on this course is switched off, so no student can be given a paper. " +
+  "Set one back to active to open it again.";
+
+/**
+ * Why staff may not write papers for this course, or null while it is open.
+ *
+ * The assessor console had no gate of its own: a paper could be generated,
+ * corrected and posted into a course whose run was over or whose classes were
+ * all switched off, and the only sign was the student being refused at the
+ * other end, with nothing on the console to explain it.
+ *
+ * What closes is *authoring*, and only authoring. Marking a paper already
+ * taken, releasing its grade and issuing the credential stay open however the
+ * course stands — those are the record of work already done, and an ended
+ * course still owes it. Unposting stays open for the same reason read the
+ * other way round: taking a paper back off reduces what a student can reach,
+ * so a closed course is no argument for refusing it.
+ *
+ * Takes the course and its classes rather than reading them, so the rule can
+ * be exercised without a database — the arrangement `classSuspensionFrom` uses
+ * for the student's half.
+ */
+export function authoringRestrictionFrom(course, classes, at = new Date()) {
+  // The switch first, as on the student side: it is the stricter of the two,
+  // and the only one an administrator can undo this afternoon.
+  if (allSwitchedOff(classes)) {
+    return { suspended: true, ended: false, endedOn: null, reason: CLASSES_OFF_REASON };
+  }
+
+  if (!hasCourseEnded(course, at)) return null;
+
+  return {
+    suspended: false,
+    ended: true,
+    endedOn: toIsoDay(course.endsOn),
+    reason:
+      `This course ended on ${formatCourseDay(course.endsOn)}. ` +
+      "Its papers can no longer be written or posted."
+  };
+}
+
+/**
+ * Every class on a course, whoever is in it.
+ *
+ * The staff counterpart to `classesHolding`: an assessor is enrolled in
+ * nothing, so the question is about the course rather than about them.
+ */
+async function classesOnCourses(courseIds) {
+  const wanted = courseIds.filter(Boolean);
+  if (wanted.length === 0) return [];
+  if (!(await collectionExists(CLASSES_COLLECTION))) return [];
+
+  return mongoose.connection
+    .collection(CLASSES_COLLECTION)
+    .find({ courseId: { $in: wanted.flatMap((id) => idCandidates(id)) } })
+    .toArray();
+}
+
+/** Whether one course is still open to writing and posting papers. */
+export async function loadAuthoringRestriction(courseRef, at = new Date()) {
+  const course = await resolveCourse(courseRef);
+  const classes = await classesOnCourses([course?._id ?? courseRef]);
+
+  return authoringRestrictionFrom(course, classes, at);
+}
+
+/**
+ * The same verdict for a list of courses at once, as `Map<courseId, restriction>`.
+ *
+ * One query for the whole register rather than one per row — the assessor's
+ * Classes screen asks this of every course it is about to draw. Only the
+ * closed courses are in the map, so a missing key reads as open.
+ */
+export async function loadAuthoringRestrictions(courses, at = new Date()) {
+  const closed = new Map();
+  if (courses.length === 0) return closed;
+
+  const classes = await classesOnCourses(courses.map((course) => course._id));
+
+  const byCourse = new Map();
+  for (const cls of classes) {
+    const key = String(cls.courseId);
+    byCourse.set(key, [...(byCourse.get(key) ?? []), cls]);
+  }
+
+  for (const course of courses) {
+    const key = String(course._id);
+    const restriction = authoringRestrictionFrom(course, byCourse.get(key) ?? [], at);
+    if (restriction) closed.set(key, restriction);
+  }
+
+  return closed;
 }
 
 /**

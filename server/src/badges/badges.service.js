@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { toAssessmentSummary } from "../assessments/assessments.format.js";
+import { scoreOf } from "../assessors/grading.js";
 
 /**
  * Who holds which badges.
@@ -100,15 +101,12 @@ export function passedFromResults(results, assessmentById) {
     const moduleId = String(result.moduleId ?? summary.moduleId ?? "");
     if (!moduleId) continue;
 
-    const released = result.review?.status === "released" && result.review.finalScore != null;
-    const score = released ? Number(result.review.finalScore) : Number(result.aiGrading?.score ?? 0);
-    if (score < Number(summary.passMark)) continue;
+    if (scoreOf(result) < Number(summary.passMark)) continue;
 
-    // Dated from the moment the pass became true: the submission when the
-    // automatic mark already cleared it, the review when it took a regrade.
-    const at = isoDate(
-      released ? (result.review.gradedAt ?? result.submittedAt) : result.submittedAt
-    );
+    // Dated from the moment the pass became true, which is the moment the
+    // paper was handed in — a mark is final where it is made, so there is no
+    // later regrade for the badge to wait on.
+    const at = isoDate(result.submittedAt);
 
     const held = passed.get(moduleId);
     if (!held || new Date(at ?? 0) < new Date(held)) passed.set(moduleId, at);

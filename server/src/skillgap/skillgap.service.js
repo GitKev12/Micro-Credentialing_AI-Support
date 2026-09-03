@@ -67,18 +67,12 @@ const courseCodeOf = (course) =>
 /**
  * The verdict that counts.
  *
- * An assessor who overrules an item has looked at the answer; the automatic
- * mark has not. So an override wins here exactly as it wins in the score the
- * assessor console reports, or a student's topic breakdown would contradict the
- * grade printed above it.
+ * Marked against the key at hand-in, and nothing overrides it — an assessor no
+ * longer re-marks a submission, so the breakdown a student reads is the one the
+ * key produced and it cannot contradict the score printed above it.
  */
 function verdictsOf(result) {
-  const overrides = result?.review?.overrides ?? {};
-
-  return (result?.aiGrading?.items ?? []).map((item) => ({
-    ...item,
-    verdict: overrides[asId(item.itemId)] ?? item.verdict
-  }));
+  return (result?.aiGrading?.items ?? []).map((item) => ({ ...item }));
 }
 
 /**
@@ -259,10 +253,9 @@ export async function buildStudentSkillGap(studentId, courses) {
         code: courseCodeOf(course),
         icon: null,
         imageUrl: course?.imageUrl ?? course?.image_url ?? null,
-        // Provisional until an assessor releases the grade, which is the same
-        // rule the certificate follows.
-        status: result.review?.status === "released" ? "completed" : "in-progress",
-        reviewStatus: result.review?.status ?? "pending",
+        // Complete the moment the final is handed in: it is marked there, and
+        // there is no release step left for it to be provisional against.
+        status: "completed",
         performance: analysis.performance,
         itemsAsked: analysis.itemsAsked,
         itemsCorrect: analysis.itemsCorrect,
