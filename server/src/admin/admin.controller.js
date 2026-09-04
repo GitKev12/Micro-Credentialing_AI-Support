@@ -404,7 +404,6 @@ async function activityForStudents(students, courses) {
       assessmentId: 1,
       submittedAt: 1,
       superseded: 1,
-      review: 1,
       aiGrading: 1
     }),
     load(BADGES_COLLECTION, { courseId: 1, courseCode: 1, moduleId: 1, active: 1 }),
