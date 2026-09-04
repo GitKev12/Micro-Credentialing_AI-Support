@@ -26,28 +26,14 @@ jest.unstable_mockModule("../src/services/admin.js", () => ({
 }));
 
 const COURSE = "c1";
+const CC2 = { id: COURSE, code: "CC2", title: "Computer Programming 2" };
 
 const students = [
   { id: "s1", name: "Angela Reyes", studentNumber: "202300002", enrolled: [] },
   { id: "s2", name: "Mark Anthony Santos", studentNumber: "202300003", enrolled: [] },
   { id: "s3", name: "Nicole Fernandez", studentNumber: "202300004", enrolled: [] },
-  {
-    id: "s4",
-    name: "Chris Jerome Dayan",
-    studentNumber: "202300001",
-    enrolled: [{ id: COURSE, code: "CC2", title: "Computer Programming 2" }]
-  }
-];
-
-const assessors = [
-  { id: "a1", name: "Patricia Mendoza", assessorNumber: "ASS002", assigned: [] },
-  { id: "a2", name: "Daniel Cruz", assessorNumber: "ASS003", assigned: [] },
-  {
-    id: "a3",
-    name: "Michael Torres",
-    assessorNumber: "ASS001",
-    assigned: [{ id: COURSE, code: "CC2", title: "Computer Programming 2" }]
-  }
+  // Already in a section of CC2, so no other section may take them.
+  { id: "s4", name: "Chris Jerome Dayan", studentNumber: "202300001", enrolled: [CC2] }
 ];
 
 let PeoplePicker;
@@ -60,7 +46,6 @@ const open = (props = {}) => {
   const onApply = jest.fn();
   render(
     <PeoplePicker
-      kind="student"
       people={students}
       courseId={COURSE}
       courseLabel="Computer Programming 2"
@@ -73,31 +58,18 @@ const open = (props = {}) => {
   return { onApply };
 };
 
-/** The same panel, in its assessor vocabulary. */
-const openAssessors = (props = {}) => {
-  const onApply = jest.fn();
-  render(
-    <PeoplePicker
-      kind="assessor"
-      people={assessors}
-      courseId={COURSE}
-      courseLabel="Computer Programming 2"
-      selected={[]}
-      onApply={onApply}
-      onClose={() => {}}
-      {...props}
-    />
-  );
-  return { onApply };
-};
+/** The row a name sits on, whichever group it is in. */
+const rowFor = (name) => screen.getByText(name).closest("label");
 
-describe("PeoplePicker — students", () => {
-  it("lists only the students not already in the course", () => {
+const showTaken = () =>
+  fireEvent.click(screen.getByRole("button", { name: /Show the 1 already in this course/ }));
+
+describe("PeoplePicker", () => {
+  it("offers only the students no other section on this course holds", () => {
     open();
 
-    expect(screen.getByText("Not enrolled in this course (3)")).toBeInTheDocument();
+    expect(screen.getByText("Available for this class (3)")).toBeInTheDocument();
     expect(screen.getByText("Angela Reyes")).toBeInTheDocument();
-    // Already enrolled, so out of the main list until asked for.
     expect(screen.queryByText("Chris Jerome Dayan")).not.toBeInTheDocument();
   });
 
@@ -125,21 +97,11 @@ describe("PeoplePicker — students", () => {
     expect(screen.getByRole("button", { name: "Add 1 student" })).toBeInTheDocument();
   });
 
-  it("keeps the already-enrolled reachable behind a toggle", () => {
-    open();
-
-    const toggle = screen.getByRole("button", { name: /Show the 1 already in this course/ });
-    fireEvent.click(toggle);
-
-    const row = screen.getByText("Chris Jerome Dayan").closest("label");
-    expect(within(row).getByText(/already in this course/)).toBeInTheDocument();
-  });
-
   it("opens with the students the class already has ticked", () => {
     open({ selected: ["s2"] });
 
     expect(screen.getByRole("status")).toHaveTextContent("1 student selected");
-    expect(screen.getByText("Mark Anthony Santos").closest("label")).toHaveClass("is-picked");
+    expect(rowFor("Mark Anthony Santos")).toHaveClass("is-picked");
   });
 
   it("filters by name and by student number", () => {
@@ -147,49 +109,79 @@ describe("PeoplePicker — students", () => {
 
     const search = screen.getByLabelText("Search students");
     fireEvent.change(search, { target: { value: "nicole" } });
-    expect(screen.getByText("Not enrolled in this course (1)")).toBeInTheDocument();
+    expect(screen.getByText("Available for this class (1)")).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: "202300002" } });
     expect(screen.getByText("Angela Reyes")).toBeInTheDocument();
     expect(screen.queryByText("Nicole Fernandez")).not.toBeInTheDocument();
   });
-});
 
-describe("PeoplePicker — assessors", () => {
-  it("lists only the assessors not already on the course", () => {
-    openAssessors();
+  /**
+   * The rule the panel exists to show. Someone in another section is kept on
+   * screen — hiding them raises "where did Nicole go?", and that they are in
+   * the other section is the answer — but the row cannot be ticked.
+   */
+  describe("a student another section already holds", () => {
+    it("is shown behind the toggle, greyed and closed", () => {
+      open();
+      showTaken();
 
-    expect(screen.getByText("Not assigned to this course (2)")).toBeInTheDocument();
-    expect(screen.getByText("Patricia Mendoza")).toBeInTheDocument();
-    expect(screen.queryByText("Michael Torres")).not.toBeInTheDocument();
+      const row = rowFor("Chris Jerome Dayan");
+      expect(row).toHaveClass("is-locked");
+      expect(within(row).getByRole("checkbox")).toBeDisabled();
+      expect(within(row).getByText(/already in this course/)).toBeInTheDocument();
+    });
+
+    it("says why once, under the group", () => {
+      open();
+      showTaken();
+
+      expect(screen.getByText(/A student can only be in one/)).toBeInTheDocument();
+    });
+
+    it("cannot be added by clicking the row", () => {
+      const { onApply } = open();
+      showTaken();
+
+      fireEvent.click(screen.getByText("Chris Jerome Dayan"));
+
+      expect(screen.getByRole("status")).toHaveTextContent("0 students selected");
+      fireEvent.click(screen.getByRole("button", { name: "Done" }));
+      expect(onApply).toHaveBeenCalledWith([]);
+    });
   });
 
-  it("counts in assessors, and hands back the ids", () => {
-    const { onApply } = openAssessors();
+  /**
+   * The class being edited is itself a section of this course, so its own
+   * students are enrolled in it. Without `ownIds` the panel would read them as
+   * somebody else's and lock the class out of editing its own roster.
+   */
+  describe("the class's own students", () => {
+    it("stay in the open list, ticked and removable", () => {
+      open({ selected: ["s4"], ownIds: ["s4"] });
 
-    fireEvent.click(screen.getByText("Daniel Cruz"));
-    expect(screen.getByRole("status")).toHaveTextContent("1 assessor selected");
+      expect(screen.getByText("Available for this class (4)")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Patricia Mendoza"));
-    expect(screen.getByRole("status")).toHaveTextContent("2 assessors selected");
+      const row = rowFor("Chris Jerome Dayan");
+      expect(row).not.toHaveClass("is-locked");
+      expect(row).toHaveClass("is-picked");
+      expect(within(row).getByRole("checkbox")).not.toBeDisabled();
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Add 2 assessors" }));
-    expect(onApply).toHaveBeenCalledWith(["a2", "a1"]);
-  });
+    it("can be unticked to take them out of the class", () => {
+      const { onApply } = open({ selected: ["s4"], ownIds: ["s4"] });
 
-  it("says assessing, not enrolled, behind its toggle", () => {
-    openAssessors();
+      fireEvent.click(screen.getByText("Chris Jerome Dayan"));
+      expect(screen.getByRole("status")).toHaveTextContent("0 students selected");
 
-    fireEvent.click(screen.getByRole("button", { name: /Show the 1 already assessing this course/ }));
-    const row = screen.getByText("Michael Torres").closest("label");
-    expect(within(row).getByText(/already assessing this course/)).toBeInTheDocument();
-  });
+      fireEvent.click(screen.getByRole("button", { name: "Done" }));
+      expect(onApply).toHaveBeenCalledWith([]);
+    });
 
-  it("reads an assessor by their assessor number", () => {
-    openAssessors();
+    it("leaves nothing behind the toggle when this is the only section", () => {
+      open({ selected: ["s4"], ownIds: ["s4"] });
 
-    fireEvent.change(screen.getByLabelText("Search assessors"), { target: { value: "ASS003" } });
-    expect(screen.getByText("Daniel Cruz")).toBeInTheDocument();
-    expect(screen.queryByText("Patricia Mendoza")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /already in this course/ })).not.toBeInTheDocument();
+    });
   });
 });
