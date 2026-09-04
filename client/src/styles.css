@@ -1618,3 +1618,91 @@ ol.lesson-reader__list li::marker {
   display: block;
   padding: 4px 0;
 }
+
+/* ── Notices ─────────────────────────────────────────────────────────
+   The receipt for one write, in whichever console did it. The colours and the
+   padding belong to each console's own notice class; what is shared is the
+   behaviour — it floats at the bottom right over everything, is only as wide
+   as what it says, fades in, and after three seconds fades back out (see
+   lib/useNotice.js, which owns the timing and adds `is-leaving` a fade before
+   the row is unmounted).
+
+   Out of the flow, which is the point. These used to sit in the search row and
+   above the table, so a message arriving and clearing moved the page under the
+   reader's hands. Nothing reflows now: it is not in the layout at all.
+
+   Only messages that go away on their own carry this. A form's refusal and a
+   standing warning use the same coloured blocks and must stay where they are,
+   so the class is added at the render site rather than to the block itself.
+   ─────────────────────────────────────────────────────────────────── */
+:root {
+  /* The fade at both ends. NOTICE_FADE_MS in lib/useNotice.js is the same
+     number from the other side — the hook waits this long after marking a
+     notice `leaving` before it unmounts it, so the two must not drift. */
+  --notice-fade: 200ms;
+  --notice-gap: 20px;
+}
+
+.notice-toast {
+  position: fixed;
+  right: var(--notice-gap);
+  bottom: var(--notice-gap);
+  /* Over the modals, which stop at 60 in both consoles. A save refused from
+     inside one is exactly the moment the message has to be readable. */
+  z-index: 100;
+  /* Its words decide its width. No ceiling and no floor beyond staying on
+     screen, so a two-word receipt is a two-word chip and a long one is a long
+     one. */
+  width: fit-content;
+  max-width: calc(100vw - 2 * var(--notice-gap));
+  animation: notice-in var(--notice-fade) ease-out both;
+}
+
+/*
+ * Doubled on purpose. Each console's stylesheet loads after this one and sets
+ * these two properties itself — a translucent wash that was right when the
+ * block sat on the page and is wrong now it floats over a table, and a margin
+ * that would push it off its own corner. Repeating the class is the least
+ * surprising way to outrank a rule of otherwise equal weight, without
+ * !important and without touching the markup.
+ *
+ * The tint is rebuilt from the tone's own text colour over an opaque sheet, so
+ * every tone in every console stays the colour it was and none of them let the
+ * page show through.
+ */
+.notice-toast.notice-toast {
+  margin: 0;
+  background: color-mix(in srgb, currentColor 13%, var(--surface, #ffffff));
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.notice-toast.is-leaving {
+  animation: notice-out var(--notice-fade) ease-in both;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes notice-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Still leaves after its three seconds — it just does not fade on the way in
+   or out. The timing is the message's, not the animation's. */
+@media (prefers-reduced-motion: reduce) {
+  .notice-toast,
+  .notice-toast.is-leaving {
+    animation: none;
+  }
+}

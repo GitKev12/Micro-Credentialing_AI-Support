@@ -61,7 +61,7 @@ function ClassCard({ course, onOpen }) {
       <span className="gen-card__tags">
         {drafts > 0 ? (
           <Chip tone="brand-soft" dot>
-            {drafts} draft{drafts === 1 ? "" : "s"} to review
+            {drafts} draft{drafts === 1 ? "" : "s"}
           </Chip>
         ) : null}
         {missing > 0 ? (

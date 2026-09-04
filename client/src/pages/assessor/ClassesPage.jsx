@@ -36,8 +36,7 @@ const EMPTY_TOTALS = {
   lessons: 0,
   expected: 0,
   posted: 0,
-  issued: 0,
-  awaiting: 0
+  issued: 0
 };
 
 /**
@@ -95,8 +94,7 @@ function ClassesPage() {
           lessons: sum.lessons + (course.lessons ?? 0),
           expected: sum.expected + (course.assessmentsExpected ?? 0),
           posted: sum.posted + (course.assessmentsPosted ?? 0),
-          issued: sum.issued + (course.credentialsIssued ?? 0),
-          awaiting: sum.awaiting + (course.credentialsPending ?? 0)
+          issued: sum.issued + (course.credentialsIssued ?? 0)
         }),
         EMPTY_TOTALS
       ),
@@ -149,7 +147,6 @@ function ClassesPage() {
                   const expected = course.assessmentsExpected ?? 0;
                   const postedPapers = course.assessmentsPosted ?? 0;
                   const issued = course.credentialsIssued ?? 0;
-                  const awaiting = course.credentialsPending ?? 0;
 
                   return (
                     <tr
@@ -214,10 +211,7 @@ function ClassesPage() {
                       </td>
 
                       <td>
-                        <span className="assessor-table__creds">
-                          {issued} issued
-                          {awaiting ? <Chip tone="outline">{awaiting} to approve</Chip> : null}
-                        </span>
+                        <span className="assessor-table__creds">{issued} issued</span>
                       </td>
 
                       <td className="assessor-table__when">
@@ -268,10 +262,7 @@ function ClassesPage() {
                     <td className="assessor-table__num">
                       {totals.posted}/{totals.expected}
                     </td>
-                    <td>
-                      {totals.issued} issued
-                      {totals.awaiting ? ` · ${totals.awaiting} to approve` : ""}
-                    </td>
+                    <td>{totals.issued} issued</td>
                     <td />
                     <td />
                   </tr>

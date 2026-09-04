@@ -6,9 +6,9 @@ globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
 const MODULES = [
-  { moduleId: "m1", n: 1, title: "One", state: "done", score: 8, total: 10, submittedAt: null, submissionId: "s1", read: true },
-  { moduleId: "m2", n: 2, title: "Two", state: "pending", score: null, total: 10, submittedAt: null, submissionId: "s2", read: true },
-  { moduleId: "m3", n: 3, title: "Three", state: "locked", score: null, total: 10, submittedAt: null, submissionId: null, read: false }
+  { moduleId: "m1", n: 1, title: "One", state: "done", score: 8, total: 10, submittedAt: null, submissionId: "s1", read: true, attemptsUsed: 1 },
+  { moduleId: "m2", n: 2, title: "Two", state: "pending", score: null, total: 10, submittedAt: null, submissionId: "s2", read: true, attemptsUsed: 0 },
+  { moduleId: "m3", n: 3, title: "Three", state: "locked", score: null, total: 10, submittedAt: null, submissionId: null, read: false, attemptsUsed: 0 }
 ];
 
 let detail = {};
@@ -152,7 +152,7 @@ describe("modules table", () => {
     detail = { ...base };
   });
 
-  it("writes a sitting's length in hours and minutes", async () => {
+  it("writes how long an attempt ran, in hours and minutes", async () => {
     detail = {
       ...base,
       modules: [{ ...MODULES[0], durationMs: 75 * 60 * 1000, timeLimitMinutes: null }]
@@ -175,7 +175,7 @@ describe("modules table", () => {
     expect(screen.getByText("of 1h allowed")).toBeInTheDocument();
   });
 
-  it("leaves a sitting nobody timed blank rather than at zero", async () => {
+  it("leaves an untimed attempt blank rather than at zero", async () => {
     // Every paper handed in before duration was recorded has none, and "0m"
     // would read as a very fast attempt rather than as no answer.
     detail = { ...base, modules: [{ ...MODULES[0], durationMs: null }] };
@@ -199,6 +199,7 @@ describe("modules table", () => {
         submissionId: "sf",
         submittedAt: "2026-09-01T00:00:00.000Z",
         attempt: 2,
+        attemptsUsed: 2,
         attemptsAllowed: 3,
         posted: true
       }
@@ -208,7 +209,9 @@ describe("modules table", () => {
 
     const row = await screen.findByText("Final Exam");
     expect(row).toBeInTheDocument();
-    expect(screen.getByText("Attempt 2 of 3")).toBeInTheDocument();
+    // The Retakes column carries how many have gone, so the subtitle carries
+    // what is left instead of saying the same thing twice.
+    expect(screen.getByText("1 attempt left")).toBeInTheDocument();
     expect(screen.getByText("42/60")).toBeInTheDocument();
 
     // Its own row under the numbered list, and the number slot is empty.
@@ -241,5 +244,92 @@ describe("modules table", () => {
 
     draw();
     expect(await screen.findByText("Not posted yet")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The Retakes column is the last on the row, so it is read from the end rather
+ * than by counting the ones before it — a column added in the middle later
+ * should not silently move what these assert on.
+ */
+const retakesCell = (container, selector) =>
+  [...container.querySelector(selector).querySelectorAll("td")].at(-1);
+
+const firstLesson = (container) => retakesCell(container, "tbody tr");
+
+describe("retakes column", () => {
+  it("counts the goes after the first, not the goes", async () => {
+    // Three attempts is two retakes. The header asks for retakes, so the
+    // column answers that question and not the neighbouring one.
+    detail = { ...base, modules: [{ ...MODULES[0], attemptsUsed: 3 }] };
+
+    const { container } = draw();
+    await screen.findByText("One");
+
+    expect(screen.getByRole("columnheader", { name: "Retakes" })).toBeInTheDocument();
+    expect(firstLesson(container).textContent).toBe("2");
+  });
+
+  it("writes nought for a paper taken once, and keeps it quiet", async () => {
+    detail = { ...base, modules: [{ ...MODULES[0], attemptsUsed: 1 }] };
+
+    const { container } = draw();
+    await screen.findByText("One");
+
+    const cell = firstLesson(container);
+    expect(cell.textContent).toBe("0");
+    // Getting it right first time is the ordinary case; a bold zero on every
+    // row would bury the ones worth looking at.
+    expect(cell.querySelector(".assessor-table__zero")).not.toBeNull();
+  });
+
+  it("dashes a quiz nobody has taken, which is not the same as taking it once", async () => {
+    detail = { ...base, modules: [{ ...MODULES[2], attemptsUsed: 0 }] };
+
+    const { container } = draw();
+    await screen.findByText("Three");
+
+    const cell = firstLesson(container);
+    expect(cell.textContent).toBe("—");
+    expect(cell.querySelector(".assessor-table__dash")).not.toBeNull();
+  });
+
+  it("dashes a row from a server that does not send the count yet", async () => {
+    // Inferring nought from "it was taken" would print a number nobody
+    // measured. An absent count is absent.
+    const { attemptsUsed, ...noCount } = MODULES[0];
+    detail = { ...base, modules: [noCount] };
+
+    const { container } = draw();
+    await screen.findByText("One");
+    expect(firstLesson(container).textContent).toBe("—");
+  });
+
+  it("counts the final's retakes on the same footing as a lesson's", async () => {
+    detail = {
+      ...base,
+      final: {
+        assessmentId: "f1",
+        title: "Final Exam",
+        state: "done",
+        score: 42,
+        total: 60,
+        durationMs: null,
+        timeLimitMinutes: null,
+        submissionId: "sf",
+        submittedAt: "2026-09-01T00:00:00.000Z",
+        attempt: 3,
+        attemptsUsed: 3,
+        attemptsAllowed: 3,
+        posted: true
+      }
+    };
+
+    const { container } = draw();
+    await screen.findByText("Final Exam");
+
+    expect(retakesCell(container, "tfoot .module-row--final").textContent).toBe("2");
+    // The one paper with a ceiling says when it has been reached.
+    expect(screen.getByText("No attempts left")).toBeInTheDocument();
   });
 });

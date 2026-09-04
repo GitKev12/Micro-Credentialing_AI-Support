@@ -12,6 +12,7 @@ import {
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
 import { Chip, ScreenHeader } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
+import { noticeClass, useNotice } from "../../lib/useNotice";
 
 /**
  * Generating one course's papers.
@@ -179,7 +180,10 @@ function GenerateCoursePage() {
   const [paper, setPaper] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [busy, setBusy] = useState("");
-  const [notice, setNotice] = useState(null);
+  // Three seconds and it fades, like every other console's — see useNotice.
+  // The `closed` line below it is not one of these: a course whose run is over
+  // stays over, and that banner has to stay with it.
+  const [notice, setNotice] = useNotice();
   // Generating a lesson quiz is the only press on this screen that spends
   // money, so it asks first rather than firing on the click that reaches it.
   const [confirming, setConfirming] = useState(false);
@@ -419,7 +423,6 @@ function GenerateCoursePage() {
                   {paper.timeLimitMinutes} min
                 </Chip>
               ) : null}
-              {locked ? <Chip tone="outline">{taken} taken</Chip> : null}
               {closed ? (
                 <Chip tone="danger" dot>
                   {closed.suspended ? "Classes off" : "Course ended"}
@@ -431,7 +434,13 @@ function GenerateCoursePage() {
           {closed ? <p className="gen-notice is-error">{closed.reason}</p> : null}
 
           {notice ? (
-            <p className={`gen-notice${notice.tone === "error" ? " is-error" : ""}`}>
+            <p
+              className={noticeClass(
+                notice,
+                `gen-notice${notice.tone === "error" ? " is-error" : ""}`
+              )}
+              role="status"
+            >
               {notice.text}
             </p>
           ) : null}

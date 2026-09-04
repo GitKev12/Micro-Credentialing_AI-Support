@@ -83,7 +83,11 @@ describe("ClassesPage", () => {
     expect(screen.getByText("Aug 4 – Oct 10, 2026")).toBeInTheDocument();
     expect(screen.getByText("10 weeks")).toBeInTheDocument();
     expect(screen.getByText("No submissions yet")).toBeInTheDocument();
-    expect(screen.getByText("1 to approve")).toBeInTheDocument();
+    // Credentials say what has been released, not what is queued: two rows
+    // and the footer, none of them counting anything still to be issued.
+    expect(screen.getAllByText("2 issued")).toHaveLength(2);
+    expect(screen.getByText("0 issued")).toBeInTheDocument();
+    expect(screen.queryByText(/to approve/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open" })).toHaveLength(2);
     expect(screen.getByText("All classes")).toBeInTheDocument();
   });
@@ -122,7 +126,7 @@ describe("ClassesPage", () => {
     // What they said is still said, once, by the footer.
     const footer = within(container.querySelector("tfoot"));
     expect(footer.getByText("3/7")).toBeInTheDocument();
-    expect(footer.getByText(/1 to approve/)).toBeInTheDocument();
+    expect(footer.getByText("2 issued")).toBeInTheDocument();
   });
 });
 

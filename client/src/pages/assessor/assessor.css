@@ -312,8 +312,10 @@
   background: var(--rail-bg);
   /* Right edge only — the rail is flush with the viewport on the other
      three sides, so an all-around outline had nothing to trace there.
-     box-shadow (not border) so it still follows the rounded corners. */
-  box-shadow: 2px 0 0 0 var(--brand), var(--shadow-sidebar);
+     box-shadow (not border) so it still follows the rounded corners, and
+     1px to match the keyline round the tables — two weights of the same
+     brand line on one screen read as two different kinds of edge. */
+  box-shadow: 1px 0 0 0 var(--brand), var(--shadow-sidebar);
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1116,6 +1118,14 @@
   color: var(--gray-400);
 }
 
+/* A count that really is nought. Written out rather than dashed — the paper was
+   taken, and taking it once is not the same as never taking it — but held at
+   the weight of an empty cell, because the column is read to find the rows
+   where a student needed another go. */
+.assessor-table__zero {
+  color: var(--gray-400);
+}
+
 .assessor-table__progress-cell {
   min-width: 13rem;
   text-align: left;
@@ -1261,8 +1271,119 @@
   box-shadow: var(--shadow-row-hover);
 }
 
+/* Status holds a switch with "Suspended" beside it now, rather than a chip, so
+   it needs the width the longer of the two words asks for. */
 .roster-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 230px) minmax(0, 170px) 130px 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 230px) minmax(0, 170px) 152px 24px;
+}
+
+/* The row is no longer one button — it cannot be, with a switch inside it — so
+   the chevron is a control of its own: the keyboard's way into the student,
+   drawn exactly as the cue it replaces. */
+.roster-open {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--brand);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.roster-open:hover {
+  opacity: 1;
+}
+
+.roster-open:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  opacity: 1;
+}
+
+/* Whether this account can sign in at all. The same control the admin console
+   puts on a student's record, in the assessor's own type — one press, and its
+   own target, so aiming at the row never lands on it. */
+.roster-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 3px 5px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--warning-text);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.roster-switch.is-on {
+  color: var(--teal-700);
+}
+
+.roster-switch[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.roster-switch:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.roster-switch__track {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 17px;
+  /* Round-ended, not the console's 8px --radius-pill: on a 17px track that
+     reads as a rounded box rather than a switch. */
+  border-radius: 999px;
+  background: rgba(150, 96, 10, 0.45);
+  transition: background 0.18s ease;
+}
+
+.roster-switch.is-on .roster-switch__track {
+  background: var(--teal-700);
+}
+
+.roster-switch__thumb {
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s ease;
+}
+
+.roster-switch.is-on .roster-switch__thumb {
+  transform: translateX(13px);
+}
+
+/* What the last thing the assessor pressed did. A floating message rather
+   than a line in the page (see .notice-toast), so it lands in the same corner
+   however far down a list the press happened. */
+.assessor-notice {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body);
+}
+
+.assessor-notice--ok {
+  background: rgba(2, 110, 120, 0.1);
+  color: var(--teal-700);
+}
+
+.assessor-notice--error {
+  background: rgba(150, 96, 10, 0.13);
+  color: var(--warning-text);
 }
 
 /* The scope chip sits beside the assessment title. */

@@ -21,7 +21,13 @@ import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./
  * not introduce one.
  *
  *   Class { _id, name, courseId, assessorIds[], studentIds[], active,
- *           schedule: { days, time, room }, createdAt, updatedAt }
+ *           suspendedStudentIds[], schedule: { days, time, room },
+ *           createdAt, updatedAt }
+ *
+ * `suspendedStudentIds` is a subset of `studentIds`: the students whose access
+ * to this course the assessor has closed from their own roster. It is read by
+ * lib/courseAccess.js and written from the assessor console, never from here —
+ * this screen only keeps it honest, by dropping anyone who leaves the class.
  *
  * A class is a *section*: one course, one assessor — required, since a section
  * with nobody in front of it is a timetable entry — and students who are in
@@ -397,6 +403,14 @@ export async function updateClass(request, response) {
   }
   if ("studentIds" in body) {
     updates.studentIds = (await resolveMany(STUDENTS_COLLECTION, body.studentIds)).map((d) => d._id);
+
+    // A closed place belongs to somebody in the class. Dropping a student has
+    // to take it with them, or re-adding them later would silently restore a
+    // suspension nobody asked for a second time.
+    const staying = new Set(updates.studentIds.map(asId));
+    updates.suspendedStudentIds = (cls.suspendedStudentIds ?? []).filter((id) =>
+      staying.has(asId(id))
+    );
   }
   if ("schedule" in body) updates.schedule = cleanSchedule(body.schedule);
   if ("active" in body) updates.active = body.active !== false;

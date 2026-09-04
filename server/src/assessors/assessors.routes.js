@@ -5,7 +5,8 @@ import {
   getPendingCredentials,
   getRoster,
   getStudentDetail,
-  issueCredential
+  issueCredential,
+  setRosterStudentSuspension
 } from "./assessors.controller.js";
 import {
   generateCourseAssessment,
@@ -25,6 +26,8 @@ import { requireOwnAssessor } from "./assessors.guard.js";
 //   GET  /:assessorId/classes                               — assigned courses
 //   GET  /:assessorId/classes/:courseId/roster              — enrolled students
 //   GET  /:assessorId/classes/:courseId/students/:studentId — per-student detail
+//   PATCH /:assessorId/classes/:courseId/students/:studentId/suspension
+//                                                           — lock/unlock { suspended }
 //
 //   Generating and releasing a course's papers — see assessments.controller.js:
 //   GET  /:assessorId/classes/:courseId/assessments               — lesson + final state
@@ -57,6 +60,16 @@ router.get("/:assessorId/overview", getOverview);
 router.get("/:assessorId/classes", getClasses);
 router.get("/:assessorId/classes/:courseId/roster", getRoster);
 router.get("/:assessorId/classes/:courseId/students/:studentId", getStudentDetail);
+
+// The one write here that changes what a student can *do* rather than what
+// their record says, and the only one an assessor makes about a person rather
+// than a paper. It is the admin console's own suspension — same field, same
+// function — reached through a route that will only touch a student on this
+// assessor's own course.
+router.patch(
+  "/:assessorId/classes/:courseId/students/:studentId/suspension",
+  setRosterStudentSuspension
+);
 
 // Generating is the only thing here that spends money, and it is a deliberate
 // press by a member of staff who is watching the screen — the same shape the

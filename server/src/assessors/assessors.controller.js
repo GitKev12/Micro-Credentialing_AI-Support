@@ -6,13 +6,14 @@ import {
   defaultPassMark,
   isPosted
 } from "../assessments/assessments.format.js";
-import { FINAL_ATTEMPT_LIMIT } from "../assessments/assessments.controller.js";
+import { FINAL_ATTEMPT_LIMIT, attemptsUsedFrom } from "../assessments/assessments.controller.js";
 import { buildStudentBadges, passedFromResults } from "../badges/badges.service.js";
 import { issueCertificate, listIssuedCertificates } from "../certificates/certificates.service.js";
 import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { papersByCourse } from "../assessments/papers.js";
 import { scoreOf } from "./grading.js";
 import { loadAuthoringRestrictions, loadClassesByCourse } from "../lib/courseAccess.js";
+import { readSuspendedFlag } from "../lib/suspension.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -38,9 +39,10 @@ import { sortLessons } from "../lib/lessonOrder.js";
  *                  items: [{ itemId, verdict: "correct"|"incorrect" }] },
  *     credential: { status: "none"|"pending"|"issued", name, issuedAt, issuedBy } }
  *
- * A passing submission writes its own `credential.status: "pending"`, so the
- * Credentials screen fills without anyone grading anything. Everything shown is
- * derived from real documents:
+ * A passed final writes its own `credential.status: "pending"`, so the
+ * Credentials screen fills without anyone grading anything. Only the final: a
+ * lesson quiz earns a badge, which is the student's on passing and never
+ * reaches this screen. Everything shown is derived from real documents:
  *
  *   class.lessons    <- LearningModules published for that course
  *   class.posted     <- Assessments released to that course
@@ -50,6 +52,7 @@ import { sortLessons } from "../lib/lessonOrder.js";
  */
 const ASSESSORS_COLLECTION = "Assessor";
 const ASSESSMENTS_COLLECTION = "Assessment";
+const CLASSES_COLLECTION = "Class";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
@@ -126,7 +129,7 @@ async function resultsForCourses(courses) {
  *
  * Derived rather than read off the document. A paper written while assessments
  * still held a bank carries a `totalPoints` for the shorter paper that used to
- * be drawn out of it, and marking today's sitting against that number would
+ * be drawn out of it, and marking today's attempt against that number would
  * put a student's score over the total.
  */
 function paperConfig(assessment) {
@@ -397,12 +400,16 @@ export async function getRoster(request, response) {
   ]);
 
   const classesByStudent = new Map();
+  // Whose access to this course the assessor has closed. Read off the same
+  // class rows as the names above, so the column costs no extra query.
+  const closedHere = new Set();
   for (const cls of classesByCourse.get(asId(course._id)) ?? []) {
     for (const studentId of cls.studentIds ?? []) {
       const key = asId(studentId);
       if (!classesByStudent.has(key)) classesByStudent.set(key, []);
       classesByStudent.get(key).push(cls.name ?? "Unnamed class");
     }
+    for (const studentId of cls.suspendedStudentIds ?? []) closedHere.add(asId(studentId));
   }
 
   const doneByStudent = new Map();
@@ -411,19 +418,14 @@ export async function getRoster(request, response) {
     doneByStudent.set(key, (doneByStudent.get(key) ?? 0) + 1);
   });
 
-  // Nothing on a roster waits on a grade any more — a paper is marked as it is
-  // handed in. What can still be waiting is a passing paper whose credential
-  // has not been issued, which is the one act left on this student.
-  const awaitingByStudent = new Map();
+  // Credentials this student already holds. Nothing here counts what is
+  // still to be issued: that is a queue and it belongs on the Credentials
+  // screen, which is where the assessor acts on it.
   const credsByStudent = new Map();
   results.forEach((result) => {
+    if (result.credential?.status !== "issued") return;
     const key = asId(result.studentId);
-    if (result.credential?.status === "pending") {
-      awaitingByStudent.set(key, (awaitingByStudent.get(key) ?? 0) + 1);
-    }
-    if (result.credential?.status === "issued") {
-      credsByStudent.set(key, (credsByStudent.get(key) ?? 0) + 1);
-    }
+    credsByStudent.set(key, (credsByStudent.get(key) ?? 0) + 1);
   });
 
   return response.json({
@@ -452,8 +454,85 @@ export async function getRoster(request, response) {
       classes: classesByStudent.get(asId(student._id)) ?? [],
       done: doneByStudent.get(asId(student._id)) ?? 0,
       creds: credsByStudent.get(asId(student._id)) ?? 0,
-      awaiting: awaitingByStudent.get(asId(student._id)) ?? 0
+      // Their place in *this* course, not their account. The admin's own
+      // suspension stops somebody signing in at all and is not this column's
+      // business — an assessor closes a course, not a person's login.
+      suspended: closedHere.has(asId(student._id))
     }))
+  });
+}
+
+/**
+ * PATCH .../classes/:courseId/students/:studentId/suspension — close this
+ * course to one student, or open it again.
+ *
+ * Course access, not a login control. It shuts the same amount as switching
+ * their class off does — the lessons, the quizzes and the tick that completes a
+ * lesson are all refused (lib/courseAccess.js) — and it shuts it for this
+ * course only. The student still signs in, still has their other courses, and
+ * keeps their enrolment, their progress and every badge they have earned here;
+ * turning it back on restores them exactly as they were.
+ *
+ * That is a different thing from the admin console's suspension, which is on
+ * the account and stops the person signing in at all (lib/suspension.js). An
+ * assessor owns a course, not an account, so this is the one they get.
+ *
+ * It is recorded on the class rather than on the student, because the class is
+ * what puts them in the course: `Class.suspendedStudentIds` is a subset of its
+ * own `studentIds`, so it cannot name somebody who is not there, it travels
+ * with the class when the class is deleted, and the gate already holds the
+ * class documents when it asks.
+ *
+ * What makes this safe to hand an assessor is the enrolment clause below. The
+ * guard on the route says the :assessorId is theirs; this says the student is
+ * one of theirs to act on. Anyone else answers 404 — the same reply as a
+ * student who does not exist, so the endpoint cannot be walked to find out who
+ * is on somebody else's roster.
+ */
+export async function setRosterStudentSuspension(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
+
+  const suspended = readSuspendedFlag(request.body);
+  if (suspended === null) {
+    return response.status(400).json({ message: "Send suspended: true or false." });
+  }
+
+  const course = await findAssignedCourse(assessor, request.params.courseId);
+  if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
+
+  const student = await collection(STUDENTS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.studentId) },
+    enrolledCourses: { $in: idCandidates(course._id) }
+  });
+  if (!student) {
+    return response.status(404).json({ message: "Student not found in this course." });
+  }
+
+  // A student belongs to one class per course, so there is one row to write.
+  // An enrolment with no class behind it predates that rule and has nowhere to
+  // record this — said plainly rather than answered with a silent success.
+  const cls = await collection(CLASSES_COLLECTION).findOne({
+    courseId: { $in: idCandidates(course._id) },
+    studentIds: { $in: idCandidates(student._id) }
+  });
+  if (!cls) {
+    return response.status(409).json({
+      message: "This student is on the course without a class, so there is nothing to close."
+    });
+  }
+
+  await collection(CLASSES_COLLECTION).updateOne(
+    { _id: cls._id },
+    suspended
+      ? { $addToSet: { suspendedStudentIds: student._id } }
+      : { $pull: { suspendedStudentIds: { $in: idCandidates(student._id) } } }
+  );
+
+  return response.json({
+    student: { id: asId(student._id), name: studentName(student), suspended }
   });
 }
 
@@ -634,10 +713,25 @@ export async function getStudentDetail(request, response) {
   sortLessons(modules);
 
   // The attempt that counts. A quiz may be retaken without limit and a final
-  // three times; every sitting is kept, but only the live one is the student's
+  // three times; every attempt is kept, but only the live one is the student's
   // record — keying the map off all of them let whichever row happened to load
   // last decide what the screen said.
   const liveResults = results.filter((result) => result.superseded !== true);
+
+  // Every attempt is kept — a superseded row is history, not waste — so how
+  // many times a paper was taken is a count of all its rows, and the live list
+  // above cannot answer it. Grouped by paper rather than by lesson: the retake
+  // limit is the paper's, and a lesson whose quiz was regenerated starts its
+  // count again with the new one, which is what the student is told too.
+  const attemptsByAssessment = new Map();
+  for (const result of results) {
+    const key = asId(result.assessmentId);
+    if (!attemptsByAssessment.has(key)) attemptsByAssessment.set(key, []);
+    attemptsByAssessment.get(key).push(result);
+  }
+
+  const takesOf = (result) =>
+    result ? attemptsUsedFrom(attemptsByAssessment.get(asId(result.assessmentId)), result) : 0;
 
   const assessments = await assessmentMap(results);
   const resultByModule = new Map(liveResults.map((result) => [asId(result.moduleId), result]));
@@ -660,11 +754,15 @@ export async function getStudentDetail(request, response) {
       read: readModules.has(asId(module._id)),
       score: result ? scoreOf(result) : null,
       total: result ? config.total : null,
-      // How long the sitting took, and the clock it was given. The limit is the
+      // How long it took, and the clock it was given. The limit is the
       // assessor's to set and most papers have none, so it is null far more
       // often than not — the screen reads the time on its own then.
       durationMs: result?.durationMs ?? null,
       timeLimitMinutes: assessment?.timeLimitMinutes ?? null,
+      // How many times this quiz has been taken, retakes included. A lesson
+      // quiz may be taken again without limit, so this has no ceiling to
+      // report alongside it — only the final does.
+      attemptsUsed: takesOf(result),
       submissionId: result ? asId(result._id) : null,
       submittedAt: result?.submittedAt ?? null
     };
@@ -694,9 +792,10 @@ export async function getStudentDetail(request, response) {
     timeLimitMinutes: finalDoc?.timeLimitMinutes ?? null,
     submissionId: finalResult ? asId(finalResult._id) : null,
     submittedAt: finalResult?.submittedAt ?? null,
-    // The final is the one paper with a ceiling on sittings, so the row says
-    // which of them this was.
+    // The final is the one paper with a ceiling on how often it may be taken,
+    // so the row carries both which take this was and how many have gone.
     attempt: finalResult ? Number(finalResult.attempt ?? 1) : 0,
+    attemptsUsed: takesOf(finalResult),
     attemptsAllowed: FINAL_ATTEMPT_LIMIT,
     // Written but not released is a real state, and it is the assessor's own
     // to act on — the row should not read as "not taken" when nobody could

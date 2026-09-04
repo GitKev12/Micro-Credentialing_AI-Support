@@ -5,6 +5,7 @@ import ProgressCell from "./ProgressCell";
 import StudentForm from "./StudentForm";
 import { courseRows, lastActiveLabel, latestLine } from "./studentText";
 import { formatDate } from "../../lib/format";
+import { noticeClass } from "../../../../lib/useNotice";
 
 /**
  * One student, opened from the list.
@@ -114,7 +115,7 @@ export default function StudentDetail({
             </div>
 
             {notice ? (
-              <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
+              <p className={noticeClass(notice, `admin-notice admin-notice--${notice.tone}`)} role="status">
                 {notice.text}
               </p>
             ) : null}

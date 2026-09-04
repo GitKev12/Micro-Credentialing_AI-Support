@@ -116,6 +116,25 @@ const attemptNo = (result) => Number(result?.attempt ?? 1);
 export const currentAttempt = (results) =>
   results.reduce((latest, result) => (!latest || attemptNo(result) >= attemptNo(latest) ? result : latest), null);
 
+/**
+ * How many times a paper has been taken, from every row kept for it.
+ *
+ * Not simply how many rows there are. A row written before retakes existed
+ * carries no `attempt` at all, and a history missing a row would report fewer
+ * takes than the live row says it is — so the count and the highest attempt
+ * number are both consulted and the larger one wins. `live` is the row that
+ * counts, passed separately because a caller may hold it when it has no
+ * history to go with it.
+ *
+ * Shared with the assessor's student page, so the number an assessor reads is
+ * the number the student was told they had used.
+ */
+export function attemptsUsedFrom(rows, live = null) {
+  const list = Array.isArray(rows) ? rows : [];
+  const highest = list.reduce((most, row) => Math.max(most, attemptNo(row)), 0);
+  return Math.max(list.length, highest, live ? attemptNo(live) : 0);
+}
+
 async function loadCourseState(studentId, courseId) {
   const [hasAssessments, hasModules, hasProgress, hasResults] = await Promise.all([
     collectionExists(ASSESSMENTS_COLLECTION),
@@ -263,7 +282,7 @@ function resultSummary(result, summary, attempts = [], restriction = null) {
   if (!result) return null;
   const score = effectiveScore(result);
   const limit = attemptLimitFor(summary.scope);
-  const used = Math.max(attempts.length, attemptNo(result));
+  const used = attemptsUsedFrom(attempts, result);
 
   return {
     score,
@@ -580,12 +599,16 @@ export async function submitAssessment(request, response) {
       score: graded.score,
       items: graded.items
     },
-    // The mark is final here, so a pass earns its credential here too. Issuing
-    // it is still an assessor's act — this only puts it in front of them (see
-    // the Credentials screen), which is what "pending" has always meant.
-    credential: graded.passed
-      ? { status: "pending", name: credentialNameFor(doc), issuedAt: null, issuedBy: null }
-      : { status: "none", name: null, issuedAt: null, issuedBy: null }
+    // Only the final earns a credential, and issuing it is the assessor's act
+    // — this puts it in front of them on the Credentials screen, which is what
+    // "pending" means. A lesson quiz earns a badge instead (below): that one is
+    // the student's the moment they pass it and is nobody's to release, so a
+    // passing quiz must never write a pending credential. It used to, and the
+    // assessor was being asked to approve every badge in the course.
+    credential:
+      graded.passed && summary?.scope === "final"
+        ? { status: "pending", name: credentialNameFor(doc), issuedAt: null, issuedBy: null }
+        : { status: "none", name: null, issuedAt: null, issuedBy: null }
   };
 
   // Retire the earlier sittings first. Doing it before the insert means a

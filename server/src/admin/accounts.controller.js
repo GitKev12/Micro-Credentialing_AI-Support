@@ -4,6 +4,7 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { getAssessor, getStudent } from "./admin.controller.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { removeIssuedCertificatesFor } from "../certificates/certificates.service.js";
+import { readSuspendedFlag, setAccountSuspension } from "../lib/suspension.js";
 
 /**
  * The student and assessor accounts this console manages.
@@ -223,18 +224,15 @@ export async function updateStudent(request, response) {
 export async function setStudentSuspension(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const body = request.body ?? {};
-  if (!("suspended" in body)) return badRequest(response, "Send suspended: true or false.");
+  const suspended = readSuspendedFlag(request.body);
+  if (suspended === null) return badRequest(response, "Send suspended: true or false.");
 
   const student = await collection(STUDENTS_COLLECTION).findOne({
     _id: { $in: idCandidates(request.params.id) }
   });
   if (!student) return response.status(404).json({ message: "Student not found." });
 
-  await collection(STUDENTS_COLLECTION).updateOne(
-    { _id: student._id },
-    { $set: { suspended: body.suspended === true } }
-  );
+  await setAccountSuspension(STUDENTS_COLLECTION, student, suspended);
 
   return getStudent(request, response);
 }
@@ -294,18 +292,15 @@ export async function updateAssessor(request, response) {
 export async function setAssessorSuspension(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const body = request.body ?? {};
-  if (!("suspended" in body)) return badRequest(response, "Send suspended: true or false.");
+  const suspended = readSuspendedFlag(request.body);
+  if (suspended === null) return badRequest(response, "Send suspended: true or false.");
 
   const assessor = await collection(ASSESSORS_COLLECTION).findOne({
     _id: { $in: idCandidates(request.params.id) }
   });
   if (!assessor) return response.status(404).json({ message: "Assessor not found." });
 
-  await collection(ASSESSORS_COLLECTION).updateOne(
-    { _id: assessor._id },
-    { $set: { suspended: body.suspended === true } }
-  );
+  await setAccountSuspension(ASSESSORS_COLLECTION, assessor, suspended);
 
   return getAssessor(request, response);
 }

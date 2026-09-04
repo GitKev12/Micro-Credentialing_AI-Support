@@ -144,6 +144,58 @@ describe("classSuspensionFrom", () => {
     expect(classSuspensionFrom(null)).toBeNull();
     expect(classSuspensionFrom(undefined)).toBeNull();
   });
+
+  /**
+   * The other way a place closes: the assessor stands one student down from
+   * the course, on a class that is otherwise running for everybody else.
+   *
+   * This is course access, not the admin console's account suspension — that
+   * one stops a person signing in at all and is nowhere near this file.
+   */
+  describe("a student their assessor has closed the course to", () => {
+    const running = [{ active: true, studentIds: ["s1", "s2"], suspendedStudentIds: ["s1"] }];
+
+    it("is closed out while the class carries on", () => {
+      const suspension = classSuspensionFrom(running, "s1");
+
+      expect(suspension.suspended).toBe(true);
+      expect(suspension.by).toBe("assessor");
+      // It says what is *not* affected, because the two suspensions in this
+      // system are easy to confuse from the receiving end.
+      expect(suspension.reason).toMatch(/other courses are not affected/);
+    });
+
+    it("leaves everybody else in the class alone", () => {
+      expect(classSuspensionFrom(running, "s2")).toBeNull();
+    });
+
+    it("is not read at all when nobody is named", () => {
+      // The staff side asks this of a course with no student in mind.
+      expect(classSuspensionFrom(running)).toBeNull();
+      expect(classSuspensionFrom(running, null)).toBeNull();
+    });
+
+    it("compares ids as text, whatever type they arrived as", () => {
+      const objectish = [{ active: true, suspendedStudentIds: [{ toString: () => "s1" }] }];
+      expect(classSuspensionFrom(objectish, "s1").by).toBe("assessor");
+    });
+
+    it("survives a class that has never had one", () => {
+      expect(classSuspensionFrom([{ active: true, studentIds: ["s1"] }], "s1")).toBeNull();
+    });
+
+    /**
+     * Both can be true at once. The student's own standing is the one still
+     * true after the class is switched back on, so answering with the class
+     * would send them to the admin and then close on them again.
+     */
+    it("is reported ahead of a class that is also switched off", () => {
+      const both = [{ active: false, suspendedStudentIds: ["s1"] }];
+
+      expect(classSuspensionFrom(both, "s1").by).toBe("assessor");
+      expect(classSuspensionFrom(both, "s2").by).toBe("class");
+    });
+  });
 });
 
 describe("authoringRestrictionFrom", () => {

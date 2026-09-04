@@ -5,6 +5,7 @@ import {
   issueCredential,
   storedAssessorId
 } from "../../services/assessors";
+import { noticeClass, useNotice } from "../../lib/useNotice";
 import { CheckIcon } from "./components/icons";
 import { Chip, Metric, Person, ScreenHeader } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
@@ -14,6 +15,7 @@ function CredentialsPage() {
   const [rows, setRows] = useState([]);
   const [issued, setIssued] = useState({});
   const [issuing, setIssuing] = useState({});
+  const [notice, setNotice] = useNotice();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -40,15 +42,27 @@ function CredentialsPage() {
     };
   }, []);
 
-  const issue = async (id) => {
-    setIssuing((current) => ({ ...current, [id]: true }));
+  const issue = async (row) => {
+    setIssuing((current) => ({ ...current, [row.id]: true }));
     try {
-      await issueCredential(storedAssessorId(), id);
-      setIssued((current) => ({ ...current, [id]: true }));
+      await issueCredential(storedAssessorId(), row.id);
+      setIssued((current) => ({ ...current, [row.id]: true }));
+      // Nothing is said on the way through: the row itself turns into
+      // "Issued today", and a message repeating that would only be in the
+      // way. A standing failure from an earlier try is cleared, though — it
+      // is no longer true of this student.
+      setNotice(null);
     } catch {
-      // Leave the button available so the assessor can retry.
+      // The button is left as it was so the release can be tried again. On
+      // its own that read as a button that does nothing: the assessor pressed
+      // it, the screen did not move, and there was no way to tell a refusal
+      // from a slow network. The failure has to say it failed.
+      setNotice({
+        tone: "error",
+        text: `Couldn't issue ${row.name}'s credential. Try again.`
+      });
     } finally {
-      setIssuing((current) => ({ ...current, [id]: false }));
+      setIssuing((current) => ({ ...current, [row.id]: false }));
     }
   };
 
@@ -59,10 +73,19 @@ function CredentialsPage() {
       <ScreenHeader
         back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
         eyebrow={`${awaitingCount} awaiting release`}
-        title="Credential Approval"
+        title="Credentials"
       />
 
       <div className="assessor-body assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
+        {notice ? (
+          <p
+            className={noticeClass(notice, `assessor-notice assessor-notice--${notice.tone}`)}
+            role="status"
+          >
+            {notice.text}
+          </p>
+        ) : null}
+
         {rows.map((row) => (
           <div key={row.id} className="data-row creds-grid">
             <Person name={row.name} sid={row.sid} />
@@ -94,9 +117,9 @@ function CredentialsPage() {
                   type="button"
                   className="btn btn--primary"
                   disabled={Boolean(issuing[row.id])}
-                  onClick={() => issue(row.id)}
+                  onClick={() => issue(row)}
                 >
-                  {issuing[row.id] ? "Issuing…" : "Approve & issue"}
+                  {issuing[row.id] ? "Issuing…" : "Issue credential"}
                 </button>
               )}
             </span>
@@ -108,7 +131,7 @@ function CredentialsPage() {
             {isLoading ? (
               <SkeletonText lines={4} label="Loading credentials…" />
             ) : (
-              "No credentials are waiting for approval."
+              "No credentials are waiting for release."
             )}
           </p>
         ) : null}

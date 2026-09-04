@@ -53,6 +53,23 @@ export async function fetchStudentDetail(assessorId, courseId, studentId) {
   return data;
 }
 
+/**
+ * Close this course to a student, or open it again.
+ *
+ * Course access, not a login control: it shuts the lessons, the quizzes and the
+ * tick that completes a lesson, for this course only. The student still signs
+ * in, keeps their other courses, and keeps their enrolment, progress and badges
+ * here. The admin console's suspension is the other thing — that one is on the
+ * account and stops them signing in at all.
+ */
+export async function setRosterStudentSuspended(assessorId, courseId, studentId, suspended) {
+  const { data } = await api.patch(
+    `/assessors/${assessorId}/classes/${courseId}/students/${studentId}/suspension`,
+    { suspended }
+  );
+  return data?.student ?? null;
+}
+
 /* ─────────────── Generating and releasing assessments ─────────────── */
 
 const assessmentsPath = (assessorId, courseId) =>

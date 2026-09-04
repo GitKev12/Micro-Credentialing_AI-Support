@@ -217,7 +217,7 @@ describe("gradeSubmission", () => {
     expect(graded.servedItemIds).not.toContain("not-on-this-paper");
   });
 
-  it("records which paper was sat, for the assessor to review", () => {
+  it("records which paper was served, so a submission can be read against it", () => {
     const graded = gradeSubmission(paper, []);
     expect(graded.servedItemIds).toEqual(servedIds());
   });

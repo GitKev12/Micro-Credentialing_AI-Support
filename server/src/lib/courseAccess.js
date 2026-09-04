@@ -6,9 +6,15 @@ import { toDate, toIsoDay } from "./courseDates.js";
  * What a student may still do in a course — the two things that can close one.
  *
  * A course closes by its own calendar (the run is over), and a *student's*
- * place in it closes when every class holding them there has been switched off
- * in the admin console. The two shut different amounts: an ended run stays
- * readable, a switched-off class does not.
+ * place in it closes either when every class holding them there has been
+ * switched off in the admin console, or when their assessor has stood that one
+ * student down from the course. The calendar shuts a different amount from the
+ * other two: an ended run stays readable, a closed place does not.
+ *
+ * None of these is the admin console's account suspension, which stops a person
+ * signing in at all and is nothing to do with any one course — see
+ * lib/suspension.js. These three decide what somebody who *has* signed in may
+ * still do here.
  *
  * The run dates are the admin's (see courseDates.js); this is what they mean
  * for the person enrolled. Once the end date has passed the course closes to
@@ -87,10 +93,47 @@ const SUSPENDED_REASON =
   "They open again when the administrator sets the class back to active.";
 
 /**
- * Whether the classes holding a student in a course have all been switched off.
+ * The word for the other way a course closes for one person: their assessor has
+ * stood them down from it.
+ *
+ * It says what is *not* affected as well as what is, because the two
+ * suspensions in this system are easy to confuse. The admin's is on the
+ * account and stops the person signing in at all (lib/suspension.js). This one
+ * is on their place in one course: they still sign in, still see their other
+ * courses, and still hold everything they have earned here.
+ */
+const STUDENT_SUSPENDED_REASON =
+  "Your assessor has closed this course for you, so its lessons are shut for now. " +
+  "Your account and your other courses are not affected.";
+
+/**
+ * Whether a class holding this student has stood them down on this course.
+ *
+ * `Class.suspendedStudentIds` is a subset of its `studentIds`: the students in
+ * the class whose access the assessor has closed. They stay enrolled and stay
+ * on the roster — this shuts the material, it does not undo the enrolment.
+ */
+function standsDown(classes, studentId) {
+  if (!studentId) return false;
+  const key = String(studentId);
+
+  return (Array.isArray(classes) ? classes : []).some((cls) =>
+    (cls?.suspendedStudentIds ?? []).some((id) => String(id) === key)
+  );
+}
+
+/**
+ * Why this student's place in a course is closed, or null while it is open.
  *
  * Takes the class documents rather than reading them, so the rule can be
- * tested without a database.
+ * tested without a database. Two things can close it, and they are told apart
+ * because they are fixed by different people: the admin switches a class back
+ * on, the assessor lets one student back in.
+ *
+ * The student's own standing is read first. Both can be true at once, and of
+ * the two it is the one still true after the class comes back on — answering
+ * with the class would send them to the wrong person and then close on them
+ * again the moment that was fixed.
  *
  * Two things it deliberately does not do. It does not close a course for a
  * student who has no class at all: enrolment is written through from a class
@@ -101,10 +144,14 @@ const SUSPENDED_REASON =
  * students out — the same reasoning `inAnotherClass` uses when a class is
  * deleted.
  */
-export function classSuspensionFrom(classes) {
+export function classSuspensionFrom(classes, studentId = null) {
+  if (standsDown(classes, studentId)) {
+    return { suspended: true, by: "assessor", reason: STUDENT_SUSPENDED_REASON };
+  }
+
   if (!allSwitchedOff(classes)) return null;
 
-  return { suspended: true, reason: SUSPENDED_REASON };
+  return { suspended: true, by: "class", reason: SUSPENDED_REASON };
 }
 
 /**
@@ -194,7 +241,7 @@ export async function loadStudentSuspensions(studentId) {
   }
 
   for (const [courseId, classesOnCourse] of holding) {
-    const suspension = classSuspensionFrom(classesOnCourse);
+    const suspension = classSuspensionFrom(classesOnCourse, studentId);
     if (suspension) byCourse.set(courseId, suspension);
   }
 
@@ -214,7 +261,10 @@ async function resolveCourse(courseRef) {
 /** Whether this student's classes on a course have all been switched off. */
 export async function loadClassSuspension(studentId, courseRef) {
   const course = await resolveCourse(courseRef);
-  return classSuspensionFrom(await classesHolding(studentId, course?._id ?? courseRef));
+  return classSuspensionFrom(
+    await classesHolding(studentId, course?._id ?? courseRef),
+    studentId
+  );
 }
 
 /**
@@ -231,7 +281,8 @@ export async function loadClassSuspension(studentId, courseRef) {
 export async function loadStudentRestriction(studentId, courseRef, at = new Date()) {
   const course = await resolveCourse(courseRef);
   const suspension = classSuspensionFrom(
-    await classesHolding(studentId, course?._id ?? courseRef)
+    await classesHolding(studentId, course?._id ?? courseRef),
+    studentId
   );
 
   return suspension ?? courseRestriction(course, at);

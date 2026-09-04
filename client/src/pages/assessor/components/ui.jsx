@@ -11,8 +11,8 @@ export function ScreenHeader({ back, eyebrow, title, children }) {
             {back.label}
           </button>
         ) : null}
-        {eyebrow ? <div className="assessor-eyebrow">{eyebrow}</div> : null}
         <h1 className="assessor-title">{title}</h1>
+        {eyebrow ? <div className="assessor-eyebrow">{eyebrow}</div> : null}
       </div>
       {children}
     </header>

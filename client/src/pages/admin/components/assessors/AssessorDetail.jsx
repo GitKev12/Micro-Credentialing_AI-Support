@@ -3,6 +3,7 @@ import { BackLink, SectionTitle, StatTile } from "../ui";
 import { SkeletonDetail } from "../../../../components/Skeleton";
 import AssessorForm from "./AssessorForm";
 import { backlogPhrase, EMPTY_WORKLOAD, lastActiveLabel, papersNote } from "./assessorText";
+import { noticeClass } from "../../../../lib/useNotice";
 
 /**
  * One assessor, opened from the list.
@@ -99,7 +100,7 @@ export default function AssessorDetail({
             </div>
 
             {notice ? (
-              <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
+              <p className={noticeClass(notice, `admin-notice admin-notice--${notice.tone}`)} role="status">
                 {notice.text}
               </p>
             ) : null}

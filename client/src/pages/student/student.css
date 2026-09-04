@@ -1567,7 +1567,9 @@ body:has(.student-app) {
 .sd-badge-toast {
   position: fixed;
   bottom: var(--sd-5);
-  left: var(--sd-5);
+  /* The corner every message in this system arrives in — see .notice-toast in
+     styles.css, which the other two consoles' notices float in. */
+  right: var(--sd-5);
   /* Above the reader and the rail, below nothing else — it is the only thing
      on this page that floats over the layout. */
   z-index: 60;
@@ -1575,8 +1577,11 @@ body:has(.student-app) {
   flex-direction: column;
   align-items: center;
   gap: var(--sd-2);
+  /* Its words decide its width. The only ceiling is the window it floats
+     over, so a long badge name is a wide toast rather than a stack of two
+     letters — no fixed maximum, and none below it either. */
   width: max-content;
-  max-width: 16rem;
+  max-width: calc(100vw - 2 * var(--sd-5));
   padding: var(--sd-4) var(--sd-5);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-lg);
@@ -1584,6 +1589,23 @@ body:has(.student-app) {
   box-shadow: var(--sd-shadow-lift);
   text-align: center;
   animation: sd-badge-toast-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* Back out the way it came, once its three seconds are up. It is still on
+   screen while this runs — BadgeToast marks it, then unmounts it a fade later
+   — because a toast removed on the tick its time is up has nothing to fade
+   out through. */
+.sd-badge-toast.is-leaving {
+  animation: sd-badge-toast-out 0.2s ease-in both;
+}
+
+@keyframes sd-badge-toast-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* In from the corner it lives in, so the motion points at where it came from. */
@@ -1623,7 +1645,8 @@ body:has(.student-app) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sd-badge-toast {
+  .sd-badge-toast,
+  .sd-badge-toast.is-leaving {
     animation: none;
   }
 }

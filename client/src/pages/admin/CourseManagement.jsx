@@ -26,7 +26,7 @@ import { courseKeeps, courseLosses, courseMark } from "./components/course/impac
 import { errorMessage } from "./lib/format";
 import { SkeletonTable } from "../../components/Skeleton";
 import { useLatestRequest } from "../../lib/useLatestRequest";
-import { useNotice } from "../../lib/useNotice";
+import { noticeClass, useNotice } from "../../lib/useNotice";
 
 function CourseManagement() {
   const [courses, setCourses] = useState([]);
@@ -379,7 +379,7 @@ function CourseManagement() {
         />
 
         {notice ? (
-          <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
+          <p className={noticeClass(notice, `admin-notice admin-notice--${notice.tone}`)} role="status">
             {notice.text}
           </p>
         ) : null}

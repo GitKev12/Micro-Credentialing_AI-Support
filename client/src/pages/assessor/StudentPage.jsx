@@ -11,13 +11,13 @@ import { SkeletonDetail } from "../../components/Skeleton";
 const PASS_MARK = 60;
 
 /**
- * How long a sitting took, written the way a person says it.
+ * How long an attempt took, written the way a person says it.
  *
  * Hours only appear once there are any — "5m" rather than "0h 5m", because a
  * column of leading zeroes is harder to scan than the numbers themselves. A
- * sitting under a minute still reads as "1m": the point of the column is how
- * long somebody worked, and "0m" reads as a failure to record rather than as a
- * very fast paper.
+ * paper handed in under a minute still reads as "1m": the point of the column
+ * is how long somebody worked, and "0m" reads as a failure to record rather
+ * than as a very fast paper.
  */
 function formatDuration(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return null;
@@ -169,37 +169,59 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
 }
 
 function credentialMeta(credential) {
-  if (credential.status !== "issued") return "Awaiting approval";
+  if (credential.status !== "issued") return "Awaiting release";
 
   const date = formatDate(credential.issuedAt, { year: false });
   return date ? `Issued ${date}` : "Issued";
 }
 
 /**
- * The three columns a sitting fills: when it was taken, what it scored, and how
- * long it ran.
+ * How many times a paper was taken again after the first go.
+ *
+ * Null where it was never taken at all, which is a different fact from taking
+ * it once and getting it right — the column draws those two differently, and
+ * inferring one from the other would have to guess. `attemptsUsed` counts every
+ * attempt kept for the paper, so the retakes are all but the first.
+ */
+function retakeCount(row) {
+  const used = Number(row?.attemptsUsed);
+  if (!Number.isFinite(used) || used < 1) return null;
+  return used - 1;
+}
+
+/**
+ * The line under the final's title.
+ *
+ * The final is the only paper with a ceiling on how often it may be taken, so a
+ * taken one says how much of that is left — the Retakes column already says how
+ * many have gone, and repeating it here would give the row two ways to say one
+ * thing. An untaken one says what it is waiting on, and "not posted" is the
+ * assessor's own doing rather than the student's — those are different facts
+ * and the row should not report both as "not taken".
+ */
+function finalNote(final) {
+  if (final.state !== "done") return final.posted ? "Not taken" : "Not posted yet";
+
+  const used = Number(final.attemptsUsed ?? final.attempt ?? 1);
+  const left = Math.max(0, Number(final.attemptsAllowed ?? 0) - used);
+
+  if (left === 0) return "No attempts left";
+  return `${left} attempt${left === 1 ? "" : "s"} left`;
+}
+
+/**
+ * The four columns an attempt fills: when it was taken, what it scored, how
+ * long it ran, and how many goes it took.
  *
  * One component because the final exam's row and a lesson's row are the same
  * question asked of different papers, and a column that formatted one of them
  * differently would read as a difference in the data.
  */
-/**
- * The line under the final's title.
- *
- * The final is the only paper with a ceiling on sittings, so a taken one says
- * which of the three this was. An untaken one says what it is waiting on, and
- * "not posted" is the assessor's own doing rather than the student's — those
- * are different facts and the row should not report both as "not taken".
- */
-function finalNote(final) {
-  if (final.state !== "done") return final.posted ? "Not taken" : "Not posted yet";
-  return `Attempt ${final.attempt} of ${final.attemptsAllowed}`;
-}
-
-function SittingCells({ row }) {
+function AttemptCells({ row }) {
   const takenOn = formatDate(row.submittedAt);
   const took = formatDuration(row.durationMs);
   const limit = formatLimit(row.timeLimitMinutes);
+  const retakes = retakeCount(row);
 
   return (
     <>
@@ -216,7 +238,7 @@ function SittingCells({ row }) {
       </td>
 
       {/* A time limit is the assessor's to set and most papers have none, so it
-          only appears where one was given — and then as what the sitting ran
+          only appears where one was given — and then as what the attempt ran
           against, which is the only thing that makes a duration mean
           anything. */}
       <td className="assessor-table__when">
@@ -227,6 +249,20 @@ function SittingCells({ row }) {
           </>
         ) : (
           <span className="assessor-table__dash">—</span>
+        )}
+      </td>
+
+      {/* Getting it right first time is the ordinary case, so nought is written
+          out but kept quiet: the column exists to show the rows where a student
+          needed more than one go, and a bold zero on every other row would bury
+          them. */}
+      <td className="assessor-table__num">
+        {retakes === null ? (
+          <span className="assessor-table__dash">—</span>
+        ) : retakes === 0 ? (
+          <span className="assessor-table__zero">0</span>
+        ) : (
+          retakes
         )}
       </td>
     </>
@@ -351,7 +387,8 @@ function StudentPage() {
                 <table className="assessor-table">
                   <caption className="assessor-sr-only">
                     Every lesson in this course, when its quiz was taken, what it
-                    scored and how long the student took over it.
+                    scored, how long the student took over it and how many times
+                    they took it again.
                   </caption>
 
                   <thead>
@@ -362,6 +399,9 @@ function StudentPage() {
                         Score
                       </th>
                       <th scope="col">Time taken</th>
+                      <th scope="col" className="assessor-table__num">
+                        Retakes
+                      </th>
                     </tr>
                   </thead>
 
@@ -387,7 +427,7 @@ function StudentPage() {
                             </span>
                           </th>
 
-                          <SittingCells row={module} />
+                          <AttemptCells row={module} />
                         </tr>
                       );
                     })}
@@ -411,7 +451,7 @@ function StudentPage() {
                           </span>
                         </th>
 
-                        <SittingCells row={final} />
+                        <AttemptCells row={final} />
                       </tr>
                     </tfoot>
                   ) : null}

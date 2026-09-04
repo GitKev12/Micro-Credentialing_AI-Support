@@ -284,9 +284,11 @@ async function buildCertifications(studentId, student, courses) {
     .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
     .toArray();
 
-  // Only released credentials are the student's business: "none" means the
-  // assessor has not approved the grade, and showing it would promise a
-  // certificate that may never be issued.
+  // Certificates only, which is all a credential ever is: one per course, off
+  // the final. "none" is every other result — a failed final, and every lesson
+  // quiz whether passed or not, since those earn badges and are shown as
+  // badges. A pending one is named here because the student has passed and is
+  // waiting on the assessor to release it.
   const claimed = results.filter((result) =>
     ["pending", "issued"].includes(result.credential?.status)
   );
