@@ -730,7 +730,6 @@ async function workloadByAssessor(assessors, courses) {
     load(RESULTS_COLLECTION, {
       courseId: 1,
       superseded: 1,
-      review: 1,
       credential: 1
     }),
     load(ASSESSMENTS_COLLECTION, {
