@@ -93,11 +93,13 @@ const SUSPENDED_REASON =
  * tested without a database.
  *
  * Two things it deliberately does not do. It does not close a course for a
- * student who has no class at all — enrolling straight from the Students
- * screen is still a way in, and there is no switch on that to read. And it does
- * not close one where a *single* class is still active: two classes can teach
- * the same course, and switching one off must not shut the other's students
- * out — the same reasoning `inAnotherClass` uses when a class is deleted.
+ * student who has no class at all: enrolment is written through from a class
+ * today, but a row seeded before that was, or left behind by one, has no
+ * switch to read and must not be shut by a rule it was never under. And it
+ * does not close one where a *single* class is still active: two classes can
+ * teach the same course, and switching one off must not shut the other's
+ * students out — the same reasoning `inAnotherClass` uses when a class is
+ * deleted.
  */
 export function classSuspensionFrom(classes) {
   if (!allSwitchedOff(classes)) return null;
@@ -301,6 +303,26 @@ async function classesOnCourses(courseIds) {
     .collection(CLASSES_COLLECTION)
     .find({ courseId: { $in: wanted.flatMap((id) => idCandidates(id)) } })
     .toArray();
+}
+
+/**
+ * The classes on each of these courses, as `Map<courseId, Class[]>`.
+ *
+ * A course is taught through classes, and more than one class can teach the
+ * same course. The assessor console works in courses — papers belong to a
+ * course, and posting one reaches every class on it — but it should not
+ * pretend the classes are not there: two of them showing as one row is how an
+ * assessor loses track of which students they are looking at.
+ */
+export async function loadClassesByCourse(courses) {
+  const byCourse = new Map(courses.map((course) => [String(course._id), []]));
+
+  for (const cls of await classesOnCourses(courses.map((course) => course._id))) {
+    const key = String(cls.courseId);
+    if (byCourse.has(key)) byCourse.get(key).push(cls);
+  }
+
+  return byCourse;
 }
 
 /** Whether one course is still open to writing and posting papers. */

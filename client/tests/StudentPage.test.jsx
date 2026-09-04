@@ -47,7 +47,7 @@ const draw = () =>
   render(
     <MemoryRouter initialEntries={["/assessor/classes/c1/students/st1"]}>
       <Routes>
-        <Route path="/assessor/classes/:classId/students/:studentId" element={<StudentPage />} />
+        <Route path="/assessor/classes/:courseId/students/:studentId" element={<StudentPage />} />
       </Routes>
     </MemoryRouter>
   );

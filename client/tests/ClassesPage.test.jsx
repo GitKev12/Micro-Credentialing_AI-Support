@@ -18,6 +18,10 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       lessons: 5,
       startsOn: "2026-08-04T00:00:00.000Z",
       endsOn: "2026-10-10T00:00:00.000Z",
+      classes: [
+        { id: "cl1", name: "IT01", active: true, students: 3 },
+        { id: "cl2", name: "IT02", active: false, students: 1 }
+      ],
       assessmentsExpected: 6,
       assessmentsWritten: 4,
       assessmentsPosted: 3,
@@ -32,6 +36,7 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       section: null,
       students: 2,
       lessons: 0,
+      classes: [],
       assessmentsExpected: 1,
       assessmentsWritten: 0,
       assessmentsPosted: 0,
@@ -118,5 +123,38 @@ describe("ClassesPage", () => {
     const footer = within(container.querySelector("tfoot"));
     expect(footer.getByText("3/7")).toBeInTheDocument();
     expect(footer.getByText(/1 to approve/)).toBeInTheDocument();
+  });
+});
+
+describe("the classes behind a course", () => {
+  it("names them, so two do not read as one", async () => {
+    // A course can be taught through more than one class. A single row saying
+    // "4 students" gives no sign it is two classes, and an assessor cannot
+    // tell which students they are looking at.
+    render(
+      <MemoryRouter>
+        <ClassesPage />
+      </MemoryRouter>
+    );
+
+    // The switched-off one is named as such: that is why its students are
+    // missing from the count the assessor expected.
+    expect(await screen.findByText("IT01 · IT02 (off)")).toBeInTheDocument();
+  });
+
+  it("says nothing at all for a course reached by enrolment alone", async () => {
+    // Inventing a class name for a course that has none would be worse than
+    // silence.
+    const { container } = render(
+      <MemoryRouter>
+        <ClassesPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Data Structures");
+    const row = [...container.querySelectorAll("tbody tr")].find((tr) =>
+      tr.textContent.includes("Data Structures")
+    );
+    expect(row.textContent).not.toMatch(/IT0/);
   });
 });

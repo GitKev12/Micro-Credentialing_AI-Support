@@ -13,9 +13,10 @@ import {
 
 function RosterPage() {
   const navigate = useNavigate();
-  const { classId } = useParams();
+  const { courseId } = useParams();
   const [query, setQuery] = useState("");
   const [course, setCourse] = useState(null);
+  const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,17 +24,18 @@ function RosterPage() {
   useEffect(() => {
     let active = true;
     const assessorId = storedAssessorId();
-    if (!assessorId || !classId) {
+    if (!assessorId || !courseId) {
       setIsLoading(false);
       return undefined;
     }
 
-    fetchClassRoster(assessorId, classId)
+    fetchClassRoster(assessorId, courseId)
       .then((data) => {
         if (!active) return;
         setCourse(data?.course ?? null);
         setStudents(data?.roster ?? []);
         setTotal(data?.totalModules ?? 0);
+        setClasses(data?.classes ?? []);
       })
       .catch(() => {
         if (active) setStudents([]);
@@ -45,7 +47,7 @@ function RosterPage() {
     return () => {
       active = false;
     };
-  }, [classId]);
+  }, [courseId]);
 
   const roster = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -60,7 +62,13 @@ function RosterPage() {
     <>
       <ScreenHeader
         back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
-        eyebrow={course ? `${course.code}${course.section ? ` · ${course.section}` : ""}` : ""}
+        eyebrow={
+          course
+            ? [course.code, course.section, classes.map((cls) => cls.name).join(" · ")]
+                .filter(Boolean)
+                .join(" · ")
+            : ""
+        }
         title={course ? `${course.name} — Students` : "Students"}
       >
         <SearchField
@@ -88,9 +96,16 @@ function RosterPage() {
               type="button"
               key={student.id}
               className="data-row data-row--clickable roster-grid"
-              onClick={() => navigate(`/assessor/classes/${classId}/students/${student.id}`)}
+              onClick={() => navigate(`/assessor/classes/${courseId}/students/${student.id}`)}
             >
-              <Person name={student.name} sid={student.sid} />
+              <Person
+                name={student.name}
+                sid={
+                  classes.length > 1
+                    ? [student.sid, ...(student.classes ?? [])].filter(Boolean).join(" · ")
+                    : student.sid
+                }
+              />
 
               <ProgressBar label={`${student.done} of ${total} modules`} pct={pct} />
 

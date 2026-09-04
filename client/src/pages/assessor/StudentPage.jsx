@@ -235,19 +235,19 @@ function SittingCells({ row }) {
 
 function StudentPage() {
   const navigate = useNavigate();
-  const { classId, studentId } = useParams();
+  const { courseId, studentId } = useParams();
   const [detail, setDetail] = useState(null);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let active = true;
     const assessorId = storedAssessorId();
-    if (!assessorId || !classId || !studentId) {
+    if (!assessorId || !courseId || !studentId) {
       setLoadError(true);
       return undefined;
     }
 
-    fetchStudentDetail(assessorId, classId, studentId)
+    fetchStudentDetail(assessorId, courseId, studentId)
       .then((data) => {
         if (active) setDetail(data);
       })
@@ -258,13 +258,13 @@ function StudentPage() {
     return () => {
       active = false;
     };
-  }, [classId, studentId]);
+  }, [courseId, studentId]);
 
   if (loadError || !detail) {
     return (
       <>
         <ScreenHeader
-          back={{ label: "Students", onClick: () => navigate(`/assessor/classes/${classId}`) }}
+          back={{ label: "Students", onClick: () => navigate(`/assessor/classes/${courseId}`) }}
           eyebrow="Student"
           title={loadError ? "Student not found" : "Student"}
         />

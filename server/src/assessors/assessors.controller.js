@@ -12,7 +12,7 @@ import { issueCertificate, listIssuedCertificates } from "../certificates/certif
 import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { papersByCourse } from "../assessments/papers.js";
 import { scoreOf } from "./grading.js";
-import { loadAuthoringRestrictions } from "../lib/courseAccess.js";
+import { loadAuthoringRestrictions, loadClassesByCourse } from "../lib/courseAccess.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -274,7 +274,8 @@ export async function getClasses(request, response) {
   const assessor = request.assessor;
 
   const courses = await coursesForAssessor(assessor);
-  const [results, lessonCounts, students, assessments, closedCourses] = await Promise.all([
+  const [results, lessonCounts, students, assessments, closedCourses, classesByCourse] =
+    await Promise.all([
     resultsForCourses(courses),
     lessonCountsForCourses(courses),
     collection(STUDENTS_COLLECTION).find({}, { projection: { enrolledCourses: 1 } }).toArray(),
@@ -283,7 +284,8 @@ export async function getClasses(request, response) {
     // can still be read but can no longer be written for. The register is
     // where an assessor decides what to work on next, so it is where that
     // belongs — otherwise the first sign is a refusal on the generate screen.
-    loadAuthoringRestrictions(courses)
+    loadAuthoringRestrictions(courses),
+    loadClassesByCourse(courses)
   ]);
 
   // Enrollment counts per course, derived from Student.enrolledCourses.
@@ -337,6 +339,16 @@ export async function getClasses(request, response) {
         endsOn: toIsoDay(course.endsOn),
         // Null while it is open to new papers.
         closed: closedCourses.get(key) ?? null,
+        // The classes this course is taught through. A course can carry more
+        // than one, and the register used to show it as a single row with no
+        // sign of that — an assessor reading "24 students" could not tell it
+        // was two classes of twelve.
+        classes: (classesByCourse.get(key) ?? []).map((cls) => ({
+          id: asId(cls._id),
+          name: cls.name ?? "Unnamed class",
+          active: cls.active !== false,
+          students: (cls.studentIds ?? []).length
+        })),
         // One paper per lesson, plus the course's final.
         assessmentsExpected: papers.get(key)?.expected ?? 0,
         assessmentsWritten: papers.get(key)?.written ?? 0,
@@ -367,7 +379,7 @@ export async function getRoster(request, response) {
   const course = await findAssignedCourse(assessor, request.params.courseId);
   if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
 
-  const [students, totalModules, results, progress] = await Promise.all([
+  const [students, totalModules, results, progress, classesByCourse] = await Promise.all([
     collection(STUDENTS_COLLECTION)
       .find({ enrolledCourses: { $in: idCandidates(course._id) } })
       .sort({ last_name: 1 })
@@ -376,8 +388,22 @@ export async function getRoster(request, response) {
     resultsForCourses([course]),
     collection(PROGRESS_COLLECTION)
       .find({ courseId: { $in: idCandidates(course._id) } })
-      .toArray()
+      .toArray(),
+    // Which class each student sits in. Enrolment is written through from the
+    // classes, so the two agree on *who* is here — what the class adds is
+    // *which one*, and that is the whole question on a course taught through
+    // more than one.
+    loadClassesByCourse([course])
   ]);
+
+  const classesByStudent = new Map();
+  for (const cls of classesByCourse.get(asId(course._id)) ?? []) {
+    for (const studentId of cls.studentIds ?? []) {
+      const key = asId(studentId);
+      if (!classesByStudent.has(key)) classesByStudent.set(key, []);
+      classesByStudent.get(key).push(cls.name ?? "Unnamed class");
+    }
+  }
 
   const doneByStudent = new Map();
   progress.forEach((entry) => {
@@ -408,10 +434,22 @@ export async function getRoster(request, response) {
       section: course.section ?? null
     },
     totalModules,
+    // The classes this course is taught through, so the roster can say which
+    // one it is showing rather than presenting two as one list.
+    classes: (classesByCourse.get(asId(course._id)) ?? []).map((cls) => ({
+      id: asId(cls._id),
+      name: cls.name ?? "Unnamed class",
+      active: cls.active !== false,
+      students: (cls.studentIds ?? []).length
+    })),
     roster: students.map((student) => ({
       id: asId(student._id),
       name: studentName(student),
       sid: student.student_id ?? null,
+      // Empty for a student enrolled outside a class — seeded rows, or ones a
+      // deleted class left behind. Naming that is better than implying a class
+      // they are not in.
+      classes: classesByStudent.get(asId(student._id)) ?? [],
       done: doneByStudent.get(asId(student._id)) ?? 0,
       creds: credsByStudent.get(asId(student._id)) ?? 0,
       awaiting: awaitingByStudent.get(asId(student._id)) ?? 0

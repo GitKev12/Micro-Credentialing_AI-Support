@@ -53,8 +53,8 @@ function App() {
         >
           <Route index element={<Navigate to="/assessor/classes" replace />} />
           <Route path="classes" element={<ClassesPage />} />
-          <Route path="classes/:classId" element={<RosterPage />} />
-          <Route path="classes/:classId/students/:studentId" element={<StudentPage />} />
+          <Route path="classes/:courseId" element={<RosterPage />} />
+          <Route path="classes/:courseId/students/:studentId" element={<StudentPage />} />
           <Route path="generate" element={<GeneratePage />} />
           <Route path="generate/:courseId" element={<GenerateCoursePage />} />
           <Route path="credentials" element={<CredentialsPage />} />

@@ -40,6 +40,22 @@ const EMPTY_TOTALS = {
   awaiting: 0
 };
 
+/**
+ * The classes behind one course row, named.
+ *
+ * Nothing at all when the course has no class — that is a course reached by
+ * enrolment alone, and inventing a class name for it would be worse than
+ * silence.
+ */
+function classNames(course) {
+  const classes = course.classes ?? [];
+  if (classes.length === 0) return "";
+
+  return classes
+    .map((cls) => (cls.active ? cls.name : `${cls.name} (off)`))
+    .join(" · ");
+}
+
 function ClassesPage() {
   const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
@@ -147,6 +163,15 @@ function ClassesPage() {
                           {course.section ? ` · ${course.section}` : ""}
                         </span>
                         <span className="assessor-table__name">{course.name}</span>
+                        {/* Which classes this course is taught through. A course
+                            can carry more than one, and a single row saying
+                            "24 students" gives no sign it is two classes of
+                            twelve. A switched-off one is named as such, since
+                            that is why its students are missing from the count
+                            an assessor expected. */}
+                        {classNames(course) ? (
+                          <span className="assessor-table__sub">{classNames(course)}</span>
+                        ) : null}
                         {/* Closed to new papers. A finished run is the expected
                             end of a course; every class switched off usually is
                             not, so the two do not read alike. */}
