@@ -1,21 +1,54 @@
 import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
 const MODULES = [
-  { moduleId: "m1", n: 1, title: "One", state: "done", score: 8, total: 10, submittedAt: null, submissionId: "s1", read: true, attemptsUsed: 1 },
+  { moduleId: "m1", n: 1, title: "One", state: "done", assessmentId: "a1", score: 8, total: 10, submittedAt: null, submissionId: "s1", read: true, attemptsUsed: 1 },
   { moduleId: "m2", n: 2, title: "Two", state: "pending", score: null, total: 10, submittedAt: null, submissionId: "s2", read: true, attemptsUsed: 0 },
   { moduleId: "m3", n: 3, title: "Three", state: "locked", score: null, total: 10, submittedAt: null, submissionId: null, read: false, attemptsUsed: 0 }
 ];
+
+/** The marked paper behind lesson one, when its row is opened. */
+const PAPER = {
+  student: { id: "st1", name: "Cruz, Ana", sid: "2021-0001" },
+  assessment: { id: "a1", title: "One", scope: "lesson", itemCount: 1, totalPoints: 10, passMark: 6 },
+  result: {
+    score: 8,
+    totalPoints: 10,
+    passed: true,
+    correct: 1,
+    answered: 1,
+    missing: 0,
+    submittedAt: null,
+    durationMs: null
+  },
+  items: [
+    {
+      id: "i1",
+      n: 1,
+      type: "multiple-choice",
+      q: "What does a class declare?",
+      choices: [
+        { id: "a", text: "A type" },
+        { id: "b", text: "A file" }
+      ],
+      key: "a",
+      chosen: "a",
+      answered: true,
+      verdict: "correct"
+    }
+  ]
+};
 
 let detail = {};
 
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
-  fetchStudentDetail: async () => detail
+  fetchStudentDetail: async () => detail,
+  fetchStudentPaper: async () => PAPER
 }));
 jest.unstable_mockModule("../src/services/achievements.js", () => ({
   certificateFileUrl: () => "#"
@@ -331,5 +364,104 @@ describe("retakes column", () => {
     expect(retakesCell(container, "tfoot .module-row--final").textContent).toBe("2");
     // The one paper with a ceiling says when it has been reached.
     expect(screen.getByText("No attempts left")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A row of the table opens the paper behind it. The table says a student
+ * scored 8 of 10 on lesson one; this is how the assessor finds out which two
+ * they lost — the one question the console could not answer before.
+ */
+describe("opening a lesson's paper", () => {
+  beforeEach(() => {
+    detail = { ...base };
+  });
+
+  const openLesson = async (title) => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: `Open the paper for ${title}` }));
+    });
+  };
+
+  it("opens off the lesson a student has taken", async () => {
+    draw();
+    await screen.findByText("One");
+
+    await openLesson("One");
+
+    expect(screen.getByText("What does a class declare?")).toBeInTheDocument();
+    expect(screen.getByText("8/10")).toBeInTheDocument();
+  });
+
+  /**
+   * A lesson nobody has taken has a quiz but no answers, and a name that
+   * looked pressable and then showed nothing would be worse than one that
+   * plainly is not.
+   */
+  it("leaves a lesson with no attempt as plain text", async () => {
+    draw();
+    await screen.findByText("Three");
+
+    expect(
+      screen.queryByRole("button", { name: "Open the paper for Three" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open the paper for Two" })
+    ).not.toBeInTheDocument();
+  });
+
+  // A row from a server that does not name the paper yet cannot open one.
+  it("leaves a taken lesson alone when the row does not name its paper", async () => {
+    const { assessmentId, ...noPaper } = MODULES[0];
+    detail = { ...base, modules: [noPaper] };
+
+    draw();
+    await screen.findByText("One");
+
+    expect(
+      screen.queryByRole("button", { name: "Open the paper for One" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("comes back to the student it was opened from", async () => {
+    draw();
+    await screen.findByText("One");
+    await openLesson("One");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Ana Cruz/ }));
+    });
+
+    expect(screen.getByText("Badges")).toBeInTheDocument();
+    expect(screen.queryByText("What does a class declare?")).not.toBeInTheDocument();
+  });
+
+  // The final is a paper like any other here, and it is the one an assessor is
+  // most likely to be asked about.
+  it("opens the final exam the same way", async () => {
+    detail = {
+      ...base,
+      final: {
+        assessmentId: "f1",
+        title: "Final Exam",
+        state: "done",
+        score: 42,
+        total: 60,
+        durationMs: null,
+        timeLimitMinutes: null,
+        submissionId: "sf",
+        submittedAt: "2026-09-01T00:00:00.000Z",
+        attempt: 1,
+        attemptsUsed: 1,
+        attemptsAllowed: 3,
+        posted: true
+      }
+    };
+
+    draw();
+    await screen.findByText("Final Exam");
+    await openLesson("Final Exam");
+
+    expect(screen.getByText("What does a class declare?")).toBeInTheDocument();
   });
 });

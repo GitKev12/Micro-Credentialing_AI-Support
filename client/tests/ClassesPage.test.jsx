@@ -1,14 +1,15 @@
 import { describe, it, expect, jest, beforeAll } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 // jsdom ships without these; react-router reaches for them on import.
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
-jest.unstable_mockModule("../src/services/assessors.js", () => ({
-  storedAssessorId: () => "ASS001",
-  fetchAssessorClasses: async () => [
+// Flipped by the test that asks what a broken read looks like.
+let failNext = false;
+
+const CLASSES = [
     {
       id: "c1",
       code: "IT 101",
@@ -44,7 +45,14 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       credentialsPending: 0,
       lastSubmission: null
     }
-  ]
+];
+
+jest.unstable_mockModule("../src/services/assessors.js", () => ({
+  storedAssessorId: () => "ASS001",
+  fetchAssessorClasses: async () => {
+    if (failNext) throw new Error("network");
+    return CLASSES;
+  }
 }));
 
 let ClassesPage;
@@ -160,5 +168,46 @@ describe("the classes behind a course", () => {
       tr.textContent.includes("Data Structures")
     );
     expect(row.textContent).not.toMatch(/IT0/);
+  });
+});
+
+/**
+ * A read that did not come back used to empty the table, so a dropped
+ * connection and a genuinely empty course said exactly the same thing — and
+ * the false one was the more believable of the two.
+ */
+describe("when the register cannot be loaded", () => {
+  const draw = () =>
+    render(
+      <MemoryRouter>
+        <ClassesPage />
+      </MemoryRouter>
+    );
+
+  it("says so, rather than reading as an assessor with no classes", async () => {
+    failNext = true;
+    try {
+      draw();
+      expect(
+        await screen.findByText(/Your classes could not be loaded/)
+      ).toBeInTheDocument();
+      expect(screen.queryByText("No classes are assigned to you yet.")).not.toBeInTheDocument();
+    } finally {
+      failNext = false;
+    }
+  });
+
+  it("offers the read again, and takes it when it works", async () => {
+    failNext = true;
+    draw();
+    const retry = await screen.findByRole("button", { name: "Try again" });
+
+    failNext = false;
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+
+    expect(await screen.findByText("Intro to Computing")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
 });

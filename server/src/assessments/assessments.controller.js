@@ -7,6 +7,7 @@ import {
   toAssessmentSummary,
   toStudentAssessment
 } from "./assessments.format.js";
+import { closeAttempt, openAttempt } from "./attempts.js";
 import { scoreOf } from "../assessors/grading.js";
 import { lessonBadgeFor } from "../badges/badges.service.js";
 import { loadStudentRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
@@ -504,13 +505,31 @@ export async function getAssessmentForStudent(request, response) {
   }
 
   const summary = toAssessmentSummary(doc);
+  const live = state.resultByAssessment.get(asId(doc._id));
+
+  /*
+   * From here the paper is open on somebody's screen, which is the only
+   * moment the server is ever told about (see attempts.js).
+   *
+   * Two things are not that. Staff read this endpoint too — an assessor
+   * opening a student's paper is not the student working on it — so only a
+   * request the student makes about themselves counts. And a paper that has
+   * already been marked reopens as a review of the mark, which is the same
+   * request as starting another attempt; the client marks the second one
+   * `?retake=1` because nothing on the wire could otherwise tell them apart.
+   */
+  const isTheStudent = String(studentId) === String(request.session?.id ?? "");
+  const retaking = String(request.query?.retake ?? "") === "1";
+  if (isTheStudent && (!live || retaking)) {
+    await openAttempt({ studentId, assessment: doc });
+  }
 
   return response.json({
     // Every student sits every question; only the order differs, and it is
     // re-drawn here on each request.
     assessment: toStudentAssessment(doc),
     result: resultSummary(
-      state.resultByAssessment.get(asId(doc._id)),
+      live,
       summary,
       state.attemptsByAssessment.get(asId(doc._id)) ?? [],
       state.restriction
@@ -625,6 +644,11 @@ export async function submitAssessment(request, response) {
   }
 
   await collection(RESULTS_COLLECTION).insertOne(record);
+
+  // The paper is in, so it is no longer open. Done after the insert: a row
+  // left behind by a failed write says "still working", which is true, and
+  // one cleared before a failed write would say the opposite.
+  await closeAttempt({ studentId, assessmentId: doc._id });
 
   /**
    * The badge this pass just earned, so the client can say so by name.

@@ -417,6 +417,7 @@ function AssessorsManagement() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th className="admin-col-id">Assessor #</th>
                 <th>Assessor</th>
                 <th className="is-center">Courses</th>
                 <th className="is-center">Students</th>
@@ -439,6 +440,13 @@ function AssessorsManagement() {
                     className={assessor.suspended ? "is-inactive" : ""}
                     onClick={() => openAssessor(assessor.id)}
                   >
+                    {/* Its own column, for the same reason the student's is:
+                        a number read down a column has to be in the same place
+                        on every row. */}
+                    <td className="admin-col-id">
+                      {assessor.assessorNumber ?? <span className="admin-cell__quiet">—</span>}
+                    </td>
+
                     <td>
                       <div className="admin-person">
                         <Avatar name={assessor.name} />
@@ -457,9 +465,9 @@ function AssessorsManagement() {
                           >
                             {assessor.name}
                           </button>
-                          <div className="admin-person__id">
-                            {assessor.assessorNumber ?? assessor.email}
-                          </div>
+                          {assessor.assessorNumber ? null : (
+                            <div className="admin-person__id">{assessor.email}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -542,7 +550,7 @@ function AssessorsManagement() {
                   {/* A filtered-to-nothing table says something different from
                       a search that missed, and an admin needs to know which
                       of the two they are looking at. */}
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     {query.trim()
                       ? "No assessors match your search."
                       : chosenOption(fields, filter.field, filter.value)?.empty ??

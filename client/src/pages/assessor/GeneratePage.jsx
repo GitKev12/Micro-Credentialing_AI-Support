@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchAssessorClasses, storedAssessorId } from "../../services/assessors";
 import { ChevronRightIcon, GenerateIcon } from "./components/icons";
-import { Chip, ScreenHeader } from "./components/ui";
+import { Chip, LoadFailed, ScreenHeader } from "./components/ui";
+import { Skeleton } from "../../components/Skeleton";
 
 /**
  * Generate Assessment — one card per class the assessor holds.
@@ -90,9 +91,13 @@ function GeneratePage() {
   const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  // A read that did not come back, and the counter that asks for it again.
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setFailed(false);
     const assessorId = storedAssessorId();
     if (!assessorId) {
       setIsLoading(false);
@@ -104,7 +109,9 @@ function GeneratePage() {
         if (active) setClasses(rows);
       })
       .catch(() => {
-        if (active) setClasses([]);
+        if (!active) return;
+        setClasses([]);
+        setFailed(true);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -113,11 +120,11 @@ function GeneratePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reload]);
 
   return (
     <>
-      <ScreenHeader eyebrow="Assessor console" title="Generate Assessment" />
+      <ScreenHeader title="Generate Assessment" />
 
       <div className="assessor-body assessor-stack">
         <div className="gen-grid">
@@ -130,16 +137,30 @@ function GeneratePage() {
           ))}
         </div>
 
+        {/* Cards, not a line of text: what is coming is a grid of them, and a
+            sentence in the middle of the page is replaced by something a
+            different size and in a different place. */}
         {isLoading ? (
-          <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            Loading your classes…
-          </p>
+          <div className="gen-grid" role="status" aria-live="polite">
+            <span className="assessor-sr-only">Loading your classes…</span>
+            {Array.from({ length: 3 }, (_, index) => (
+              <span className="gen-card gen-card--loading" key={index} aria-hidden="true">
+                <Skeleton w="35%" h={11} />
+                <Skeleton w="80%" h={18} />
+                <Skeleton w="55%" h={11} />
+              </span>
+            ))}
+          </div>
         ) : null}
 
         {!isLoading && classes.length === 0 ? (
-          <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            No classes are assigned to you yet.
-          </p>
+          <div className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
+            {failed ? (
+              <LoadFailed what="Your classes" onRetry={() => setReload((n) => n + 1)} />
+            ) : (
+              "No classes are assigned to you yet."
+            )}
+          </div>
         ) : null}
       </div>
     </>

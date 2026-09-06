@@ -70,9 +70,19 @@ describe("assessmentStatus", () => {
 
 describe("normalizeMinutes", () => {
   it("keeps a positive number of minutes, in whichever form it arrives", () => {
-    expect(normalizeMinutes(60)).toBe(DEFAULT_FINAL_MINUTES);
+    expect(normalizeMinutes(90)).toBe(90);
     expect(normalizeMinutes("45")).toBe(45);
     expect(normalizeMinutes(45.7)).toBe(45);
+  });
+
+  /**
+   * An hour and a half is the department's figure for a final. It has to
+   * survive the same gate every other length goes through — a default that
+   * normalised away to null would generate the paper untimed.
+   */
+  it("passes the default length through unchanged", () => {
+    expect(DEFAULT_FINAL_MINUTES).toBe(90);
+    expect(normalizeMinutes(DEFAULT_FINAL_MINUTES)).toBe(DEFAULT_FINAL_MINUTES);
   });
 
   it("reads anything else as untimed rather than as no time at all", () => {

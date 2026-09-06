@@ -187,7 +187,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     setError("");
 
     try {
-      const data = await fetchAssessment(studentId, assessmentId);
+      const data = await fetchAssessment(studentId, assessmentId, { retake: true });
 
       if (data.locked) {
         setState({ status: "locked", message: data.message });

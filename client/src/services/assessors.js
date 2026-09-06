@@ -174,3 +174,44 @@ export async function issueCredential(assessorId, submissionId) {
   return data;
 }
 
+
+/**
+ * The Results screen: one posted paper, student by student.
+ *
+ *   GET .../assessments/:id/results → { course, assessment, rows }
+ */
+export async function fetchAssessmentResults(assessorId, courseId, assessmentId) {
+  const { data } = await api.get(
+    `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results`
+  );
+  return {
+    course: data?.course ?? null,
+    assessment: data?.assessment ?? null,
+    rows: Array.isArray(data?.rows) ? data.rows : []
+  };
+}
+
+/**
+ * One student's marked paper, opened from a row of that register.
+ *
+ *   GET .../results/:studentId → { student, assessment, result, items }
+ *
+ * A 404 here is an ordinary answer, not a fault: it is what a student who has
+ * not handed the paper in looks like. The message comes back for the screen to
+ * print rather than being swallowed into an empty paper.
+ */
+export async function fetchStudentPaper(assessorId, courseId, assessmentId, studentId) {
+  try {
+    const { data } = await api.get(
+      `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results/${studentId}`
+    );
+    return {
+      student: data?.student ?? null,
+      assessment: data?.assessment ?? null,
+      result: data?.result ?? null,
+      items: Array.isArray(data?.items) ? data.items : []
+    };
+  } catch (error) {
+    return { error: errorMessage(error, "This paper could not be opened.") };
+  }
+}

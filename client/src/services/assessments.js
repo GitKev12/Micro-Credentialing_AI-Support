@@ -34,10 +34,17 @@ export async function fetchCourseAssessments(studentId, courseId) {
  * The questions, with no answer key — the server strips it. A locked quiz
  * answers 423, which surfaces here as `{ locked: true, message }` rather than
  * a thrown error, since the rail can legitimately be a moment out of date.
+ *
+ * `retake` is the one thing the server cannot work out for itself. Opening a
+ * marked paper and starting another attempt at it are the same request, and
+ * the difference decides whether the student counts as working on it — so the
+ * side that knows which one it is says so.
  */
-export async function fetchAssessment(studentId, assessmentId) {
+export async function fetchAssessment(studentId, assessmentId, { retake = false } = {}) {
   try {
-    const { data } = await api.get(`/students/${studentId}/assessments/${assessmentId}`);
+    const { data } = await api.get(`/students/${studentId}/assessments/${assessmentId}`, {
+      params: retake ? { retake: 1 } : undefined
+    });
     return { assessment: data?.assessment ?? null, result: data?.result ?? null };
   } catch (error) {
     if (error.response?.status === 423) {

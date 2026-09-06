@@ -10,8 +10,10 @@ import {
 } from "./assessors.controller.js";
 import {
   generateCourseAssessment,
+  getAssessmentResults,
   getCourseAssessment,
   getCourseAssessments,
+  getStudentPaper,
   postCourseAssessment,
   unpostCourseAssessment,
   updateCourseAssessment
@@ -36,6 +38,11 @@ import { requireOwnAssessor } from "./assessors.guard.js";
 //   PUT  /:assessorId/classes/:courseId/assessments/:id           — correct questions
 //   POST /:assessorId/classes/:courseId/assessments/:id/post      — release to the course
 //   POST /:assessorId/classes/:courseId/assessments/:id/unpost    — take it back off
+//
+//   The Results screen — one posted paper, student by student:
+//   GET  /:assessorId/classes/:courseId/assessments/:id/results
+//   GET  /:assessorId/classes/:courseId/assessments/:id/results/:studentId
+//                                                           — their marked paper
 //
 //   GET  /:assessorId/credentials                           — passes awaiting issue
 //   POST /:assessorId/credentials/:submissionId/issue       — issue the micro-credential
@@ -80,6 +87,18 @@ router.get("/:assessorId/classes/:courseId/assessments/:assessmentId", getCourse
 router.put("/:assessorId/classes/:courseId/assessments/:assessmentId", updateCourseAssessment);
 router.post("/:assessorId/classes/:courseId/assessments/:assessmentId/post", postCourseAssessment);
 router.post("/:assessorId/classes/:courseId/assessments/:assessmentId/unpost", unpostCourseAssessment);
+
+router.get(
+  "/:assessorId/classes/:courseId/assessments/:assessmentId/results",
+  getAssessmentResults
+);
+
+// One student's handed-in paper, with the key beside what they put down. Reads
+// only: the mark was made at hand-in and there is nothing here to change it.
+router.get(
+  "/:assessorId/classes/:courseId/assessments/:assessmentId/results/:studentId",
+  getStudentPaper
+);
 
 // A paper is marked against its key when it is handed in, and that mark is
 // final — there is nothing here to reopen a submission with. A pass writes its

@@ -412,6 +412,7 @@ function StudentsManagement() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th className="admin-col-id">Student #</th>
                 <th>Student</th>
                 <th className="is-center">Courses</th>
                 <th className="is-center">Lessons</th>
@@ -433,6 +434,14 @@ function StudentsManagement() {
                     className={student.suspended ? "is-inactive" : ""}
                     onClick={() => openStudent(student.id)}
                   >
+                    {/* A number is a fixed width and a name is not, so they
+                        no longer share a cell: read down a column, a number
+                        set under a name is never twice in the same place,
+                        which is the one thing it is looked up by. */}
+                    <td className="admin-col-id">
+                      {student.studentNumber ?? <span className="admin-cell__quiet">—</span>}
+                    </td>
+
                     <td>
                       <div className="admin-person">
                         <Avatar name={student.name} />
@@ -451,9 +460,11 @@ function StudentsManagement() {
                           >
                             {student.name}
                           </button>
-                          <div className="admin-person__id">
-                            {student.studentNumber ?? student.email}
-                          </div>
+                          {/* Only where there is no number to identify them by,
+                              which is the case the line was there for. */}
+                          {student.studentNumber ? null : (
+                            <div className="admin-person__id">{student.email}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -530,7 +541,7 @@ function StudentsManagement() {
                   {/* A filtered-to-nothing table says something different from
                       a search that missed, and an admin needs to know which
                       of the two they are looking at. */}
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     {query.trim()
                       ? "No students match your search."
                       : chosenOption(fields, filter.field, filter.value)?.empty ??

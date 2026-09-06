@@ -228,13 +228,13 @@
 /* Cards sit on a near-black page, so give them a hairline edge. */
 [data-theme="dark"] .assessor-app .assessor-card,
 [data-theme="dark"] .assessor-app .assessor-table-wrap,
-[data-theme="dark"] .assessor-app .data-row,
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
 [data-theme="dark"] .assessor-app .grade-panel,
 [data-theme="dark"] .assessor-app .gen-card,
 [data-theme="dark"] .assessor-app .gen-paper,
-[data-theme="dark"] .assessor-app .gen-q {
+[data-theme="dark"] .assessor-app .gen-q,
+[data-theme="dark"] .assessor-app .assessor-select__list {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -876,14 +876,13 @@
   color: var(--ink);
 }
 
-/* Person cell (avatar + name + id) */
+/* Person cell (name over id) */
 .person {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  display: block;
   min-width: 0;
 }
 
+/* The avatar disc, which only the student screen's hero still draws. */
 .person__disc {
   display: grid;
   place-items: center;
@@ -901,6 +900,7 @@
 }
 
 .person__name {
+  display: block;
   font-size: var(--fs-title-sm);
   font-weight: var(--fw-medium);
   line-height: 1.35;
@@ -912,6 +912,7 @@
 }
 
 .person__id {
+  display: block;
   font-size: var(--fs-label);
   font-weight: var(--fw-regular);
   color: var(--text-muted);
@@ -1039,6 +1040,23 @@
 }
 
 .assessor-table {
+  /**
+   * The console's type scale, stepped down about a pixel, for the inside of a
+   * table only.
+   *
+   * A table is read by comparing rows, not by reading one — the eye wants more
+   * of them in view at once, and the text is scanned rather than read through.
+   * Declared as the tokens rather than as a size on each rule so everything in
+   * here comes down together: the row headings, the chips, the sub-lines, the
+   * counts. A scale that moved by halves would leave the hierarchy the same
+   * shape but blurred; a whole step keeps the steps between them.
+   */
+  --fs-micro: 0.6875rem;
+  --fs-label: 0.75rem;
+  --fs-body: 0.875rem;
+  --fs-body-lg: 0.9375rem;
+  --fs-title-sm: 1rem;
+
   width: 100%;
   min-width: 68rem;
   border-collapse: collapse;
@@ -1063,6 +1081,28 @@
    name, and names read from their first letter. */
 .assessor-table th:first-child,
 .assessor-table td:first-child {
+  width: 100%;
+  text-align: left;
+}
+
+/**
+ * Where a student's number leads the row, the name takes the slack instead.
+ *
+ * A number is a fixed width and a name is not, so the two used to share a cell
+ * with the number set small underneath. Read down a column that way, a number
+ * is never in the same place twice — which is the one thing a reference number
+ * is looked up by.
+ */
+.assessor-table--roster th:first-child,
+.assessor-table--roster td:first-child,
+.assessor-table--creds th:first-child,
+.assessor-table--creds td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.assessor-table--roster th:nth-child(2),
+.assessor-table--roster td:nth-child(2) {
   width: 100%;
   text-align: left;
 }
@@ -1216,8 +1256,36 @@
   white-space: nowrap;
 }
 
-.assessor-table__empty {
+/* Six columns since the student number took one of its own, and still not the
+   register's — inheriting that width would put a scrollbar under a table that
+   fits. */
+.assessor-table--roster {
+  min-width: 58rem;
+}
+
+/* Six columns, one of which is a button. */
+.assessor-table--creds {
+  min-width: 62rem;
+}
+
+/* The credential and the paper it came off — a name, so it reads from its
+   first letter like the student beside it. It is also the longest thing on
+   the row, so it takes the slack the first column takes everywhere else. */
+.assessor-table__paper {
+  text-align: left;
+}
+
+.assessor-table--creds .assessor-table__paper {
+  width: 100%;
+}
+
+/* The one row that is not a row of data. It spans the whole table, so it is
+   centred on the table rather than left against the first column — which is
+   the cell it happens to be, and the only column that stays left. Written
+   at the same weight as the first-child rule it has to outrank. */
+.assessor-table td.assessor-table__empty {
   padding: var(--sp-8) var(--sp-4);
+  text-align: center;
   color: var(--text-muted);
 }
 
@@ -1232,49 +1300,6 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* ── Data rows (roster / credentials) ───────────────────── */
-
-.row-head {
-  display: grid;
-  align-items: center;
-  gap: var(--sp-5);
-  padding: 0 var(--sp-6);
-  font-size: var(--fs-micro);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.data-row {
-  display: grid;
-  align-items: center;
-  gap: var(--sp-5);
-  width: 100%;
-  padding: var(--sp-4) var(--sp-6);
-  border: none;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-row);
-  text-align: left;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-}
-
-.data-row--clickable {
-  cursor: pointer;
-}
-
-.data-row--clickable:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-row-hover);
-}
-
-/* Status holds a switch with "Suspended" beside it now, rather than a chip, so
-   it needs the width the longer of the two words asks for. */
-.roster-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 230px) minmax(0, 170px) 152px 24px;
 }
 
 /* The row is no longer one button — it cannot be, with a switch inside it — so
@@ -1386,16 +1411,6 @@
   color: var(--warning-text);
 }
 
-/* The scope chip sits beside the assessment title. */
-.cell-title .chip {
-  margin-left: var(--sp-2);
-  vertical-align: middle;
-}
-
-.creds-grid {
-  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 96px 150px auto;
-}
-
 /* Progress bar */
 .progress__row {
   display: flex;
@@ -1466,13 +1481,6 @@
   font-size: var(--fs-micro);
   color: var(--text-muted);
   white-space: nowrap;
-}
-
-.cell-title {
-  font-size: var(--fs-body-lg);
-  font-weight: var(--fw-medium);
-  color: var(--text-strong);
-  letter-spacing: -0.01em;
 }
 
 /* ── Student detail ─────────────────────────────────────── */
@@ -2341,8 +2349,10 @@
   flex: 1 1 24rem;
 }
 
+/* No bottom margin: every one of these sits in a .gen-field, whose own gap
+   already spaces it off the control. The two together held the label a full
+   rem clear of the thing it names, which reads as belonging to nothing. */
 .field-label {
-  margin-bottom: var(--sp-2);
   font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
   letter-spacing: 0.08em;
@@ -2473,6 +2483,19 @@
   border-color: var(--brand);
   box-shadow: var(--shadow-row-hover);
   transform: translateY(-2px);
+}
+
+/* The same card, before there is a class to put in it. Nothing to press yet,
+   so it neither lifts nor lights up under the pointer. */
+.gen-card--loading {
+  gap: var(--sp-3);
+  cursor: default;
+}
+
+.gen-card--loading:hover {
+  border-color: var(--gray-200);
+  box-shadow: var(--shadow-row);
+  transform: none;
 }
 
 .gen-card:focus-visible {
@@ -2612,6 +2635,70 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
+}
+
+/* ── Where the class has got to on a posted paper ──
+   Four cards under the paper's heading: everyone on the course, then the three
+   states they divide between. Exclusive and adding up to the first, so the row
+   reads left to right as the class working its way across.
+
+   Only the middle two carry colour, and they are the two an assessor acts on:
+   amber for the papers open right now, teal for the ones in. "All students" and
+   "Not started" are the ground those two are read against and stay quiet. */
+
+.gen-takers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gen-taker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  background: var(--gray-050);
+  box-shadow: inset 0 0 0 1px var(--gray-200);
+}
+
+.gen-taker__value {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.gen-taker__label {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Nobody has opened it. Said quietly — on the morning a paper goes out this
+   is every student on the course, and it is not a problem yet. */
+.gen-taker--waiting .gen-taker__value {
+  color: var(--text-muted);
+}
+
+.gen-taker--working .gen-taker__value {
+  color: var(--warning-text);
+}
+
+.gen-taker--done .gen-taker__value {
+  color: var(--teal-700);
+}
+
+@media (max-width: 860px) {
+  .gen-takers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .gen-paper__tags {
@@ -2795,6 +2882,204 @@
   outline-offset: 1px;
 }
 
+/* Not for filling in — it is showing a figure that is in force elsewhere. Kept
+   readable rather than faded to nothing, because the number in it is the
+   answer to "how long", which is still worth being able to read. */
+.gen-input:disabled {
+  background: var(--gray-050);
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.gen-field.is-off .field-label {
+  color: var(--text-muted);
+}
+
+/* ── Select (the shared listbox — see components/Select) ──
+   A native <select> hands its list to the operating system, which draws it in
+   the system's type on the system's white, ignoring this console's radii and
+   its dark theme — and can only render one flat line per option, which is why
+   a lesson used to say its paper was out by trailing an em dash after the
+   title. This list is the console's, so that goes on a line of its own.
+
+   The trigger is the same field as the .gen-input beside it — same shell, same
+   shadow, same radius — because it is the same kind of thing. */
+
+.assessor-select {
+  position: relative;
+  display: block;
+}
+
+.assessor-select__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.assessor-select__trigger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.assessor-select__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.assessor-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assessor-select__value.is-placeholder {
+  color: var(--text-muted);
+}
+
+.assessor-select__caret {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s ease, color 0.15s ease;
+}
+
+.assessor-select__trigger:hover .assessor-select__caret,
+.assessor-select__trigger:focus-visible .assessor-select__caret {
+  color: var(--brand);
+}
+
+.assessor-select.is-open .assessor-select__caret {
+  transform: rotate(180deg);
+  color: var(--brand);
+}
+
+.assessor-select__list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  /* At least as wide as the trigger, but free to grow to its content: the card
+     is narrow and lesson titles are not, so matching the trigger exactly would
+     wrap every option onto three lines. */
+  min-width: 100%;
+  width: max-content;
+  max-width: min(26rem, 80vw);
+  max-height: 16.5rem;
+  margin: 0;
+  padding: var(--sp-2);
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-row-hover);
+  animation: assessor-select-in 0.14s ease both;
+}
+
+/* These sit low in a card, so the component flips the list above the trigger
+   when that is the roomier side; it comes in from the matching direction. */
+.assessor-select__list[data-placement="top"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: assessor-select-in-up;
+}
+
+@keyframes assessor-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes assessor-select-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.assessor-select__option {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* One highlight, driven by the keyboard and mirrored by the pointer, so
+   hovering and arrowing never light up two different rows at once. */
+.assessor-select__option.is-active {
+  background: var(--brand-hover);
+}
+
+/* Listed, and shut. A paper nobody has been given has no results to show, and
+   an assessor looking for one they wrote should find it greyed with the reason
+   on it rather than not find it at all — which reads as having lost it. */
+.assessor-select__option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.assessor-select__option-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Whether this lesson's paper is already out. Set above the title and in the
+   same small caps the field labels use, so it reads as a state and not as
+   part of the lesson's name. */
+.assessor-select__option-meta {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.assessor-select__option-label {
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  color: var(--text-strong);
+}
+
+.assessor-select__option[aria-selected="true"] .assessor-select__option-label {
+  font-weight: var(--fw-semibold);
+}
+
+.assessor-select__tick {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .assessor-select__list {
+    animation: none;
+  }
+
+  .assessor-select__caret {
+    transition: none;
+  }
+}
+
 .gen-hint {
   margin: 0;
   font-size: var(--fs-micro);
@@ -2833,11 +3118,14 @@
   color: var(--white);
 }
 
+/* Sits under the minutes field as a note on it — the department's figure,
+   offered — so it is set a step below the field's own type rather than
+   competing with it. */
 .gen-check {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--fs-body);
+  font-size: var(--fs-label);
   color: var(--text-strong);
   cursor: pointer;
 }
@@ -2945,19 +3233,6 @@
   }
 }
 
-@media (max-width: 960px) {
-
-  .roster-grid,
-  .creds-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-4);
-  }
-
-  .row-head {
-    display: none;
-  }
-}
-
 @media (max-width: 780px) {
   .assessor-app {
     flex-direction: column;
@@ -3024,13 +3299,234 @@
 
   .assessor-rail,
   .assessor-rail__avatar,
-  .data-row,
   .progress__fill,
   .focus-dot {
     transition: none;
   }
-
-  .data-row--clickable:hover {
-    transform: none;
-  }
 }
+
+/**
+ * A read that did not come back.
+ *
+ * Sits where the rows would have been, so it is read in place of the list
+ * rather than beside it, and carries the retry with it — the alternative was
+ * an empty table, which told the assessor something false about their own
+ * class and gave them no reason to doubt it.
+ */
+.load-failed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-4);
+  align-items: center;
+  justify-content: center;
+  color: var(--maroon-900);
+}
+
+/* ── Results ─────────────────────────────────────
+   Two pickers name the paper, and the cards and the table under them are about
+   that one paper. Side by side because they read as one sentence — this course,
+   that quiz — and stacked on a narrow screen rather than squeezed to where a
+   lesson title no longer fits. */
+
+/**
+ * The controls that decide what the table holds: the two pickers that name the
+ * paper, and the search that narrows it to one person.
+ *
+ * Held to their own width at the left rather than stretched across the screen —
+ * a control as wide as seven columns reads as the subject of the page, and the
+ * results are.
+ */
+.results-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.results-pickers .gen-field {
+  flex: 0 1 17rem;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+/**
+ * The one picker whose content is typed rather than chosen.
+ *
+ * A course and a paper are picked off a list and only need width enough to be
+ * recognised; a name is typed, and a field that cuts it off halfway makes the
+ * assessor check what they have written instead of reading the table. It takes
+ * the slack on the row as well, since the two beside it do not want it.
+ */
+.results-pickers .gen-field--find {
+  flex: 1 1 26rem;
+}
+
+/* The search's own 320px cap is for a toolbar, where it sits beside other
+   things. Here the field is the width of its column. */
+.results-pickers .gen-field--find .assessor-search {
+  width: 100%;
+}
+
+/**
+ * Seven columns, two of which carry a date over a time — and the only table in
+ * the console whose columns are all the same width.
+ *
+ * It earns the exception by what it is read for. The other tables are lists
+ * you look down for one row; this one is a class held against a single paper,
+ * scanned across as much as down — who has not started, who is under the pass
+ * mark, who handed in late. Even columns keep that grid still, where columns
+ * sized to their content would put Status and Score wherever the longest name
+ * in the class happened to leave room.
+ *
+ * Fixed layout takes its widths from the header row, so the first column has
+ * to give back the slack it takes everywhere else, and the headings have to be
+ * allowed a second line rather than spilling out of their cells.
+ */
+.assessor-table--results {
+  table-layout: fixed;
+  min-width: 70rem;
+}
+
+.assessor-table--results th:first-child,
+.assessor-table--results td:first-child {
+  width: auto;
+}
+
+.assessor-table--results thead th {
+  white-space: normal;
+}
+
+.results-score {
+  font-weight: var(--fw-semibold);
+  color: var(--teal-700);
+}
+
+/* Under the pass mark. Coloured rather than flagged: the mark beside it already
+   says how far under, and this only has to be findable down a column. */
+.results-score.is-under {
+  color: var(--warning-text);
+}
+
+/* ── One student's marked paper ──────────────────
+   Reached from a name in the register. Only a handed-in row opens, so the name
+   is a button on those and plain text on the rest — the difference has to be
+   visible before it is pressed, which is what the underline is doing. */
+
+.paper-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--gray-300);
+  text-underline-offset: 3px;
+}
+
+.paper-open:hover .person__name,
+.paper-open:focus-visible .person__name {
+  color: var(--brand-text);
+}
+
+/* Keyboard focus has to be seen, not inferred from a colour shift that a
+   hover also causes — the same ring every other control here draws. */
+.paper-open:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/**
+ * The sheet the questions are laid on.
+ *
+ * A question block is a light grey card, and the page's own ground is within a
+ * shade of it — on the generate screen the same list sits inside .gen-paper
+ * and reads against white, and dropped straight onto the page the blocks
+ * disappeared into it. This is that white sheet, so a paper looks the same
+ * wherever it is opened from.
+ */
+.paper {
+  padding: var(--sp-6);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* Who the paper belongs to on one side, how it went on the other, ruled off
+   from the questions so the sheet has a head and a body. */
+.paper__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4) var(--sp-6);
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.paper__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paper__name {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  line-height: 1.25;
+  color: var(--text-strong);
+}
+
+.paper__id {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * The attempt in figures, each under the word for what it is.
+ *
+ * They ran together on one line as unlabelled fragments, which asked the
+ * reader to parse a sentence to find a number and made five different kinds of
+ * fact look like one kind. Labelled columns are the console's own way of
+ * showing a set of figures, and they survive wrapping: a column that drops to
+ * the next line still says what it is.
+ */
+.paper__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-6);
+  align-items: flex-start;
+}
+
+.paper__mark {
+  color: var(--teal-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Under the pass mark. The figure beside it says how far under; this only has
+   to be seen without being read. */
+.paper__mark.is-under {
+  color: var(--warning-text);
+}
+
+.paper__note {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--pink-100);
+  font-size: var(--fs-label);
+  color: var(--maroon-900);
+}
+
+/* The verdict sits at the end of the question's own line, and stays there:
+   a long question wraps around it rather than pushing it onto a line of its
+   own, where it would read as a heading for the choices below. */
+.paper .gen-q__head > .chip {
+  flex-shrink: 0;
+}
+

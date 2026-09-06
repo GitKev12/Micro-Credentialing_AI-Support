@@ -7,7 +7,7 @@ import {
 } from "../../services/assessors";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { CheckIcon } from "./components/icons";
-import { Chip, Metric, Person, ScreenHeader } from "./components/ui";
+import { Chip, LoadFailed, Person, ScreenHeader } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
 
 function CredentialsPage() {
@@ -17,9 +17,13 @@ function CredentialsPage() {
   const [issuing, setIssuing] = useState({});
   const [notice, setNotice] = useNotice();
   const [isLoading, setIsLoading] = useState(true);
+  // A read that did not come back, and the counter that asks for it again.
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setFailed(false);
     const assessorId = storedAssessorId();
     if (!assessorId) {
       setIsLoading(false);
@@ -31,7 +35,9 @@ function CredentialsPage() {
         if (active) setRows(list);
       })
       .catch(() => {
-        if (active) setRows([]);
+        if (!active) return;
+        setRows([]);
+        setFailed(true);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -40,7 +46,7 @@ function CredentialsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reload]);
 
   const issue = async (row) => {
     setIssuing((current) => ({ ...current, [row.id]: true }));
@@ -86,55 +92,100 @@ function CredentialsPage() {
           </p>
         ) : null}
 
-        {rows.map((row) => (
-          <div key={row.id} className="data-row creds-grid">
-            <Person name={row.name} sid={row.sid} />
+        <div className="assessor-table-wrap">
+          <table className="assessor-table assessor-table--creds">
+            <caption className="assessor-sr-only">
+              Passed finals whose credential has not been released yet, with the
+              score each was passed on and the mark it was passed against.
+            </caption>
 
-            <div style={{ minWidth: 0 }}>
-              <div className="cell-title">{row.credential}</div>
-              <div className="assessor-meta">
-                {row.courseCode} · {row.assessmentTitle}
-              </div>
-            </div>
+            <thead>
+              <tr>
+                <th scope="col">Student #</th>
+                <th scope="col">Student</th>
+                <th scope="col">Credential</th>
+                <th scope="col">Score</th>
+                <th scope="col">Result</th>
+                <th scope="col">
+                  <span className="assessor-sr-only">Release</span>
+                </th>
+              </tr>
+            </thead>
 
-            <Metric label="Score" value={`${row.score}/${row.totalPoints}`} />
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="assessor-table__num">
+                    {row.sid || <span className="assessor-table__dash">—</span>}
+                  </td>
 
-            {/* What the pass was measured against. The score alone does not say
-                whether it was a near miss or a clear one, and that is the whole
-                question in front of the assessor here. */}
-            <span>
-              <Chip tone="info">Passed · {row.passMark} to pass</Chip>
-            </span>
+                  <th scope="row">
+                    <Person as="span" name={row.name} />
+                  </th>
 
-            <span style={{ justifySelf: "end" }}>
-              {issued[row.id] ? (
-                <span className="btn btn--ghost" role="status">
-                  <CheckIcon />
-                  Issued today
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  disabled={Boolean(issuing[row.id])}
-                  onClick={() => issue(row)}
-                >
-                  {issuing[row.id] ? "Issuing…" : "Issue credential"}
-                </button>
-              )}
-            </span>
-          </div>
-        ))}
+                  <td className="assessor-table__paper">
+                    <span className="assessor-table__name">{row.credential}</span>
+                    <span className="assessor-table__sub">
+                      {row.courseCode} · {row.assessmentTitle}
+                    </span>
+                  </td>
 
-        {rows.length === 0 ? (
-          <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            {isLoading ? (
-              <SkeletonText lines={4} label="Loading credentials…" />
-            ) : (
-              "No credentials are waiting for release."
-            )}
-          </p>
-        ) : null}
+                  <td className="assessor-table__num">
+                    {row.score}/{row.totalPoints}
+                  </td>
+
+                  {/* What the pass was measured against. The score alone does not
+                      say whether it was a near miss or a clear one, and that is
+                      the whole question in front of the assessor here. */}
+                  <td>
+                    <Chip tone="info">Passed · {row.passMark} to pass</Chip>
+                  </td>
+
+                  <td className="assessor-table__open">
+                    {issued[row.id] ? (
+                      <span className="btn btn--ghost" role="status">
+                        <CheckIcon />
+                        Issued today
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        disabled={Boolean(issuing[row.id])}
+                        onClick={() => issue(row)}
+                      >
+                        {issuing[row.id] ? "Issuing…" : "Issue credential"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {isLoading ? (
+                <tr>
+                  <td className="assessor-table__empty" colSpan={6}>
+                    <SkeletonText lines={4} label="Loading credentials…" />
+                  </td>
+                </tr>
+              ) : null}
+
+              {!isLoading && rows.length === 0 ? (
+                <tr>
+                  <td className="assessor-table__empty" colSpan={6}>
+                    {failed ? (
+                      <LoadFailed
+                        what="The credentials queue"
+                        onRetry={() => setReload((n) => n + 1)}
+                      />
+                    ) : (
+                      "No credentials are waiting for release."
+                    )}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

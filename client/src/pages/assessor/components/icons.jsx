@@ -19,6 +19,18 @@ export function ClassesIcon({ size = 20 }) {
   );
 }
 
+/** Rows under a heading — one line per student, which is what Results is. */
+export function ResultsIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 9h18" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9 9v11" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 13h6M12 16.5h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** A paper with a spark on it — writing a quiz, rather than marking one. */
 export function GenerateIcon({ size = 20 }) {
   return (

@@ -1,6 +1,6 @@
 import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
-import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
@@ -34,10 +34,11 @@ const ROWS = [
 
 let issueFails = false;
 let issueCalls = [];
+let pending = [];
 
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
-  fetchPendingCredentials: async () => ROWS,
+  fetchPendingCredentials: async () => pending,
   issueCredential: async (assessorId, submissionId) => {
     issueCalls.push({ assessorId, submissionId });
     if (issueFails) throw new Error("refused");
@@ -55,6 +56,7 @@ beforeAll(async () => {
 beforeEach(() => {
   issueFails = false;
   issueCalls = [];
+  pending = ROWS.map((row) => ({ ...row }));
 });
 
 const open = async () => {
@@ -160,5 +162,61 @@ describe("the count above the list", () => {
     });
 
     expect(await screen.findByText("1 awaiting release")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The same table the class register and the roster are. It was a stack of
+ * cards on a grid, which is five lists standing side by side rather than one
+ * list of people — and what an assessor does here is compare rows.
+ */
+describe("the credentials list as a table", () => {
+  it("carries a column for each thing the release is judged on", async () => {
+    await open();
+
+    const table = await screen.findByRole("table");
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent.trim());
+
+    expect(headers).toEqual([
+      "Student #",
+      "Student",
+      "Credential",
+      "Score",
+      "Result",
+      "Release"
+    ]);
+  });
+
+  // The student is the row's own heading, so a screen reader reads the score
+  // and the mark back against the person they belong to.
+  it("makes the student the heading of their row", async () => {
+    await open();
+
+    expect(
+      screen.getByRole("rowheader", { name: /Nicole Fernandez/ })
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+  });
+
+  it("keeps the score and the mark it was passed against on the same row", async () => {
+    await open();
+
+    expect(screen.getByText("42/50")).toBeInTheDocument();
+    expect(screen.getAllByText(/Passed · 30 to pass/)).toHaveLength(2);
+  });
+
+  it("keeps the empty line inside the table rather than under it", async () => {
+    pending = [];
+    render(
+      <MemoryRouter>
+        <CredentialsPage />
+      </MemoryRouter>
+    );
+
+    const empty = await screen.findByText("No credentials are waiting for release.");
+    expect(empty.closest("table")).not.toBeNull();
+    expect(empty).toHaveAttribute("colSpan", "6");
   });
 });

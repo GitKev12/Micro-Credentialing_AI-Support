@@ -1,6 +1,6 @@
 import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
-import { act, render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
@@ -182,7 +182,7 @@ describe("suspending from the roster", () => {
     });
 
     // Still on the roster: the heading and both rows are where they were.
-    expect(container.querySelectorAll(".data-row")).toHaveLength(2);
+    expect(container.querySelectorAll(".assessor-table__row")).toHaveLength(2);
     expect(screen.getByText("Angela Reyes")).toBeInTheDocument();
   });
 
@@ -194,5 +194,63 @@ describe("suspending from the roster", () => {
     const open = screen.getByRole("button", { name: "Open Chris Jerome Dayan" });
     expect(open).toBeInTheDocument();
     expect(open).not.toHaveAttribute("role", "switch");
+  });
+});
+
+/**
+ * The roster is a table, the same one the class register is. It was a stack of
+ * cards laid out on a grid, which read as five separate lists side by side —
+ * and a row of a table is what a class list has always been.
+ */
+describe("the roster as a table", () => {
+  it("carries a column for each thing the assessor decides on", async () => {
+    await draw();
+
+    const table = await screen.findByRole("table");
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent.trim());
+
+    expect(headers).toEqual([
+      "Student #",
+      "Student",
+      "Module progress",
+      "Badges",
+      "Status",
+      "Open student"
+    ]);
+  });
+
+  // The student is the row's own heading, so a screen reader reads every cell
+  // back against the person it is about.
+  it("makes the student the heading of their row", async () => {
+    await draw();
+
+    expect(
+      screen.getByRole("rowheader", { name: /Chris Jerome Dayan/ })
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+  });
+
+  it("keeps the empty line inside the table rather than under it", async () => {
+    roster = [];
+    const { container } = await draw();
+
+    const empty = container.querySelector(".assessor-table__empty");
+    expect(empty).toHaveTextContent("No students are enrolled yet.");
+    expect(empty.closest("table")).not.toBeNull();
+    expect(empty).toHaveAttribute("colSpan", "6");
+  });
+
+  it("says the search came up empty, which is not the same as an empty class", async () => {
+    await draw();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Search students"), {
+        target: { value: "zzz" }
+      });
+    });
+
+    expect(screen.getByText("No students match your search.")).toBeInTheDocument();
   });
 });

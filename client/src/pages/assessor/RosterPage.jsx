@@ -9,6 +9,7 @@ import { noticeClass, useNotice } from "../../lib/useNotice";
 import { ChevronRightIcon } from "./components/icons";
 import {
   CredentialDots,
+  LoadFailed,
   Person,
   ProgressBar,
   ScreenHeader,
@@ -46,6 +47,9 @@ function RosterPage() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // A read that did not come back, and the counter that asks for it again.
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
   // What the last switch did, or why it did nothing. Closing a course on
   // somebody is not a change you should have to go and verify somewhere else
   // — and three seconds later it takes itself away again.
@@ -53,6 +57,7 @@ function RosterPage() {
 
   useEffect(() => {
     let active = true;
+    setFailed(false);
     const assessorId = storedAssessorId();
     if (!assessorId || !courseId) {
       setIsLoading(false);
@@ -68,7 +73,9 @@ function RosterPage() {
         setClasses(data?.classes ?? []);
       })
       .catch(() => {
-        if (active) setStudents([]);
+        if (!active) return;
+        setStudents([]);
+        setFailed(true);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -77,7 +84,7 @@ function RosterPage() {
     return () => {
       active = false;
     };
-  }, [courseId]);
+  }, [courseId, reload]);
 
   const roster = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -158,98 +165,150 @@ function RosterPage() {
           </p>
         ) : null}
 
-        <div className="row-head roster-grid">
-          <span>Student</span>
-          <span>Module progress</span>
-          <span>Badges</span>
-          <span>Status</span>
-          <span />
+        <div className="assessor-table-wrap">
+          <table className="assessor-table assessor-table--roster">
+            <caption className="assessor-sr-only">
+              Students on this course, with how far through the modules each one
+              is, the badges they have earned, and whether the course is open to
+              them.
+            </caption>
+
+            <thead>
+              <tr>
+                <th scope="col">Student #</th>
+                <th scope="col">Student</th>
+                <th scope="col">Module progress</th>
+                <th scope="col">Badges</th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  <span className="assessor-sr-only">Open student</span>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {roster.map((student) => {
+                const pct = total > 0 ? Math.round((student.done / total) * 100) : 0;
+                // Nowhere to record a closure: the server keeps it on the class.
+                const noClass = (student.classes ?? []).length === 0;
+
+                return (
+                  /*
+                   * The row opens the student for the mouse; the chevron at the
+                   * end of it is the same trip by keyboard, and the switch stops
+                   * its own press from reaching either. The row cannot be one
+                   * button — a button cannot hold the switch that sits in it.
+                   */
+                  <tr
+                    key={student.id}
+                    className="assessor-table__row"
+                    onClick={() => openStudent(student)}
+                  >
+                    <td className="assessor-table__num">
+                      {student.sid || <span className="assessor-table__dash">—</span>}
+                    </td>
+
+                    {/* The number has a column of its own now, so what is left
+                        under the name is which of this course's classes they
+                        are in — and only where there is more than one to tell
+                        apart. */}
+                    <th scope="row">
+                      <Person
+                        as="span"
+                        name={student.name}
+                        sid={
+                          classes.length > 1
+                            ? (student.classes ?? []).filter(Boolean).join(" · ")
+                            : null
+                        }
+                      />
+                    </th>
+
+                    <td className="assessor-table__progress-cell">
+                      <ProgressBar label={`${student.done} of ${total} modules`} pct={pct} />
+                    </td>
+
+                    <td>
+                      <CredentialDots earned={student.creds} total={total} />
+                    </td>
+
+                    <td>
+                      <button
+                        type="button"
+                        className={`roster-switch${student.suspended ? "" : " is-on"}`}
+                        role="switch"
+                        aria-checked={!student.suspended}
+                        disabled={busy || noClass}
+                        /* The visible word is the state, which on its own names a
+                           dozen identical switches the same thing. The student goes
+                           in front of it rather than replacing it, so what is read
+                           out still contains what is written on the control. */
+                        aria-label={`${student.name} — ${student.suspended ? "Suspended" : "Active"}`}
+                        title={
+                          noClass
+                            ? `${student.name} is on this course without a class, so there is nothing to close`
+                            : student.suspended
+                              ? `Open ${courseName} for ${student.name} again`
+                              : `Close ${courseName} for ${student.name} — their account and their other courses are not affected`
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleSuspended(student);
+                        }}
+                      >
+                        <span className="roster-switch__track">
+                          <span className="roster-switch__thumb" />
+                        </span>
+                        <span className="roster-switch__label">
+                          {student.suspended ? "Suspended" : "Active"}
+                        </span>
+                      </button>
+                    </td>
+
+                    <td className="assessor-table__open">
+                      <button
+                        type="button"
+                        className="roster-open"
+                        aria-label={`Open ${student.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openStudent(student);
+                        }}
+                      >
+                        <ChevronRightIcon size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {isLoading ? (
+                <tr>
+                  <td className="assessor-table__empty" colSpan={6}>
+                    Loading the roster…
+                  </td>
+                </tr>
+              ) : null}
+
+              {!isLoading && roster.length === 0 ? (
+                <tr>
+                  <td className="assessor-table__empty" colSpan={6}>
+                    {failed ? (
+                      <LoadFailed
+                        what="This class register"
+                        onRetry={() => setReload((n) => n + 1)}
+                      />
+                    ) : students.length === 0 ? (
+                      "No students are enrolled yet."
+                    ) : (
+                      "No students match your search."
+                    )}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
-
-        {roster.map((student) => {
-          const pct = total > 0 ? Math.round((student.done / total) * 100) : 0;
-          // Nowhere to record a closure: the server keeps it on the class.
-          const noClass = (student.classes ?? []).length === 0;
-
-          return (
-            /*
-             * A container rather than one big button, which is what it used to
-             * be: the switch inside it is a button, and a button cannot hold
-             * another. The row still opens the student for the mouse; the
-             * chevron beside it is the same trip by keyboard, and the switch
-             * stops its own press from reaching either.
-             */
-            <div
-              key={student.id}
-              className="data-row data-row--clickable roster-grid"
-              onClick={() => openStudent(student)}
-            >
-              <Person
-                name={student.name}
-                sid={
-                  classes.length > 1
-                    ? [student.sid, ...(student.classes ?? [])].filter(Boolean).join(" · ")
-                    : student.sid
-                }
-              />
-
-              <ProgressBar label={`${student.done} of ${total} modules`} pct={pct} />
-
-              <CredentialDots earned={student.creds} total={total} />
-
-              <span>
-                <button
-                  type="button"
-                  className={`roster-switch${student.suspended ? "" : " is-on"}`}
-                  role="switch"
-                  aria-checked={!student.suspended}
-                  disabled={busy || noClass}
-                  /* The visible word is the state, which on its own names a
-                     dozen identical switches the same thing. The student goes
-                     in front of it rather than replacing it, so what is read
-                     out still contains what is written on the control. */
-                  aria-label={`${student.name} — ${student.suspended ? "Suspended" : "Active"}`}
-                  title={
-                    noClass
-                      ? `${student.name} is on this course without a class, so there is nothing to close`
-                      : student.suspended
-                        ? `Open ${courseName} for ${student.name} again`
-                        : `Close ${courseName} for ${student.name} — their account and their other courses are not affected`
-                  }
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleSuspended(student);
-                  }}
-                >
-                  <span className="roster-switch__track">
-                    <span className="roster-switch__thumb" />
-                  </span>
-                  <span className="roster-switch__label">
-                    {student.suspended ? "Suspended" : "Active"}
-                  </span>
-                </button>
-              </span>
-
-              <button
-                type="button"
-                className="roster-open"
-                aria-label={`Open ${student.name}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openStudent(student);
-                }}
-              >
-                <ChevronRightIcon size={18} />
-              </button>
-            </div>
-          );
-        })}
-
-        {!isLoading && roster.length === 0 ? (
-          <p className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            {students.length === 0 ? "No students are enrolled yet." : "No students match your search."}
-          </p>
-        ) : null}
       </div>
     </>
   );

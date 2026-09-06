@@ -132,12 +132,12 @@ export function defaultPassMark(totalPoints) {
 /**
  * How long a final examination runs, in minutes.
  *
- * An hour is what the department sets a final at, so it is what the assessor's
- * generator offers before anyone touches it. It is a default and not a rule —
- * the assessor may clear the box and set their own — which is why it lives here
- * as a starting value rather than being enforced anywhere.
+ * An hour and a half is what the department sets a final at, so it is what the
+ * assessor's generator offers before anyone touches it. It is a default and not
+ * a rule — the assessor may clear the box and set their own — which is why it
+ * lives here as a starting value rather than being enforced anywhere.
  */
-export const DEFAULT_FINAL_MINUTES = 60;
+export const DEFAULT_FINAL_MINUTES = 90;
 
 /**
  * Whether a paper has been released to the students of its course.
@@ -398,6 +398,87 @@ export function gradeSubmission(assessmentDoc, answers) {
     // Recorded on the submission so a result still says which questions it
     // answered even after the paper behind it is regenerated.
     servedItemIds: served.map((item) => item.id)
+  };
+}
+
+/**
+ * A handed-in paper as staff read it: every question, the key, and what the
+ * student put down against it.
+ *
+ * The opposite end of `toStudentAssessment`, which strips the key because the
+ * person reading it is taking the paper. Here the person reading it wrote the
+ * paper, and the key is most of the point — an assessor looking at a question
+ * the whole class got wrong is deciding whether the class missed it or the
+ * question is broken, and they cannot decide that without seeing the answer
+ * they were marked against.
+ *
+ * Verdicts are read off the submission, never recomputed. The mark was made at
+ * hand-in and it is final (see assessors/grading.js), so a screen that worked
+ * out its own verdict could show a student a different result from the one
+ * they were given — if the paper were edited afterwards, it certainly would.
+ * The comparison against the key is a fallback for submissions stored before
+ * per-item verdicts were kept, and nothing else.
+ */
+export function toMarkedPaper(assessmentDoc, result) {
+  const assessment = normalizeAssessment(assessmentDoc);
+  if (!assessment) return null;
+
+  const marks = new Map(
+    (Array.isArray(result?.aiGrading?.items) ? result.aiGrading.items : []).map((mark) => [
+      String(mark?.itemId),
+      mark
+    ])
+  );
+  // Older submissions kept only what was sent, with no per-item mark beside it.
+  const sent = new Map(
+    (Array.isArray(result?.answers) ? result.answers : []).map((answer) => [
+      String(answer?.itemId),
+      text(answer?.choice).toLowerCase()
+    ])
+  );
+
+  const items = assessment.items.map((item) => {
+    const mark = marks.get(String(item.id)) ?? null;
+    const chosen = mark ? (mark.chosen ?? null) : (sent.get(String(item.id)) || null);
+
+    return {
+      id: item.id,
+      n: item.n,
+      type: item.type,
+      q: item.q,
+      level: item.level,
+      topic: item.topic,
+      moduleId: item.moduleId,
+      choices: item.choices,
+      key: item.key,
+      chosen,
+      // Blank is not the same as wrong, even though both score nothing: one
+      // says the student did not know, the other that they ran out of time.
+      answered: chosen != null,
+      verdict: mark?.verdict ?? (chosen === item.key ? "correct" : "incorrect")
+    };
+  });
+
+  /*
+   * Questions this student answered that are no longer on the paper.
+   *
+   * Regenerating replaces the items wholesale, so a submission from before it
+   * is marked against questions that have gone. The mark stands — it was made
+   * against the paper as served — but the screen can only show what is still
+   * there, and it has to say so rather than quietly showing a shorter paper.
+   */
+  const served = Array.isArray(result?.aiGrading?.servedItemIds)
+    ? result.aiGrading.servedItemIds.map(String)
+    : [];
+  const onPaper = new Set(assessment.items.map((item) => String(item.id)));
+  const missing = served.filter((id) => !onPaper.has(id)).length;
+
+  return {
+    itemCount: items.length,
+    answered: items.filter((item) => item.answered).length,
+    correct: items.filter((item) => item.verdict === "correct").length,
+    missing,
+    items
   };
 }
 

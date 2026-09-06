@@ -1043,6 +1043,22 @@
   color: var(--text-muted);
 }
 
+/**
+ * The reference-number column.
+ *
+ * A number and a name used to share a cell, the number set small under the
+ * name. Read down a column that way it is never twice in the same place — and
+ * being looked up down a column is the only thing a reference number is for.
+ * Held to its own content so the name beside it still takes the slack.
+ */
+.admin-col-id {
+  width: 1%;
+  white-space: nowrap;
+  font-family: var(--font-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-body);
+}
+
 .admin-strong-brand {
   color: var(--brand-text);
 }

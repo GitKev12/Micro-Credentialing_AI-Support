@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ColumnPlot } from "../../components/ColumnPlot";
 import { certificateFileUrl } from "../../services/achievements";
-import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
+import { fetchStudentDetail, fetchStudentPaper, storedAssessorId } from "../../services/assessors";
 import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
 import { ScreenHeader } from "./components/ui";
-import { SkeletonDetail } from "../../components/Skeleton";
+import StudentPaper from "./components/StudentPaper";
+import { SkeletonDetail, SkeletonText } from "../../components/Skeleton";
 
 /** The server's own pass ratio, used until a run reports its own threshold. */
 const PASS_MARK = 60;
@@ -269,11 +270,40 @@ function AttemptCells({ row }) {
   );
 }
 
+/**
+ * A lesson's name, pressable where there is a paper behind it.
+ *
+ * Only a row with an attempt on it opens. A lesson nobody has taken has a quiz
+ * but no answers, and a name that looked pressable and then showed nothing
+ * would be worse than one that plainly is not.
+ */
+function PaperName({ row, onOpen }) {
+  const name = <span className="assessor-table__name">{row.title}</span>;
+  if (row.state !== "done" || !row.assessmentId) return name;
+
+  return (
+    <button
+      type="button"
+      className="paper-open"
+      onClick={() => onOpen(row)}
+      aria-label={`Open the paper for ${row.title}`}
+    >
+      {name}
+    </button>
+  );
+}
+
 function StudentPage() {
   const navigate = useNavigate();
   const { courseId, studentId } = useParams();
   const [detail, setDetail] = useState(null);
   const [loadError, setLoadError] = useState(false);
+
+  // The paper open over this page, named by the row that opened it.
+  const [openRow, setOpenRow] = useState(null);
+  const [paper, setPaper] = useState(null);
+  const [paperError, setPaperError] = useState("");
+  const [isLoadingPaper, setIsLoadingPaper] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -295,6 +325,32 @@ function StudentPage() {
       active = false;
     };
   }, [courseId, studentId]);
+
+  // The open row's paper. The detail call carries a score for every lesson but
+  // never the questions behind one, so opening a row is its own read.
+  useEffect(() => {
+    const assessorId = storedAssessorId();
+    if (!openRow?.assessmentId || !assessorId || !courseId || !studentId) return undefined;
+
+    let active = true;
+    setPaper(null);
+    setPaperError("");
+    setIsLoadingPaper(true);
+
+    fetchStudentPaper(assessorId, courseId, openRow.assessmentId, studentId)
+      .then((data) => {
+        if (!active) return;
+        if (data?.error) setPaperError(data.error);
+        else setPaper(data);
+      })
+      .finally(() => {
+        if (active) setIsLoadingPaper(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [courseId, studentId, openRow]);
 
   if (loadError || !detail) {
     return (
@@ -327,6 +383,32 @@ function StudentPage() {
   // The chart's columns carry the lesson numbers the table uses, so a column
   // and a row point at the same lesson.
   const lessonNumbers = new Map(modules.map((module) => [module.moduleId, module.n]));
+
+  /**
+   * One paper, opened off a row of the table below.
+   *
+   * It replaces the page rather than opening beside it: a marked paper is a
+   * long read, and the hero and the badge wall are about the student across
+   * the whole course, which is not the question being asked while one of their
+   * quizzes is on screen.
+   */
+  if (openRow) {
+    return (
+      <>
+        <ScreenHeader
+          back={{ label: student.name, onClick: () => setOpenRow(null) }}
+          eyebrow={`${course.code} · ${course.name}`}
+          title={openRow.title}
+        />
+
+        <div className="assessor-body assessor-stack">
+          {paperError ? <p className="gen-notice is-error">{paperError}</p> : null}
+          {isLoadingPaper ? <SkeletonText lines={6} label="Loading the paper…" /> : null}
+          {paper && !isLoadingPaper ? <StudentPaper {...paper} /> : null}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -417,7 +499,7 @@ function StudentPage() {
                                 {module.n}
                               </span>
                               <span style={{ minWidth: 0 }}>
-                                <span className="assessor-table__name">{module.title}</span>
+                                <PaperName row={module} onOpen={setOpenRow} />
                                 {locked ? (
                                   <span className="assessor-table__sub">
                                     {module.read ? "Lesson read" : "Not opened"}
@@ -443,7 +525,7 @@ function StudentPage() {
                           <span className="module-cell">
                             <span className="module-row__num module-row__num--none" aria-hidden="true" />
                             <span style={{ minWidth: 0 }}>
-                              <span className="assessor-table__name">{final.title}</span>
+                              <PaperName row={final} onOpen={setOpenRow} />
                               <span className="assessor-table__sub">
                                 {finalNote(final)}
                               </span>

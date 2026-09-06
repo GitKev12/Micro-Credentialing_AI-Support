@@ -6,10 +6,13 @@ import {
   DEFAULT_FINAL_MINUTES,
   DEFAULT_PASS_RATIO,
   assessmentStatus,
+  isPosted,
   normalizeAssessment,
   normalizeItem,
-  normalizeMinutes
+  normalizeMinutes,
+  toMarkedPaper
 } from "../assessments/assessments.format.js";
+import { openAttemptsByAssessment, takerCounts } from "../assessments/attempts.js";
 import {
   assembleFinalAssessment,
   ensureAssessmentIndexes,
@@ -19,8 +22,11 @@ import {
   courseCode,
   courseTitle,
   findAssignedCourse,
-  moduleFilterForCourse
+  moduleFilterForCourse,
+  studentName,
+  surnameFirst
 } from "./assessors.controller.js";
+import { scoreOf } from "./grading.js";
 
 /**
  * Generating assessments, from the assessor's side.
@@ -139,23 +145,56 @@ async function submissionCounts(assessmentIds) {
   const results = await collection(RESULTS_COLLECTION)
     .find(
       { assessmentId: { $in: assessmentIds.flatMap((id) => idCandidates(id)) } },
-      { projection: { assessmentId: 1 } }
+      { projection: { assessmentId: 1, studentId: 1 } }
     )
     .toArray();
 
   results.forEach((result) => {
     const key = asId(result.assessmentId);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    // Papers handed in, and the people who handed them in. The two differ by
+    // every retake: three attempts at one quiz are three rows and one
+    // student, and the cards on the generate screen count students.
+    const entry = counts.get(key) ?? { submissions: 0, students: new Set() };
+    entry.submissions += 1;
+    entry.students.add(asId(result.studentId));
+    counts.set(key, entry);
   });
 
   return counts;
+}
+
+/** How many people are enrolled on this course — the "all students" card. */
+async function enrolledCount(course) {
+  if (!(await collectionExists(STUDENTS_COLLECTION))) return 0;
+
+  return collection(STUDENTS_COLLECTION).countDocuments({
+    enrolledCourses: { $in: idCandidates(course._id) }
+  });
+}
+
+/**
+ * The four numbers a posted paper is read by: everyone on the course, and how
+ * they divide between never opened it, has it open, and handed it in.
+ *
+ * Only for a posted paper. A draft has been released to nobody, so "8 not
+ * started" would be counting people against a paper they cannot reach.
+ */
+function takersFor(doc, { counts, opens, students }) {
+  if (!doc || !isPosted(doc)) return null;
+
+  const key = asId(doc._id);
+  return takerCounts({
+    students,
+    submitted: counts.get(key)?.students ?? null,
+    open: opens.get(key) ?? null
+  });
 }
 
 /**
  * A row for the generate screen: what exists for this paper and what state it
  * is in, without the questions themselves.
  */
-function assessmentRow(doc, submissions = 0) {
+function assessmentRow(doc, submissions = 0, takers = null) {
   if (!doc) return null;
 
   const normalized = normalizeAssessment(doc);
@@ -174,7 +213,9 @@ function assessmentRow(doc, submissions = 0) {
     totalPoints: normalized.totalPoints,
     passMark: normalized.passMark,
     generatedAt: doc.source?.generatedAt ?? null,
-    submissions
+    submissions,
+    // Null until the paper is posted — see takersFor.
+    takers
   };
 }
 
@@ -186,11 +227,11 @@ function assessmentRow(doc, submissions = 0) {
  * place a paper leaves the server with its keys attached — to the assessor the
  * course is assigned to, and to nobody else.
  */
-function assessmentDetail(doc, submissions = 0) {
+function assessmentDetail(doc, submissions = 0, takers = null) {
   const normalized = normalizeAssessment(doc);
 
   return {
-    ...assessmentRow(doc, submissions),
+    ...assessmentRow(doc, submissions, takers),
     description: normalized.description,
     // Numbered for the screen. The stored `n` follows the paper as it was
     // written; this follows the list as it is being read.
@@ -252,13 +293,13 @@ export async function getCourseAssessments(request, response) {
   );
   const finalDoc = assessments.find((doc) => doc.scope === "final") ?? null;
 
-  const counts = await submissionCounts(assessments.map((doc) => doc._id));
-
-  const enrolled = (await collectionExists(STUDENTS_COLLECTION))
-    ? await collection(STUDENTS_COLLECTION).countDocuments({
-        enrolledCourses: { $in: idCandidates(course._id) }
-      })
-    : 0;
+  const assessmentIds = assessments.map((doc) => doc._id);
+  const [counts, opens, enrolled] = await Promise.all([
+    submissionCounts(assessmentIds),
+    openAttemptsByAssessment(assessmentIds),
+    enrolledCount(course)
+  ]);
+  const tally = { counts, opens, students: enrolled };
 
   // Why the buttons on this screen are off, before they are pressed. The
   // endpoints refuse a closed course either way; sending the reason here is
@@ -277,7 +318,13 @@ export async function getCourseAssessments(request, response) {
       // decides whether generating is worth pressing at all.
       hasText: Boolean(text?.hasText),
       textLength: text?.textLength ?? 0,
-      assessment: quiz ? assessmentRow(quiz, counts.get(asId(quiz._id)) ?? 0) : null
+      assessment: quiz
+        ? assessmentRow(
+            quiz,
+            counts.get(asId(quiz._id))?.submissions ?? 0,
+            takersFor(quiz, tally)
+          )
+        : null
     };
   });
 
@@ -291,7 +338,13 @@ export async function getCourseAssessments(request, response) {
     },
     defaultFinalMinutes: DEFAULT_FINAL_MINUTES,
     lessons: rows,
-    final: finalDoc ? assessmentRow(finalDoc, counts.get(asId(finalDoc._id)) ?? 0) : null
+    final: finalDoc
+      ? assessmentRow(
+          finalDoc,
+          counts.get(asId(finalDoc._id))?.submissions ?? 0,
+          takersFor(finalDoc, tally)
+        )
+      : null
   });
 }
 
@@ -308,8 +361,19 @@ export async function getCourseAssessment(request, response) {
   const doc = await findCourseAssessment(scope.course, request.params.assessmentId);
   if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
 
-  const counts = await submissionCounts([doc._id]);
-  return response.json({ assessment: assessmentDetail(doc, counts.get(asId(doc._id)) ?? 0) });
+  const [counts, opens, enrolled] = await Promise.all([
+    submissionCounts([doc._id]),
+    openAttemptsByAssessment([doc._id]),
+    enrolledCount(scope.course)
+  ]);
+
+  return response.json({
+    assessment: assessmentDetail(
+      doc,
+      counts.get(asId(doc._id))?.submissions ?? 0,
+      takersFor(doc, { counts, opens, students: enrolled })
+    )
+  });
 }
 
 /* ─────────────────────── Generating ─────────────────────── */
@@ -586,4 +650,241 @@ export async function unpostCourseAssessment(request, response) {
 
   const saved = await findCourseAssessment(course, doc._id);
   return response.json({ assessment: assessmentRow(saved) });
+}
+
+/* ─────────────────────────── Results ─────────────────────────── */
+
+/**
+ * One posted paper, student by student.
+ *
+ * The cards on the generate screen say how many; this says who — chase the two
+ * who have not started, look at the one who scored three.
+ *
+ * Every enrolled student has a row whether or not they have touched the paper,
+ * because the ones who have not are the point of the screen. A row is built
+ * from three reads that each know a different part of it: the roll, what has
+ * been handed in, and what is open right now.
+ *
+ * The list is the class register: surname first, in alphabetical order, so a
+ * name can be found by running down the column the way a register is read.
+ */
+export async function getAssessmentResults(request, response) {
+  const scope = await resolveScope(request, response);
+  if (!scope) return undefined;
+
+  const { course } = scope;
+  const doc = await findCourseAssessment(course, request.params.assessmentId);
+  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+
+  const paper = normalizeAssessment(doc);
+
+  const [students, results, opens] = await Promise.all([
+    (await collectionExists(STUDENTS_COLLECTION))
+      ? collection(STUDENTS_COLLECTION)
+          .find({ enrolledCourses: { $in: idCandidates(course._id) } })
+          .toArray()
+      : [],
+    (await collectionExists(RESULTS_COLLECTION))
+      ? collection(RESULTS_COLLECTION)
+          .find({ assessmentId: { $in: idCandidates(doc._id) } })
+          .toArray()
+      : [],
+    openAttemptsByAssessment([doc._id])
+  ]);
+
+  const openedByStudent = new Map();
+  const openRows = await openAttemptRows(doc._id);
+  openRows.forEach((row) => openedByStudent.set(asId(row.studentId), row.openedAt ?? null));
+
+  // A student's attempts at this paper, newest first, so the row can pick out
+  // the live one.
+  const attemptsByStudent = new Map();
+  results.forEach((result) => {
+    const key = asId(result.studentId);
+    if (!attemptsByStudent.has(key)) attemptsByStudent.set(key, []);
+    attemptsByStudent.get(key).push(result);
+  });
+  attemptsByStudent.forEach((list) =>
+    list.sort((a, b) => new Date(b.submittedAt ?? 0) - new Date(a.submittedAt ?? 0))
+  );
+
+  const working = opens.get(asId(doc._id)) ?? new Set();
+
+  const rows = students
+    .map((student) => {
+      const key = asId(student._id);
+      const attempts = attemptsByStudent.get(key) ?? [];
+      const latest = attempts.find((row) => row.superseded !== true) ?? attempts[0] ?? null;
+      const hasOpen = working.has(key);
+
+      return {
+        id: key,
+        name: surnameFirst(student),
+        sid: student.student_id ?? null,
+        // Submitted beats open, the same order the cards count in: a student
+        // retaking a paper has handed it in, and the retake is the second
+        // thing about them.
+        status: latest ? "submitted" : hasOpen ? "in-progress" : "not-started",
+        // Only ever known for a paper that has been handed in. A student
+        // working on one keeps their answers in their own browser until they
+        // submit, so the server has nothing to report here and says so with a
+        // null rather than a nought, which would read as "answered none".
+        answered: latest ? answeredCount(latest) : null,
+        itemCount: paper.itemCount,
+        score: latest ? scoreOf(latest) : null,
+        totalPoints: paper.totalPoints,
+        passMark: paper.passMark,
+        passed: latest ? scoreOf(latest) >= paper.passMark : null,
+        startedAt: latest ? startedFrom(latest) : (openedByStudent.get(key) ?? null),
+        submittedAt: latest?.submittedAt ?? null
+      };
+    })
+    // Surname first, so this sorts the register the way a register is ordered.
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return response.json({
+    course: { id: asId(course._id), code: courseCode(course), name: courseTitle(course) },
+    assessment: assessmentRow(
+      doc,
+      results.length,
+      takersFor(doc, {
+        counts: new Map([
+          [asId(doc._id), { submissions: results.length, students: new Set(results.map((r) => asId(r.studentId))) }]
+        ]),
+        opens,
+        students: students.length
+      })
+    ),
+    rows
+  });
+}
+
+/**
+ * One student's handed-in paper, question by question.
+ *
+ * The register says a student scored 3 of 10. This says which 3 — the paper as
+ * it was written, with the key and what they put down beside it.
+ *
+ * It reopens nothing. The mark was made against the key at hand-in and stands;
+ * there is no route here that changes it, and the verdicts shown are the ones
+ * stored on the submission rather than a second opinion worked out on the way
+ * to the screen. What it is for is the question an assessor cannot otherwise
+ * answer: a student disputes a mark, or an item everybody missed needs reading
+ * to see whether the class or the question was at fault.
+ *
+ * The newest attempt, not every attempt: a retake supersedes the go before it,
+ * and the mark that counts is the one the register is showing.
+ */
+export async function getStudentPaper(request, response) {
+  const scope = await resolveScope(request, response);
+  if (!scope) return undefined;
+
+  const { course } = scope;
+  const doc = await findCourseAssessment(course, request.params.assessmentId);
+  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+
+  // Enrolled on this course, not merely a student somewhere. The assessor's
+  // own courses are all this route will open, and this is the second half of
+  // that: their course, and one of the people on it.
+  const student = (await collectionExists(STUDENTS_COLLECTION))
+    ? await collection(STUDENTS_COLLECTION).findOne({
+        _id: { $in: idCandidates(request.params.studentId) },
+        enrolledCourses: { $in: idCandidates(course._id) }
+      })
+    : null;
+  if (!student) {
+    return response.status(404).json({ message: "Student not found on this course." });
+  }
+
+  const attempts = (await collectionExists(RESULTS_COLLECTION))
+    ? await collection(RESULTS_COLLECTION)
+        .find({
+          assessmentId: { $in: idCandidates(doc._id) },
+          studentId: { $in: idCandidates(student._id) }
+        })
+        .toArray()
+    : [];
+
+  attempts.sort((a, b) => new Date(b.submittedAt ?? 0) - new Date(a.submittedAt ?? 0));
+  const latest = attempts.find((row) => row.superseded !== true) ?? attempts[0] ?? null;
+
+  // Not an error, and not an empty paper either: a student who has not handed
+  // this one in has nothing here to read, and the screen says that rather than
+  // showing ten unanswered questions as though they had left them all blank.
+  if (!latest) {
+    return response.status(404).json({
+      message: "This student has not handed in this assessment."
+    });
+  }
+
+  const paper = normalizeAssessment(doc);
+  const marked = toMarkedPaper(doc, latest);
+  const score = scoreOf(latest);
+
+  return response.json({
+    student: {
+      id: asId(student._id),
+      name: surnameFirst(student),
+      sid: student.student_id ?? null
+    },
+    assessment: {
+      id: asId(doc._id),
+      title: paper.title,
+      scope: paper.scope,
+      itemCount: marked.itemCount,
+      pointsPerItem: paper.pointsPerItem,
+      totalPoints: paper.totalPoints,
+      passMark: paper.passMark
+    },
+    result: {
+      score,
+      totalPoints: paper.totalPoints,
+      passMark: paper.passMark,
+      passed: score >= paper.passMark,
+      correct: marked.correct,
+      answered: marked.answered,
+      missing: marked.missing,
+      submittedAt: latest.submittedAt ?? null,
+      startedAt: startedFrom(latest),
+      durationMs: latest.durationMs ?? null,
+      // The clock the attempt ran against. How long somebody took means little
+      // on its own — an hour is fast or slow depending on how long they
+      // were given — so the limit travels with it.
+      timeLimitMinutes: paper.timeLimitMinutes ?? null
+    },
+    items: marked.items
+  });
+}
+
+/** Rows in the open-papers collection, which carry the time as well as the id. */
+async function openAttemptRows(assessmentId) {
+  if (!(await collectionExists("AssessmentAttempt"))) return [];
+  return collection("AssessmentAttempt")
+    .find(
+      { assessmentId: { $in: idCandidates(assessmentId) } },
+      { projection: { studentId: 1, openedAt: 1 } }
+    )
+    .toArray();
+}
+
+/** How many of the paper's questions this submission actually answered. */
+function answeredCount(result) {
+  const answers = Array.isArray(result?.answers) ? result.answers : [];
+  return answers.filter((answer) => answer?.choice).length;
+}
+
+/**
+ * When a submitted attempt began.
+ *
+ * Never recorded directly — the client times itself and sends the length with
+ * the paper — so it is the hand-in less how long it took. A submission from
+ * before durations were kept has nothing to work back from and says so.
+ */
+function startedFrom(result) {
+  const submitted = result?.submittedAt ? new Date(result.submittedAt) : null;
+  const took = Number(result?.durationMs);
+  if (!submitted || Number.isNaN(submitted.getTime()) || !Number.isFinite(took) || took <= 0) {
+    return null;
+  }
+  return new Date(submitted.getTime() - took).toISOString();
 }

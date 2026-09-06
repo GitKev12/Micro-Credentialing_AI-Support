@@ -83,9 +83,28 @@ export function courseCode(course) {
   return (course?.courseCode ?? course?.code ?? "").trim();
 }
 
-function studentName(student) {
+export function studentName(student) {
   const full = [student?.first_name, student?.last_name].filter(Boolean).join(" ").trim();
   return full || student?.full_name || student?.name || student?.email || "Unnamed student";
+}
+
+/**
+ * The same student written surname first: "Dayan, Chris Jerome".
+ *
+ * For a list read down the column to find one person. Alphabetical by class
+ * means alphabetical by surname, and writing the given name first would put
+ * the thing the list is ordered by in the middle of the cell, where the eye
+ * cannot run down it.
+ *
+ * Falls back to the ordinary name unless both halves are on record — "Cruz,"
+ * with nothing after it reads as a fault rather than as a name.
+ */
+export function surnameFirst(student) {
+  const last = String(student?.last_name ?? "").trim();
+  const first = String(student?.first_name ?? "").trim();
+  if (!last || !first) return studentName(student);
+
+  return `${last}, ${first}`;
 }
 
 /** Assessors sign in with either their Mongo id or their ASS### number. */
@@ -749,6 +768,11 @@ export async function getStudentDetail(request, response) {
     return {
       n: index + 1,
       moduleId: asId(module._id),
+      // Which paper the score came off, so the row can open it. Null on a
+      // lesson nobody has taken — there is a quiz there, but no attempt at it
+      // to read, and this names the one that was marked rather than the one
+      // that stands now.
+      assessmentId: result ? asId(result.assessmentId) : null,
       title: module.title ?? module.fileName ?? "Untitled module",
       state,
       read: readModules.has(asId(module._id)),
