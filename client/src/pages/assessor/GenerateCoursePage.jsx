@@ -558,9 +558,25 @@ function GenerateCoursePage() {
               )}
             </div>
 
-            <label className="gen-field">
-              <span className="field-label">Number of questions</span>
+            {/* The blueprint is where this number is decided — how long the
+                paper runs, and how it splits across the six levels — so the way
+                back to it belongs beside the field that would otherwise
+                overrule it by hand. */}
+            <div className="gen-field">
+              <div className="gen-field__head">
+                <label className="field-label" htmlFor="gen-item-count">
+                  Number of questions
+                </label>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => navigate(`/assessor/blueprint/${courseId}`)}
+                >
+                  Open the blueprint
+                </button>
+              </div>
               <input
+                id="gen-item-count"
                 type="number"
                 className="gen-input"
                 min={1}
@@ -568,7 +584,7 @@ function GenerateCoursePage() {
                 value={itemCount}
                 onChange={(event) => setItemCount(event.target.value)}
               />
-            </label>
+            </div>
 
             {/* The assessor's own figure first, and the department's under it.
                 Unticking the box is how the default is given up, so it reads

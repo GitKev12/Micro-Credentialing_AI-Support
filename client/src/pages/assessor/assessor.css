@@ -2571,6 +2571,9 @@
   color: var(--text-muted);
 }
 
+/* A way out to another screen, set beside the thing it decides. Soft at rest
+   so it does not read as a second button on a card that already has one, and
+   definite the moment it is reached. */
 .link-btn {
   padding: 0;
   border: none;
@@ -2579,7 +2582,15 @@
   font: inherit;
   font-size: var(--fs-micro);
   text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 0.2em;
   cursor: pointer;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.link-btn:hover,
+.link-btn:focus-visible {
+  text-decoration-color: currentColor;
 }
 
 .summary-line {
@@ -3033,6 +3044,25 @@
 .gen-field--inline {
   margin-bottom: 0;
   margin-top: var(--sp-2);
+}
+
+/* A field whose label shares its line with a way out to the screen that
+   decides it. Both sides are set at --fs-micro, so they meet on one baseline
+   rather than one riding above the other.
+
+   The link is pushed over by an auto margin rather than by space-between, so
+   that a narrow column drops it onto a line of its own still against the right
+   edge, instead of leaving the two to wrap into each other. */
+.gen-field__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+}
+
+.gen-field__head .link-btn {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .gen-input {
