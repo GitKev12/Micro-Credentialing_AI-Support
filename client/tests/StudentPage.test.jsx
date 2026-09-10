@@ -1,6 +1,6 @@
 import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
@@ -95,12 +95,12 @@ describe("student hero", () => {
   });
 });
 
-describe("PerformanceChart", () => {
+describe("the final exam card", () => {
   it("plots an empty seat per lesson before the exam is taken", async () => {
     detail = { ...base, skillGap: null };
     const { container } = draw();
 
-    await screen.findByText("Performance — final exam");
+    await screen.findByText("Final exam");
 
     // Full height so the plot shows its scale, in a neutral rather than a
     // score colour — one seat per lesson, numbered off the lesson.
@@ -165,20 +165,25 @@ describe("PerformanceChart", () => {
     detail = { ...base, skillGap: null };
     const { container } = draw();
 
-    await screen.findByText("Performance — final exam");
+    await screen.findByText("Final exam");
 
     expect(container.querySelector(".student-hero .skill-chart")).toBeNull();
 
-    const cards = [...container.querySelectorAll(".student-split .assessor-card")];
-    expect(cards[0].querySelector(".skill-chart")).not.toBeNull();
-    expect(cards[1].querySelector("table")).not.toBeNull();
+    const [column] = container.querySelectorAll(".student-split .assessor-stack");
+    const [chart, lessons] = column.children;
+
+    expect(chart).toHaveClass("assessor-card");
+    expect(chart.querySelector(".skill-chart")).not.toBeNull();
+
+    // And the lessons under it, as the table by itself.
+    expect(lessons.querySelector("table")).not.toBeNull();
   });
 
   it("describes the plot for a screen reader, which cannot read the columns", async () => {
     detail = { ...base, skillGap: null };
     const { container } = draw();
 
-    await screen.findByText("Performance — final exam");
+    await screen.findByText("Final exam");
 
     const plot = container.querySelector(".skill-chart");
     expect(plot.getAttribute("role")).toBe("img");
@@ -344,42 +349,57 @@ describe("modules table", () => {
     expect(screen.queryByRole("button", { name: /Open the paper/ })).not.toBeInTheDocument();
   });
 
+  /**
+   * The paper has a card of its own, so the table is the lessons.
+   *
+   * A row at the foot of it said what the card already said — a Passed chip
+   * beside a figure drawn against the pass line, and a bar with two heights
+   * saying it a third time — in a table whose "lesson read" column a paper can
+   * never answer.
+   */
   describe("the final", () => {
-    it("sits below the lessons, with no lesson number", async () => {
+    it("leaves the table to the lessons", async () => {
       detail = { ...base, final: FINAL };
 
       const { container } = draw();
       await screen.findByText("Final Exam");
 
-      const row = container.querySelector("tfoot .module-row--final");
-      expect(row).not.toBeNull();
-      expect(row.querySelector(".module-row__num--none").textContent).toBe("");
+      expect(container.querySelector("tfoot")).toBeNull();
+      expect(container.querySelector(".module-row--final")).toBeNull();
     });
 
-    /**
-     * The final is one item of the course rather than a lesson's two: there is
-     * nothing to read, only a paper to pass.
-     */
-    it("counts as one item, and has no lesson to have read", async () => {
-      detail = { ...base, final: FINAL };
+    it("names the paper, and says what it scored and whether that cleared", async () => {
+      detail = {
+        ...base,
+        final: FINAL,
+        skillGap: {
+          performance: 72,
+          threshold: 60,
+          skills: [{ moduleId: "m1", topic: "One", score: 80, correct: 8, total: 10 }]
+        }
+      };
 
       const { container } = draw();
       await screen.findByText("Final Exam");
 
-      const selector = "tfoot .module-row--final";
-      expect(barOf(container, selector)).toEqual({ label: ["1 of 1", "100%"], width: "100%" });
-      expect(cellsOf(container, selector)[1].textContent).toBe("—");
+      const mark = container.querySelector(".final-head__mark");
+      expect(within(mark).getByText("72%")).toBeInTheDocument();
+
+      // The verdict is the record's, not this chart's arithmetic — and the
+      // lessons carry chips of the same two words, so this asks the card.
+      expect(within(mark).getByText("Passed")).toBeInTheDocument();
+      expect(mark).toHaveClass("is-passed");
     });
 
-    it("stands at nothing until it is passed", async () => {
+    it("carries no verdict on a paper nobody has taken", async () => {
       detail = { ...base, final: { ...FINAL, state: "locked", passed: null } };
 
       const { container } = draw();
       await screen.findByText("Final Exam");
 
-      expect(barOf(container, "tfoot .module-row--final").label).toEqual(["0 of 1", "0%"]);
-      // The lessons carry chips of their own, so this asks the final's row.
-      expect(container.querySelector("tfoot .chip").textContent).toBe("Not taken");
+      expect(container.querySelector(".final-head__verdict")).toBeNull();
+      expect(container.querySelector(".skill-chart__score--waiting").textContent).toBe("—");
+      expect(container.querySelector(".final-head__note").textContent).toBe("Not taken");
     });
 
     /** The one paper with a ceiling on how often it may be taken. */
@@ -390,8 +410,8 @@ describe("modules table", () => {
     });
 
     it("says a final nobody posted is not posted, rather than not taken", async () => {
-      // Not posting it is the assessor's own doing, and the row should not read
-      // as if the student had failed to turn up.
+      // Not posting it is the assessor's own doing, and the card should not
+      // read as if the student had failed to turn up.
       detail = {
         ...base,
         final: { ...FINAL, state: "locked", passed: null, attemptsUsed: 0, posted: false }

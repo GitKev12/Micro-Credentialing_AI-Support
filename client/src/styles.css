@@ -1147,8 +1147,22 @@ a {
 /* The scrolling part of the viewer when what it holds is not a lesson —
    a quiz or the final exam. The head stays pinned above it. The padding is
    its own now that the card around it has none, and it leaves room for a
-   choice's focus ring against the scroller's edge. */
+   choice's focus ring against the scroller's edge.
+
+   A paper is centred in the pane rather than hung from the top. Most quizzes
+   are one short question at a time and left a third of the pane empty beneath
+   them, which read as the paper having been cut off.
+
+   `safe` is the whole reason this works: plain `center` on a scroller pushes
+   the overflow out of the top, past the scrollbar's start, and the first
+   question of a long paper becomes unreachable. `safe` centres only while
+   everything fits and falls back to the top the moment it does not. A browser
+   that does not know the keyword drops the line and keeps the old top
+   alignment, which is the right thing to lose. */
 .module-viewer__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

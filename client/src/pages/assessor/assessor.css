@@ -1569,32 +1569,16 @@
   color: var(--text-muted);
 }
 
-/* Stacked metric inside a row */
-.metric {
-  min-width: 0;
-}
-
+/* The name over a figure. The component that stacked the three of these is
+   gone with the paper's head, which was its only caller; the label is still
+   the console's way of naming a lone figure — the hero's progress bar on the
+   student page uses it. */
 .metric__label {
   font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-muted);
-}
-
-.metric__value {
-  font-size: var(--fs-h3);
-  font-weight: var(--fw-medium);
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--text-strong);
-  white-space: nowrap;
-}
-
-.metric__hint {
-  font-size: var(--fs-micro);
-  color: var(--text-muted);
-  white-space: nowrap;
 }
 
 /* ── Student detail ─────────────────────────────────────── */
@@ -1613,8 +1597,61 @@
 /* The plot's own bottom margin is the room the tick numbers hang in, not a
    gap under them, so the sentence takes one of its own. */
 .skill-card__caption {
-  margin: var(--sp-3) 0 0;
+  margin: var(--sp-2) 0 0;
 }
+
+/**
+ * The head of the final exam's card: the paper on one side, the mark on the
+ * other.
+ *
+ * Two stacks rather than one line, because the head carries four facts and
+ * they pair off — what the paper is with what is still open on it, what it
+ * scored with what that scored means. The card's own head is baseline-aligned
+ * for a title beside a figure; a stack under each of them wants their tops
+ * level instead, or the two second lines land at different heights.
+ */
+.final-head {
+  align-items: flex-start;
+  margin-bottom: var(--sp-3);
+}
+
+.final-head__note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+/* The tone is the block's, so the figure and the word under it cannot
+   disagree about whether the paper cleared — the same pairing the marked
+   paper's own score uses. */
+.final-head__mark {
+  text-align: right;
+}
+
+.final-head__mark .skill-chart__score {
+  display: block;
+  color: inherit;
+}
+
+.final-head__mark.is-passed {
+  color: var(--teal-700);
+}
+
+.final-head__mark.is-under {
+  color: var(--warning-text);
+}
+
+/* Said in a word as well as in colour: green against red is the one pair a
+   colour-blind reader cannot separate, and this card never says anything with
+   colour alone. */
+.final-head__verdict {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
 
 .skill-chart__score {
   display: inline-flex;
@@ -1635,7 +1672,13 @@
    card there is width enough that the same height would have flattened it. */
 .skill-chart {
   position: relative;
-  height: 112px;
+  /* Short enough to read at a glance beside the table it annotates. The
+     columns are drawn as a percentage of this and the pass line with them, so
+     the picture keeps its shape at any height — what a shorter plot costs is
+     the distance between two scores either side of the line. At 68px the
+     weakest column a course can show is still a bar rather than a sliver, and
+     its own number stands above it. */
+  height: 68px;
   padding-right: 4.25rem;
   margin-bottom: 1.25em;
 }
@@ -1823,26 +1866,16 @@
   color: var(--text-muted);
 }
 
-/* The final exam carries no lesson number. The slot is held open rather than
-   removed, so its title starts on the same line as every lesson's above it. */
-.module-row__num--none {
-  background: none;
-}
-
-/* Set below the numbered lessons, not at the end of them: the final is the
-   course's, not a lesson's. The rule is the separation. */
-.module-row--final > * {
-  border-top: 2px solid var(--brand);
-  padding-top: var(--sp-4);
-}
-
-/* A table inside a card. The card is already the surface, so this adds only
-   the sideways scroll and a floor narrow enough for the column it sits in —
-   the full-width tables elsewhere set theirs at 68rem. */
+/* A table standing on its own in a column, where a card used to hold it: the
+   surface is this container's now, or the rows would read on the app's grey
+   and the header stripe would disappear into it. Sideways scroll and a floor
+   narrow enough for the column it sits in — the full-width tables elsewhere
+   set theirs at 68rem. */
 .card-table {
   overflow-x: auto;
   border: 1px solid var(--brand);
   border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 /* Wide enough for what the row now carries — a name, a bar, a date and a chip
@@ -3699,43 +3732,124 @@
 }
 
 /**
- * The attempt in figures, read as one panel.
+ * The attempt in figures: the mark, and then everything else.
  *
- * Labelled columns are the console's own way of showing a set of figures, but
- * loose they did not hold together. Each column was only as wide as its own
- * value, so the gaps between them came out visibly uneven; only three of the
- * five carry a second line, which left the block with a ragged bottom; and the
- * values sat at the size of the student's name, so a handed-in date shouted as
- * loudly as the mark.
+ * Five columns of equal width gave five figures the same voice, so a handed-in
+ * timestamp stood as tall as the mark; each carried its own footnote, so the
+ * block was five columns of three lines with a ragged bottom where only three
+ * of them had one; and the whole strip re-spaced itself when a paper had
+ * nothing left blank. It also ran the full width of the screen to hold about
+ * forty characters.
  *
- * One ground, columns of equal width, and figures a step under the name settle
- * all three. The panel is a rectangle whatever it holds, so a column with no
- * hint under it no longer reads as a hole, and the eye lands on the name, then
- * on the mark.
+ * So: one bold thing, and a list. The mark leads at the console's numeral size
+ * with the pass mark drawn under it as a tick on its own meter, and the four
+ * supporting facts read down a two-column list where their names line up. The
+ * panel is as wide as what it holds, and a fact that is missing takes a line
+ * out instead of moving the ones that are left.
  */
 .paper__facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
-  gap: var(--sp-4) var(--sp-5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: var(--sp-5) var(--sp-8);
+  width: fit-content;
+  max-width: 100%;
   padding: var(--sp-4) var(--sp-5);
   border-radius: var(--radius-sm);
   background: var(--gray-050);
 }
 
-/* The figures answer to the name above them, not the other way round. */
-.paper__facts .metric__value {
-  font-size: var(--fs-title);
+/* The block carries the tone, not the numeral: the meter's fill is drawn in
+   currentColor, so the mark and the bar under it can never disagree about
+   whether the paper cleared. */
+.paper__score {
+  flex: 0 0 auto;
+  width: 15rem;
+  max-width: 100%;
+  color: var(--teal-700);
+}
+
+.paper__score.is-under {
+  color: var(--warning-text);
+}
+
+/* The words around the figure stay grey — the tone is the figure's. */
+.paper__score-name,
+.paper__verdict {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+.paper__score-name {
+  display: block;
+  margin-bottom: 2px;
 }
 
 .paper__mark {
-  color: var(--teal-700);
+  display: block;
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-semibold);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: inherit;
   font-variant-numeric: tabular-nums;
 }
 
-/* Under the pass mark. The figure beside it says how far under; this only has
-   to be seen without being read. */
-.paper__mark.is-under {
-  color: var(--warning-text);
+/* The paper as a length, with the mark filling as much of it as was earned. */
+.paper__meter {
+  position: relative;
+  height: 6px;
+  margin: var(--sp-3) 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--gray-200);
+}
+
+.paper__meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+/* The pass mark. It stands over the fill rather than beside it, so where the
+   mark falls against the line is the first thing read — and it overhangs the
+   track top and bottom, so it is still visible once the fill has passed it. */
+.paper__meter-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--text-strong);
+}
+
+/* Passed or not at one end, the mark it was measured against at the other —
+   which puts the pass mark at the end of the meter it belongs to. */
+.paper__verdict {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+/* Names in one column and figures in the next, so four facts of four kinds
+   read down a straight edge instead of across the screen. */
+.paper__rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-5);
+  align-items: baseline;
+  margin: 0;
+}
+
+.paper__rows dt {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+.paper__rows dd {
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
 }
 
 .paper__note {

@@ -44,7 +44,7 @@ function badgeMeta(badge) {
 }
 
 /**
- * The final exam, one column per lesson, read against the pass mark.
+ * The final exam: everything this screen knows about it, in one card.
  *
  * The line is the encoding: a column standing below it is a gap, which is what
  * an assessor opens this page to find. Colour says the same thing a second
@@ -65,8 +65,17 @@ function badgeMeta(badge) {
  * and it put an exam result inside the block that identifies the student,
  * which is not what that block is for. Here it is the first thing under the
  * name, at the width of the table whose lesson numbers its ticks are read by.
+ *
+ * The paper also had a row at the foot of that table, which said the same
+ * thing this card says: a Passed chip beside a figure already drawn against
+ * the pass line, and a bar with only two heights saying it a third time — in a
+ * table whose "lesson read" column a paper can never answer. The two facts
+ * that were only in the row moved up here instead: how many goes are left, and
+ * whether the exam has been posted at all. So the head carries the paper — its
+ * name and what is still open on one side, what it scored and what that means
+ * on the other — and the table is the lessons.
  */
-function PerformanceChart({ skillGap, modules, lessonNumbers }) {
+function FinalExam({ final, skillGap, modules, lessonNumbers }) {
   const threshold = skillGap?.threshold ?? PASS_MARK;
   const skills = skillGap?.skills ?? [];
   const taken = skills.length > 0;
@@ -113,15 +122,31 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
     caption = `${weak.length} of ${skills.length} topics below ${threshold}% — weakest is ${weakest.topic} at ${weakest.score}%.`;
   }
 
+  // The paper's own verdict, which is the record's rather than this chart's
+  // arithmetic — a card that computed it from the columns would be marking the
+  // paper a second time.
+  const verdict = final?.state === "done" ? (final.passed ? "Passed" : "Not passed") : null;
+
   return (
     <section className="assessor-card skill-card">
-      <header className="card-head">
-        <h2 className="assessor-card-title">Performance — final exam</h2>
-        {taken ? (
-          <span className="skill-chart__score">{skillGap.performance}%</span>
-        ) : (
-          <span className="skill-chart__score skill-chart__score--waiting">—</span>
-        )}
+      <header className="card-head final-head">
+        <div>
+          <h2 className="assessor-card-title">{final?.title ?? "Final exam"}</h2>
+          {final ? <span className="final-head__note">{finalNote(final)}</span> : null}
+        </div>
+
+        <div
+          className={`final-head__mark${
+            verdict === null ? "" : final.passed ? " is-passed" : " is-under"
+          }`}
+        >
+          {taken ? (
+            <span className="skill-chart__score">{skillGap.performance}%</span>
+          ) : (
+            <span className="skill-chart__score skill-chart__score--waiting">—</span>
+          )}
+          {verdict ? <span className="final-head__verdict">{verdict}</span> : null}
+        </div>
       </header>
 
       <ColumnPlot
@@ -156,7 +181,7 @@ function credentialMeta(credential) {
  * a taken one says how much of that is left — the one fact about the final
  * that the results register does not carry. An untaken one says what it is
  * waiting on, and "not posted" is the assessor's own doing rather than the
- * student's — those are different facts and the row should not report both as
+ * student's — those are different facts and the card should not report both as
  * "not taken".
  */
 function finalNote(final) {
@@ -194,21 +219,19 @@ const quizState = (row) =>
  * quiz, and the final is one. So the bars down the table add up to the bar in
  * the hero rather than offering a second opinion about it.
  *
- * One component because the final's row asks the same three questions of a
- * different paper, and a column formatted differently on one of them would
- * read as a difference in the data. The final has no lesson to read, which is
- * the only thing it answers differently.
+ * The final used to borrow this for a row of its own, which is why it took a
+ * flag saying it had no lesson to read. It has a card now, so every row this
+ * draws is a lesson's.
  */
-function LessonCells({ row, lesson = true }) {
-  const items = lesson ? 2 : 1;
-  const done = (lesson && row.read ? 1 : 0) + (row.passed ? 1 : 0);
-  const readOn = lesson ? formatDate(row.readAt) : null;
+function LessonCells({ row }) {
+  const done = (row.read ? 1 : 0) + (row.passed ? 1 : 0);
+  const readOn = formatDate(row.readAt);
   const quiz = quizState(row);
 
   return (
     <>
       <td className="assessor-table__progress-cell">
-        <ProgressBar label={`${done} of ${items}`} pct={Math.round((done / items) * 100)} />
+        <ProgressBar label={`${done} of 2`} pct={done * 50} />
       </td>
 
       {/* The day the lesson was finished. Nothing records the moment one is
@@ -281,7 +304,6 @@ function StudentPage() {
   const badges = detail.badges ?? { earned: 0, total: detail.totalModules ?? 0 };
   const badgeItems = badges.items ?? [];
   const issuedCount = credentials.filter((credential) => credential.status === "issued").length;
-  const takenCount = modules.filter((module) => module.state === "done").length;
   const skillGap = detail.skillGap ?? null;
   // The chart's columns carry the lesson numbers the table uses, so a column
   // and a row point at the same lesson.
@@ -346,89 +368,56 @@ function StudentPage() {
                 opens this page to find out where a student is weak, and the
                 answer is one card rather than a table to read down. The ticks
                 under the columns are the lesson numbers in the table below. */}
-            <PerformanceChart
+            <FinalExam
+              final={final}
               skillGap={skillGap}
               modules={modules}
               lessonNumbers={lessonNumbers}
             />
 
-            <section className="assessor-card">
-              <header className="card-head">
-                <h2 className="assessor-card-title">
-                  Modules — {course.code} {course.name}
-                </h2>
-                {modules.length ? (
-                  <span className="assessor-meta">
-                    {takenCount} of {modules.length} taken
-                  </span>
-                ) : null}
-              </header>
+            {modules.length === 0 ? (
+              <p className="assessor-meta">This course has no modules yet.</p>
+            ) : (
+              <div className="card-table">
+                <table className="assessor-table">
+                  <caption className="assessor-sr-only">
+                    Every lesson in this course, how far through it the student
+                    is, the day they read it and what became of its quiz. What a
+                    paper scored and how long it took are on the results screen.
+                  </caption>
 
-              {modules.length === 0 ? (
-                <p className="assessor-meta">This course has no modules yet.</p>
-              ) : (
-                <div className="card-table">
-                  <table className="assessor-table">
-                    <caption className="assessor-sr-only">
-                      Every lesson in this course, how far through it the student
-                      is, the day they read it and what became of its quiz. What a
-                      paper scored and how long it took are on the results screen.
-                    </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Lesson</th>
+                      <th scope="col">Progress</th>
+                      <th scope="col">Lesson read</th>
+                      <th scope="col">Quiz</th>
+                    </tr>
+                  </thead>
 
-                    <thead>
-                      <tr>
-                        <th scope="col">Lesson</th>
-                        <th scope="col">Progress</th>
-                        <th scope="col">Lesson read</th>
-                        <th scope="col">Quiz</th>
+                  <tbody>
+                    {modules.map((module) => (
+                      <tr key={module.moduleId}>
+                        <th scope="row">
+                          <span className="module-cell">
+                            <span
+                              className={`module-row__num${
+                                module.state === "locked" ? " is-locked" : ""
+                              }`}
+                            >
+                              {module.n}
+                            </span>
+                            <span className="assessor-table__name">{module.title}</span>
+                          </span>
+                        </th>
+
+                        <LessonCells row={module} />
                       </tr>
-                    </thead>
-
-                    <tbody>
-                      {modules.map((module) => (
-                        <tr key={module.moduleId}>
-                          <th scope="row">
-                            <span className="module-cell">
-                              <span
-                                className={`module-row__num${
-                                  module.state === "locked" ? " is-locked" : ""
-                                }`}
-                              >
-                                {module.n}
-                              </span>
-                              <span className="assessor-table__name">{module.title}</span>
-                            </span>
-                          </th>
-
-                          <LessonCells row={module} />
-                        </tr>
-                      ))}
-                    </tbody>
-
-                    {/* The final is not a lesson and carries no lesson number, so
-                        it sits in its own row below the numbered list rather than
-                        at the end of it. */}
-                    {final ? (
-                      <tfoot>
-                        <tr className="module-row--final">
-                          <th scope="row">
-                            <span className="module-cell">
-                              <span className="module-row__num module-row__num--none" aria-hidden="true" />
-                              <span style={{ minWidth: 0 }}>
-                                <span className="assessor-table__name">{final.title}</span>
-                                <span className="assessor-table__sub">{finalNote(final)}</span>
-                              </span>
-                            </span>
-                          </th>
-
-                          <LessonCells row={final} lesson={false} />
-                        </tr>
-                      </tfoot>
-                    ) : null}
-                  </table>
-                </div>
-              )}
-            </section>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="assessor-stack">

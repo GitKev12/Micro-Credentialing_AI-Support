@@ -108,6 +108,8 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   );
   const allAnswered = items.length > 0 && answeredCount === items.length;
   const question = items[current] ?? null;
+  // The end of the paper, which is where handing it in lives.
+  const isLast = items.length > 0 && current === items.length - 1;
 
   // A paper that arrives shorter than the one before it must not leave the
   // pager pointing past its end.
@@ -410,7 +412,15 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
           working straight through wants. Skip hunts down the next question with
           no answer on it and wraps past the end to find one — so a student who
           left three blank on the way through is walked back to exactly those,
-          rather than paging through the finished ones to reach them. */}
+          rather than paging through the finished ones to reach them.
+
+          On the last question the same button hands the paper in. It used to be
+          a second button in a row of its own, live from the first question on
+          and greyed out for most of the paper — a control the student could not
+          use yet, sitting under one they could. Now there is one button in that
+          corner throughout, and reaching the end of the paper is what turns it
+          into the way out. Skip stays beside it while anything is still blank,
+          which is how the last few unanswered questions are reached from here. */}
       <div className="sd-quiz__nav">
         <span className="sd-quiz__progress">
           Question {current + 1} of {items.length} · {answeredCount} answered
@@ -423,34 +433,27 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
             </button>
           ) : null}
 
-          <button
-            type="button"
-            className="module-row__action"
-            disabled={current >= items.length - 1}
-            onClick={() => setCurrent((index) => Math.min(index + 1, items.length - 1))}
-          >
-            Next question
-          </button>
+          {isLast && !done ? (
+            <button
+              type="button"
+              className="module-row__action"
+              disabled={!allAnswered || submitting}
+              onClick={handleSubmit}
+            >
+              {submitting ? "Submitting…" : "Submit quiz"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="module-row__action"
+              disabled={isLast}
+              onClick={() => setCurrent((index) => Math.min(index + 1, items.length - 1))}
+            >
+              Next question
+            </button>
+          )}
         </div>
       </div>
-
-      {!done ? (
-        <div className="sd-quiz__actions">
-          <span className="sd-quiz__progress">
-            {allAnswered
-              ? "Every question answered — hand it in when you are ready."
-              : `${items.length - answeredCount} still to answer`}
-          </span>
-          <button
-            type="button"
-            className="module-row__action"
-            disabled={!allAnswered || submitting}
-            onClick={handleSubmit}
-          >
-            {submitting ? "Submitting…" : "Submit quiz"}
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

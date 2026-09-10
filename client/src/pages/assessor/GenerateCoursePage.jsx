@@ -606,14 +606,23 @@ function GenerateCoursePage() {
               </label>
             </div>
 
-            {/* Assembling a final is free — it draws on questions that already
-                exist — so only a lesson quiz has to be asked about. */}
+            {/* Only a quiz is asked about. Assembling a final draws on questions
+                that already exist and takes nothing from the outside, so there
+                is nothing to stop and check.
+
+                Asked as a question, and naming what is about to be written:
+                how many questions, and off which lesson. That is the thing
+                worth catching at this press — the wrong lesson still picked,
+                or a count left at somebody else's figure — and it is read off
+                the fields above, so what the sentence says is what gets sent.
+                A replacement adds what it undoes and is the only one of the two
+                that warns; a first write has nothing to lose and just asks. */}
             {confirming ? (
               <>
-                <p className="gen-hint is-warn">
+                <p className={`gen-hint${paper ? " is-warn" : ""}`}>
                   {paper
-                    ? "This calls the AI and costs money. The questions below are replaced, and the assessment goes back to a draft."
-                    : "This calls the AI and costs money."}
+                    ? `Replace all ${paper.itemCount} questions with ${clampCount(itemCount)} new ones written from ${lesson?.title ?? "this lesson"}? The assessment goes back to a draft.`
+                    : `Write ${clampCount(itemCount)} questions from ${lesson?.title ?? "this lesson"}?`}
                 </p>
                 <div className="gen-actions">
                   <button

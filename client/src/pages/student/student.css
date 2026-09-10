@@ -3128,12 +3128,17 @@ body:has(.student-app) {
   color: var(--sd-muted);
 }
 
+/* The paper's one footer: where it is up to on the left, the way on from here
+   on the right. It carries the rule the submit row used to, because it is now
+   the last thing under the question rather than the second-to-last. */
 .sd-quiz__nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sd-3);
   flex-wrap: wrap;
+  padding-top: var(--sd-4);
+  border-top: 1px solid var(--sd-border);
 }
 
 .sd-quiz__nav-btns {
@@ -3164,16 +3169,6 @@ body:has(.student-app) {
 /* The badge that used to sit inside the question sentence. Nothing renders it
    now — the pager strip above already says which question you are on, and the
    head says it in words. */
-
-.sd-quiz__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sd-4);
-  flex-wrap: wrap;
-  padding-top: var(--sd-4);
-  border-top: 1px solid var(--sd-border);
-}
 
 .sd-quiz__progress {
   font-size: var(--sd-fs-body);
@@ -3432,14 +3427,6 @@ body:has(.student-app) {
   .sd-raw__formula + .sd-raw__formula {
     border-left: 0;
     border-top: 1px solid var(--sd-border-strong);
-  }
-}
-
-@media (max-width: 640px) {
-  .sd-quiz__actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--sd-2);
   }
 }
 

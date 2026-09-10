@@ -242,17 +242,6 @@ export function CredentialDots({ earned, total }) {
   );
 }
 
-/** Small stacked label + value used inside data rows. */
-export function Metric({ label, value, hint }) {
-  return (
-    <div className="metric">
-      <div className="metric__label">{label}</div>
-      <div className="metric__value">{value}</div>
-      {hint ? <div className="metric__hint">{hint}</div> : null}
-    </div>
-  );
-}
-
 /**
  * A read that did not come back.
  *

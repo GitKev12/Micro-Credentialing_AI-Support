@@ -496,24 +496,38 @@ describe("opening one student's paper", () => {
   });
 
   /**
-   * The head reads as labelled figures rather than a run of fragments: every
-   * number sits under the word for what it is, so a reader looking for one
-   * does not have to parse a sentence to find it.
+   * The mark leads, and the rest is a list. One figure at the size the console
+   * gives figures, measured against the pass mark on the meter under it, then
+   * four facts of four kinds reading down a straight edge — rather than five
+   * columns of equal width where a timestamp stands as tall as the mark.
    */
-  it("labels every figure in the head of the paper", async () => {
+  it("leads on the mark, and lists the rest under it", async () => {
     const { container } = await open();
     await openPaper("Dayan, Chris Jerome");
 
-    const labels = [...container.querySelectorAll(".paper__facts .metric__label")].map((el) =>
-      el.textContent
-    );
-    expect(labels).toEqual(["Score", "Correct", "Left blank", "Time taken", "Handed in"]);
+    const facts = within(container.querySelector(".paper__facts"));
 
-    // The mark is coloured by whether it cleared the pass mark, and says what
-    // it was measured against — 2/5 means nothing without the 3.
-    expect(container.querySelector(".paper__mark")).toHaveClass("is-under");
-    expect(within(container.querySelector(".paper__facts")).getByText("Pass mark 3"))
-      .toBeInTheDocument();
+    // The mark, what it did, and the line it was measured against — 2/5 means
+    // nothing without the 3.
+    expect(facts.getByText("2/5")).toBeInTheDocument();
+    expect(facts.getByText("Not passed")).toBeInTheDocument();
+    expect(facts.getByText("3 to pass")).toBeInTheDocument();
+
+    // The tone is the block's, so the numeral and the fill under it can never
+    // disagree about whether the paper cleared.
+    expect(container.querySelector(".paper__score")).toHaveClass("is-under");
+
+    // Where the two stand on the paper: 2 of 5 earned, the pass mark at 3 of 5.
+    expect(container.querySelector(".paper__meter-fill").style.width).toBe("40%");
+    expect(container.querySelector(".paper__meter-tick").style.left).toBe("60%");
+
+    const names = [...container.querySelectorAll(".paper__rows dt")].map((el) => el.textContent);
+    expect(names).toEqual(["Correct", "Left blank", "Time taken", "Submitted"]);
+
+    // On the clock, not rounded to the minute: time taken is read against time
+    // allowed, and 1m throws away the half of the figure that says how close
+    // to the buzzer the paper ran.
+    expect(facts.getByText("1:00")).toBeInTheDocument();
   });
 
   /**
