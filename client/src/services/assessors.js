@@ -23,6 +23,10 @@ import { getStoredSession } from "../auth/services/authService";
  *   POST /api/assessors/:id/classes/:courseId/assessments/:aid/post
  *   POST /api/assessors/:id/classes/:courseId/assessments/:aid/unpost
  *
+ * The Table of Specification — the blueprint those papers are generated from:
+ *   GET  /api/assessors/:id/classes/:courseId/tos                 → { tos, lessons, course }
+ *   PUT  /api/assessors/:id/classes/:courseId/tos                 → the saved blueprint
+ *
  * :id accepts the Mongo id or the ASS### number, so whichever the auth
  * session carries works.
  */
@@ -160,6 +164,23 @@ export async function unpostCourseAssessment(assessorId, courseId, assessmentId)
  */
 function errorMessage(error, fallback) {
   return error?.response?.data?.message ?? fallback;
+}
+
+/**
+ * One course's blueprint, with the lessons it is written against.
+ *
+ * The lessons come back with it rather than from a second call because the
+ * blueprint is meaningless without them: a stored row names a moduleId, and
+ * the screen has to put a lesson title beside it before anything can be read.
+ */
+export async function fetchCourseTos(assessorId, courseId) {
+  const { data } = await api.get(`/assessors/${assessorId}/classes/${courseId}/tos`);
+  return data;
+}
+
+export async function saveCourseTos(assessorId, courseId, body) {
+  const { data } = await api.put(`/assessors/${assessorId}/classes/${courseId}/tos`, body);
+  return data;
 }
 
 export async function fetchPendingCredentials(assessorId) {

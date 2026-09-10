@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges, passedFromResults, summarizeBadges } from "../badges/badges.service.js";
-import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
 import { papersByCourse } from "../assessments/papers.js";
 import { progressSummary } from "../courses/courses.controller.js";
 import { finalPassedFrom } from "../assessors/grading.js";
@@ -43,7 +42,6 @@ const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
 const RESULTS_COLLECTION = "StudentResult";
 const STUDENTS_COLLECTION = "Student";
-const TOS_COLLECTION = "TableOfSpecification";
 
 const collection = (name) => mongoose.connection.collection(name);
 
@@ -1042,151 +1040,6 @@ export async function getAssessor(request, response) {
       classes: await classesFor(assessor, courses, tally, sharing)
     }
   });
-}
-
-/* ──────────────────── Table of Specification ──────────────────── */
-
-const LEVELS = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
-
-function toCount(value) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function publicTosRow(row) {
-  const clean = { course: String(row?.course ?? ""), hours: toCount(row?.hours) };
-  LEVELS.forEach((level) => {
-    clean[level] = toCount(row?.[level]);
-  });
-  // The row's item count is the sum of its levels — carried so callers don't
-  // each re-derive the one number the row exists to state.
-  clean.items = LEVELS.reduce((sum, level) => sum + clean[level], 0);
-
-  // `course` holds the coverage topic — a lesson title, which anyone may
-  // retype here. The moduleId says which lesson that row actually covers, and
-  // is preserved rather than rebuilt: a save round-trips rows through the
-  // admin form, and anything dropped here is lost from the blueprint.
-  if (row?.moduleId) clean.moduleId = String(row.moduleId);
-
-  return clean;
-}
-
-function publicTos(doc) {
-  return {
-    id: asId(doc._id),
-    courseId: doc.courseId ? String(doc.courseId) : null,
-    courseCode: doc.courseCode ?? "",
-    examination: doc.examination ?? "",
-    rows: Array.isArray(doc.rows) ? doc.rows.map(publicTosRow) : [],
-    // What the rows mean for quiz generation, derived rather than stored so it
-    // can never drift from the rows beside it.
-    blueprint: blueprintFromTos(doc)
-  };
-}
-
-/**
- * One blueprint per course, enforced by the database rather than by whoever
- * happens to call the save.
- *
- * Keying the upsert on courseId is what makes a save land on the right
- * document, but it only holds while every document spells courseId the same
- * way. A row written as an ObjectId where the rest are strings would not match
- * the filter, so the upsert would insert a second blueprint for one course —
- * and the screen would then list the same course twice with no way to tell
- * which one generation reads.
- *
- * Best-effort on purpose. If duplicates already exist the index cannot be
- * built, and that must not stop an admin loading the page: the reason is
- * returned so a caller can surface it, and the endpoints work as before.
- */
-let tosIndexChecked = false;
-
-async function ensureTosIndex() {
-  if (tosIndexChecked) return { created: false, reason: "already-checked" };
-  if (!(await collectionExists(TOS_COLLECTION))) return { created: false, reason: "no-collection" };
-
-  try {
-    await collection(TOS_COLLECTION).createIndex(
-      { courseId: 1 },
-      { unique: true, name: "one_blueprint_per_course" }
-    );
-    tosIndexChecked = true;
-    return { created: true, index: "one_blueprint_per_course" };
-  } catch (error) {
-    // Duplicates already in the data, most likely. Worth reporting, not worth
-    // failing the request over — and worth retrying on the next call, once
-    // whoever saw the warning has merged them.
-    return { created: false, reason: error.message };
-  }
-}
-
-/**
- * Every course's blueprint — one document per course, its rows being that
- * course's lessons.
- *
- * These endpoints once read a single document with no course filter, so with
- * several stored the screen showed, and a save overwrote, whichever happened
- * to sort first. Both are keyed on courseId now.
- */
-export async function getTableOfSpecification(_request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  // The collection may not exist yet — respond with an empty list rather than
-  // failing, same "abang" behaviour as the student endpoints.
-  if (!(await collectionExists(TOS_COLLECTION))) {
-    return response.json({ blueprints: [], pending: true });
-  }
-
-  await ensureTosIndex();
-
-  const docs = await collection(TOS_COLLECTION).find({}).toArray();
-  const blueprints = docs
-    .map(publicTos)
-    .sort((left, right) => left.examination.localeCompare(right.examination, "en"));
-
-  return response.json({ blueprints, pending: blueprints.length === 0 });
-}
-
-export async function saveTableOfSpecification(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const { courseId, examination, rows } = request.body ?? {};
-  if (!Array.isArray(rows)) {
-    return response.status(400).json({ message: "rows must be an array." });
-  }
-  // Without this a save has no course to land on, and would fall back to
-  // overwriting an arbitrary one — the failure this endpoint used to have.
-  if (!courseId) {
-    return response.status(400).json({ message: "courseId is required." });
-  }
-
-  const payload = {
-    examination: String(examination ?? "").trim(),
-    rows: rows.map(publicTosRow),
-    updatedAt: new Date()
-  };
-
-  try {
-    await collection(TOS_COLLECTION).updateOne(
-      { courseId: String(courseId) },
-      { $set: payload, $setOnInsert: { courseId: String(courseId), createdAt: new Date() } },
-      { upsert: true }
-    );
-  } catch (error) {
-    // Only reachable once the unique index exists: the upsert found no document
-    // to match but the insert collided, which means one is already stored under
-    // a differently-typed courseId.
-    if (error?.code === 11000) {
-      return response.status(409).json({
-        message: "This course already has a blueprint stored under a different key. Merge the duplicates before saving."
-      });
-    }
-    throw error;
-  }
-
-  await ensureTosIndex();
-
-  return getTableOfSpecification(request, response);
 }
 
 /* ──────────────────── Assessment generation ──────────────────── */

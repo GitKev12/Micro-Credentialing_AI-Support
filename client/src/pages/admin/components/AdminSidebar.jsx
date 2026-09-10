@@ -12,12 +12,16 @@ import {
   SignOutIcon,
   StudentsIcon,
   SunIcon,
-  TosIcon,
   UserIcon
 } from "./icons";
 
 // Ordered the way the work runs: build the catalog, form the classes that enrol
-// and assign the people, correct individual records, write the blueprint.
+// and assign the people, then correct individual records.
+//
+// The Table of Specification is not here. A blueprint is an instruction to the
+// generator — how long a paper is, which lessons it draws on, what thinking it
+// demands — and the person who can give it is the one teaching the course, so
+// it lives in the assessor console.
 //
 // A class carries a schedule, but only as a label — the timetable an admin
 // writes on it opens and locks nothing. A quiz still becomes available to a
@@ -28,8 +32,7 @@ const NAV_ITEMS = [
   { to: "/admin/courses", label: "Courses", Icon: CoursesIcon },
   { to: "/admin/classes", label: "Classes", Icon: ClassesIcon },
   { to: "/admin/students", label: "Students", Icon: StudentsIcon },
-  { to: "/admin/assessors", label: "Assessors", Icon: AssessorsIcon },
-  { to: "/admin/table-of-specification", label: "Table of Specification", Icon: TosIcon }
+  { to: "/admin/assessors", label: "Assessors", Icon: AssessorsIcon }
 ];
 
 const COLLAPSED_KEY = "adminSidebarCollapsed";

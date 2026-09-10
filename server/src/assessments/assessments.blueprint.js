@@ -32,6 +32,45 @@ export function rowDistribution(row) {
 }
 
 /**
+ * The examination's own blueprint, where the assessor has written one.
+ *
+ * The per-lesson rows above say how long each *quiz* is. That is a different
+ * question from how much of the *final* each lesson carries, and for a long
+ * time the assembler had only the first and had to treat it as both — a course
+ * whose quizzes were ten questions each got a final divided the same way,
+ * whatever the assessor actually wanted the examination to weigh.
+ *
+ * `target` is the share the assessor set and `items` is what the matrix row
+ * adds up to. The assembler follows `items`, because that is the distribution
+ * that was actually written; the target is carried so a caller can say whether
+ * the two agree.
+ */
+function finalFromTos(doc) {
+  const rows = Array.isArray(doc?.final?.rows) ? doc.final.rows : [];
+  if (rows.length === 0) return null;
+
+  const mapped = rows.map((row) => ({
+    coverage: String(row?.coverage ?? ""),
+    moduleId: row?.moduleId ? String(row.moduleId) : null,
+    target: toCount(row?.target),
+    ...rowDistribution(row)
+  }));
+
+  const stated = toCount(doc?.final?.items);
+  const written = mapped.reduce((sum, row) => sum + row.items, 0);
+
+  return {
+    // The stated length is the assessor's answer; the matrix is what they
+    // actually placed. An unfinished blueprint has the second and not always
+    // the first, so the matrix stands in rather than reading zero.
+    items: stated || written,
+    levels: Object.fromEntries(TOS_LEVELS.map((level) => [level, toCount(doc?.final?.levels?.[level])])),
+    totalItems: written,
+    rows: mapped
+  };
+}
+
+/**
  * Turns a stored TOS into the numbers a generator needs.
  *
  * `itemsPerQuiz` is null when rows disagree — a single number would be a
@@ -74,7 +113,10 @@ export function blueprintFromTos(doc) {
       moduleId: row?.moduleId ? String(row.moduleId) : null,
       hours: toCount(row?.hours),
       ...perRow[index]
-    }))
+    })),
+    // Null until an assessor writes one, which is what keeps every blueprint
+    // stored before the final had a table of its own still readable.
+    final: finalFromTos(doc)
   };
 }
 

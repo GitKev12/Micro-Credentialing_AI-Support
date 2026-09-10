@@ -622,11 +622,23 @@ export async function assembleFinalAssessment({
 
   const asked = requestedItems(itemCount);
 
+  /**
+   * The examination's own table, where the assessor has written one.
+   *
+   * Without it the assembler has only the per-lesson quiz rows and has to read
+   * them as if they answered a question they were never asked: those rows say
+   * how long each quiz is, not how much of the final each lesson carries. A
+   * course with ten-question quizzes therefore got a final divided ten ways
+   * evenly, whatever the assessor wanted the examination to weigh. The final
+   * table says it directly, so it wins wherever it exists.
+   */
+  const plan = blueprint?.final?.rows?.length ? blueprint.final : null;
+
   // The blueprint is what says how long the paper is and how it divides. An
   // assessor who typed a length has answered the first half themselves, so a
   // course whose Table of Specification never arrived can still be given a
   // final — the lessons then share it evenly.
-  if (!asked && (!blueprint || !(blueprint.totalItems > 0))) {
+  if (!asked && !(plan?.totalItems > 0) && !(blueprint?.totalItems > 0)) {
     return { status: "skipped", reason: "no-blueprint" };
   }
 
@@ -648,7 +660,9 @@ export async function assembleFinalAssessment({
   // The id prefix is not that link. It only keeps ids unique across banks that
   // each number their own questions from 1; `moduleId` is the lesson.
   const rowByModule = new Map(
-    (blueprint?.rows ?? []).filter((row) => row.moduleId).map((row) => [asId(row.moduleId), row])
+    (plan?.rows ?? blueprint?.rows ?? [])
+      .filter((row) => row.moduleId)
+      .map((row) => [asId(row.moduleId), row])
   );
 
   const pool = [];
@@ -690,7 +704,13 @@ export async function assembleFinalAssessment({
   // fifteen-lesson course would set a 150-question paper. Capped at the length
   // an examination is actually written to be; the blueprint still decides how
   // the paper is divided, and shorter blueprints still give a shorter paper.
-  const wanted = asked ?? Math.min(blueprint.totalItems, FINAL_ASSESSMENT_ITEMS);
+  //
+  // A final table is a length the assessor set for this examination, so it is
+  // taken as written. The cap is only for the fallback: the per-lesson rows add
+  // up to the whole course's quizzes, which on a fifteen-lesson course would
+  // set a 150-question paper nobody asked for.
+  const wanted =
+    asked ?? (plan ? plan.totalItems : Math.min(blueprint.totalItems, FINAL_ASSESSMENT_ITEMS));
   if (pool.length < wanted) {
     return {
       status: "skipped",

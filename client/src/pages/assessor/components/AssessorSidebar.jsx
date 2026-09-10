@@ -12,11 +12,16 @@ import {
   ResultsIcon,
   SignOutIcon,
   SunIcon,
+  TosIcon,
   UserIcon
 } from "./icons";
 
 const NAV_ITEMS = [
   { to: "/assessor/classes", label: "My Classes", Icon: ClassesIcon },
+  // Sits above Generate because it is what Generate reads: the blueprint says
+  // how long a paper is and how it divides, and writing one is the step before
+  // asking for the questions.
+  { to: "/assessor/blueprint", label: "Table of Specification", Icon: TosIcon },
   // The badge counts papers the assessor's classes are still waiting on: one
   // per lesson plus a final per course, less whatever has been posted.
   { to: "/assessor/generate", label: "Generate Assessment", Icon: GenerateIcon, countKey: "toPost" },

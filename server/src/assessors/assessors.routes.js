@@ -18,6 +18,7 @@ import {
   unpostCourseAssessment,
   updateCourseAssessment
 } from "./assessments.controller.js";
+import { getCourseTos, saveCourseTos } from "./tos.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { requireOwnAssessor } from "./assessors.guard.js";
 
@@ -38,6 +39,10 @@ import { requireOwnAssessor } from "./assessors.guard.js";
 //   PUT  /:assessorId/classes/:courseId/assessments/:id           — correct questions
 //   POST /:assessorId/classes/:courseId/assessments/:id/post      — release to the course
 //   POST /:assessorId/classes/:courseId/assessments/:id/unpost    — take it back off
+//
+//   The Table of Specification — the blueprint generation follows:
+//   GET  /:assessorId/classes/:courseId/tos                       — blueprint + lessons
+//   PUT  /:assessorId/classes/:courseId/tos                       — save it
 //
 //   The Results screen — one posted paper, student by student:
 //   GET  /:assessorId/classes/:courseId/assessments/:id/results
@@ -66,6 +71,12 @@ router.get("/:assessorId/overview", getOverview);
 
 router.get("/:assessorId/classes", getClasses);
 router.get("/:assessorId/classes/:courseId/roster", getRoster);
+
+// The blueprint is not a paper, so it is not guarded as one: writing it puts
+// nothing in front of a class, and an assessor may well want the specification
+// on record for a course whose run has ended.
+router.get("/:assessorId/classes/:courseId/tos", getCourseTos);
+router.put("/:assessorId/classes/:courseId/tos", saveCourseTos);
 router.get("/:assessorId/classes/:courseId/students/:studentId", getStudentDetail);
 
 // The one write here that changes what a student can *do* rather than what

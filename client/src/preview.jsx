@@ -13,67 +13,7 @@ import LearningModules from "./pages/student/LearningModules";
 import AdminLayout from "./pages/admin/AdminLayout";
 import CourseManagement from "./pages/admin/CourseManagement";
 import StudentsManagement from "./pages/admin/StudentsManagement";
-import TableOfSpecification from "./pages/admin/TableOfSpecification";
 
-const LEVEL_KEYS = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
-
-function tosRow(course, hours, spread) {
-  const row = { course, hours };
-  LEVEL_KEYS.forEach((key, i) => {
-    row[key] = spread[i] ?? 0;
-  });
-  return row;
-}
-
-// Enough blueprints that the old tab strip would have scrolled sideways, plus
-// one with no rows so the "empty" marker in the dropdown is on screen.
-const TOS_BLUEPRINTS = [
-  {
-    id: "t1",
-    courseId: "ac1",
-    courseCode: "CS 101",
-    examination: "Final Examination",
-    rows: [
-      tosRow("Number systems", 6, [4, 3, 2, 1, 0, 0]),
-      tosRow("Boolean logic", 4, [3, 2, 2, 1, 1, 1]),
-      tosRow("Algorithmic thinking", 8, [2, 3, 3, 1, 1, 0])
-    ]
-  },
-  {
-    id: "t2",
-    courseId: "ac2",
-    courseCode: "IT 214",
-    examination: "Midterm Examination",
-    rows: [
-      tosRow("Markup and semantics", 5, [4, 3, 2, 1, 0, 0]),
-      tosRow("Styling and layout", 7, [3, 3, 3, 2, 1, 0])
-    ]
-  },
-  {
-    id: "t3",
-    courseId: "ac3",
-    courseCode: "CS 226",
-    examination: "Prelim Examination",
-    rows: []
-  },
-  {
-    id: "t4",
-    courseId: "ac4",
-    courseCode: "IA 301",
-    examination: "Comprehensive Assessment for Enterprise Security",
-    rows: [tosRow("Threat modelling", 6, [2, 2, 3, 2, 1, 1])]
-  },
-  {
-    id: "t5",
-    courseId: "ac6",
-    courseCode: "DB 205",
-    examination: "Final Examination",
-    rows: [
-      tosRow("Normalisation", 6, [3, 3, 2, 2, 0, 0]),
-      tosRow("Query planning", 5, [2, 2, 3, 2, 1, 0])
-    ]
-  }
-];
 import { applyStoredTheme } from "./services/theme";
 import "./styles.css";
 
@@ -358,7 +298,6 @@ const ROUTES = [
     })
   ],
   [/\/admin\/profile$/, () => ({ admin: { name: "Kevin Kharl Manalo", idNumber: "ADM-0042" } })],
-  [/\/admin\/table-of-specification$/, () => ({ blueprints: TOS_BLUEPRINTS })],
   [/\/admin\/students$/, () => ({ students: ADMIN_STUDENTS })],
   // Enrol (POST .../courses) and unenrol (DELETE .../courses/:id), mutating
   // the fixture so the confirm flow and the notices behave like the real API.
@@ -445,8 +384,7 @@ createRoot(document.getElementById("root")).render(
         "/student/dashboard",
         "/student/courses/c1/modules",
         "/admin/courses",
-        "/admin/students",
-        "/admin/table-of-specification"
+        "/admin/students"
       ]}
       initialIndex={previewRoute()}
     >
@@ -459,7 +397,6 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="courses" element={<CourseManagement />} />
             <Route path="students" element={<StudentsManagement />} />
-            <Route path="table-of-specification" element={<TableOfSpecification />} />
           </Route>
         </Routes>
       </div>

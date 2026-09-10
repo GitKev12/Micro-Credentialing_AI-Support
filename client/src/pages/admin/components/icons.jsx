@@ -52,15 +52,6 @@ export function ClassesIcon({ size = 20 }) {
   );
 }
 
-export function TosIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="3.5" width="16" height="17" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8 8h8M8 12h8M8 16h5" {...stroke} />
-    </svg>
-  );
-}
-
 /** Phosphor "User" (thin) — the sidebar and detail-header avatar glyph. */
 export function UserIcon({ size = 24, color }) {
   return (

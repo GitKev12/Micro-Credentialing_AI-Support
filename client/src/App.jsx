@@ -6,7 +6,6 @@ import CourseManagement from "./pages/admin/CourseManagement";
 import StudentsManagement from "./pages/admin/StudentsManagement";
 import AssessorsManagement from "./pages/admin/AssessorsManagement";
 import ClassesManagement from "./pages/admin/ClassesManagement";
-import TableOfSpecification from "./pages/admin/TableOfSpecification";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import AchievementsPage from "./pages/student/AchievementsPage";
@@ -37,6 +36,7 @@ const GenerateCoursePage = lazy(() => import("./pages/assessor/GenerateCoursePag
 const StudentPage = lazy(() => import("./pages/assessor/StudentPage"));
 const ResultsPage = lazy(() => import("./pages/assessor/ResultsPage"));
 const CredentialsPage = lazy(() => import("./pages/assessor/CredentialsPage"));
+const TosPage = lazy(() => import("./pages/assessor/TosPage"));
 
 /**
  * What stands in while the console itself is being fetched.
@@ -89,6 +89,8 @@ function App() {
           <Route path="classes" element={<ClassesPage />} />
           <Route path="classes/:courseId" element={<RosterPage />} />
           <Route path="classes/:courseId/students/:studentId" element={<StudentPage />} />
+          <Route path="blueprint" element={<TosPage />} />
+          <Route path="blueprint/:courseId" element={<TosPage />} />
           <Route path="generate" element={<GeneratePage />} />
           <Route path="generate/:courseId" element={<GenerateCoursePage />} />
           <Route path="results" element={<ResultsPage />} />
@@ -107,7 +109,6 @@ function App() {
           <Route path="classes" element={<ClassesManagement />} />
           <Route path="students" element={<StudentsManagement />} />
           <Route path="assessors" element={<AssessorsManagement />} />
-          <Route path="table-of-specification" element={<TableOfSpecification />} />
         </Route>
       </Routes>
     </AppLayout>

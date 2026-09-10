@@ -3868,3 +3868,740 @@
   flex-shrink: 0;
 }
 
+
+/* ===========================================================
+   Table of Specification — the assessor's blueprint.
+
+   The console's palette is maroon chrome on white with a teal
+   and a blue for support, and the screen keeps it. What it adds
+   is one thing: a ramp for the six levels of thinking, because
+   they are the only data on this screen and six unlabelled
+   greys would make the matrix unreadable.
+
+   The ramp is two families rather than one gradient. LOTS runs
+   cool through the console's own teal, HOTS runs warm towards
+   its maroon without landing on it — brand maroon is what a
+   button is, and a cell must not be mistaken for one. Within
+   each family the three steps darken with the level, so depth
+   of colour is depth of thinking, and the two halves of a
+   blueprint are told apart before a single label is read.
+   =========================================================== */
+
+.assessor-app {
+  --lv-remember: #7ec8d2;
+  --lv-understand: #2f97a4;
+  --lv-apply: #086f79;
+  --lv-analyze: #e2a33f;
+  --lv-evaluate: #c4703a;
+  --lv-create: #9c4a2f;
+
+  --lv-lots-ink: #06616b;
+  --lv-hots-ink: #8d4227;
+}
+
+/* Lifted onto the navy, where the deep ends of both ramps would otherwise
+   close up into the surface. */
+[data-theme="dark"] .assessor-app {
+  --lv-remember: #8fd6e0;
+  --lv-understand: #3fb0bf;
+  --lv-apply: #1a8e99;
+  --lv-analyze: #f0b95f;
+  --lv-evaluate: #dc8a52;
+  --lv-create: #c26343;
+
+  --lv-lots-ink: #7fcdd8;
+  --lv-hots-ink: #eaa863;
+}
+
+[data-level="remember"] {
+  --level: var(--lv-remember);
+}
+[data-level="understand"] {
+  --level: var(--lv-understand);
+}
+[data-level="apply"] {
+  --level: var(--lv-apply);
+}
+[data-level="analyze"] {
+  --level: var(--lv-analyze);
+}
+[data-level="evaluate"] {
+  --level: var(--lv-evaluate);
+}
+[data-level="create"] {
+  --level: var(--lv-create);
+}
+
+.tos-screen {
+  --tos-gap: var(--sp-5);
+}
+
+/* ── Prose ────────────────────────────────────────────────── */
+
+.tos-note {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.tos-note--lead {
+  margin-bottom: var(--sp-2);
+}
+
+/* Whether the numbers agree, in the words the assessor would use. Quiet when
+   they do — a finished sum is not news — and plain body ink when they do not,
+   because it is a state of the work rather than an error in it. */
+.tos-check {
+  margin: 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-200);
+  color: var(--text-body);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+}
+
+.tos-check.is-ok {
+  color: var(--text-muted);
+  font-weight: var(--fw-regular);
+}
+
+/* ── Picking a class ──────────────────────────────────────── */
+
+.tos-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tos-picker__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: var(--sp-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-row);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.tos-picker__card:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow-row-hover);
+}
+
+.tos-picker__code {
+  color: var(--brand-text);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-picker__name {
+  color: var(--text-strong);
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1.35;
+}
+
+.tos-picker__go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+/* ── A section of the blueprint ───────────────────────────── */
+
+.tos-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tos-gap);
+}
+
+.tos-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.tos-block__title {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-block__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* ── The allocation bar ───────────────────────────────────────
+   The one loud thing on the screen, and the only question it has
+   to answer without being read: is the paper spent.
+
+   The length is set in the console's lightest weight rather than
+   its heaviest. A blueprint's total is a setting, not a result —
+   the figure worth reading here is how much of it is still
+   unplaced, and that is the line beside it.
+   ─────────────────────────────────────────────────────────── */
+
+.tos-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.tos-bar__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.tos-bar__count {
+  color: var(--text-strong);
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-light);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.tos-bar__unit {
+  color: var(--text-muted);
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-regular);
+}
+
+.tos-bar__status {
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+.tos-bar.is-done .tos-bar__status {
+  color: var(--skill-strong);
+  font-weight: var(--fw-medium);
+}
+
+.tos-bar.is-over .tos-bar__status {
+  color: var(--skill-weak);
+  font-weight: var(--fw-medium);
+}
+
+.tos-bar__track {
+  display: flex;
+  overflow: hidden;
+  gap: 2px;
+  height: 2.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+}
+
+.tos-bar__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3px;
+  background: var(--level);
+  color: #fff;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  transition: width 0.22s ease;
+}
+
+/* The two lightest steps of the cool ramp cannot carry white type. */
+.tos-bar__seg[data-level="remember"] .tos-bar__seg-n,
+.tos-bar__seg[data-level="analyze"] .tos-bar__seg-n {
+  color: #16323a;
+}
+
+/* What is left, drawn rather than left blank so that an untouched blueprint
+   and a paper of no length are different pictures. The rule is the console's
+   hairline at an angle; nothing here is a texture for its own sake. */
+.tos-bar__open {
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    var(--gray-150) 6px 7px
+  );
+  transition: width 0.22s ease;
+}
+
+.tos-bar.is-over .tos-bar__track {
+  box-shadow: inset 0 0 0 1px var(--skill-weak);
+}
+
+/* ── LOTS and HOTS ────────────────────────────────────────── */
+
+.tos-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: var(--sp-5);
+}
+
+.tos-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+.tos-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.tos-group__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-group[data-group="lots"] .tos-group__name {
+  color: var(--lv-lots-ink);
+}
+
+.tos-group[data-group="hots"] .tos-group__name {
+  color: var(--lv-hots-ink);
+}
+
+.tos-group__expand {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+}
+
+.tos-group__tally {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-group__tally strong {
+  color: var(--text-strong);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-group__tally span {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+.tos-levels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tos-level {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+
+.tos-level + .tos-level {
+  border-top: 1px solid var(--gray-200);
+}
+
+.tos-level__swatch {
+  flex: none;
+  width: 10px;
+  height: 24px;
+  border-radius: 3px;
+  background: var(--level);
+}
+
+.tos-level__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.tos-level__name {
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.tos-level__blurb {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+
+/* ── A list of lessons ────────────────────────────────────── */
+
+.tos-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.tos-content__lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.tos-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tos-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+
+.tos-row + .tos-row {
+  border-top: 1px solid var(--gray-200);
+}
+
+.tos-row__n {
+  flex: none;
+  width: 1.5rem;
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tos-row__name,
+.tos-row__pick {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+}
+
+.tos-row__pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tos-row__pick:hover {
+  color: var(--brand-text);
+}
+
+.tos-row.is-current .tos-row__pick {
+  color: var(--brand-text);
+  font-weight: var(--fw-semibold);
+}
+
+/* The count again as a length, for the comparison a column of figures cannot
+   make: which lessons are carrying the paper. */
+.tos-row__meter {
+  flex: none;
+  overflow: hidden;
+  width: 5.5rem;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gray-150);
+}
+
+.tos-row__meter span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--gray-400);
+  transition: width 0.2s ease;
+}
+
+.tos-row__pct {
+  flex: none;
+  width: 3rem;
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tos-row__items {
+  flex: none;
+  color: var(--text-body);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-row__items.is-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── The stepper ──────────────────────────────────────────── */
+
+.tos-step {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.tos-step__btn {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.tos-step__btn:hover:not(:disabled) {
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.tos-step__btn:disabled {
+  color: var(--gray-400);
+  cursor: default;
+}
+
+.tos-step__field {
+  width: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--gray-200);
+  border-right: 1px solid var(--gray-200);
+  background: none;
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  text-align: center;
+}
+
+.tos-step__field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+/* ── The matrix ───────────────────────────────────────────── */
+
+.tos-matrix-scroll {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
+}
+
+.tos-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-label);
+}
+
+.tos-matrix th,
+.tos-matrix td {
+  padding: var(--sp-2);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.tos-matrix thead th {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.tos-matrix thead th[data-group="lots"] {
+  color: var(--lv-lots-ink);
+  border-bottom: 2px solid var(--lv-understand);
+}
+
+.tos-matrix thead th[data-group="hots"] {
+  color: var(--lv-hots-ink);
+  border-bottom: 2px solid var(--lv-evaluate);
+}
+
+.tos-matrix thead tr:last-child th {
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.tos-matrix th.is-lesson {
+  min-width: 12rem;
+  color: var(--text-strong);
+  font-weight: var(--fw-medium);
+  text-align: left;
+}
+
+.tos-matrix tbody th.is-lesson {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-label);
+}
+
+.tos-matrix__n {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-matrix tbody tr + tr th,
+.tos-matrix tbody tr + tr td {
+  border-top: 1px solid var(--gray-150);
+}
+
+/* The cell's wash is its column's colour at the weight of what is in it, so
+   the shape of a paper reads off the grid before the columns are added up.
+   Painted behind rather than on the field, which has to stay legible at every
+   density. */
+.tos-cell {
+  position: relative;
+  display: inline-flex;
+  border-radius: 8px;
+}
+
+.tos-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--level);
+  opacity: calc(var(--fill, 0) * var(--wash, 0.28));
+}
+
+/* A tint has less room to be seen on the navy than on white, so the same
+   density is drawn harder rather than fading out of the grid. */
+[data-theme="dark"] .assessor-app .tos-cell {
+  --wash: 0.45;
+}
+
+.tos-cell__field {
+  position: relative;
+  width: 2.5rem;
+  padding: var(--sp-2) 0;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  background: none;
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.tos-cell__field:hover {
+  border-color: var(--gray-300);
+}
+
+.tos-cell__field:focus-visible {
+  border-color: var(--brand);
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.tos-tally {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+/* What the margin was aiming at, under what it came to. Only drawn when they
+   differ — a total that matches has nothing to compare itself against. */
+.tos-tally em {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-style: normal;
+  font-weight: var(--fw-regular);
+}
+
+.tos-matrix .is-total {
+  color: var(--text-strong);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-matrix .is-off .tos-tally,
+.tos-matrix .is-off .tos-tally em {
+  color: var(--skill-weak);
+}
+
+.tos-matrix tfoot td,
+.tos-matrix tfoot th {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-300);
+}
+
+.tos-matrix tfoot th.is-lesson {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+}
+
+/* ── Narrow ───────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .tos-level__blurb {
+    display: none;
+  }
+
+  .tos-row__meter {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tos-bar__seg,
+  .tos-bar__open,
+  .tos-row__meter span {
+    transition: none;
+  }
+}
