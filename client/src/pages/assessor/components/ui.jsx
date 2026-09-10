@@ -1,12 +1,56 @@
 import { Select } from "../../../components/Select";
 import { Skeleton } from "../../../components/Skeleton";
+import { noticeClass } from "../../../lib/useNotice";
 import {
+  AlertIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloseIcon,
   SearchIcon
 } from "./icons";
+
+/**
+ * The receipt for the last thing the assessor pressed.
+ *
+ * Three seconds in the corner of the screen, which is not long to read a
+ * sentence in and no time at all to read two. So it is built rather than
+ * written: a glyph, then what happened, then — where there is one — the thing
+ * the assessor is most likely to be uneasy about, underneath and quieter.
+ *
+ * The glyph is why this is a component and not a paragraph. A notice that
+ * landed and one that was refused were told apart by a wash of colour at 13%
+ * over white, which is a distinction nobody can make at a glance and some
+ * readers cannot make at all. The tone now arrives as a filled disc — a check
+ * or an exclamation — at full strength, and the colour is what agrees with it
+ * rather than what carries it.
+ *
+ * `detail` is optional. A message with nothing to add is one line, as it was.
+ */
+export function Notice({ notice }) {
+  if (!notice) return null;
+
+  const Icon = notice.tone === "ok" ? CheckIcon : AlertIcon;
+
+  return (
+    <p
+      className={noticeClass(notice, `assessor-notice assessor-notice--${notice.tone}`)}
+      role="status"
+    >
+      <span className="assessor-notice__icon" aria-hidden="true">
+        <Icon size={12} />
+      </span>
+
+      <span className="assessor-notice__text">
+        <span>{notice.text}</span>
+        {notice.detail ? (
+          <span className="assessor-notice__detail">{notice.detail}</span>
+        ) : null}
+      </span>
+    </p>
+  );
+}
 
 /**
  * The assessor console's select: the shared listbox in this console's clothes.
@@ -80,6 +124,22 @@ export function Chip({ tone = "neutral", dot = false, children }) {
   );
 }
 
+/**
+ * Filter field for the list screens — the admin console's, in this one's skin.
+ *
+ * The clear button is ours rather than the one `type="search"` gives you:
+ * WebKit and Blink draw a small unstyled grey cross that ignores the design
+ * system, and Firefox draws nothing at all, so the control looked different
+ * depending on the browser and was missing in one of them. It is also the only
+ * way back to the whole list without holding backspace down, which matters
+ * most here, where a search that matches nobody leaves a screen with a
+ * sentence on it and nothing to press.
+ *
+ * The field answers the pointer and the keyboard the way the admin one does:
+ * the hairline darkens under the cursor and turns brand with a soft ring
+ * around it once the caret is inside, so a search being typed into is visibly
+ * the thing the keyboard is pointed at.
+ */
 export function SearchField({ value, onChange, placeholder, label }) {
   return (
     <div className="assessor-search">
@@ -93,6 +153,16 @@ export function SearchField({ value, onChange, placeholder, label }) {
         aria-label={label ?? placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
+      {value ? (
+        <button
+          type="button"
+          className="assessor-search__clear"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+        >
+          <CloseIcon />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -175,7 +245,7 @@ export function CredentialDots({ earned, total }) {
 /** Small stacked label + value used inside data rows. */
 export function Metric({ label, value, hint }) {
   return (
-    <div style={{ minWidth: 0 }}>
+    <div className="metric">
       <div className="metric__label">{label}</div>
       <div className="metric__value">{value}</div>
       {hint ? <div className="metric__hint">{hint}</div> : null}

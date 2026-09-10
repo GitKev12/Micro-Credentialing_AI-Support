@@ -2,47 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ColumnPlot } from "../../components/ColumnPlot";
 import { certificateFileUrl } from "../../services/achievements";
-import { fetchStudentDetail, fetchStudentPaper, storedAssessorId } from "../../services/assessors";
+import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
 import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
-import { ScreenHeader } from "./components/ui";
-import StudentPaper from "./components/StudentPaper";
-import { SkeletonDetail, SkeletonText } from "../../components/Skeleton";
+import { Chip, ProgressBar, ScreenHeader } from "./components/ui";
+import { SkeletonDetail } from "../../components/Skeleton";
 
 /** The server's own pass ratio, used until a run reports its own threshold. */
 const PASS_MARK = 60;
-
-/**
- * How long an attempt took, written the way a person says it.
- *
- * Hours only appear once there are any — "5m" rather than "0h 5m", because a
- * column of leading zeroes is harder to scan than the numbers themselves. A
- * paper handed in under a minute still reads as "1m": the point of the column
- * is how long somebody worked, and "0m" reads as a failure to record rather
- * than as a very fast paper.
- */
-function formatDuration(ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-
-  const minutes = Math.max(1, Math.round(ms / 60000));
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-
-  if (hours === 0) return `${rest}m`;
-  if (rest === 0) return `${hours}h`;
-  return `${hours}h ${rest}m`;
-}
-
-/** The clock the assessor set, when they set one. Most papers are untimed. */
-function formatLimit(minutes) {
-  if (!Number.isFinite(minutes) || minutes <= 0) return null;
-
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-
-  if (hours === 0) return `${rest}m`;
-  if (rest === 0) return `${hours}h`;
-  return `${hours}h ${rest}m`;
-}
 
 /** Dates here are read off the record, so they are written out rather than
  *  counted back from today. */
@@ -90,8 +56,15 @@ function badgeMeta(badge) {
  * Before the exam is taken the same frame is drawn empty: the pass line, and
  * one waiting seat per lesson of the course. The chart is the thing being
  * looked at, so the empty state is the chart — a paragraph standing in its
- * place made the hero change shape the moment a student took the exam, and
+ * place made the card change shape the moment a student took the exam, and
  * said nothing the plot does not already show.
+ *
+ * It is a card at the head of the coursework column rather than half the hero.
+ * Sharing a band with the student's name gave it a fifth of the page to draw a
+ * column per lesson in, which on a long course left them a few pixels wide;
+ * and it put an exam result inside the block that identifies the student,
+ * which is not what that block is for. Here it is the first thing under the
+ * name, at the width of the table whose lesson numbers its ticks are read by.
  */
 function PerformanceChart({ skillGap, modules, lessonNumbers }) {
   const threshold = skillGap?.threshold ?? PASS_MARK;
@@ -118,9 +91,9 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
           title: `${skill.topic} — ${skill.score}% (${skill.correct}/${skill.total}), ${
             isWeak ? "weak" : "strong"
           }`,
-          before: isWeak ? <span className="hero-chart__value">{skill.score}</span> : null,
+          before: isWeak ? <span className="skill-chart__value">{skill.score}</span> : null,
           after: (
-            <span className="hero-chart__tick">
+            <span className="skill-chart__tick">
               {lessonNumbers.get(skill.moduleId) ?? index + 1}
             </span>
           )
@@ -129,8 +102,8 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
     : modules.map((module) => ({
         key: module.moduleId,
         score: 100,
-        barClass: "hero-chart__bar--waiting",
-        after: <span className="hero-chart__tick">{module.n}</span>
+        barClass: "skill-chart__bar--waiting",
+        after: <span className="skill-chart__tick">{module.n}</span>
       }));
 
   let caption = "Not taken yet";
@@ -141,18 +114,18 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
   }
 
   return (
-    <div className="student-hero__chart">
-      <div className="hero-chart__head">
-        <span className="metric__label">Performance — final exam</span>
+    <section className="assessor-card skill-card">
+      <header className="card-head">
+        <h2 className="assessor-card-title">Performance — final exam</h2>
         {taken ? (
-          <span className="hero-chart__score">{skillGap.performance}%</span>
+          <span className="skill-chart__score">{skillGap.performance}%</span>
         ) : (
-          <span className="hero-chart__score hero-chart__score--waiting">—</span>
+          <span className="skill-chart__score skill-chart__score--waiting">—</span>
         )}
-      </div>
+      </header>
 
       <ColumnPlot
-        prefix="hero-chart"
+        prefix="skill-chart"
         columns={columns}
         target={threshold}
         targetLabel={`${threshold}% pass`}
@@ -164,8 +137,8 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
         }
       />
 
-      <p className="assessor-meta">{caption}</p>
-    </div>
+      <p className="skill-card__caption assessor-meta">{caption}</p>
+    </section>
   );
 }
 
@@ -177,28 +150,14 @@ function credentialMeta(credential) {
 }
 
 /**
- * How many times a paper was taken again after the first go.
- *
- * Null where it was never taken at all, which is a different fact from taking
- * it once and getting it right — the column draws those two differently, and
- * inferring one from the other would have to guess. `attemptsUsed` counts every
- * attempt kept for the paper, so the retakes are all but the first.
- */
-function retakeCount(row) {
-  const used = Number(row?.attemptsUsed);
-  if (!Number.isFinite(used) || used < 1) return null;
-  return used - 1;
-}
-
-/**
  * The line under the final's title.
  *
- * The final is the only paper with a ceiling on how often it may be taken, so a
- * taken one says how much of that is left — the Retakes column already says how
- * many have gone, and repeating it here would give the row two ways to say one
- * thing. An untaken one says what it is waiting on, and "not posted" is the
- * assessor's own doing rather than the student's — those are different facts
- * and the row should not report both as "not taken".
+ * The final is the only paper with a ceiling on how often it may be taken, so
+ * a taken one says how much of that is left — the one fact about the final
+ * that the results register does not carry. An untaken one says what it is
+ * waiting on, and "not posted" is the assessor's own doing rather than the
+ * student's — those are different facts and the row should not report both as
+ * "not taken".
  */
 function finalNote(final) {
   if (final.state !== "done") return final.posted ? "Not taken" : "Not posted yet";
@@ -211,85 +170,58 @@ function finalNote(final) {
 }
 
 /**
- * The four columns an attempt fills: when it was taken, what it scored, how
- * long it ran, and how many goes it took.
+ * What became of a paper, in the three states the record actually holds.
  *
- * One component because the final exam's row and a lesson's row are the same
- * question asked of different papers, and a column that formatted one of them
- * differently would read as a difference in the data.
+ * Not passed is its own state rather than a shade of taken: it is what a row
+ * sitting half done is explained by, and it is the one an assessor is looking
+ * for. What it scored is the register's to say.
  */
-function AttemptCells({ row }) {
-  const takenOn = formatDate(row.submittedAt);
-  const took = formatDuration(row.durationMs);
-  const limit = formatLimit(row.timeLimitMinutes);
-  const retakes = retakeCount(row);
+const QUIZ = {
+  passed: { label: "Passed", tone: "success" },
+  failed: { label: "Not passed", tone: "danger" },
+  none: { label: "Not taken", tone: "outline" }
+};
+
+const quizState = (row) =>
+  row.state !== "done" ? QUIZ.none : row.passed ? QUIZ.passed : QUIZ.failed;
+
+/**
+ * The three columns a row answers: how far through it the student is, when
+ * they read the lesson, and what became of its quiz.
+ *
+ * The bar is the course figure's own arithmetic, one row's worth of it: a
+ * lesson is two of the items that figure counts, reading it and passing its
+ * quiz, and the final is one. So the bars down the table add up to the bar in
+ * the hero rather than offering a second opinion about it.
+ *
+ * One component because the final's row asks the same three questions of a
+ * different paper, and a column formatted differently on one of them would
+ * read as a difference in the data. The final has no lesson to read, which is
+ * the only thing it answers differently.
+ */
+function LessonCells({ row, lesson = true }) {
+  const items = lesson ? 2 : 1;
+  const done = (lesson && row.read ? 1 : 0) + (row.passed ? 1 : 0);
+  const readOn = lesson ? formatDate(row.readAt) : null;
+  const quiz = quizState(row);
 
   return (
     <>
+      <td className="assessor-table__progress-cell">
+        <ProgressBar label={`${done} of ${items}`} pct={Math.round((done / items) * 100)} />
+      </td>
+
+      {/* The day the lesson was finished. Nothing records the moment one is
+          opened — how far into a lesson a reader has got stays in their own
+          browser — so this is the last of it this side knows. */}
       <td className="assessor-table__when">
-        {takenOn ?? <span className="assessor-table__dash">—</span>}
+        {readOn ?? <span className="assessor-table__dash">—</span>}
       </td>
 
-      <td className="assessor-table__num">
-        {row.score !== null ? (
-          `${row.score}/${row.total}`
-        ) : (
-          <span className="assessor-table__dash">—</span>
-        )}
-      </td>
-
-      {/* A time limit is the assessor's to set and most papers have none, so it
-          only appears where one was given — and then as what the attempt ran
-          against, which is the only thing that makes a duration mean
-          anything. */}
-      <td className="assessor-table__when">
-        {took ? (
-          <>
-            {took}
-            {limit ? <span className="assessor-table__sub">of {limit} allowed</span> : null}
-          </>
-        ) : (
-          <span className="assessor-table__dash">—</span>
-        )}
-      </td>
-
-      {/* Getting it right first time is the ordinary case, so nought is written
-          out but kept quiet: the column exists to show the rows where a student
-          needed more than one go, and a bold zero on every other row would bury
-          them. */}
-      <td className="assessor-table__num">
-        {retakes === null ? (
-          <span className="assessor-table__dash">—</span>
-        ) : retakes === 0 ? (
-          <span className="assessor-table__zero">0</span>
-        ) : (
-          retakes
-        )}
+      <td>
+        <Chip tone={quiz.tone}>{quiz.label}</Chip>
       </td>
     </>
-  );
-}
-
-/**
- * A lesson's name, pressable where there is a paper behind it.
- *
- * Only a row with an attempt on it opens. A lesson nobody has taken has a quiz
- * but no answers, and a name that looked pressable and then showed nothing
- * would be worse than one that plainly is not.
- */
-function PaperName({ row, onOpen }) {
-  const name = <span className="assessor-table__name">{row.title}</span>;
-  if (row.state !== "done" || !row.assessmentId) return name;
-
-  return (
-    <button
-      type="button"
-      className="paper-open"
-      onClick={() => onOpen(row)}
-      aria-label={`Open the paper for ${row.title}`}
-    >
-      {name}
-    </button>
   );
 }
 
@@ -298,12 +230,6 @@ function StudentPage() {
   const { courseId, studentId } = useParams();
   const [detail, setDetail] = useState(null);
   const [loadError, setLoadError] = useState(false);
-
-  // The paper open over this page, named by the row that opened it.
-  const [openRow, setOpenRow] = useState(null);
-  const [paper, setPaper] = useState(null);
-  const [paperError, setPaperError] = useState("");
-  const [isLoadingPaper, setIsLoadingPaper] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -325,32 +251,6 @@ function StudentPage() {
       active = false;
     };
   }, [courseId, studentId]);
-
-  // The open row's paper. The detail call carries a score for every lesson but
-  // never the questions behind one, so opening a row is its own read.
-  useEffect(() => {
-    const assessorId = storedAssessorId();
-    if (!openRow?.assessmentId || !assessorId || !courseId || !studentId) return undefined;
-
-    let active = true;
-    setPaper(null);
-    setPaperError("");
-    setIsLoadingPaper(true);
-
-    fetchStudentPaper(assessorId, courseId, openRow.assessmentId, studentId)
-      .then((data) => {
-        if (!active) return;
-        if (data?.error) setPaperError(data.error);
-        else setPaper(data);
-      })
-      .finally(() => {
-        if (active) setIsLoadingPaper(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [courseId, studentId, openRow]);
 
   if (loadError || !detail) {
     return (
@@ -374,6 +274,9 @@ function StudentPage() {
   }
 
   const { student, course, modules, credentials } = detail;
+  // Absent from a server that predates the course figure; an empty course has
+  // nothing to be part-way through either, and both read as no bar.
+  const progress = detail.progress ?? { completedItems: 0, itemCount: 0, percent: 0 };
   const final = detail.final ?? null;
   const badges = detail.badges ?? { earned: 0, total: detail.totalModules ?? 0 };
   const badgeItems = badges.items ?? [];
@@ -383,32 +286,6 @@ function StudentPage() {
   // The chart's columns carry the lesson numbers the table uses, so a column
   // and a row point at the same lesson.
   const lessonNumbers = new Map(modules.map((module) => [module.moduleId, module.n]));
-
-  /**
-   * One paper, opened off a row of the table below.
-   *
-   * It replaces the page rather than opening beside it: a marked paper is a
-   * long read, and the hero and the badge wall are about the student across
-   * the whole course, which is not the question being asked while one of their
-   * quizzes is on screen.
-   */
-  if (openRow) {
-    return (
-      <>
-        <ScreenHeader
-          back={{ label: student.name, onClick: () => setOpenRow(null) }}
-          eyebrow={`${course.code} · ${course.name}`}
-          title={openRow.title}
-        />
-
-        <div className="assessor-body assessor-stack">
-          {paperError ? <p className="gen-notice is-error">{paperError}</p> : null}
-          {isLoadingPaper ? <SkeletonText lines={6} label="Loading the paper…" /> : null}
-          {paper && !isLoadingPaper ? <StudentPaper {...paper} /> : null}
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -442,105 +319,117 @@ function StudentPage() {
             </div>
           </div>
 
-          <PerformanceChart
-            skillGap={skillGap}
-            modules={modules}
-            lessonNumbers={lessonNumbers}
-          />
+          {/* The figure the student is shown on their own course card, not a
+              second opinion about it: the lessons, a quiz for each of them, and
+              the final. An assessor asking "how far along are they" and the
+              student reading the same course were being given different
+              answers, because this screen had only the papers to count.
+
+              It stands at the far end of the band rather than under the name:
+              the hero holds two things now, who the student is and how far
+              through they are, and one at each end says so without a heading.
+              It is the only figure here, so it takes a label. */}
+          {progress.itemCount > 0 ? (
+            <div className="student-hero__progress">
+              <span className="metric__label">Course progress</span>
+              <ProgressBar
+                label={`${progress.completedItems} of ${progress.itemCount}`}
+                pct={progress.percent}
+              />
+            </div>
+          ) : null}
         </section>
 
         <div className="student-split">
-          <section className="assessor-card">
-            <header className="card-head">
-              <h2 className="assessor-card-title">
-                Modules — {course.code} {course.name}
-              </h2>
-              {modules.length ? (
-                <span className="assessor-meta">
-                  {takenCount} of {modules.length} taken
-                </span>
-              ) : null}
-            </header>
+          <div className="assessor-stack">
+            {/* The exam first, then the lessons it was drawn from: an assessor
+                opens this page to find out where a student is weak, and the
+                answer is one card rather than a table to read down. The ticks
+                under the columns are the lesson numbers in the table below. */}
+            <PerformanceChart
+              skillGap={skillGap}
+              modules={modules}
+              lessonNumbers={lessonNumbers}
+            />
 
-            {modules.length === 0 ? (
-              <p className="assessor-meta">This course has no modules yet.</p>
-            ) : (
-              <div className="card-table">
-                <table className="assessor-table">
-                  <caption className="assessor-sr-only">
-                    Every lesson in this course, when its quiz was taken, what it
-                    scored, how long the student took over it and how many times
-                    they took it again.
-                  </caption>
+            <section className="assessor-card">
+              <header className="card-head">
+                <h2 className="assessor-card-title">
+                  Modules — {course.code} {course.name}
+                </h2>
+                {modules.length ? (
+                  <span className="assessor-meta">
+                    {takenCount} of {modules.length} taken
+                  </span>
+                ) : null}
+              </header>
 
-                  <thead>
-                    <tr>
-                      <th scope="col">Lesson</th>
-                      <th scope="col">Date taken</th>
-                      <th scope="col" className="assessor-table__num">
-                        Score
-                      </th>
-                      <th scope="col">Time taken</th>
-                      <th scope="col" className="assessor-table__num">
-                        Retakes
-                      </th>
-                    </tr>
-                  </thead>
+              {modules.length === 0 ? (
+                <p className="assessor-meta">This course has no modules yet.</p>
+              ) : (
+                <div className="card-table">
+                  <table className="assessor-table">
+                    <caption className="assessor-sr-only">
+                      Every lesson in this course, how far through it the student
+                      is, the day they read it and what became of its quiz. What a
+                      paper scored and how long it took are on the results screen.
+                    </caption>
 
-                  <tbody>
-                    {modules.map((module) => {
-                      const locked = module.state === "locked";
+                    <thead>
+                      <tr>
+                        <th scope="col">Lesson</th>
+                        <th scope="col">Progress</th>
+                        <th scope="col">Lesson read</th>
+                        <th scope="col">Quiz</th>
+                      </tr>
+                    </thead>
 
-                      return (
+                    <tbody>
+                      {modules.map((module) => (
                         <tr key={module.moduleId}>
                           <th scope="row">
                             <span className="module-cell">
-                              <span className={`module-row__num${locked ? " is-locked" : ""}`}>
+                              <span
+                                className={`module-row__num${
+                                  module.state === "locked" ? " is-locked" : ""
+                                }`}
+                              >
                                 {module.n}
                               </span>
+                              <span className="assessor-table__name">{module.title}</span>
+                            </span>
+                          </th>
+
+                          <LessonCells row={module} />
+                        </tr>
+                      ))}
+                    </tbody>
+
+                    {/* The final is not a lesson and carries no lesson number, so
+                        it sits in its own row below the numbered list rather than
+                        at the end of it. */}
+                    {final ? (
+                      <tfoot>
+                        <tr className="module-row--final">
+                          <th scope="row">
+                            <span className="module-cell">
+                              <span className="module-row__num module-row__num--none" aria-hidden="true" />
                               <span style={{ minWidth: 0 }}>
-                                <PaperName row={module} onOpen={setOpenRow} />
-                                {locked ? (
-                                  <span className="assessor-table__sub">
-                                    {module.read ? "Lesson read" : "Not opened"}
-                                  </span>
-                                ) : null}
+                                <span className="assessor-table__name">{final.title}</span>
+                                <span className="assessor-table__sub">{finalNote(final)}</span>
                               </span>
                             </span>
                           </th>
 
-                          <AttemptCells row={module} />
+                          <LessonCells row={final} lesson={false} />
                         </tr>
-                      );
-                    })}
-                  </tbody>
-
-                  {/* The final is not a lesson and carries no lesson number, so
-                      it sits in its own row below the numbered list rather than
-                      at the end of it. */}
-                  {final ? (
-                    <tfoot>
-                      <tr className="module-row--final">
-                        <th scope="row">
-                          <span className="module-cell">
-                            <span className="module-row__num module-row__num--none" aria-hidden="true" />
-                            <span style={{ minWidth: 0 }}>
-                              <PaperName row={final} onOpen={setOpenRow} />
-                              <span className="assessor-table__sub">
-                                {finalNote(final)}
-                              </span>
-                            </span>
-                          </span>
-                        </th>
-
-                        <AttemptCells row={final} />
-                      </tr>
-                    </tfoot>
-                  ) : null}
-                </table>
-              </div>
-            )}
-          </section>
+                      </tfoot>
+                    ) : null}
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
 
           <div className="assessor-stack">
             <section className="assessor-card">

@@ -39,7 +39,7 @@ function courseTitleOf(course) {
  *
  * The mark that counts is the assessor's released review where there is one
  * and the automatic mark otherwise — the same rule the quiz gates apply, so a
- * badge appears exactly when the final assessment stops counting that quiz as
+ * badge appears exactly when the final exam stops counting that quiz as
  * outstanding.
  */
 export async function passedLessonQuizzes(studentId, student) {

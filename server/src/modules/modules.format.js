@@ -27,6 +27,23 @@ const PAGE_MARKER = /^\d{1,3}\s*\/\s*\d{1,3}$/;
 const BARE_NUMBER = /^\d{1,4}$/;
 const BULLET_ITEM = /^[•●▪‣◦○*–—-]\s+/;
 const ORDERED_ITEM = /^\(?(?:\d{1,2}|[a-z])[.)]\s+/i;
+// The same marker when it is a number, so a run can say where it resumes and
+// tell "4." continuing a run from "1." restarting one.
+const ORDERED_NUMBER = /^\(?(\d{1,2})[.)]\s+/;
+
+// A step's marker left alone on its line. The PDF extractor does this when the
+// number and its text are far enough apart on the page to read as separate
+// columns, and the run then came through as a paragraph with the numbers still
+// inline — "1. Open the editor 2. Type the code" — instead of a list.
+const LONE_ORDERED_MARKER = /^[(]?(?:[0-9]{1,2}|[a-z])[.)]$/i;
+// Only glyphs that mean nothing else on their own. A lone dash or asterisk is
+// as likely to be a separator or a stray, so those are left alone.
+const LONE_BULLET_MARKER = /^[•●▪‣◦○]$/;
+
+// "1. Introduction" heading a section, rather than "1. Open the editor"
+// starting a list of steps.
+const NUMBERED_TITLE = /^[0-9]{1,2}[.)]\s+(.+)$/;
+const HEADING_TITLE_WORDS = 2;
 const NUMBERED_HEADING = /^\d+(?:\.\d+)+\s+\S/;
 // Template part headings like "I. RATIONALE" / "IV. SYNTHESIS" — uppercase
 // Roman numerals only, so lettered list items ("a." "i.") stay list items.
@@ -35,6 +52,11 @@ const TERMINAL_PUNCTUATION = /[.?!:;"”)\]]$/;
 // "Syntax – the rules of the language" — a short term, a spaced dash, a
 // definition. Becomes a term block rendered with the name emphasized.
 const TERM_DEFINITION = /^([A-Za-z][\w ()/]{1,40}?)(?:\s*[–—]\s*|\s+-\s+)(.{3,})$/;
+// A definition's term is a name, not a clause. "A character can be any letter"
+// and "with a backslash followed by a character" are sentence fragments that
+// happened to sit either side of a dash; a term that needs a sentence to state
+// it is not a term.
+const TERM_NAME_WORDS = 3;
 
 const WORDS_PER_MINUTE = 200;
 
@@ -283,7 +305,76 @@ function findRepeatedLines(normalizedPages) {
   return furniture;
 }
 
+/**
+ * Rejoins a marker the extractor left stranded on its own line.
+ *
+ * These modules lay numbered steps out with the marker in its own narrow
+ * column, and the extractor reads that as a line of its own. Every rule below
+ * reads a marker at the START of a line, so a stranded one matched nothing:
+ * the numbers stayed as text and the steps ran together into one paragraph.
+ *
+ * The line's vertical position follows the marker, which is where the step
+ * actually begins on the page.
+ */
+function joinLooseMarkers(lines, tops) {
+  const outLines = [];
+  const outTops = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const plain = stripStyleMarkers(lines[index]).trim();
+    const lone = LONE_ORDERED_MARKER.test(plain) || LONE_BULLET_MARKER.test(plain);
+
+    if (lone) {
+      let next = index + 1;
+      while (next < lines.length && !stripStyleMarkers(lines[next]).trim()) next += 1;
+      const nextPlain = next < lines.length ? stripStyleMarkers(lines[next]).trim() : "";
+
+      // An objectives list running "c) ... d)" with nothing after the d is a
+      // marker the author left empty. Joining it to whatever came next ate the
+      // template heading below it — "d)" plus "III. CONTENT" became a list
+      // item, and the module lost that section from its rail. A marker with a
+      // heading under it has no content of its own, so it goes.
+      if (ROMAN_HEADING.test(nextPlain) || NUMBERED_HEADING.test(nextPlain)) continue;
+
+      if (nextPlain) {
+        outLines.push(plain + ' ' + lines[next]);
+        outTops.push(tops[index] ?? tops[next] ?? null);
+        index = next;
+        continue;
+      }
+    }
+
+    outLines.push(lines[index]);
+    outTops.push(tops[index] ?? null);
+  }
+
+  return { lines: outLines, tops: outTops };
+}
+
+/**
+ * Whether "1. Something" is a section title rather than the first of a list.
+ *
+ * The two are written identically, so the line alone cannot answer it. What
+ * separates them is what comes next: a list's next line is its next step, and
+ * a heading's next line is the body it introduces. A title is also short and
+ * unpunctuated, which is what keeps a genuine one-line step — "1. Compile" —
+ * followed by prose from being read as a heading too eagerly.
+ */
+function isNumberedHeading(plain, nextPlain) {
+  const match = NUMBERED_TITLE.exec(plain);
+  if (!match) return false;
+
+  const title = match[1].trim();
+  if (title.split(' ').length > HEADING_TITLE_WORDS) return false;
+  if (!/^[A-Z]/.test(title)) return false;
+  if (TERMINAL_PUNCTUATION.test(title)) return false;
+
+  return Boolean(nextPlain) && !ORDERED_ITEM.test(nextPlain);
+}
+
 function parsePage(lines, furniture, page, lineTops = []) {
+  ({ lines, tops: lineTops } = joinLooseMarkers(lines, lineTops));
+
   const blocks = [];
   let paragraph = [];
   // The normalized top of a paragraph/code run's first line, carried onto the
@@ -301,6 +392,15 @@ function parsePage(lines, furniture, page, lineTops = []) {
   const plainLines = lines.map((line) => stripStyleMarkers(line));
   const topAt = (index) => lineTops[index] ?? null;
 
+  // The next line with anything on it, which is what tells a numbered heading
+  // from the first step of a numbered list.
+  const nextContentPlain = (index) => {
+    for (let next = index + 1; next < plainLines.length; next += 1) {
+      if (plainLines[next]) return plainLines[next];
+    }
+    return null;
+  };
+
   const contentIndexes = plainLines
     .map((line, index) => (line ? index : -1))
     .filter((index) => index >= 0);
@@ -315,7 +415,11 @@ function parsePage(lines, furniture, page, lineTops = []) {
     }
   };
   const flushList = () => {
-    if (list?.items.length) blocks.push(list);
+    if (list?.items.length) {
+      delete list.paused;
+      delete list.lastNumber;
+      blocks.push(list);
+    }
     list = null;
   };
   const flushCode = () => {
@@ -359,12 +463,22 @@ function parsePage(lines, furniture, page, lineTops = []) {
         return;
       }
       flushParagraph();
-      flushList();
+      // A blank line between steps pauses the run rather than ending it.
+      // Closing it here split every spaced-out list in these modules into one
+      // block per step, and the reader draws each block as its own <ol> — so
+      // "1. 2. 3." came out as "1. 1. 1.". What actually ends a run is the
+      // next line of ordinary text, which is handled where that line arrives.
+      if (list) list.paused = true;
       flushTerm();
       return;
     }
     if (PAGE_MARKER.test(plain)) return;
-    if (BARE_NUMBER.test(plain) && (index === firstContent || index === lastContent)) return;
+    // A line that is only digits is furniture wherever it falls — a page number,
+    // a figure index, a leftover from a two-column reflow. It used to be
+    // dropped only at the top and bottom of a page, so one anywhere else was
+    // published into the lesson as a paragraph reading \"7\", or swept into the
+    // middle of the paragraph beside it.
+    if (BARE_NUMBER.test(plain)) return;
     if (furniture.has(plain)) return;
 
     const isCode = looksLikeCode(plain);
@@ -389,6 +503,7 @@ function parsePage(lines, furniture, page, lineTops = []) {
         flushList();
         list = { type: "list", ordered: false, items: [], page, top };
       }
+      list.paused = false;
       // Strip the marker prefix from the marked line when possible so the
       // item keeps its italics; fall back to the plain line.
       const markedItem = line.replace(BULLET_ITEM, "");
@@ -431,19 +546,64 @@ function parsePage(lines, furniture, page, lineTops = []) {
       return;
     }
 
+    // A numbered section title, not the first step of a list. This used to
+    // fall through to the rule below, which made "1. Introduction" a list item
+    // and then swallowed the paragraph under it as that item's continuation
+    // — so a whole section came out as one numbered line.
+    if (isNumberedHeading(plain, nextContentPlain(index))) {
+      flushAll();
+      blocks.push({ type: "heading", level: 3, text: plain, page, top });
+      return;
+    }
+
     if (ORDERED_ITEM.test(plain)) {
       flushParagraph();
       flushTerm();
-      if (!list || !list.ordered) {
+      const number = Number(ORDERED_NUMBER.exec(plain)?.[1]) || null;
+      // A number that does not go forward is a second run, not a continuation
+      // of the one before it — two "1." items belong to two lists however
+      // little text sits between them.
+      const restarts =
+        list?.ordered && number != null && list.lastNumber != null && number <= list.lastNumber;
+
+      if (!list || !list.ordered || restarts) {
         flushList();
         list = { type: "list", ordered: true, items: [], page, top };
+        // Where the reader has to start counting. Left off a run beginning at
+        // one, which is the <ol> default and the overwhelming majority.
+        if (number != null && number > 1) list.start = number;
       }
+      list.paused = false;
+      list.lastNumber = number;
       const markedItem = line.replace(ORDERED_ITEM, "");
       list.items.push(markedItem !== line ? markedItem : plain.replace(ORDERED_ITEM, ""));
       return;
     }
 
     if (isAllCapsHeading(plain)) {
+      // First: is this the open list item wrapping rather than a new heading?
+      // These modules label their template parts "A. PREPARATORY ACTIVITIES"
+      // and the PDF breaks that over two lines, so "ACTIVITIES" arrived on its
+      // own and was read as a heading — which tore the label in half, left
+      // "PREPARATORY" as a one-item list, and put a section called
+      // "ACTIVITIES" in the rail for every half of every label.
+      //
+      // Only an ALL-CAPS item can be continued this way. A mixed-case item
+      // followed by an ALL-CAPS line is a list that has ended and a heading
+      // that has started, which is the far commoner shape.
+      const openItem = list?.items[list.items.length - 1];
+      const openPlain = openItem ? stripStyleMarkers(openItem) : "";
+      if (
+        list &&
+        !list.paused &&
+        openPlain &&
+        isAllCapsHeading(openPlain) &&
+        !TERMINAL_PUNCTUATION.test(openPlain)
+      ) {
+        list.items[list.items.length - 1] = openItem + " " + line;
+        return;
+      }
+
       flushAll();
       // Headings wrap across PDF lines ("LEARNING" / "OBJECTIVES (GUIDE)",
       // "INSTRUCTION TO THE" / "USERS") — an ALL-CAPS line directly under a
@@ -486,8 +646,36 @@ function parsePage(lines, furniture, page, lineTops = []) {
 
     // "Syntax – the rules of the language" style definitions. Prefer the
     // marked line so the definition keeps italics.
+    // A figure's caption stands alone. Left in the paragraph flow it merged
+    // with the prose around it, and the picture then had nothing short enough
+    // to be recognised as a caption to anchor to — so it fell back to raw
+    // position, which is exactly what the caption rule exists to avoid.
+    if (isFigureCaption(plain)) {
+      flushAll();
+      blocks.push({ type: "paragraph", text: line, page, top });
+      return;
+    }
+
+    // A definition begins a block. It never interrupts one.
+    //
+    // The rule below matches "something — something else", which in a lecture
+    // PDF is nearly always an em-dash aside inside a running sentence rather
+    // than a definition: "there is only one alternative — the true alternative"
+    // was being drawn as a callout card titled "one alternative". All 42 of
+    // these callouts across the CC2 modules were fragments of that kind, and
+    // none of them was a definition.
+    //
+    // Requiring the paragraph to be empty is what separates the two: a real
+    // definition follows a heading or a blank line. The cost is a definition
+    // written directly under a finished sentence, which now reads as prose.
     const definition = TERM_DEFINITION.exec(line) ?? TERM_DEFINITION.exec(plain);
-    if (definition && !list) {
+    const termName = definition ? stripStyleMarkers(definition[1]).trim() : "";
+    if (
+      definition &&
+      !list &&
+      !paragraph.length &&
+      termName.split(" ").length <= TERM_NAME_WORDS
+    ) {
       flushParagraph();
       flushTerm();
       term = {
@@ -510,7 +698,19 @@ function parsePage(lines, furniture, page, lineTops = []) {
 
     if (list) {
       const lastItem = list.items[list.items.length - 1];
-      if (lastItem && !TERMINAL_PUNCTUATION.test(stripStyleMarkers(lastItem))) {
+      // Only text on the very next line is the same step wrapping. Once a
+      // blank has gone by, this is the prose after the run.
+      //
+      // An ALL-CAPS item is a label, and a label ends where its capitals do:
+      // "B. DEVELOPMENTAL ACTIVITIES" is finished, and the sentence starting
+      // the section under it is not more of the label.
+      const lastPlain = lastItem ? stripStyleMarkers(lastItem) : "";
+      if (
+        !list.paused &&
+        lastPlain &&
+        !isAllCapsHeading(lastPlain) &&
+        !TERMINAL_PUNCTUATION.test(lastPlain)
+      ) {
         list.items[list.items.length - 1] = `${lastItem} ${line}`;
         return;
       }
@@ -525,22 +725,79 @@ function parsePage(lines, furniture, page, lineTops = []) {
   return blocks;
 }
 
-// Concatenate pages, re-joining a paragraph the page break split in half.
+/**
+ * Concatenates the pages, re-joining what the page break cut in half.
+ *
+ * Three things can be split by a page ending: a paragraph, a list item, and a
+ * list. Only the first was being repaired, so a bullet whose sentence carried
+ * on over the page came out as an item, then a stray paragraph, then a second
+ * list — one point of the module drawn as three unrelated things.
+ */
 function stitchPages(pageBlocks) {
   const blocks = [];
 
   for (const pageEntries of pageBlocks) {
+    // How many of this page's leading blocks have been handed back to the
+    // page before it. A seam can return the tail of one interrupted thing and
+    // then the rest of the run it belonged to — two blocks, no more.
+    //
+    // An earlier version allowed this for as long as nothing had been pushed,
+    // which let a whole page be absorbed one block at a time: the text was
+    // kept but re-tagged to the previous page, and a figure whose page then
+    // held no blocks was dropped on the floor.
+    let handedBack = 0;
+
     pageEntries.forEach((block, index) => {
       const previous = blocks[blocks.length - 1];
+      const continues = index === handedBack && handedBack < 2 && previous;
+
+      // A paragraph the break split.
+      //
+      // A caption takes no part in this, in either direction. It must not
+      // swallow the prose that follows it, and it must not be swallowed by the
+      // prose before it: a caption is frequently the last thing on its page,
+      // and absorbing it left that page with no blocks at all — which is how
+      // insertFigureBlocks decides a figure has nowhere to go and drops it.
+      // That is what deleted the Debugging Process diagram from lesson 1.
       if (
-        index === 0 &&
+        continues &&
         block.type === "paragraph" &&
-        previous?.type === "paragraph" &&
+        previous.type === "paragraph" &&
+        !isFigureCaption(stripStyleMarkers(block.text)) &&
+        !isFigureCaption(stripStyleMarkers(previous.text)) &&
         !TERMINAL_PUNCTUATION.test(stripStyleMarkers(previous.text))
       ) {
         previous.text += ` ${block.text}`;
+        handedBack += 1;
         return;
       }
+
+      // A list item the break split. The list closed with the page, so the
+      // item's rest arrived as the first paragraph of the next one.
+      if (continues && block.type === "paragraph" && previous.type === "list") {
+        const tail = stripStyleMarkers(previous.items[previous.items.length - 1] ?? "");
+        if (tail && !TERMINAL_PUNCTUATION.test(tail)) {
+          previous.items[previous.items.length - 1] += ` ${block.text}`;
+          handedBack += 1;
+          return;
+        }
+      }
+
+      // A run of bullets the break split. Numbered runs are left alone: one
+      // that resumes says so through `start`, and one that restarts at 1 is a
+      // second run that must not be folded into the first.
+      if (
+        continues &&
+        block.type === "list" &&
+        previous.type === "list" &&
+        !block.ordered &&
+        !previous.ordered
+      ) {
+        previous.items.push(...block.items);
+        handedBack += 1;
+        return;
+      }
+
       blocks.push(block);
     });
   }
@@ -717,12 +974,35 @@ export function countReadingMinutes(blocks) {
   return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 }
 
-// A figure caption or reference in the running text — "Figure 3", "Fig. 2",
-// "Figure 4 Anatomy of a method". These lecture modules label every diagram
-// this way, so the sentence carrying the label is the explanation the picture
-// belongs with — a far more reliable anchor than raw geometry, which the text
-// reflow (merged paragraphs, out-of-order captions) makes noisy.
-const CAPTION_REFERENCE = /\bfig(?:ure)?\.?\s*\d+\b/i;
+// A figure's label in the running text — "Figure 3", "Fig. 2". These
+// lecture modules label every diagram this way, so the block carrying the
+// label is the text the picture belongs with: a far more reliable anchor than
+// raw geometry, which the text reflow (merged paragraphs, out-of-order
+// captions) makes noisy.
+const FIGURE_REFERENCE = /\bfig(?:ure)?\.?\s*\d+\b/i;
+
+// The same label at the very start of a short block — "Figure 4 Anatomy of
+// a method". That is a caption, and a caption belongs under its picture.
+const FIGURE_CAPTION = /^fig(?:ure)?\.?\s*\d+\b/i;
+const CAPTION_MAX_LENGTH = 90;
+
+/**
+ * Whether a block is a picture's caption rather than prose that mentions it.
+ *
+ * The two want opposite placements and were being treated as one thing: any
+ * block containing "Figure 4" was read as a caption, so the picture was
+ * pushed above it. That is right for a caption and wrong for a sentence
+ * introducing the diagram, which then ended up printed underneath the thing
+ * it was leading the reader into.
+ *
+ * A caption opens with the label and is short. A paragraph that opens with the
+ * label and runs on for a hundred characters is a sentence about the figure,
+ * not a caption for it — the length is what separates them, and it is a
+ * judgement rather than a certainty.
+ */
+function isFigureCaption(text) {
+  return FIGURE_CAPTION.test(text) && text.length <= CAPTION_MAX_LENGTH;
+}
 
 function blockPlainText(block) {
   if (block.type === "list") return stripStyleMarkers(block.items.join(" "));
@@ -733,12 +1013,14 @@ function blockPlainText(block) {
 /**
  * Interleaves extracted figures into the block stream so each picture sits with
  * the text that explains it. For every figure, on its own page:
- *   1. Caption match (preferred): pair it with the block that carries a "Figure
- *      N" caption/reference — nearest by vertical position when known — and put
- *      the image right before that block (the caption reads under its image).
- *   2. Geometry fallback: when the page has no caption text, place the figure
- *      after the last text block above it (by normalized `top`); a figure above
- *      all of them leads the page.
+ *   1. Caption (preferred): a short block opening "Figure N" is that picture's
+ *      caption — nearest by vertical position when known — and the image goes
+ *      right before it, so the caption reads under its image.
+ *   2. Mention: prose carrying "Figure N" anywhere is introducing the picture,
+ *      so the image goes after that block rather than above it.
+ *   3. Geometry fallback: when the page names no figure at all, place it after
+ *      the last text block above it (by normalized `top`); a figure above all
+ *      of them leads the page.
  * Figures whose page has no surviving block (e.g. a stripped boilerplate cover
  * page) are dropped, so cover-art and template imagery never leak in.
  *
@@ -777,30 +1059,48 @@ export function insertFigureBlocks(blocks, figures) {
     if (!indexes?.length) continue; // page dropped -> its figures go too
 
     const hasTops = indexes.some((index) => blocks[index].top != null);
-    const captions = indexes.filter((index) =>
-      CAPTION_REFERENCE.test(blockPlainText(blocks[index]))
+    const texts = new Map(indexes.map((index) => [index, blockPlainText(blocks[index])]));
+    const captions = indexes.filter((index) => isFigureCaption(texts.get(index)));
+    const mentions = indexes.filter(
+      (index) =>
+        !isFigureCaption(texts.get(index)) && FIGURE_REFERENCE.test(texts.get(index))
     );
-    const usedCaption = new Set();
+    const used = new Set();
     const figuresSorted = [...pageFigures].sort((a, b) => (a.top ?? 1) - (b.top ?? 1));
 
+    // Of the blocks still unclaimed, the one sitting closest to this picture.
+    const nearest = (candidates, figure) => {
+      const free = candidates.filter((index) => !used.has(index));
+      if (!free.length) return null;
+      if (hasTops && figure.top != null) {
+        free.sort(
+          (a, b) =>
+            Math.abs((blocks[a].top ?? 1) - figure.top) -
+            Math.abs((blocks[b].top ?? 1) - figure.top)
+        );
+      }
+      return free[0];
+    };
+
     for (const figure of figuresSorted) {
-      // 1) Anchor to the figure's caption when the page has one.
-      const freeCaptions = captions.filter((index) => !usedCaption.has(index));
-      if (freeCaptions.length) {
-        if (hasTops && figure.top != null) {
-          freeCaptions.sort(
-            (a, b) =>
-              Math.abs((blocks[a].top ?? 1) - figure.top) -
-              Math.abs((blocks[b].top ?? 1) - figure.top)
-          );
-        }
-        const captionIndex = freeCaptions[0];
-        usedCaption.add(captionIndex);
+      // 1) A caption claims the picture, and sits under it.
+      const captionIndex = nearest(captions, figure);
+      if (captionIndex != null) {
+        used.add(captionIndex);
         pushTo(beforeBlock, captionIndex, figure);
         continue;
       }
 
-      // 2) Geometry fallback: after the last block above the figure; above all
+      // 2) Otherwise the text naming the figure is introducing it, so the
+      //    picture follows rather than interrupting.
+      const mentionIndex = nearest(mentions, figure);
+      if (mentionIndex != null) {
+        used.add(mentionIndex);
+        pushTo(afterBlock, mentionIndex, figure);
+        continue;
+      }
+
+      // 3) Geometry fallback: after the last block above the figure; above all
       //    of them (or no positions at all) it leads / trails the page.
       let anchor = null;
       if (hasTops && figure.top != null) {

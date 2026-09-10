@@ -18,8 +18,15 @@ import { SkeletonText } from "../../../components/Skeleton";
  * posted it to the course; until then the rail's row is a locked placeholder
  * and this component is never opened on it.
  */
-function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
+function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenLesson }) {
   const assessmentId = assessment?.id ?? null;
+  // A row standing in for a paper that was never written, or written and not
+  // yet posted. There is no document behind its id.
+  const placeholder = Boolean(assessment?.placeholder);
+  // Why it is shut, as the rail was told. Only read for a placeholder — a real
+  // paper is refused by the server, which sends its own reason with the 423,
+  // and that one is authoritative where the rail may be a moment out of date.
+  const lockedReason = assessment?.reason ?? "Your assessor will unlock this quiz.";
   const [state, setState] = useState({ status: "loading" });
   const [answers, setAnswers] = useState({});
   // Which question is on screen. The paper is answered one question at a time,
@@ -47,6 +54,15 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
 
   useEffect(() => {
     if (!studentId || !assessmentId) return undefined;
+
+    // Nothing to ask for: a placeholder's id resolves to no document, so the
+    // request would come back a 404 and be shown as a quiz that failed to
+    // load — which is not what happened. Nobody has posted it yet, and the
+    // row already carries the sentence that says so.
+    if (placeholder) {
+      setState({ status: "locked", message: lockedReason });
+      return undefined;
+    }
 
     let active = true;
     setState({ status: "loading" });
@@ -83,7 +99,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     return () => {
       active = false;
     };
-  }, [studentId, assessmentId]);
+  }, [studentId, assessmentId, placeholder, lockedReason]);
 
   const items = state.assessment?.items ?? [];
   const answeredCount = useMemo(
@@ -216,9 +232,19 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     return (
       <div className="sd-quiz__locked">
         <span className="sd-quiz__locked-icon">
-          <LockIcon size={18} />
+          <LockIcon size={24} />
         </span>
-        <p className="student-courses__status">{state.message}</p>
+        <p className="sd-quiz__locked-text">{state.message}</p>
+        {/* There is one thing a student can do about a shut quiz, and only
+            sometimes: read the lesson that opens it. The caller decides
+            whether that is what is holding this one — a quiz waiting on its
+            assessor gets no button, because there would be nothing behind
+            it. */}
+        {onOpenLesson ? (
+          <button type="button" className="sd-quiz__locked-btn" onClick={onOpenLesson}>
+            Go to the lesson
+          </button>
+        ) : null}
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, beforeAll } from "@jest/globals";
+import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
 import { act, render, screen, fireEvent, within } from "@testing-library/react";
 
@@ -126,6 +126,9 @@ const PAPER = {
   ]
 };
 
+/** The register the read comes back with. A test may shorten it. */
+let register = ROWS;
+
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
   fetchAssessorClasses: async () => COURSES,
@@ -138,9 +141,13 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       status: "posted",
       takers: { all: 3, notStarted: 1, inProgress: 1, submitted: 1 }
     },
-    rows: ROWS
+    rows: register
   })
 }));
+
+beforeEach(() => {
+  register = ROWS;
+});
 
 let ResultsPage, MemoryRouter;
 
@@ -149,13 +156,14 @@ beforeAll(async () => {
   ({ default: ResultsPage } = await import("../src/pages/assessor/ResultsPage.jsx"));
 });
 
-const open = async () => {
+/** Drawn and settled. `until` is a row the register is known to hold. */
+const open = async (until = "Dayan, Chris Jerome") => {
   const view = render(
     <MemoryRouter>
       <ResultsPage />
     </MemoryRouter>
   );
-  await screen.findByText("Dayan, Chris Jerome");
+  await screen.findByText(until);
   return view;
 };
 
@@ -177,7 +185,9 @@ describe("the results table", () => {
       "Score",
       "Started",
       "Submitted",
-      "Status"
+      "Status",
+      // Named for a screen reader only; the column carries the way out.
+      "Open paper"
     ]);
   });
 
@@ -309,6 +319,118 @@ describe("finding one student in the list", () => {
   });
 });
 
+/**
+ * The register is read looking for one state of it as often as for one person
+ * — who has not started, who is still working — so the state is a control
+ * beside the search rather than something to be found by eye down the last
+ * column.
+ */
+describe("narrowing by state", () => {
+  const search = () => screen.getByRole("searchbox", { name: "Search students" });
+
+  // The listbox commits on mousedown, before the document's own listener can
+  // close it — so a click alone opens the list and chooses nothing.
+  const pick = async (label) => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    });
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("option", { name: label }));
+    });
+  };
+
+  const names = () =>
+    [...document.querySelectorAll("tbody th[scope=row]")].map((cell) => cell.textContent);
+
+  it("offers the three states the column carries, the whole class first", async () => {
+    await open();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    });
+
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "All students",
+      "Not started",
+      "In progress",
+      "Submitted"
+    ]);
+  });
+
+  /**
+   * Off, the control says what it does: a funnel and the word Filter. The row
+   * that turns it back off says who the register will hold — "All students" —
+   * which is a different job, and in the trigger would label the absence of a
+   * filter beside a register already showing all of them.
+   */
+  it("reads as Filter until a state is picked", async () => {
+    await open();
+
+    const trigger = screen.getByRole("combobox", { name: "Filter by status" });
+    expect(trigger.textContent).toBe("Filter");
+
+    await pick("Submitted");
+    expect(trigger.textContent).toBe("Submitted");
+
+    await pick("All students");
+    expect(trigger.textContent).toBe("Filter");
+  });
+
+  it("narrows the register to one state, and back to the class", async () => {
+    await open();
+    expect(names()).toHaveLength(3);
+
+    await pick("Submitted");
+    expect(names()).toEqual(["Dayan, Chris Jerome"]);
+
+    await pick("In progress");
+    expect(names()).toEqual(["Cruz, Ana"]);
+
+    await pick("All students");
+    expect(names()).toHaveLength(3);
+  });
+
+  it("narrows by state and by name at once", async () => {
+    await open();
+
+    await pick("Submitted");
+    await act(async () => {
+      fireEvent.change(search(), { target: { value: "dayan" } });
+    });
+
+    expect(names()).toEqual(["Dayan, Chris Jerome"]);
+  });
+
+  /**
+   * A search inside a state has only searched that state, and saying the
+   * student is not on the course would claim more than has been looked at —
+   * they may be on it and standing in another state.
+   */
+  it("owns up to having searched one state, not the course", async () => {
+    await open();
+
+    await pick("Submitted");
+    await act(async () => {
+      fireEvent.change(search(), { target: { value: "cruz" } });
+    });
+
+    expect(screen.getByText("No student in that state matches that search.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("No student on this course matches that search.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("says a state nobody is in is empty, rather than the course", async () => {
+    register = ROWS.filter((row) => row.status !== "submitted");
+    await open("Bautista, Miguel");
+
+    await pick("Submitted");
+
+    expect(screen.getByText("Nobody on this course is in that state.")).toBeInTheDocument();
+    expect(screen.queryByText(/No students are enrolled/)).not.toBeInTheDocument();
+  });
+});
+
 describe("opening one student's paper", () => {
   const openPaper = async (name) => {
     await act(async () => {
@@ -316,7 +438,7 @@ describe("opening one student's paper", () => {
     });
   };
 
-  it("opens off the name of a student who has handed the paper in", async () => {
+  it("opens off the row of a student who has handed the paper in", async () => {
     await open();
     await openPaper("Dayan, Chris Jerome");
 

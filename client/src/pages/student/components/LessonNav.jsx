@@ -17,6 +17,12 @@ import { CheckIcon, ChevronDownIcon, LockIcon, QuizIcon } from "./icons";
  * The panel and the row share one bordered group. An earlier version rendered
  * the section list as a sibling of the row, so it floated in the gap between
  * two modules with nothing tying it to its parent.
+ *
+ * Both a lesson and each of its sections carry how far it has been read. The
+ * rail was only ever able to say finished or not, which is the one thing a
+ * student part-way through a chapter already knows — the percentages are what
+ * tell them which part of it they left off in. Completion is still the tick,
+ * and still the server's; these come from the reader (see lessonProgress.js).
  */
 function LessonNav({
   modules,
@@ -28,6 +34,8 @@ function LessonNav({
   sectionsByModule,
   sectionsLoadingId,
   assessmentsByModule,
+  lessonProgressFor,
+  sectionProgressFor,
   onSelectLesson,
   onToggleSections,
   onOpenSection,
@@ -36,15 +44,22 @@ function LessonNav({
   return (
     <ul className="sd-lesson-nav">
       {modules.map((module, index) => {
-        const done = isCompleted(module.id);
+        // The lesson's own record: its text has been read to the end. Kept
+        // apart from `finished` below because the quiz waits on this one, and
+        // a quiz that waited on itself would never open.
+        const readToEnd = isCompleted(module.id);
         const current = String(selectedLessonId) === String(module.id);
         const expanded = expandedId === module.id;
         const sections = sectionsByModule[module.id];
         const loading = !sections && sectionsLoadingId === module.id;
         const quizzes = assessmentsByModule[module.id] ?? [];
         const panelId = `lesson-sections-${module.id}`;
+        // Reading and quiz together — half each, see lessonProgress.js.
+        const read = lessonProgressFor?.(module.id) ?? 0;
+        // The whole lesson, both halves of it. Only this fills the bullet in.
+        const finished = read >= 100;
 
-        const state = done ? "done" : current ? "current" : "todo";
+        const state = finished ? "done" : current ? "current" : "todo";
 
         return (
           <li
@@ -58,17 +73,41 @@ function LessonNav({
                 onClick={() => onSelectLesson(module)}
                 aria-current={current ? "true" : undefined}
               >
-                <span className="sd-lesson__marker" data-state={state} aria-hidden="true">
-                  {done ? <CheckIcon size={13} /> : String(index + 1).padStart(2, "0")}
+                {/* The number sits inside a ring that fills as the lesson is
+                    read — see student.css. `--read` is the only thing the
+                    markup has to hand it. */}
+                <span
+                  className="sd-lesson__marker"
+                  data-state={state}
+                  style={{ "--read": read }}
+                  aria-hidden="true"
+                >
+                  {finished ? <CheckIcon size={13} /> : String(index + 1).padStart(2, "0")}
                 </span>
 
                 <span className="sd-lesson__text">
                   <span className="sd-lesson__title">{module.title}</span>
                   {/* The marker already says whether it is finished, so the
                       word underneath leads with "you are here" when both
-                      are true rather than dropping one of the two facts. */}
-                  <span className="sd-lesson__state">
-                    {current ? "Reading now" : done ? "Completed" : "Not started"}
+                      are true rather than dropping one of the two facts. The
+                      figure beside it answers the other question — not whether
+                      you are here, but how much of it is behind you.
+
+                      "Completed" waits for both halves. A lesson read to the
+                      end with its quiz still to pass is under way, not done,
+                      and saying otherwise beside a half-filled ring was the
+                      row contradicting itself. */}
+                  <span className="sd-lesson__meta">
+                    <span className="sd-lesson__state">
+                      {current
+                        ? "Reading now"
+                        : finished
+                          ? "Completed"
+                          : read > 0
+                            ? "In progress"
+                            : "Not started"}
+                    </span>
+                    <span className="sd-lesson__pct">{read}%</span>
                   </span>
                 </span>
               </button>
@@ -90,34 +129,55 @@ function LessonNav({
             {expanded ? (
               <div className="sd-lesson__panel" id={panelId}>
                 {loading ? (
-                  <ul className="sd-lesson__sections" aria-hidden="true">
+                  <ul className="sd-sections" aria-hidden="true">
                     {Array.from({ length: 3 }).map((_, row) => (
-                      <li className="sd-lesson__section" key={row}>
-                        <span className="sd-lesson__section-skeleton sd-skeleton" />
+                      <li className="sd-sections__item" key={row} data-state="todo">
+                        <span className="sd-sections__skeleton sd-skeleton" />
                       </li>
                     ))}
                   </ul>
                 ) : !sections || sections.length === 0 ? (
                   <p className="sd-lesson__note">No sections detected in this module.</p>
                 ) : (
-                  <ul className="sd-lesson__sections">
+                  <ul className="sd-sections">
                     {sections.map((section) => {
                       const here =
                         activeSection?.moduleId === module.id &&
                         activeSection?.sectionId === section.id;
+                      const readHere = sectionProgressFor?.(module.id, section.id) ?? 0;
+
+                      // Three states rather than two, because a part-read
+                      // section is the one the student is looking for when
+                      // they open this list, and a node that is only ever
+                      // hollow or filled cannot point at it.
+                      const mark = readHere >= 100 ? "done" : readHere > 0 ? "part" : "todo";
 
                       return (
                         <li
-                          className={`sd-lesson__section${here ? " is-here" : ""}`}
+                          className={`sd-sections__item${here ? " is-here" : ""}`}
                           key={section.id}
+                          data-state={mark}
                         >
                           <button
                             type="button"
-                            className="sd-lesson__section-btn"
+                            className="sd-sections__btn"
                             onClick={() => onOpenSection(module, section)}
                             aria-current={here ? "true" : undefined}
                           >
-                            {section.title}
+                            <span
+                              className="sd-sections__node"
+                              style={{ "--read": readHere }}
+                              aria-hidden="true"
+                            >
+                              {mark === "done" ? <CheckIcon size={9} /> : null}
+                            </span>
+
+                            <span className="sd-sections__body">
+                              <span className="sd-sections__head">
+                                <span className="sd-sections__title">{section.title}</span>
+                                <span className="sd-sections__pct">{readHere}%</span>
+                              </span>
+                            </span>
                           </button>
                         </li>
                       );
@@ -138,7 +198,7 @@ function LessonNav({
                   // The server decides and sends `locked` with a reason;
                   // `done` is only the fallback if that field is absent,
                   // since the rail must never be the thing enforcing it.
-                  const locked = quiz.locked ?? !done;
+                  const locked = quiz.locked ?? !readToEnd;
                   const open = String(selectedAssessmentId) === String(quiz.id);
                   const passed = quiz.result?.passed;
 
@@ -152,18 +212,21 @@ function LessonNav({
                       : String(index + 1);
 
                   return (
+                    /* A locked quiz opens; it just has nothing to sit. The row
+                       used to be disabled, which left a student pressing a
+                       dead button with no way to find out why beyond a
+                       tooltip. It keeps its lock and its dashed border — it is
+                       still shut — and says who opens it, in the viewer,
+                       where there is room to say it. */
                     <button
                       key={quiz.id}
                       type="button"
-                      className={`sd-lesson__quiz${open ? " is-open-item" : ""}`}
-                      disabled={locked}
+                      className={`sd-lesson__quiz${open ? " is-open-item" : ""}${
+                        locked ? " is-locked" : ""
+                      }`}
                       onClick={() => onOpenAssessment(quiz)}
                       aria-current={open ? "true" : undefined}
-                      title={
-                        locked
-                          ? (quiz.reason ?? " Your assessor will unlock this quiz.")
-                          : (quiz.title || undefined)
-                      }
+                      title={quiz.title || undefined}
                     >
                       <span className="sd-lesson__quiz-icon">
                         {locked ? (
@@ -174,16 +237,13 @@ function LessonNav({
                           <QuizIcon size={15} />
                         )}
                       </span>
+                      {/* Why it is shut is not said here. The row can be
+                          opened now, and the viewer gives the reason the room
+                          to be read in — saying it twice, once in a line
+                          narrow enough to wrap awkwardly, was the worse of the
+                          two places to say it. */}
                       <span className="sd-lesson__quiz-text">
                         <span className="sd-lesson__quiz-title">Quiz {number}</span>
-                        {/* Why it is shut, on the row rather than in a tooltip.
-                            A student who has finished the lesson has nothing
-                            left to do — the paper is their assessor's to
-                            release — and "Locked" on its own reads as though
-                            they still do. */}
-                        {locked && quiz.reason ? (
-                          <span className="sd-lesson__quiz-note">{quiz.reason}</span>
-                        ) : null}
                       </span>
                       {locked ? (
                         <span className="sd-lesson__quiz-tag">Locked</span>

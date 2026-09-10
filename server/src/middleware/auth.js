@@ -57,24 +57,15 @@ export function requireRole(...roles) {
   };
 }
 
-/**
- * Lets a student reach their own record, and staff reach anyone's.
+/*
+ * A student's own record used to be guarded here too, by a
+ * `requireSelfOrRole(parameter, ...roles)` that let a student through for their
+ * own id and anyone on the role list through for everybody's. It is gone rather
+ * than fixed: naming a role was the whole of its rule, and "assessor" on that
+ * list meant every assessor could read and write every student's record.
  *
- * `parameter` names the route param holding the student id — it is `:id` on
- * some routes and `:studentId` on others, so the caller says which.
+ * A guard that answers on a role alone cannot express whose students they are,
+ * so the question is asked somewhere it can be — see middleware/student.guard.js
+ * and its `requireOwnStudent`. Left out of this file so it cannot be picked up
+ * again by a route that only wanted "students and staff".
  */
-export function requireSelfOrRole(parameter, ...roles) {
-  return (request, response, next) => {
-    if (!request.session) {
-      return deny(response, 401, "Sign in to continue.");
-    }
-
-    if (roles.includes(request.session.role)) return next();
-
-    if (String(request.params[parameter]) === String(request.session.id)) {
-      return next();
-    }
-
-    return deny(response, 403, "You do not have access to this resource.");
-  };
-}

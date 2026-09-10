@@ -7,17 +7,24 @@ import {
   fetchModuleSections,
   fetchModuleText,
   moduleFigureUrl,
-  moduleFileUrl,
   setModuleCompleted
 } from "../../services/learningModules";
 // Student-scoped rather than the course-wide list in learningModules: a quiz's
 // lock state and result only exist relative to who is asking.
 import { fetchCourseAssessments } from "../../services/assessments";
 import { hasCourseEnded } from "../../lib/courseDuration";
+import {
+  lessonPercent,
+  lessonShare,
+  mergeReading,
+  readStoredReading,
+  sectionPercents,
+  writeStoredReading
+} from "./lessonProgress";
 import LessonNav from "./components/LessonNav";
 import QuizRunner from "./components/QuizRunner";
 import BadgeToast from "./components/BadgeToast";
-import { LockIcon, QuizIcon } from "./components/icons";
+import { BackIcon, BookIcon, LockIcon, QuizIcon } from "./components/icons";
 import { SkeletonText } from "../../components/Skeleton";
 
 // Breathing room left above a section heading when jumping to it.
@@ -27,6 +34,25 @@ const SECTION_SCROLL_MARGIN = 12;
 // control markers; render them as <em>.
 const ITALIC_OPEN = String.fromCharCode(17); // U+0011
 const ITALIC_CLOSE = String.fromCharCode(18); // U+0012
+
+// "Figure 3 Sequence of a while loop" — the label the extractor keeps as a
+// paragraph of its own, directly under the picture it names. It is a caption,
+// so it is drawn as one rather than as the first line of the prose that
+// follows.
+//
+// Recognised here rather than flagged on the server because flagging it there
+// means a cache-version bump, and that re-runs OCR over every module in every
+// course for what is only a change of appearance. The rule is the server's own
+// (isFigureCaption in modules.format.js): the label comes first, and the line
+// is short — length is what keeps a sentence that merely opens with "Figure 3"
+// as prose.
+const FIGURE_CAPTION = /^fig(?:ure)?\.?\s*\d+\b/i;
+const CAPTION_MAX_LENGTH = 90;
+
+function isFigureCaption(text) {
+  const plain = String(text ?? "").replace(/[\u0011\u0012]/g, "");
+  return FIGURE_CAPTION.test(plain) && plain.length <= CAPTION_MAX_LENGTH;
+}
 
 function renderStyledText(text) {
   if (!text || !text.includes(ITALIC_OPEN)) return text;
@@ -126,7 +152,16 @@ function LessonBlocks({ blocks, answers, onAnswer, moduleId }) {
     if (block.type === "list") {
       const ListTag = block.ordered ? "ol" : "ul";
       return (
-        <ListTag key={index} className="lesson-reader__list">
+        <ListTag
+          key={index}
+          className="lesson-reader__list"
+          // Where the run resumes. A numbered run in a module can still be
+          // split by something the page put between two of its steps — a
+          // figure, a page break — and each block is its own <ol>, which
+          // counts from one unless told otherwise. The server sends this only
+          // when the run does not start at one.
+          start={block.ordered ? block.start : undefined}
+        >
           {block.items.map((item, itemIndex) => (
             <li key={itemIndex}>{renderStyledText(item)}</li>
           ))}
@@ -155,7 +190,14 @@ function LessonBlocks({ blocks, answers, onAnswer, moduleId }) {
     }
 
     return (
-      <p key={index} className="lesson-reader__p">
+      <p
+        key={index}
+        className={
+          isFigureCaption(block.text)
+            ? "lesson-reader__p lesson-reader__caption"
+            : "lesson-reader__p"
+        }
+      >
         {renderStyledText(block.text)}
       </p>
     );
@@ -198,6 +240,14 @@ function LearningModules() {
   const [earnedBadge, setEarnedBadge] = useState(null);
   // The scrollable reader pane — watched to auto-complete lessons.
   const readerRef = useRef(null);
+  // How far this student has read, per lesson and per section within it:
+  // { [moduleId]: { percent, sections: { [sectionId]: percent } } }. Kept in
+  // the browser rather than on the server — see lessonProgress.js.
+  const [reading, setReading] = useState(() => readStoredReading(studentId));
+  // Where each section of the open lesson sits in the reader's scroll space,
+  // as [{ id, top, height }]. Measured from the rendered headings, because
+  // nothing but the layout knows how tall a section turned out to be.
+  const sectionGeometryRef = useRef([]);
 
   // Course title travels via navigation state; fall back to the modules'
   // subject code after a hard refresh.
@@ -349,9 +399,75 @@ function LearningModules() {
     );
   };
 
+  /**
+   * Where the open lesson's sections landed, in the reader's scroll space.
+   *
+   * The same zoom correction the section jump makes, and for the same reason:
+   * the app renders at --app-zoom, so getBoundingClientRect() reports scaled
+   * pixels while scrollTop counts unscaled ones. Measuring in one space and
+   * comparing in the other would put every section's percentage out by the
+   * zoom factor.
+   */
+  const measureSections = useCallback(() => {
+    const reader = readerRef.current;
+    const sections = lessonText?.sections ?? [];
+
+    if (!reader || sections.length === 0) {
+      sectionGeometryRef.current = [];
+      return;
+    }
+
+    const zoom =
+      reader.currentCSSZoom ??
+      (Number(getComputedStyle(document.documentElement).zoom) || 1);
+    const readerTop = reader.getBoundingClientRect().top;
+
+    sectionGeometryRef.current = sections
+      .map((section) => {
+        const element = document.getElementById(`lesson-section-${section.id}`);
+        if (!element) return null;
+
+        const box = element.getBoundingClientRect();
+        return {
+          id: section.id,
+          top: reader.scrollTop + (box.top - readerTop) / zoom,
+          height: box.height / zoom
+        };
+      })
+      .filter(Boolean);
+  }, [lessonText]);
+
+  /**
+   * Takes a reading of how far down the pane has been, and keeps it if it is
+   * further than before.
+   *
+   * Called on every scroll event, so it is written to cost nothing when
+   * nothing changed: `mergeReading` hands back the object it was given when no
+   * figure rose, and returning the same state object tells React there is
+   * nothing to re-render — which matters when the thing that would re-render
+   * is the pane being scrolled.
+   */
+  const recordReading = useCallback(() => {
+    const reader = readerRef.current;
+    if (!reader || !selectedLessonId) return;
+
+    const depth = reader.scrollTop + reader.clientHeight;
+    const measured = {
+      percent: lessonPercent(depth, reader.scrollHeight),
+      sections: sectionPercents(sectionGeometryRef.current, depth)
+    };
+
+    const key = String(selectedLessonId);
+    setReading((current) => {
+      const merged = mergeReading(current[key], measured);
+      if (merged === current[key]) return current;
+      return { ...current, [key]: merged };
+    });
+  }, [selectedLessonId]);
+
   // Lesson quizzes are stored one per module, so the rail groups them by their
   // module and shows each inside that module's dropdown. The course's single
-  // final assessment belongs to no lesson and sits at the foot of the rail.
+  // final exam belongs to no lesson and sits at the foot of the rail.
   const assessmentsByModule = assessments.reduce((groups, assessment) => {
     if (assessment.scope === "final") return groups;
     const key = String(assessment.moduleId ?? "");
@@ -362,19 +478,70 @@ function LearningModules() {
 
   const finalAssessment = assessments.find((assessment) => assessment.scope === "final") ?? null;
 
-  const completedCount = modules.filter((module) => isCompleted(module.id)).length;
-  const progressPercent = modules.length
-    ? Math.round((completedCount / modules.length) * 100)
+  /**
+   * How far through the course, counting everything the rail holds.
+   *
+   * A course is its lessons, a quiz for each of them and one final — the same
+   * three things this rail lists — so the bar counts all three. Reading alone
+   * put a student at 100% with every paper still to sit.
+   *
+   * The denominator is what the course *owes* rather than what has been posted:
+   * counting only released papers would drop the figure each time an assessor
+   * posted another one, and a percentage that falls for something the student
+   * did not do is worse than one that starts low.
+   *
+   * This is the same sum `progressSummary` makes on the server for the My
+   * Courses card (courses.controller.js). The two must agree — a course cannot
+   * report one figure on its card and another inside it — so change them
+   * together.
+   */
+  const lessonsDone = modules.filter((module) => isCompleted(module.id)).length;
+
+  // A set of lesson ids rather than a count of rows: a retaken paper must not
+  // read as two quizzes passed.
+  const quizzesPassed = new Set(
+    assessments
+      .filter((row) => row.scope === "lesson" && row.result?.passed)
+      .map((row) => String(row.moduleId))
+  ).size;
+
+  const finalPassed = assessments.some((row) => row.scope === "final" && row.result?.passed);
+
+  // A course with no lessons owes nothing yet — not even a final.
+  const courseItems = modules.length ? modules.length * 2 + 1 : 0;
+  const completedCount = Math.min(
+    lessonsDone + Math.min(quizzesPassed, modules.length) + (finalPassed ? 1 : 0),
+    courseItems
+  );
+  const progressPercent = courseItems
+    ? Math.round((completedCount / courseItems) * 100)
     : 0;
 
-  const selectedIndex = selectedLessonId
-    ? modules.findIndex((module) => module.id === selectedLessonId)
-    : -1;
+  /** Whether this lesson's quiz has been passed — the second half of it. */
+  const quizPassedFor = (moduleId) =>
+    (assessmentsByModule[String(moduleId)] ?? []).some((quiz) => quiz.result?.passed);
 
-  const openLessonAt = (index) => {
-    const module = modules[index];
-    if (module) setSelected({ type: "lesson", item: module });
+  /**
+   * How far through a lesson, and through one of its sections, this student
+   * has got.
+   *
+   * The lesson counts its quiz as well as its text — half each, see
+   * lessonShare. The reading half is read off the record when the lesson is
+   * ticked rather than off wherever this browser was last left: the tick is the
+   * server's and the scroll position is this browser's, and they must not be
+   * able to contradict each other on the same row. A lesson marked complete on
+   * another machine would otherwise sit there ticked and showing nothing read.
+   *
+   * A section is a piece of the text, so it stays a reading figure — the quiz
+   * belongs to the whole lesson and to no section of it.
+   */
+  const lessonProgressFor = (moduleId) => {
+    const read = isCompleted(moduleId) ? 100 : (reading[String(moduleId)]?.percent ?? 0);
+    return lessonShare(read, quizPassedFor(moduleId));
   };
+
+  const sectionProgressFor = (moduleId, sectionId) =>
+    isCompleted(moduleId) ? 100 : (reading[String(moduleId)]?.sections?.[sectionId] ?? 0);
 
   const toggleSections = (module) => {
     const moduleId = module.id;
@@ -410,6 +577,22 @@ function LearningModules() {
   const openAssessment = (assessment) => {
     setSelected({ type: "assessment", item: assessment });
     setActiveSection(null);
+  };
+
+  /**
+   * The lesson a shut quiz sends the student back to, or null when there is
+   * nowhere useful to send them.
+   *
+   * Read off the completion record rather than off the sentence the server
+   * sent: "Finish this lesson to unlock its quiz" and "Your assessor will
+   * unlock this quiz" are two different states, and only the first has an
+   * answer the student can act on. A final exam has no single lesson behind
+   * it, so it never gets one either.
+   */
+  const lockedLessonFor = (item) => {
+    if (!item || item.scope === "final" || !item.moduleId) return null;
+    if (isCompleted(item.moduleId)) return null;
+    return modules.find((module) => String(module.id) === String(item.moduleId)) ?? null;
   };
 
   /**
@@ -460,6 +643,7 @@ function LearningModules() {
     // Loading/error placeholders are short — scrolling them must not count.
     if (!lessonText) return;
     const reader = event.currentTarget;
+    recordReading();
     if (reader.scrollTop + reader.clientHeight >= reader.scrollHeight - 32) {
       noteEndReached(selectedLessonId);
     }
@@ -491,15 +675,67 @@ function LearningModules() {
     }
   }, [lessonText, selectedLessonId]);
 
+  /**
+   * Re-measure whenever the lesson could have changed shape under the reader.
+   *
+   * Not only when the text arrives: the figures are images, and a page whose
+   * pictures are still loading is shorter than the page the student will
+   * actually read. Every one that lands moves every heading below it, so the
+   * geometry taken at first paint would have each section's percentage
+   * measured against a page that no longer exists.
+   *
+   * The observer watches the pane (the window being resized) and its content
+   * (the page growing inside it), which between them cover both.
+   */
+  useEffect(() => {
+    const reader = readerRef.current;
+    if (!reader || !lessonText) return undefined;
+
+    const take = () => {
+      measureSections();
+      recordReading();
+    };
+
+    take();
+
+    if (typeof ResizeObserver === "undefined") return undefined;
+
+    const observer = new ResizeObserver(take);
+    observer.observe(reader);
+    if (reader.firstElementChild) observer.observe(reader.firstElementChild);
+
+    return () => observer.disconnect();
+  }, [lessonText, measureSections, recordReading]);
+
+  /**
+   * Keep what has been read, so a reload does not report a half-finished
+   * lesson as untouched.
+   *
+   * Written on a delay rather than on each reading: the figures move while the
+   * student is scrolling, and storage is not the place to be during that.
+   */
+  useEffect(() => {
+    if (!studentId) return undefined;
+    const timer = setTimeout(() => writeStoredReading(studentId, reading), 400);
+    return () => clearTimeout(timer);
+  }, [reading, studentId]);
+
   return (
     <section className="student-courses modules-page">
       <div className="modules-page__header">
+        {/* Icon only: the nav bar is hidden on this route (StudentLayout), so
+            the header is the reader's own chrome and the less of it there is,
+            the more lesson fits under it. The words the chevron dropped are
+            kept on aria-label for a screen reader and on title for a pointer,
+            and the course title sits beside it as the thing being left. */}
         <button
           type="button"
-          className="dash-back"
+          className="sd-btn sd-btn--disc"
           onClick={() => navigate("/student")}
+          aria-label="Back to courses"
+          title="Back to courses"
         >
-          <span aria-hidden="true">←</span> Back to courses
+          <BackIcon size={16} />
         </button>
 
         <h2 className="student-courses__title modules-page__title">
@@ -544,10 +780,15 @@ function LearningModules() {
         <aside className="modules-layout__aside">
           {!isLoading && modules.length > 0 ? (
             <div className="modules-progress">
+              {/* The label above the figure rather than beside it. Sharing a
+                  line, a small uppercase eyebrow and a large number had to be
+                  set on one baseline to sit level, and the count tucked in
+                  behind the percentage read as part of it. */}
+              <p className="modules-progress__label">Course progress</p>
               <div className="modules-progress__row">
-                <span className="modules-progress__label">Course progress</span>
-                <span className="modules-progress__count">
-                  {completedCount} / {modules.length}
+                <span className="modules-progress__count">{progressPercent}%</span>
+                <span className="modules-progress__of">
+                  {completedCount} of {courseItems}
                 </span>
               </div>
               <div
@@ -587,90 +828,104 @@ function LearningModules() {
                 sectionsByModule={sectionsByModule}
                 sectionsLoadingId={sectionsLoadingId}
                 assessmentsByModule={assessmentsByModule}
+                lessonProgressFor={lessonProgressFor}
+                sectionProgressFor={sectionProgressFor}
                 onSelectLesson={openLesson}
                 onToggleSections={toggleSections}
                 onOpenSection={openSection}
                 onOpenAssessment={openAssessment}
               />
             )}
-
-            {/* One per course, below every lesson: the last thing in the rail
-                because it is the last thing you sit. It stays shut until all
-                lessons are read and all lesson quizzes passed — the server
-                decides that and sends the reason with it. */}
-            {finalAssessment ? (
-              <div className="sd-final">
-                <p className="sd-final__label">Final assessment</p>
-
-                <button
-                  type="button"
-                  className={`sd-final__btn${
-                    String(selectedAssessmentId) === String(finalAssessment.id)
-                      ? " is-open-item"
-                      : ""
-                  }`}
-                  disabled={finalAssessment.locked}
-                  onClick={() => openAssessment(finalAssessment)}
-                  aria-current={
-                    String(selectedAssessmentId) === String(finalAssessment.id)
-                      ? "true"
-                      : undefined
-                  }
-                  title={finalAssessment.locked ? finalAssessment.reason : undefined}
-                >
-                  <span className="sd-final__icon">
-                    {finalAssessment.locked ? <LockIcon size={15} /> : <QuizIcon size={16} />}
-                  </span>
-
-                  <span className="sd-final__text">
-                    {/* A placeholder row carries no title, since there is no
-                        generated paper behind it to have been named. */}
-                    <span className="sd-final__title">
-                      {finalAssessment.title || "Final assessment"}
-                    </span>
-                    <span className="sd-final__state">
-                      {finalAssessment.result
-                        ? `Scored ${finalAssessment.result.score} of ${finalAssessment.result.total}`
-                        : finalAssessment.locked
-                          ? finalAssessment.reason
-                          : `${finalAssessment.itemCount} questions · pass ${finalAssessment.passMark}`}
-                    </span>
-                  </span>
-
-                  {finalAssessment.locked ? (
-                    <span className="sd-final__tag">Locked</span>
-                  ) : null}
-                </button>
-              </div>
-            ) : null}
           </div>
+
+          {/* Pinned under the scroller rather than sitting at the foot of it.
+              It is the last thing you sit and the thing the whole course is
+              worked towards, so it should not take scrolling past sixty-eight
+              lessons to find out where it is or whether it has opened. It
+              stays shut until all lessons are read and all lesson quizzes
+              passed — the server decides that and sends the reason with it. */}
+          {finalAssessment ? (
+            <div className="sd-final">
+              <p className="sd-final__label">Final Exam</p>
+
+              {/* Opens whether or not it is shut, like a lesson's quiz: the
+                  row keeps its lock and its dashed border, and the viewer is
+                  where the reason is given. A dead button left the student
+                  pressing nothing with no way to find out why. */}
+              <button
+                type="button"
+                className={`sd-final__btn${
+                  String(selectedAssessmentId) === String(finalAssessment.id)
+                    ? " is-open-item"
+                    : ""
+                }${finalAssessment.locked ? " is-locked" : ""}`}
+                onClick={() => openAssessment(finalAssessment)}
+                aria-current={
+                  String(selectedAssessmentId) === String(finalAssessment.id)
+                    ? "true"
+                    : undefined
+                }
+              >
+                <span className="sd-final__icon">
+                  {finalAssessment.locked ? <LockIcon size={15} /> : <QuizIcon size={16} />}
+                </span>
+
+                <span className="sd-final__text">
+                  {/* A placeholder row carries no title, since there is no
+                      generated paper behind it to have been named. */}
+                  <span className="sd-final__title">
+                    {finalAssessment.title || "Final Exam"}
+                  </span>
+                  {/* The mark if it has been taken, otherwise what the paper
+                      is — and nothing at all for one that has not been
+                      written, which has no length or pass mark to report
+                      yet. Why it is shut is the viewer's to say. */}
+                  {finalAssessment.result ? (
+                    <span className="sd-final__state">
+                      Scored {finalAssessment.result.score} of{" "}
+                      {finalAssessment.result.total}
+                    </span>
+                  ) : finalAssessment.itemCount ? (
+                    <span className="sd-final__state">
+                      {finalAssessment.itemCount} questions · pass{" "}
+                      {finalAssessment.passMark}
+                    </span>
+                  ) : null}
+                </span>
+
+                {finalAssessment.locked ? (
+                  <span className="sd-final__tag">Locked</span>
+                ) : null}
+              </button>
+            </div>
+          ) : null}
         </aside>
 
         {/* Right: the selected module, shown wider */}
         <div className="modules-layout__main">
           {!selected ? (
             <div className="module-viewer module-viewer--empty">
+              <span className="module-viewer__mark" aria-hidden="true">
+                <BookIcon size={22} />
+              </span>
               <p className="student-courses__status">Select a lesson or assessment.</p>
             </div>
           ) : selected.type === "lesson" ? (
             <div className="module-viewer">
+              {/* Nothing here says whether the lesson is finished or how far
+                  down it you are. The rail says both, on the row for this
+                  lesson, and repeating it over the page it describes told the
+                  student twice what they had already been told once.
+
+                  The mark beside the title is the only ornament: it gives the
+                  page something to start on other than a line of text, and it
+                  is the same mark the empty state uses, so opening a lesson
+                  reads as the pane filling in rather than being replaced. */}
               <div className="module-viewer__head">
+                <span className="module-viewer__mark" aria-hidden="true">
+                  <BookIcon size={17} />
+                </span>
                 <h3 className="module-viewer__title">{selected.item.title}</h3>
-                <div className="module-viewer__tools">
-                  {isCompleted(selected.item.id) ? (
-                    <span className="module-row__action module-viewer__complete is-done">
-                      ✓ Completed
-                    </span>
-                  ) : null}
-                  <a
-                    className="module-row__action"
-                    href={moduleFileUrl(selected.item.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open in new tab
-                  </a>
-                </div>
               </div>
 
               <div
@@ -739,36 +994,20 @@ function LearningModules() {
                   </div>
                 ) : null}
               </div>
-
-              <div className="module-viewer__nav">
-                <button
-                  type="button"
-                  className="module-row__action"
-                  onClick={() => openLessonAt(selectedIndex - 1)}
-                  disabled={selectedIndex <= 0}
-                >
-                  ← Previous lesson
-                </button>
-                <span className="module-viewer__nav-pos">
-                  Lesson {selectedIndex + 1} of {modules.length}
-                </span>
-                <button
-                  type="button"
-                  className="module-row__action"
-                  onClick={() => openLessonAt(selectedIndex + 1)}
-                  disabled={selectedIndex >= modules.length - 1}
-                >
-                  Next lesson →
-                </button>
-              </div>
             </div>
           ) : (
             <div className="module-viewer">
               <div className="module-viewer__head">
-                <h3 className="module-viewer__title">{selected.item.title}</h3>
+                <h3 className="module-viewer__title">
+                  {/* A placeholder carries no title — there is no paper behind
+                      it to have been named, and the heading cannot be blank
+                      now that one can be opened. */}
+                  {selected.item.title ||
+                    (selected.item.scope === "final" ? "Final Exam" : "Quiz")}
+                </h3>
                 {selected.item.scope === "final" ? (
                   <span className="module-row__action module-viewer__complete">
-                    Final assessment
+                    Final Exam
                   </span>
                 ) : null}
               </div>
@@ -782,6 +1021,11 @@ function LearningModules() {
                   assessment={selected.item}
                   onSubmitted={refreshAssessments}
                   onBadgeEarned={setEarnedBadge}
+                  onOpenLesson={
+                    lockedLessonFor(selected.item)
+                      ? () => openLesson(lockedLessonFor(selected.item))
+                      : null
+                  }
                 />
               </div>
             </div>

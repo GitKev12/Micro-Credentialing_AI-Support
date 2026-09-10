@@ -1,18 +1,58 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  fetchAssessorClasses,
   fetchPendingCredentials,
   issueCredential,
   storedAssessorId
 } from "../../services/assessors";
-import { noticeClass, useNotice } from "../../lib/useNotice";
+import { useNotice } from "../../lib/useNotice";
 import { CheckIcon } from "./components/icons";
-import { Chip, LoadFailed, Person, ScreenHeader } from "./components/ui";
+import {
+  AssessorSelect,
+  Chip,
+  LoadFailed,
+  Notice,
+  Person,
+  ScreenHeader,
+  SearchField
+} from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
+
+/**
+ * Why the table is empty, which is never only one answer.
+ *
+ * Nothing waiting is the good news an assessor came for; nothing *found* is a
+ * filter standing in the way, and the two must not be told apart wrongly — an
+ * empty course reading as an empty queue would say the work was done.
+ *
+ * A search and a course narrow the list together, so a search that finds
+ * nothing while a course is picked has only searched that course: the student
+ * may be in the queue and standing on another one. Naming the course is what
+ * keeps the line from claiming more than it has looked at.
+ */
+function emptyLine({ waiting, course, searching }) {
+  if (!waiting) return "No credentials are waiting for release.";
+
+  if (searching) {
+    return course
+      ? "No student on this course matches that search."
+      : "No student in the queue matches that search.";
+  }
+
+  return "No credentials are waiting for release on this course.";
+}
 
 function CredentialsPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
+
+  // The queue stands across every course an assessor teaches, so it is narrowed
+  // here rather than fetched again: every row is already in hand, and a course
+  // or a name is a question about the list, not a different read of it.
+  const [courses, setCourses] = useState([]);
+  const [courseId, setCourseId] = useState("");
+  const [query, setQuery] = useState("");
   const [issued, setIssued] = useState({});
   const [issuing, setIssuing] = useState({});
   const [notice, setNotice] = useNotice();
@@ -47,6 +87,45 @@ function CredentialsPage() {
       active = false;
     };
   }, [reload]);
+
+  // The assessor's own courses, for the picker. The same list the classes and
+  // results screens read, so a course is named the same way on all three.
+  useEffect(() => {
+    let active = true;
+    const assessorId = storedAssessorId();
+    if (!assessorId) return undefined;
+
+    fetchAssessorClasses(assessorId)
+      .then((list) => {
+        if (active) setCourses(list);
+      })
+      .catch(() => {
+        // The queue is the screen; a picker that could not be built narrows
+        // nothing and is left empty rather than taking the table down with it.
+        if (active) setCourses([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /**
+   * The queue as it is being read: this course, and this name.
+   *
+   * A released row stays where it is until the next read — it turns into
+   * "Issued today" rather than vanishing under the cursor — so the filter has
+   * nothing to say about whether a credential has gone out.
+   */
+  const shown = useMemo(() => {
+    const term = query.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      if (courseId && row.courseId !== courseId) return false;
+      if (!term) return true;
+      return row.name.toLowerCase().includes(term) || (row.sid ?? "").includes(term);
+    });
+  }, [rows, courseId, query]);
 
   const issue = async (row) => {
     setIssuing((current) => ({ ...current, [row.id]: true }));
@@ -83,14 +162,40 @@ function CredentialsPage() {
       />
 
       <div className="assessor-body assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
-        {notice ? (
-          <p
-            className={noticeClass(notice, `assessor-notice assessor-notice--${notice.tone}`)}
-            role="status"
-          >
-            {notice.text}
-          </p>
-        ) : null}
+        <Notice notice={notice} />
+
+        {/* Which course, and which student in it. The count in the header is
+            the queue's own and does not move with these: it says how much work
+            is standing, which is not a question about what is on screen. */}
+        <div className="assessor-pickers">
+          <div className="gen-field">
+            <span className="field-label">Course</span>
+            <AssessorSelect
+              label="Course"
+              value={courseId}
+              onChange={setCourseId}
+              options={[
+                { value: "", label: "All courses" },
+                ...courses.map((course) => ({
+                  value: course.id,
+                  label: course.name,
+                  meta: course.code
+                }))
+              ]}
+              placeholder="No courses assigned"
+            />
+          </div>
+
+          <div className="gen-field gen-field--find">
+            <span className="field-label">Find a student</span>
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Search student or ID number"
+              label="Search students"
+            />
+          </div>
+        </div>
 
         <div className="assessor-table-wrap">
           <table className="assessor-table assessor-table--creds">
@@ -113,7 +218,7 @@ function CredentialsPage() {
             </thead>
 
             <tbody>
-              {rows.map((row) => (
+              {shown.map((row) => (
                 <tr key={row.id}>
                   <td className="assessor-table__num">
                     {row.sid || <span className="assessor-table__dash">—</span>}
@@ -169,7 +274,7 @@ function CredentialsPage() {
                 </tr>
               ) : null}
 
-              {!isLoading && rows.length === 0 ? (
+              {!isLoading && shown.length === 0 ? (
                 <tr>
                   <td className="assessor-table__empty" colSpan={6}>
                     {failed ? (
@@ -178,7 +283,11 @@ function CredentialsPage() {
                         onRetry={() => setReload((n) => n + 1)}
                       />
                     ) : (
-                      "No credentials are waiting for release."
+                      emptyLine({
+                        waiting: rows.length > 0,
+                        course: Boolean(courseId),
+                        searching: Boolean(query.trim())
+                      })
                     )}
                   </td>
                 </tr>

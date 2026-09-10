@@ -107,6 +107,29 @@ export function SearchIcon({ size = 18 }) {
   );
 }
 
+/** The cross a search field is emptied by — see SearchField. */
+export function CloseIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The funnel, for a control that narrows a list rather than searching it. */
+export function FilterIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M3 4.5h14l-5.4 6.3v4.7l-3.2 1.5v-6.2L3 4.5z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -162,6 +185,17 @@ export function CheckIcon({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The other half of a notice's tone: what a check is for a write that landed,
+    this is for one that did not. */
+export function AlertIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 3.5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="8" cy="12" r="1.15" fill="currentColor" />
     </svg>
   );
 }

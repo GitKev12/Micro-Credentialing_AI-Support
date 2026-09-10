@@ -11,7 +11,8 @@ import {
   markModuleComplete,
   unmarkModuleComplete
 } from "./modules.controller.js";
-import { requireAuth, requireDownloadAuth, requireSelfOrRole } from "../middleware/auth.js";
+import { requireAuth, requireDownloadAuth } from "../middleware/auth.js";
+import { requireOwnStudent } from "../middleware/student.guard.js";
 
 // Mounted at /api, so these resolve to:
 //   GET    /api/courses/:courseId/modules      — lesson list for a course
@@ -33,8 +34,10 @@ const signedIn = [requireAuth];
 // token on the query string instead of in a header.
 const browserFetched = [requireDownloadAuth];
 
-// Progress belongs to one student; staff may read and amend it too.
-const ownProgress = [requireAuth, requireSelfOrRole("studentId", "assessor", "admin")];
+// Progress belongs to one student; the staff over them may read and amend it
+// too — the assessor who teaches them, and an admin. An assessor who does not
+// teach them has no more claim here than another student (see student.guard.js).
+const ownProgress = [requireAuth, requireOwnStudent("studentId")];
 
 router.get("/courses/:courseId/modules", signedIn, getCourseModules);
 router.get("/courses/:courseId/assessments", signedIn, getCourseAssessments);

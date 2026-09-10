@@ -305,34 +305,6 @@ a {
   gap: 1.75rem;
 }
 
-/* Only the learning-modules reader still uses this button; the dashboard
-   moved to .sd-btn (see pages/student/student.css). */
-.dash-back {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.95rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--accent-text, var(--accent));
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.dash-back:hover {
-  background: var(--accent-soft);
-}
-
-.dash-back:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .profile-avatar {
   display: inline-grid;
   place-items: center;
@@ -808,18 +780,17 @@ a {
   box-shadow: none;
 }
 
-/* Header row: back button + title share one container. */
+/* Header row: back button + title share one container. They sit together
+   rather than at opposite ends of a full-width bar — the back control is a
+   bare chevron, so the course title beside it is the only thing on screen
+   naming what pressing it leaves. */
 .modules-page__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 1rem;
   flex-wrap: wrap;
   padding: 1.25rem 1.5rem 0;
-}
-
-.modules-page__header .dash-back {
-  align-self: center;
 }
 
 .modules-page__title {
@@ -900,11 +871,24 @@ a {
   color: var(--muted);
 }
 
+/* An eyebrow, not a heading.
+   At 1.05rem/700 it was set larger and heavier than the lesson titles beneath
+   it, so the label outranked the content it labels — the rail read as though
+   the word "Lessons" were the most important thing in it. It matches the
+   progress card's own eyebrow now, which puts the rows back at the top of the
+   rail's hierarchy and lets the two labels read as the same kind of thing.
+
+   The rule under it is the seam the list scrolls beneath: without one, rows
+   slid up and vanished with nothing to say the head was fixed. */
 .modules-section__title {
-  margin: 1rem 0 0.25rem;
-  font-size: 1.05rem;
+  margin: 0 0 0.55rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.68rem;
   font-weight: 700;
-  color: var(--ink);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .module-list {
@@ -986,17 +970,24 @@ a {
   padding: 0 1.5rem 1.25rem;
 }
 
+/* 240px left a lesson title roughly 130px once the number, the disclosure and
+   the row's own padding had taken theirs, so most titles wrapped to three
+   lines and the rail read as a wall. Navigation labels want 14-16px to stay
+   legible, and 14px needs the width to sit on — this is that width.
+
+   Spaced by margins on the children rather than a flex gap: the head, the list
+   and the exam want different amounts of air between them, and one gap value
+   cannot give three. */
 .modules-layout__aside {
-  flex: 0 0 240px;
-  max-width: 240px;
+  flex: 0 0 288px;
+  max-width: 288px;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
 }
 
-/* The scrolling part of the rail: progress and the "Lessons" heading stay
-   pinned above it. */
+/* The scrolling part of the rail: the progress card and the "Lessons" eyebrow
+   stay pinned above it, and the final exam below it. */
 .modules-layout__scroll {
   flex: 1;
   min-height: 0;
@@ -1004,6 +995,38 @@ a {
   /* Room for the last row's focus ring and shadow. */
   padding: 2px 2px 0.75rem;
   margin: -2px -2px 0;
+  /* A rail is a long list in a narrow column, and the platform scrollbar takes
+     a sixth of that column to say so. Thin and untinted until the pointer is
+     in the rail, so the lessons keep the width. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+
+.modules-layout__aside:hover .modules-layout__scroll,
+.modules-layout__scroll:focus-within {
+  scrollbar-color: var(--border) transparent;
+}
+
+/* WebKit says the same thing in its own dialect. */
+.modules-layout__scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modules-layout__scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.modules-layout__aside:hover .modules-layout__scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+}
+
+.modules-layout__scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted);
 }
 
 .modules-layout__main {
@@ -1037,31 +1060,74 @@ a {
   outline-offset: 2px;
 }
 
-/* Right-hand viewer showing the selected module. */
+/* Right-hand viewer showing the selected module.
+ *
+ * One sheet, not a card inside a card. The lesson text used to sit in its own
+ * bordered, differently-coloured box inside this one, which put two frames
+ * around the same thing and left the reading looking like a widget dropped on
+ * a panel. The viewer is the page now: the head is a band across the top of
+ * it, the text runs on the paper below, and there is a single border round
+ * the pair.
+ *
+ * Padding moved off this box and onto its children, so the head's band can
+ * reach both edges. */
 .module-viewer {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 1.1rem;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--surface);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
 }
 
 .module-viewer--empty {
   align-items: center;
   justify-content: center;
+  gap: 0.9rem;
+  padding: 2rem;
   text-align: center;
 }
 
+/* The band across the top. Tinted from the accent down into the page so the
+   head reads as part of the sheet rather than a separate strip — the colour
+   is what gives the pane somewhere to begin. */
 .module-viewer__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.7rem;
+  flex: none;
+  padding: 0.85rem 1.15rem;
+  /* One less than the card's, which is the radius the inside of a 1px border
+     actually turns through. */
+  border-radius: 15px 15px 0 0;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--accent-soft), var(--surface-strong));
+}
+
+/* The one piece of ornament in the pane. It is also what the empty state
+   shows, so opening a lesson reads as the pane filling in rather than being
+   swapped for a different pane. */
+.module-viewer__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--accent-text, var(--accent));
+}
+
+.module-viewer--empty .module-viewer__mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--accent-soft);
 }
 
 .module-viewer__title {
@@ -1079,34 +1145,27 @@ a {
 }
 
 /* The scrolling part of the viewer when what it holds is not a lesson —
-   a quiz or the final exam. The head stays pinned above it. */
+   a quiz or the final exam. The head stays pinned above it. The padding is
+   its own now that the card around it has none, and it leaves room for a
+   choice's focus ring against the scroller's edge. */
 .module-viewer__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* Room for a choice's focus ring against the scroller's edge. */
-  padding: 2px 2px 0.5rem;
-  margin: -2px -2px 0;
+  padding: 1.35rem 1.5rem 1.5rem;
 }
 
 /* ── Module viewer: OCR text mode ─────────────────────── */
 
-.module-viewer__tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-}
-
+/* The lesson itself. No border and no background of its own: it is the page,
+   and the viewer around it is already the frame. The bottom is deeper than
+   the top so the last paragraph can sit clear of the edge. */
 .module-viewer__text {
   flex: 1;
   /* Height comes from the locked page now, not a vh guess. */
   min-height: 0;
   overflow-y: auto;
-  padding: 1.1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-strong);
+  padding: 1.35rem 1.5rem 2rem;
 }
 
 .module-viewer__text-status {
@@ -1151,36 +1210,55 @@ a {
 
 /* ── Curriculum: progress, numbering, completion ──────── */
 
+/* Spaced by margins rather than one flex gap: the eyebrow belongs tight to the
+   figure it names, and the bar wants more air than that. */
 .modules-progress {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
   margin-bottom: 0.75rem;
-  padding: 0.85rem 1rem;
+  padding: 0.9rem 1rem 1rem;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
 }
 
+.modules-progress__label {
+  margin: 0 0 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The figure and what it was worked out from, at opposite ends of one line and
+   set on a shared baseline — the percentage leads, because it is what the bar
+   underneath draws. */
 .modules-progress__row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-.modules-progress__label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin-bottom: 0.6rem;
 }
 
 .modules-progress__count {
-  font-size: 0.9rem;
+  font-size: 1.55rem;
   font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--ink);
+}
+
+/* Kept rather than dropped for the percentage: one is the figure, the other is
+   what the figure was worked out from, and a course of seven lessons is a
+   different thing from one of seventy. */
+.modules-progress__of {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
 .modules-progress__bar {
@@ -1207,37 +1285,49 @@ a {
   pointer-events: none;
 }
 
-.module-viewer__complete.is-done {
-  border-color: transparent;
-  /* Darkened from #2e9e5b, which carried white type at 3.41:1 — under AA in
-     both themes. This step measures 4.7:1 against white. */
-  background: #1f8449;
-  color: #fff;
-}
-
 /* ── Lesson reader: formatted module text ─────────────── */
 
 .lesson-reader__content {
   width: 100%;
 }
 
+/* A bar down the left rather than a rule underneath. An underline closes a
+   heading off from what follows it; a bar beside it points at the passage it
+   belongs to, and it is what the eye picks up when skimming for the section
+   it left off in. */
 .lesson-reader__h2 {
-  margin: 1.75rem 0 0.6rem;
-  padding-bottom: 0.35rem;
-  border-bottom: 2px solid var(--accent-soft);
-  font-size: 1.2rem;
+  position: relative;
+  margin: 1.9rem 0 0.7rem;
+  padding-left: 0.85rem;
+  font-size: 1.28rem;
   font-weight: 800;
+  line-height: 1.3;
   color: var(--ink);
+}
+
+.lesson-reader__h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.16em;
+  bottom: 0.16em;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .lesson-reader__content .lesson-reader__h2:first-of-type {
   margin-top: 0;
 }
 
+/* The third and last level. Three is enough to skim by; a fourth starts
+   costing more to tell apart than it saves. */
 .lesson-reader__h3 {
-  margin: 1.35rem 0 0.45rem;
-  font-size: 1rem;
+  margin: 1.45rem 0 0.4rem;
+  padding-left: 0.85rem;
+  font-size: 1.02rem;
   font-weight: 700;
+  line-height: 1.4;
   color: var(--accent-text, var(--accent));
 }
 
@@ -1248,13 +1338,14 @@ a {
   overflow-wrap: anywhere;
 }
 
-/* Lists live in their own card container, like the other reader blocks. */
+/* Lists are prose, and they are the commonest block in these modules — in a
+   card each, a lesson became a stack of identical grey boxes with nothing
+   standing out of it. Only what is genuinely set apart from the text keeps a
+   frame now: a definition, a code sample, a figure. The accent markers are
+   what tell a list from a paragraph. */
 .lesson-reader__list {
   margin: 0.9rem 0;
-  padding: 0.8rem 1.1rem 0.8rem 2.3rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
+  padding: 0 0 0 1.6rem;
   line-height: 1.7;
   color: var(--ink);
 }
@@ -1285,11 +1376,13 @@ ol.lesson-reader__list li::marker {
 
 /* Code samples: monospace card; long lines scroll. */
 .lesson-reader__code {
-  margin: 1rem 0;
-  padding: 0.9rem 1.1rem;
+  margin: 1.1rem 0;
+  padding: 0.95rem 1.15rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
+  border-radius: 12px;
+  /* The page background, which is a step darker than the sheet in every
+     theme — so a sample reads as cut into the page rather than laid on it. */
+  background: var(--bg);
   overflow-x: auto;
   font-family: "Cascadia Code", "Consolas", ui-monospace, SFMono-Regular,
     Menlo, monospace;
@@ -1299,13 +1392,14 @@ ol.lesson-reader__list li::marker {
   white-space: pre;
 }
 
-/* "Term — definition" callout cards: tinted background sets explanations
-   apart from regular paragraphs in every theme. */
+/* "Term — definition": the tint says it is set apart, and the bar down the
+   edge says which way. It matches the bar on a section heading, so the two
+   things worth stopping at in a lesson are marked the same way. */
 .lesson-reader__term {
-  margin: 0.85rem 0;
-  padding: 0.7rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  margin: 1rem 0;
+  padding: 0.75rem 1rem 0.75rem 1.1rem;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 12px 12px 0;
   background: var(--accent-soft);
   line-height: 1.7;
   color: var(--ink);
@@ -1317,15 +1411,27 @@ ol.lesson-reader__list li::marker {
   font-weight: 700;
 }
 
-/* Figures extracted from the module PDF — centred, framed like a card, and
-   never wider than the reader column. */
+/* Figures extracted from the module PDF — centred, recessed like a code
+   sample, and never wider than the reader column. */
 .lesson-reader__figure {
-  margin: 1.25rem 0;
-  padding: 0.6rem;
+  margin: 1.4rem 0;
+  padding: 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
+  border-radius: 14px;
+  background: var(--bg);
   text-align: center;
+}
+
+/* A picture's caption. Centred on the image and bold so the label reads as
+   part of the figure, and pulled up against it so the two are one thing rather
+   than a picture with a stray sentence under it. */
+.lesson-reader__caption {
+  text-align: center;
+  font-weight: 700;
+}
+
+.lesson-reader__figure + .lesson-reader__caption {
+  margin-top: -0.75rem;
 }
 
 .lesson-reader__figure img {
@@ -1340,22 +1446,6 @@ ol.lesson-reader__list li::marker {
 /* Breathing room between template sections. */
 .lesson-reader__section + .lesson-reader__section {
   margin-top: 2.25rem;
-}
-
-.module-viewer__nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--border);
-}
-
-.module-viewer__nav-pos {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
 }
 
 /* The lesson rail's rows and section disclosure now live in
@@ -1401,11 +1491,15 @@ ol.lesson-reader__list li::marker {
     max-height: calc(70 * var(--vh));
   }
 
-  /* The document scrolls down here, so the quiz should not trap it. */
+  /* The document scrolls down here, so the quiz should not trap it. The
+     side padding stays: it is the card's, and the card has none of its own. */
   .module-viewer__body {
     overflow-y: visible;
-    padding: 2px;
-    margin: -2px;
+    padding: 1.1rem 1.1rem 1.25rem;
+  }
+
+  .module-viewer__text {
+    padding: 1.1rem 1.1rem 1.5rem;
   }
 }
 

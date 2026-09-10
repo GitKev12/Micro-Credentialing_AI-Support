@@ -14,6 +14,7 @@ import {
   ScreenHeader,
   SearchField
 } from "./components/ui";
+import { ChevronRightIcon, FilterIcon } from "./components/icons";
 import StudentPaper from "./components/StudentPaper";
 import { Skeleton, SkeletonText } from "../../components/Skeleton";
 
@@ -40,6 +41,36 @@ const STATUS = {
   "in-progress": { label: "In progress", tone: "brand-soft" },
   submitted: { label: "Submitted", tone: "success" }
 };
+
+/* The same three states the chips carry, off the same map, so a filter and the
+   column it filters can never come to be worded differently.
+
+   Off, the control says what it does rather than what it is not doing: a
+   funnel and the word Filter. The row that turns it back off is named for the
+   count tile it corresponds to — All students — so the four rows of the list
+   are the four tiles standing above the table, in their order. */
+const STATUS_OPTIONS = [
+  { value: "", label: "All students", triggerLabel: "Filter" },
+  ...Object.entries(STATUS).map(([value, { label }]) => ({ value, label }))
+];
+
+/**
+ * Why the table is empty, which is never only one answer.
+ *
+ * A search and a state narrow the register together, so a search that finds
+ * nobody while a state is picked has only searched that state — saying the
+ * student is not on the course would claim more than has been looked at.
+ */
+function emptyLine({ assessment, enrolled, searching, filtered }) {
+  if (!assessment) return "Choose an assessment to see how the class has got on with it.";
+  if (!enrolled) return "No students are enrolled on this course yet.";
+  if (searching) {
+    return filtered
+      ? "No student in that state matches that search."
+      : "No student on this course matches that search.";
+  }
+  return "Nobody on this course is in that state.";
+}
 
 function formatWhen(iso) {
   if (!iso) return null;
@@ -116,6 +147,7 @@ function ResultsPage() {
   const [papers, setPapers] = useState([]);
   const [assessmentId, setAssessmentId] = useState("");
 
+  const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
   const [board, setBoard] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -246,11 +278,13 @@ function ResultsPage() {
    */
   const shown = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter(
-      (row) => row.name.toLowerCase().includes(term) || (row.sid ?? "").includes(term)
-    );
-  }, [query, rows]);
+
+    return rows.filter((row) => {
+      if (status && row.status !== status) return false;
+      if (!term) return true;
+      return row.name.toLowerCase().includes(term) || (row.sid ?? "").includes(term);
+    });
+  }, [query, status, rows]);
 
   /**
    * The register, or one paper off it.
@@ -318,7 +352,7 @@ function ResultsPage() {
 
         {/* Which paper, and which student in it. Course first, because a quiz
             only means anything inside one. */}
-        <div className="results-pickers">
+        <div className="assessor-pickers">
           <div className="gen-field">
             <span className="field-label">Course</span>
             <AssessorSelect
@@ -345,14 +379,34 @@ function ResultsPage() {
             />
           </div>
 
-          <div className="gen-field gen-field--find">
-            <span className="field-label">Find a student</span>
-            <SearchField
-              value={query}
-              onChange={setQuery}
-              placeholder="Search student or ID number"
-              label="Search students"
-            />
+          {/* Beside the search rather than out with the course and the paper:
+              those two say which register is being read, and these two narrow
+              the one already on screen. They wrap as a pair for the same
+              reason — split across two lines, the funnel would end up sitting
+              above the field it belongs next to. */}
+          <div className="assessor-pickers__pair">
+            {/* No label over it: the control carries its own name, and a
+                STATUS above a funnel reading Filter names the same thing
+                twice. The screen-reader name says which filter it is. */}
+            <div className="gen-field gen-field--state">
+              <AssessorSelect
+                label="Filter by status"
+                value={status}
+                onChange={setStatus}
+                options={STATUS_OPTIONS}
+                LeadIcon={FilterIcon}
+              />
+            </div>
+
+            <div className="gen-field gen-field--find">
+              <span className="field-label">Find a student</span>
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                placeholder="Search student or ID number"
+                label="Search students"
+              />
+            </div>
           </div>
         </div>
 
@@ -373,36 +427,29 @@ function ResultsPage() {
                 <th scope="col">Started</th>
                 <th scope="col">Submitted</th>
                 <th scope="col">Status</th>
+                <th scope="col">
+                  <span className="assessor-sr-only">Open paper</span>
+                </th>
               </tr>
             </thead>
 
             <tbody>
               {shown.map((row) => {
                 const status = STATUS[row.status] ?? STATUS["not-started"];
+                const opens = row.status === "submitted";
 
                 return (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    className={opens ? "assessor-table__row" : undefined}
+                    onClick={opens ? () => setOpenStudentId(row.id) : undefined}
+                  >
                     <td className="assessor-table__num">
                       {row.sid || <span className="assessor-table__dash">—</span>}
                     </td>
 
-                    {/* Only a handed-in paper opens: there is nothing to read
-                        of a student who has not taken it, and a name that
-                        looked pressable but was not would be worse than one
-                        that plainly is not. */}
                     <th scope="row">
-                      {row.status === "submitted" ? (
-                        <button
-                          type="button"
-                          className="paper-open"
-                          onClick={() => setOpenStudentId(row.id)}
-                          aria-label={`Open ${row.name}'s paper`}
-                        >
-                          <Person as="span" name={row.name} />
-                        </button>
-                      ) : (
-                        <Person as="span" name={row.name} />
-                      )}
+                      <Person as="span" name={row.name} />
                     </th>
 
                     {/* Never known for somebody still working: their answers
@@ -439,13 +486,39 @@ function ResultsPage() {
                         {status.label}
                       </Chip>
                     </td>
+
+                    {/* Only a handed-in paper opens: there is nothing to read
+                        of a student who has not taken it, and a row that looked
+                        pressable but was not would be worse than one that
+                        plainly is not. The cell is empty on the rest, and those
+                        rows take neither the pointer nor the hover.
+
+                        The row is the target for a mouse; this is the same trip
+                        by keyboard, and the thing that says at rest — without
+                        having to be hovered first — that the row goes somewhere. */}
+                    <td className="assessor-table__open">
+                      {opens ? (
+                        <button
+                          type="button"
+                          className="assessor-table__link"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenStudentId(row.id);
+                          }}
+                          aria-label={`Open ${row.name}'s paper`}
+                        >
+                          Open
+                          <ChevronRightIcon size={16} />
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 );
               })}
 
               {isLoading ? (
                 <tr>
-                  <td className="assessor-table__empty" colSpan={7}>
+                  <td className="assessor-table__empty" colSpan={8}>
                     <SkeletonText lines={4} label="Loading results…" />
                   </td>
                 </tr>
@@ -453,15 +526,16 @@ function ResultsPage() {
 
               {!isLoading && shown.length === 0 ? (
                 <tr>
-                  <td className="assessor-table__empty" colSpan={7}>
+                  <td className="assessor-table__empty" colSpan={8}>
                     {failed ? (
                       <LoadFailed what="These results" onRetry={load} />
-                    ) : !assessmentId ? (
-                      "Choose an assessment to see how the class has got on with it."
-                    ) : rows.length === 0 ? (
-                      "No students are enrolled on this course yet."
                     ) : (
-                      "No student on this course matches that search."
+                      emptyLine({
+                        assessment: Boolean(assessmentId),
+                        enrolled: rows.length > 0,
+                        searching: Boolean(query.trim()),
+                        filtered: Boolean(status)
+                      })
                     )}
                   </td>
                 </tr>

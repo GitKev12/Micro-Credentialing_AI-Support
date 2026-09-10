@@ -847,7 +847,18 @@
   color: var(--white);
 }
 
-/* Search field */
+/* ── Search field ────────────────────────────────
+   The admin console's field, in this console's clothes. Same behaviour on both
+   ends — a hairline that darkens under the pointer, a brand ring while the
+   caret is in it, and a clear button of our own — over this one's own tokens,
+   so the row it stands in is still the row it was.
+
+   Round-ended, and the only field on the screen that is. That is the admin
+   console's arrangement rather than an exception to it: over there the search
+   takes the widest radius on the scale and the pickers beside it take the
+   narrowest, so the one control you type into never has to be picked out of a
+   row of controls you choose from. --radius-lg on a 44px field is that same
+   shape here; the misnamed --radius-pill is this console's 8px. */
 .assessor-search {
   display: flex;
   align-items: center;
@@ -855,14 +866,31 @@
   width: min(320px, 100%);
   height: 44px;
   padding: 0 var(--sp-4);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-field);
+  transition: box-shadow 0.15s ease;
+}
+
+.assessor-search:hover {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
+/* The field, not the input: the caret is inside a box drawn by the wrapper, so
+   the wrapper is what has to look focused. The input's own outline is off for
+   the same reason — it would ring the text and not the control. */
+.assessor-search:focus-within {
+  box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 4px var(--brand-hover);
 }
 
 .assessor-search__icon {
   flex-shrink: 0;
   color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.assessor-search:focus-within .assessor-search__icon {
+  color: var(--brand-text);
 }
 
 .assessor-search input {
@@ -874,6 +902,41 @@
   font: inherit;
   font-size: var(--fs-body);
   color: var(--ink);
+}
+
+/* Suppress the browser's own search decorations — the clear button below
+   replaces them with one that looks the same everywhere. */
+.assessor-search input::-webkit-search-decoration,
+.assessor-search input::-webkit-search-cancel-button,
+.assessor-search input::-webkit-search-results-button,
+.assessor-search input::-webkit-search-results-decoration {
+  appearance: none;
+  display: none;
+}
+
+.assessor-search__clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-150);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.assessor-search__clear:hover {
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.assessor-search__clear:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* Person cell (name over id) */
@@ -1393,12 +1456,59 @@
 
 /* What the last thing the assessor pressed did. A floating message rather
    than a line in the page (see .notice-toast), so it lands in the same corner
-   however far down a list the press happened. */
+   however far down a list the press happened.
+
+   A glyph, then the words. Held to a readable measure, because .notice-toast
+   sizes itself to its content and two sentences of it ran a single line most
+   of the way across the foot of the screen — which reads as a bar fixed to the
+   bottom of the window rather than as a receipt for the press that made it. */
 .assessor-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  max-width: min(27rem, calc(100vw - 2 * var(--notice-gap)));
   margin: 0 0 var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius-md);
   font-size: var(--fs-body);
+  line-height: 1.45;
+}
+
+/* The tone, at full strength. The panel behind these words is the tone mixed
+   to 13% — enough to agree with a message somebody is already reading, not
+   enough to tell a landed write from a refused one across a room, and nothing
+   at all to a reader who cannot separate the two colours. The disc says which
+   it is before a word of it is read. */
+.assessor-notice__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.assessor-notice__icon svg {
+  /* The card colour, so the glyph is cut out of the disc rather than drawn on
+     it — light on the tone in either theme. */
+  color: var(--surface);
+}
+
+.assessor-notice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The line the reader does not have to take in, kept out of the way of the one
+   they do: what the press did stays at body size, what it did not do is
+   smaller and lighter under it. */
+.assessor-notice__detail {
+  font-size: var(--fs-label);
+  opacity: 0.82;
 }
 
 .assessor-notice--ok {
@@ -1460,6 +1570,10 @@
 }
 
 /* Stacked metric inside a row */
+.metric {
+  min-width: 0;
+}
+
 .metric__label {
   font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
@@ -1485,29 +1599,24 @@
 
 /* ── Student detail ─────────────────────────────────────── */
 
-/* ── Skill gap, in the hero ──────────────────────
+/* ── Skill gap ───────────────────────────────────
    One column per lesson from the final exam. The pass line does the work: a
    column standing under it is a gap, which is what an assessor came to find.
    The fills are the student app's own good/critical steps, so a weak topic is
    the same colour on both ends of the system — and because that pair is the
    one colour-blind readers cannot separate, a weak column is also striped and
-   is the only one that prints its number. */
-.student-hero__chart {
-  flex: 1 1 20rem;
-  min-width: min(100%, 17rem);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+   is the only one that prints its number.
+
+   A card at the head of the coursework column. It carries no furniture of its
+   own: the card's header holds the title and the score, and the plot's own
+   bottom margin is the room the tick numbers hang in. */
+/* The plot's own bottom margin is the room the tick numbers hang in, not a
+   gap under them, so the sentence takes one of its own. */
+.skill-card__caption {
+  margin: var(--sp-3) 0 0;
 }
 
-.hero-chart__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-3);
-}
-
-.hero-chart__score {
+.skill-chart__score {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
@@ -1519,16 +1628,20 @@
 
 /* The plot's box: the ground the pass line is positioned against, and the
    gutter at the right for that line's label. Without the gutter the label
-   lands on whatever column happens to be last and one of them loses. */
-.hero-chart {
+   lands on whatever column happens to be last and one of them loses.
+
+   Taller than it was in the hero. At a fifth of the page 76px was already the
+   most a column could be given without the plot reading as a strip; across the
+   card there is width enough that the same height would have flattened it. */
+.skill-chart {
   position: relative;
-  height: 76px;
+  height: 112px;
   padding-right: 4.25rem;
   margin-bottom: 1.25em;
 }
 
 /* The columns, sharing the width inside it. */
-.hero-chart__plot {
+.skill-chart__plot {
   display: flex;
   align-items: flex-end;
   gap: 2px;
@@ -1537,7 +1650,7 @@
 
 /* The pass mark. One hairline, solid — the only rule in the plot, so it needs
    no dashes to say it is not data. */
-.hero-chart__target {
+.skill-chart__target {
   position: absolute;
   left: 0;
   right: 0;
@@ -1545,7 +1658,7 @@
   pointer-events: none;
 }
 
-.hero-chart__target span {
+.skill-chart__target span {
   position: absolute;
   right: 0;
   bottom: -0.6em;
@@ -1562,7 +1675,7 @@
    only space between two bars is the plot's 2px gap. Filling the column keeps
    the pass line honest too, because the bars run the full width the line is
    drawn across. */
-.hero-chart__col {
+.skill-chart__col {
   position: relative;
   flex: 1 1 0;
   min-width: 8px;
@@ -1573,14 +1686,14 @@
   height: 100%;
 }
 
-.hero-chart__bar {
+.skill-chart__bar {
   width: 100%;
   min-height: 2px;
   border-radius: 4px 4px 0 0;
   background: var(--skill-strong);
 }
 
-.hero-chart__col[data-band="weak"] .hero-chart__bar {
+.skill-chart__col[data-band="weak"] .skill-chart__bar {
   background-color: var(--skill-weak);
   background-image: repeating-linear-gradient(
     45deg,
@@ -1592,19 +1705,19 @@
 /* Before the exam is taken. The seat is drawn full height so the plot shows
    the scale it will be read against, in a neutral that is neither of the two
    data colours — an empty column can never be misread as a score. */
-.hero-chart__bar--waiting {
+.skill-chart__bar--waiting {
   background: var(--gray-150);
 }
 
 /* The figure that is not there yet. */
-.hero-chart__score--waiting {
+.skill-chart__score--waiting {
   font-weight: var(--fw-regular);
   color: var(--text-muted);
 }
 
 /* Only the gaps carry a number: a value on every column is a value nobody
    reads, and these are the ones being looked for. */
-.hero-chart__value {
+.skill-chart__value {
   margin-bottom: 2px;
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
@@ -1612,7 +1725,7 @@
   color: var(--text-body);
 }
 
-.hero-chart__tick {
+.skill-chart__tick {
   position: absolute;
   bottom: -1.2em;
   font-size: var(--fs-micro);
@@ -1631,9 +1744,12 @@
   box-shadow: var(--shadow-card);
 }
 
+/* Wide enough that the band breaks before the name does: below this the
+   progress drops to a line of its own, which reads better than a name
+   split over two lines beside a bar. */
 .student-hero__lead {
   flex: 1;
-  min-width: min(100%, 14rem);
+  min-width: min(100%, 20rem);
 }
 
 .student-hero__name {
@@ -1669,6 +1785,18 @@
   font-size: var(--fs-body);
   font-weight: var(--fw-light);
   color: var(--text-muted);
+}
+
+/* One end of the band. It keeps its own width rather than stretching to
+   whatever the name leaves: a progress bar as wide as the page reads as the
+   subject of the screen, and the student is. Below the hero's wrapping point
+   it drops under the name and takes the full width it is given. */
+.student-hero__progress {
+  flex: 0 0 auto;
+  width: min(100%, 20rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .student-split {
@@ -1717,8 +1845,16 @@
   border-radius: var(--radius-md);
 }
 
+/* Wide enough for what the row now carries — a name, a bar, a date and a chip
+   — so the card scrolls before a cell is squeezed narrower than what stands in
+   it. The bar comes in from the roster's width: this card is half of a split,
+   and 13rem of track there would push the chip beside it off the edge. */
 .card-table .assessor-table {
-  min-width: 26rem;
+  min-width: 34rem;
+}
+
+.card-table .assessor-table__progress-cell {
+  min-width: 9rem;
 }
 
 .card-table .assessor-table th,
@@ -2655,13 +2791,19 @@
   list-style: none;
 }
 
+/* On the page's own ground rather than inside a card, so the tile has to draw
+   its own edge. It was --gray-050 on a --bg-app page: #f5f5f5 on #f6f7f8, one
+   point apart, which left four counts floating on the background with only a
+   hairline to say where each one stopped. The console's surface is what every
+   other block on the page stands on, and against the sunken page it is the
+   difference the row was missing. */
 .gen-taker {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
   padding: var(--sp-4);
   border-radius: var(--radius-lg);
-  background: var(--gray-050);
+  background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--gray-200);
 }
 
@@ -2947,6 +3089,14 @@
 }
 
 .assessor-select__value.is-placeholder {
+  color: var(--text-muted);
+}
+
+/* Ahead of the value, at the weight of the caret on the other side: it says
+   what the control is for, and is not the thing being read. */
+.assessor-select__lead {
+  display: flex;
+  flex-shrink: 0;
   color: var(--text-muted);
 }
 
@@ -3330,23 +3480,65 @@
 
 /**
  * The controls that decide what the table holds: the two pickers that name the
- * paper, and the search that narrows it to one person.
+ * paper, and the search that narrows it to one person. The credentials queue
+ * takes the same row, minus the paper: a queue standing across every course an
+ * assessor teaches is read the same way a register is.
  *
  * Held to their own width at the left rather than stretched across the screen —
  * a control as wide as seven columns reads as the subject of the page, and the
- * results are.
+ * table is.
  */
-.results-pickers {
+.assessor-pickers {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-4);
   align-items: start;
 }
 
-.results-pickers .gen-field {
+.assessor-pickers .gen-field {
   flex: 0 1 17rem;
   min-width: 0;
   margin-bottom: 0;
+}
+
+/**
+ * The state filter is as wide as what it is holding.
+ *
+ * Off it is a funnel and the word Filter; on it is a funnel and one of three
+ * states. A fixed track would leave it standing part empty beside a search
+ * field that wants every pixel it can have.
+ *
+ * It carries no label of its own, so it is hung from the bottom of the row
+ * instead of the top: the funnel lines up with the search field beside it
+ * rather than with the words above it. Matching that field's height is what
+ * makes the two read as one control split in half.
+ */
+.assessor-pickers .gen-field--state {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+/* Height only. It matches the search's, so the two line up along the row —
+   but it is a select, and it keeps the shape every other select on the screen
+   has rather than borrowing the search's ends. */
+.assessor-pickers .gen-field--state .assessor-select__trigger {
+  height: 44px;
+}
+
+/**
+ * The two that narrow what is already on screen, kept together.
+ *
+ * The course and the paper say which register is being read; the state and the
+ * search narrow the one in front of you, and they are read as one gesture. Left
+ * loose on the row they wrap apart on a laptop — the funnel landing on the line
+ * above the field it belongs beside — so they wrap as a pair instead, and take
+ * the row's slack between them.
+ */
+.assessor-pickers__pair {
+  display: flex;
+  gap: var(--sp-4);
+  flex: 1 1 30rem;
+  min-width: 0;
 }
 
 /**
@@ -3354,16 +3546,29 @@
  *
  * A course and a paper are picked off a list and only need width enough to be
  * recognised; a name is typed, and a field that cuts it off halfway makes the
- * assessor check what they have written instead of reading the table. It takes
- * the slack on the row as well, since the two beside it do not want it.
+ * assessor check what they have written instead of reading the table. So it
+ * takes all the slack on the row, since none of the pickers beside it want any.
+ *
+ * What it asks for to begin with is another matter: at 26rem the row could not
+ * hold four controls beside a sidebar, and the state filter — which belongs
+ * next to the search, being the other half of narrowing what is already on
+ * screen — was pushed onto a line of its own. Asking for less costs nothing
+ * where there is room, because it grows into whatever is left.
  */
-.results-pickers .gen-field--find {
-  flex: 1 1 26rem;
+.assessor-pickers .gen-field--find {
+  flex: 1 1 18rem;
+  /* Growing, but not without end. On the credentials queue this field has only
+     the course picker beside it, so all the slack on the row was its own and
+     the bar ran most of the way across the screen — a search box wider than
+     the table it is searching, holding one word. It takes what it needs to
+     show a name being typed and leaves the rest of the row empty, which is how
+     the row was meant to sit in the first place. */
+  max-width: 26rem;
 }
 
 /* The search's own 320px cap is for a toolbar, where it sits beside other
    things. Here the field is the width of its column. */
-.results-pickers .gen-field--find .assessor-search {
+.assessor-pickers .gen-field--find .assessor-search {
   width: 100%;
 }
 
@@ -3384,12 +3589,42 @@
  */
 .assessor-table--results {
   table-layout: fixed;
-  min-width: 70rem;
+  min-width: 76rem;
 }
 
+/* A fixed layout hands every unsized column the same track, so the one that
+   carries the way out has to say how much it needs. */
+.assessor-table--results th:last-child,
+.assessor-table--results td:last-child {
+  width: 8rem;
+}
+
+/**
+ * A fixed layout hands every unsized column the same track, which is more than
+ * a two-character count needs and less than a name does — long ones were
+ * ellipsed in the one cell that has to be read in full. So the columns whose
+ * contents have a known length say what they need, and the student's name,
+ * the row's heading and the only cell of unknown length, takes what is left.
+ */
 .assessor-table--results th:first-child,
-.assessor-table--results td:first-child {
-  width: auto;
+.assessor-table--results td:first-child,
+.assessor-table--results th:nth-child(7),
+.assessor-table--results td:nth-child(7) {
+  width: 9.5rem;
+}
+
+.assessor-table--results th:nth-child(3),
+.assessor-table--results td:nth-child(3),
+.assessor-table--results th:nth-child(4),
+.assessor-table--results td:nth-child(4) {
+  width: 7rem;
+}
+
+.assessor-table--results th:nth-child(5),
+.assessor-table--results td:nth-child(5),
+.assessor-table--results th:nth-child(6),
+.assessor-table--results td:nth-child(6) {
+  width: 8rem;
 }
 
 .assessor-table--results thead th {
@@ -3408,35 +3643,10 @@
 }
 
 /* ── One student's marked paper ──────────────────
-   Reached from a name in the register. Only a handed-in row opens, so the name
-   is a button on those and plain text on the rest — the difference has to be
-   visible before it is pressed, which is what the underline is doing. */
-
-.paper-open {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: var(--gray-300);
-  text-underline-offset: 3px;
-}
-
-.paper-open:hover .person__name,
-.paper-open:focus-visible .person__name {
-  color: var(--brand-text);
-}
-
-/* Keyboard focus has to be seen, not inferred from a colour shift that a
-   hover also causes — the same ring every other control here draws. */
-.paper-open:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
+   Reached one way now: the whole row of a handed-in paper on the register,
+   marked by the Open at the end of it. A student's own lesson list used to
+   open a paper too, off an underlined name, which put the same read behind two
+   doors and gave the lessons table four columns the register already had. */
 
 /**
  * The sheet the questions are laid on.
@@ -3454,14 +3664,15 @@
   box-shadow: var(--shadow-card);
 }
 
-/* Who the paper belongs to on one side, how it went on the other, ruled off
-   from the questions so the sheet has a head and a body. */
+/* Whose paper it is, then how it went, ruled off from the questions so the
+   sheet has a head and a body.
+ *
+ * The two sat side by side and fought over the width: the figures had to fold
+ * into two rows of unequal length long before the head itself was short of
+ * room. Stacked, the figures get the whole sheet and stay on one line. */
 .paper__head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-4) var(--sp-6);
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  gap: var(--sp-4);
   margin-bottom: var(--sp-5);
   padding-bottom: var(--sp-4);
   border-bottom: 1px solid var(--gray-200);
@@ -3488,19 +3699,32 @@
 }
 
 /**
- * The attempt in figures, each under the word for what it is.
+ * The attempt in figures, read as one panel.
  *
- * They ran together on one line as unlabelled fragments, which asked the
- * reader to parse a sentence to find a number and made five different kinds of
- * fact look like one kind. Labelled columns are the console's own way of
- * showing a set of figures, and they survive wrapping: a column that drops to
- * the next line still says what it is.
+ * Labelled columns are the console's own way of showing a set of figures, but
+ * loose they did not hold together. Each column was only as wide as its own
+ * value, so the gaps between them came out visibly uneven; only three of the
+ * five carry a second line, which left the block with a ragged bottom; and the
+ * values sat at the size of the student's name, so a handed-in date shouted as
+ * loudly as the mark.
+ *
+ * One ground, columns of equal width, and figures a step under the name settle
+ * all three. The panel is a rectangle whatever it holds, so a column with no
+ * hint under it no longer reads as a hole, and the eye lands on the name, then
+ * on the mark.
  */
 .paper__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3) var(--sp-6);
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--sp-4) var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+/* The figures answer to the name above them, not the other way round. */
+.paper__facts .metric__value {
+  font-size: var(--fs-title);
 }
 
 .paper__mark {

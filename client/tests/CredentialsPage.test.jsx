@@ -12,6 +12,7 @@ const ROWS = [
     name: "Nicole Fernandez",
     sid: "202300417",
     credential: "Computer Programming 2 Credential",
+    courseId: "c1",
     courseCode: "CC2",
     assessmentTitle: "Computer Programming 2 — Final Exam",
     score: 42,
@@ -24,6 +25,7 @@ const ROWS = [
     name: "Miguel Bautista",
     sid: "202300218",
     credential: "Computer Programming 2 Credential",
+    courseId: "c1",
     courseCode: "CC2",
     assessmentTitle: "Computer Programming 2 — Final Exam",
     score: 31,
@@ -32,12 +34,34 @@ const ROWS = [
   }
 ];
 
+/** A row off another course, for the picker to tell apart from the CC2 pair. */
+const OTHER = {
+  id: "r3",
+  studentId: "st3",
+  name: "Ana Reyes",
+  sid: "202300999",
+  credential: "Data Structures Credential",
+  courseId: "c2",
+  courseCode: "DS1",
+  assessmentTitle: "Data Structures — Final Exam",
+  score: 40,
+  totalPoints: 50,
+  passMark: 30
+};
+
+const CLASSES = [
+  { id: "c1", code: "CC2", name: "Computer Programming 2" },
+  { id: "c2", code: "DS1", name: "Data Structures" }
+];
+
 let issueFails = false;
 let issueCalls = [];
 let pending = [];
+let classes = [];
 
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
+  fetchAssessorClasses: async () => classes,
   fetchPendingCredentials: async () => pending,
   issueCredential: async (assessorId, submissionId) => {
     issueCalls.push({ assessorId, submissionId });
@@ -57,6 +81,7 @@ beforeEach(() => {
   issueFails = false;
   issueCalls = [];
   pending = ROWS.map((row) => ({ ...row }));
+  classes = CLASSES.map((course) => ({ ...course }));
 });
 
 const open = async () => {
@@ -218,5 +243,127 @@ describe("the credentials list as a table", () => {
     const empty = await screen.findByText("No credentials are waiting for release.");
     expect(empty.closest("table")).not.toBeNull();
     expect(empty).toHaveAttribute("colSpan", "6");
+  });
+});
+
+/**
+ * The queue stands across every course an assessor teaches, and it is read
+ * looking for one course's worth of it or for one student. Both narrow the
+ * list already in hand rather than asking for it again: every pending
+ * credential arrived in the one read the screen makes.
+ */
+describe("narrowing the queue", () => {
+  // The listbox commits on mousedown, before the document's own listener can
+  // close it — so a click alone opens the list and chooses nothing.
+  const pick = async (label) => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Course" }));
+    });
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("option", { name: new RegExp(label) }));
+    });
+  };
+
+  const type = async (term) => {
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search students" }), {
+        target: { value: term }
+      });
+    });
+  };
+
+  const names = (container) =>
+    [...container.querySelectorAll("tbody th[scope=row]")].map((cell) => cell.textContent);
+
+  it("offers the assessor's own courses, the whole queue first", async () => {
+    await open();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Course" }));
+    });
+
+    const options = screen.getAllByRole("option").map((option) => option.textContent);
+    expect(options[0]).toContain("All courses");
+    expect(options.join(" ")).toContain("Computer Programming 2");
+    expect(options.join(" ")).toContain("Data Structures");
+  });
+
+  it("narrows the queue to one course, and back to all of it", async () => {
+    pending = [...ROWS.map((row) => ({ ...row })), { ...OTHER }];
+    const container = await open();
+    expect(names(container)).toHaveLength(3);
+
+    await pick("Data Structures");
+    expect(names(container)).toEqual(["Ana Reyes"]);
+
+    await pick("All courses");
+    expect(names(container)).toHaveLength(3);
+  });
+
+  it("finds a student by name and by number", async () => {
+    const container = await open();
+
+    await type("bautista");
+    expect(names(container)).toEqual(["Miguel Bautista"]);
+
+    await type("202300417");
+    expect(names(container)).toEqual(["Nicole Fernandez"]);
+  });
+
+  /**
+   * An empty queue and a queue narrowed to nothing are different answers.
+   * Telling an assessor there is no work waiting when they have only mistyped
+   * a name would be the wrong one.
+   */
+  it("says nothing matched, rather than that nothing is waiting", async () => {
+    await open();
+
+    await type("nobody");
+    expect(screen.getByText("No student in the queue matches that search.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("No credentials are waiting for release.")
+    ).not.toBeInTheDocument();
+  });
+
+  /**
+   * A search and a course narrow the list together, so a search that finds
+   * nothing while a course is picked has only searched that course. Saying the
+   * student is not in the queue would claim more than has been looked at —
+   * they may be standing on another course.
+   */
+  it("owns up to having searched one course, not the queue", async () => {
+    pending = [...ROWS.map((row) => ({ ...row })), { ...OTHER }];
+    await open();
+
+    await pick("Data Structures");
+    await type("bautista");
+
+    expect(
+      screen.getByText("No student on this course matches that search.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No student in the queue matches that search.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("says which course is empty when a course is the thing narrowing it", async () => {
+    pending = ROWS.map((row) => ({ ...row }));
+    await open();
+
+    await pick("Data Structures");
+    expect(
+      screen.getByText("No credentials are waiting for release on this course.")
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * The count in the header is the queue's own: it says how much work is
+   * standing, which is not a question about what is on screen.
+   */
+  it("leaves the count above the list alone", async () => {
+    await open();
+
+    await type("bautista");
+    expect(screen.getByText("2 awaiting release")).toBeInTheDocument();
   });
 });

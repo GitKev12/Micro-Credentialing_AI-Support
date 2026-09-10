@@ -110,12 +110,12 @@ describe("lockStateFor", () => {
     expect(lock.reason).toBe("Your assessor will unlock this quiz.");
   });
 
-  it("names the final assessment when the final is the paper being held back", () => {
+  it("names the final exam when the final is the paper being held back", () => {
     const draft = paper({ _id: "f1", moduleId: null, scope: "final", status: "draft" });
     expect(lockStateFor(draft, state()).reason).toBe(
-      "Your assessor will unlock this final assessment."
+      "Your assessor will unlock this final exam."
     );
-    expect(unreleasedReason("final")).toBe("Your assessor will unlock this final assessment.");
+    expect(unreleasedReason("final")).toBe("Your assessor will unlock this final exam.");
   });
 
   it("still requires the lesson to be finished once the quiz is posted", () => {
@@ -159,7 +159,7 @@ describe("lockStateFor", () => {
       state({ done: ["m1"], modules: [{ _id: "m1" }], assessments: [quiz, final], results: failed })
     );
     expect(shut.locked).toBe(true);
-    expect(shut.reason).toBe("Complete 1 quiz to unlock the final assessment.");
+    expect(shut.reason).toBe("Complete 1 quiz to unlock the final exam.");
 
     const passed = new Map([["a1", { aiGrading: { score: 2 } }]]);
     const open = lockStateFor(

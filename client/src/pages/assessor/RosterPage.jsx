@@ -5,11 +5,12 @@ import {
   setRosterStudentSuspended,
   storedAssessorId
 } from "../../services/assessors";
-import { noticeClass, useNotice } from "../../lib/useNotice";
+import { useNotice } from "../../lib/useNotice";
 import { ChevronRightIcon } from "./components/icons";
 import {
   CredentialDots,
   LoadFailed,
+  Notice,
   Person,
   ProgressBar,
   ScreenHeader,
@@ -37,6 +38,26 @@ import {
  * recorded — the server keeps it on the class — so their switch is closed
  * rather than offered a press that would be refused.
  */
+/**
+ * How far through the course one student is, on the same terms their own
+ * course card puts it: the lessons, a quiz for each of them, and the final.
+ *
+ * The column counted finished lessons and nothing else, so a student who had
+ * read every module and sat no paper filled this bar while their own screen
+ * showed them under half way. Two figures for the same student on the same
+ * course, and the assessor's was the one that flattered.
+ *
+ * The lesson counts are the fallback rather than the answer — they are all a
+ * server from before this change sends, and the older, smaller sum is better
+ * than an empty column. See progressSummary in courses.controller.js.
+ */
+function courseProgress(student, modules) {
+  const worth = Number(student.itemCount) || modules;
+  const done = Math.min(Number(student.completedItems ?? student.done) || 0, worth);
+
+  return { done, worth, pct: worth > 0 ? Math.round((done / worth) * 100) : 0 };
+}
+
 function RosterPage() {
   const navigate = useNavigate();
   const { courseId } = useParams();
@@ -121,8 +142,12 @@ function RosterPage() {
       setNotice({
         tone: "ok",
         text: next
-          ? `${courseName} is closed for ${student.name}. They keep their account and their other courses.`
-          : `${courseName} is open again for ${student.name}.`
+          ? `${courseName} is closed for ${student.name}.`
+          : `${courseName} is open again for ${student.name}.`,
+        // What closing a course does not do. Suspending from a roster reads
+        // like an account being shut, and the assessor pressing it is the one
+        // who needs telling that it is not.
+        detail: next ? "They keep their account and their other courses." : null
       });
     } catch (error) {
       setStudents(patch(student.suspended));
@@ -159,25 +184,20 @@ function RosterPage() {
       </ScreenHeader>
 
       <div className="assessor-body assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
-        {notice ? (
-          <p className={noticeClass(notice, `assessor-notice assessor-notice--${notice.tone}`)} role="status">
-            {notice.text}
-          </p>
-        ) : null}
+        <Notice notice={notice} />
 
         <div className="assessor-table-wrap">
           <table className="assessor-table assessor-table--roster">
             <caption className="assessor-sr-only">
-              Students on this course, with how far through the modules each one
-              is, the badges they have earned, and whether the course is open to
-              them.
+              Students on this course, with how far through it each one is, the
+              badges they have earned, and whether the course is open to them.
             </caption>
 
             <thead>
               <tr>
                 <th scope="col">Student #</th>
                 <th scope="col">Student</th>
-                <th scope="col">Module progress</th>
+                <th scope="col">Course progress</th>
                 <th scope="col">Badges</th>
                 <th scope="col">Status</th>
                 <th scope="col">
@@ -188,7 +208,7 @@ function RosterPage() {
 
             <tbody>
               {roster.map((student) => {
-                const pct = total > 0 ? Math.round((student.done / total) * 100) : 0;
+                const { done, worth, pct } = courseProgress(student, total);
                 // Nowhere to record a closure: the server keeps it on the class.
                 const noClass = (student.classes ?? []).length === 0;
 
@@ -225,7 +245,7 @@ function RosterPage() {
                     </th>
 
                     <td className="assessor-table__progress-cell">
-                      <ProgressBar label={`${student.done} of ${total} modules`} pct={pct} />
+                      <ProgressBar label={`${done} of ${worth}`} pct={pct} />
                     </td>
 
                     <td>

@@ -24,20 +24,24 @@ import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
  * releases them.
  *
  *   Assessment    — quiz or final, which lesson, how many questions, how long
- *                   the sitting runs. Pressing generate reads the lesson's
+ *                   the attempt runs. Pressing generate reads the lesson's
  *                   extracted text and writes a draft.
  *   Review & post — pick a question by its number to correct it, then post.
  *                   Posting applies to the whole class at once: an Assessment
  *                   holds no student, so there is nothing per-student to set.
  *
  * A draft is invisible to students until it is posted. That is the point of the
- * screen — a wrong answer key found here is found before a class sits it.
+ * screen — a wrong answer key found here is found before a class takes it.
  */
 
 const clampCount = (value) => Math.max(1, Math.min(120, Math.floor(Number(value) || 0)));
 
 /** A quiz's default length when the blueprint has not been consulted yet. */
 const DEFAULT_ITEMS = 10;
+
+/* What the Lesson field reads on a final, which is drawn from all of them.
+   Never sent anywhere: the field is disabled, and a final carries no lesson. */
+const EVERY_LESSON = "all";
 
 /** A final's, which is the length the imported Tables of Specification set. */
 const DEFAULT_FINAL_ITEMS = 60;
@@ -414,7 +418,7 @@ function GenerateCoursePage() {
           <header className="gen-paper__head">
             <div style={{ minWidth: 0 }}>
               <h2 className="assessor-card-title" style={{ margin: 0 }}>
-                {paper?.title || (scope === "final" ? "Final assessment" : "Lesson quiz")}
+                {paper?.title || (scope === "final" ? "Final assessment" : "Quiz")}
               </h2>
               <p className="assessor-meta" style={{ marginTop: "var(--sp-1)" }}>
                 {paper
@@ -495,7 +499,7 @@ function GenerateCoursePage() {
                   className={`gen-toggle__btn${scope === "lesson" ? " is-active" : ""}`}
                   onClick={() => setScope("lesson")}
                 >
-                  Lesson quiz
+                  Quiz
                 </button>
                 <button
                   type="button"
@@ -507,34 +511,52 @@ function GenerateCoursePage() {
               </div>
             </div>
 
-            {scope === "lesson" ? (
-              <div className="gen-field">
-                <span className="field-label">Lesson</span>
-                {/* Each lesson says on its own line whether its paper is
-                    already out, which is the thing that decides whether
-                    generating over it is a new paper or a replacement. */}
+            {/* Standing here in both types, so the panel keeps its height as the
+                type is toggled — the same reason the Minutes field below is
+                shown while the default is in force rather than swapped out.
+                Dropping it moved every control under it up by a field, and the
+                paper beside it with them.
+
+                A final is not drawn from one lesson but from all of them,
+                which is what it says while it cannot be used. */}
+            <div className="gen-field">
+              <span className="field-label">Lesson</span>
+              {scope === "lesson" ? (
+                <>
+                  {/* Each lesson says on its own line whether its paper is
+                      already out, which is the thing that decides whether
+                      generating over it is a new paper or a replacement. */}
+                  <AssessorSelect
+                    label="Lesson"
+                    value={moduleId}
+                    onChange={setModuleId}
+                    options={lessons.map((row) => ({
+                      value: row.moduleId,
+                      label: `${row.n}. ${row.title}`,
+                      meta: row.assessment
+                        ? row.assessment.status === "posted"
+                          ? "Posted"
+                          : "Draft"
+                        : undefined
+                    }))}
+                  />
+                  {/* The generator reads the extracted text, so a lesson without
+                      it is worth saying before the button is pressed rather than
+                      after the call comes back empty. */}
+                  {lesson && !lesson.hasText ? (
+                    <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
+                  ) : null}
+                </>
+              ) : (
                 <AssessorSelect
                   label="Lesson"
-                  value={moduleId}
-                  onChange={setModuleId}
-                  options={lessons.map((row) => ({
-                    value: row.moduleId,
-                    label: `${row.n}. ${row.title}`,
-                    meta: row.assessment
-                      ? row.assessment.status === "posted"
-                        ? "Posted"
-                        : "Draft"
-                      : undefined
-                  }))}
+                  value={EVERY_LESSON}
+                  onChange={() => {}}
+                  options={[{ value: EVERY_LESSON, label: "Every lesson" }]}
+                  disabled
                 />
-                {/* The generator reads the extracted text, so a lesson without
-                    it is worth saying before the button is pressed rather than
-                    after the call comes back empty. */}
-                {lesson && !lesson.hasText ? (
-                  <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
-                ) : null}
-              </div>
-            ) : null}
+              )}
+            </div>
 
             <label className="gen-field">
               <span className="field-label">Number of questions</span>

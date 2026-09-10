@@ -202,7 +202,7 @@ async function loadCourseState(studentId, courseId) {
  */
 export function unreleasedReason(scope) {
   return scope === "final"
-    ? "Your assessor will unlock this final assessment."
+    ? "Your assessor will unlock this final exam."
     : "Your assessor will unlock this quiz.";
 }
 
@@ -248,7 +248,7 @@ export function lockStateFor(assessment, state) {
   if (lessonsLeft > 0) parts.push(`${lessonsLeft} lesson${lessonsLeft === 1 ? "" : "s"}`);
   if (quizzesLeft > 0) parts.push(`${quizzesLeft} quiz${quizzesLeft === 1 ? "" : "zes"}`);
 
-  return { locked: true, reason: `Complete ${parts.join(" and ")} to unlock the final assessment.` };
+  return { locked: true, reason: `Complete ${parts.join(" and ")} to unlock the final exam.` };
 }
 
 /**

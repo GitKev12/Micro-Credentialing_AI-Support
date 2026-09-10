@@ -14,6 +14,11 @@ const ROSTER = [
     sid: "202300001",
     classes: ["IT01 - CC2"],
     done: 3,
+    // A course of 8 lessons is worth 17: the lessons, a quiz for each, and the
+    // final. Three lessons read and two quizzes passed is 5 of them.
+    completedItems: 5,
+    itemCount: 17,
+    progress: 29,
     creds: 1,
     suspended: false
   },
@@ -132,8 +137,12 @@ describe("suspending from the roster", () => {
     expect(suspensionCalls).toEqual([
       { assessorId: "ASS001", courseId: "c1", studentId: "st1", suspended: true }
     ]);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "CC2 is closed for Chris Jerome Dayan. They keep their account and their other courses."
+    // Two lines, not one sentence: what the press did, and — quieter, under
+    // it — what it did not do.
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent("CC2 is closed for Chris Jerome Dayan.");
+    expect(notice.querySelector(".assessor-notice__detail").textContent).toBe(
+      "They keep their account and their other courses."
     );
     expect(switchFor("Chris Jerome Dayan", "Suspended")).toHaveAttribute(
       "aria-checked",
@@ -214,7 +223,7 @@ describe("the roster as a table", () => {
     expect(headers).toEqual([
       "Student #",
       "Student",
-      "Module progress",
+      "Course progress",
       "Badges",
       "Status",
       "Open student"
@@ -252,5 +261,64 @@ describe("the roster as a table", () => {
     });
 
     expect(screen.getByText("No students match your search.")).toBeInTheDocument();
+  });
+
+  /**
+   * The way back from a search that matched nobody. Holding backspace is the
+   * only other one, and the screen it is pressed on has a sentence on it and
+   * nothing else — the browser's own cross is suppressed, because it is drawn
+   * differently by every engine and not at all by one of them.
+   */
+  it("empties itself from the clear button", async () => {
+    await draw();
+
+    const field = screen.getByLabelText("Search students");
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "zzz" } });
+    });
+    expect(screen.getByText("No students match your search.")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    });
+
+    expect(field).toHaveValue("");
+    expect(screen.getByRole("rowheader", { name: /Chris Jerome Dayan/ })).toBeInTheDocument();
+  });
+
+  it("offers nothing to clear until something is typed", async () => {
+    await draw();
+
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+  });
+});
+
+/**
+ * The column the student is also looking at.
+ *
+ * It counted finished lessons against the lesson count, so a student who had
+ * read every module and taken no paper filled the bar here while their own
+ * course card showed them under half way — the same student, the same course,
+ * two figures, and the assessor's was the flattering one.
+ */
+describe("how far through the course", () => {
+  const progressCell = () =>
+    screen.getByRole("rowheader", { name: /Chris Jerome Dayan/ }).closest("tr")
+      .querySelector(".assessor-table__progress-cell");
+
+  it("counts the quizzes and the final, not the reading alone", async () => {
+    await draw();
+
+    expect(progressCell()).toHaveTextContent("5 of 17");
+    expect(progressCell()).toHaveTextContent("29%");
+  });
+
+  it("falls back to the lessons when the server sends no course figure", async () => {
+    roster = [{ ...ROSTER[0], completedItems: undefined, itemCount: undefined }];
+    await draw();
+
+    // 3 of 8 lessons — the older, smaller sum, which beats an empty column.
+    expect(progressCell()).toHaveTextContent("3 of 8");
+    expect(progressCell()).toHaveTextContent("38%");
   });
 });

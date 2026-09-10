@@ -19,15 +19,26 @@ import { useEffect, useId, useRef, useState } from "react";
  * and `aria-activedescendant` points at the highlighted row, so screen readers
  * track the highlight without focus ever moving into the list.
  *
- * `options` are { value, label, meta?, disabled? }. A disabled option is
- * listed and greyed rather than left out: somebody looking for it should find
- * it and see why it cannot be picked — which is what `meta` is for — instead
- * of hunting for something that appears not to exist.
+ * `options` are { value, label, meta?, disabled?, triggerLabel? }. A disabled
+ * option is listed and greyed rather than left out: somebody looking for it
+ * should find it and see why it cannot be picked — which is what `meta` is for
+ * — instead of hunting for something that appears not to exist.
+ *
+ * `triggerLabel` is what the closed control reads once that option is the one
+ * chosen, where that differs from how the option is named in the list. An
+ * option that turns a filter off has to say so in the list — "All students" —
+ * but standing in the trigger that is a label for the absence of one, so it
+ * passes the name of the control instead: "Filter".
  *
  * `variant` is an extra class on the root, so a caller can restyle the trigger
  * without this component knowing what it is being used for. `ListFilter` uses
  * it to draw two of these as one joined control; a select standing on its own
  * passes nothing and is unchanged.
+ *
+ * `LeadIcon` draws a glyph at the head of the trigger, for a select whose job
+ * is not obvious from the value standing in it — a funnel on a list filter says
+ * what the control does before anything has been picked in it. It is the
+ * console's own icon, like the caret and the tick.
  */
 export function Select({
   value,
@@ -39,6 +50,7 @@ export function Select({
   variant = "",
   classPrefix = "ui-select",
   CaretIcon,
+  LeadIcon,
   TickIcon
 }) {
   const [open, setOpen] = useState(false);
@@ -200,8 +212,13 @@ export function Select({
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
       >
+        {LeadIcon ? (
+          <span className={`${classPrefix}__lead`}>
+            <LeadIcon size={16} />
+          </span>
+        ) : null}
         <span className={`${classPrefix}__value${selected ? "" : " is-placeholder"}`}>
-          {selected ? selected.label : placeholder}
+          {selected ? (selected.triggerLabel ?? selected.label) : placeholder}
         </span>
         <span className={`${classPrefix}__caret`}>
           <CaretIcon size={16} />

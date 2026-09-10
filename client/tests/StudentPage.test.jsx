@@ -1,54 +1,25 @@
 import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
+/**
+ * Three lessons in the three states the table draws: read and passed, read but
+ * not yet quizzed, and never opened.
+ */
 const MODULES = [
-  { moduleId: "m1", n: 1, title: "One", state: "done", assessmentId: "a1", score: 8, total: 10, submittedAt: null, submissionId: "s1", read: true, attemptsUsed: 1 },
-  { moduleId: "m2", n: 2, title: "Two", state: "pending", score: null, total: 10, submittedAt: null, submissionId: "s2", read: true, attemptsUsed: 0 },
-  { moduleId: "m3", n: 3, title: "Three", state: "locked", score: null, total: 10, submittedAt: null, submissionId: null, read: false, attemptsUsed: 0 }
+  { moduleId: "m1", n: 1, title: "One", state: "done", read: true, readAt: "2026-09-01T00:00:00.000Z", passed: true },
+  { moduleId: "m2", n: 2, title: "Two", state: "locked", read: true, readAt: "2026-09-03T00:00:00.000Z", passed: null },
+  { moduleId: "m3", n: 3, title: "Three", state: "locked", read: false, readAt: null, passed: null }
 ];
-
-/** The marked paper behind lesson one, when its row is opened. */
-const PAPER = {
-  student: { id: "st1", name: "Cruz, Ana", sid: "2021-0001" },
-  assessment: { id: "a1", title: "One", scope: "lesson", itemCount: 1, totalPoints: 10, passMark: 6 },
-  result: {
-    score: 8,
-    totalPoints: 10,
-    passed: true,
-    correct: 1,
-    answered: 1,
-    missing: 0,
-    submittedAt: null,
-    durationMs: null
-  },
-  items: [
-    {
-      id: "i1",
-      n: 1,
-      type: "multiple-choice",
-      q: "What does a class declare?",
-      choices: [
-        { id: "a", text: "A type" },
-        { id: "b", text: "A file" }
-      ],
-      key: "a",
-      chosen: "a",
-      answered: true,
-      verdict: "correct"
-    }
-  ]
-};
 
 let detail = {};
 
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
-  fetchStudentDetail: async () => detail,
-  fetchStudentPaper: async () => PAPER
+  fetchStudentDetail: async () => detail
 }));
 jest.unstable_mockModule("../src/services/achievements.js", () => ({
   certificateFileUrl: () => "#"
@@ -87,9 +58,9 @@ const draw = () =>
 
 /** Every column the plot drew, as [lesson number, height]. */
 const plotted = (container) =>
-  [...container.querySelectorAll(".hero-chart__col")].map((col) => [
-    col.querySelector(".hero-chart__tick").textContent,
-    col.querySelector(".hero-chart__bar").style.height
+  [...container.querySelectorAll(".skill-chart__col")].map((col) => [
+    col.querySelector(".skill-chart__tick").textContent,
+    col.querySelector(".skill-chart__bar").style.height
   ]);
 
 describe("student hero", () => {
@@ -105,6 +76,22 @@ describe("student hero", () => {
     draw();
 
     expect(await screen.findByText("2021-0001")).toBeInTheDocument();
+  });
+
+  /**
+   * Two things and no more: who the student is, and how far through they are.
+   * The figure stands at the far end of the band, and being the only one there
+   * it is named — a bar reading "3 of 6" beside a name says nothing on its own.
+   */
+  it("stands the course progress at the far end of the band, named", async () => {
+    detail = { ...base, skillGap: null, progress: { completedItems: 3, itemCount: 6, percent: 50 } };
+    const { container } = draw();
+
+    await screen.findByText("Course progress");
+
+    const bar = container.querySelector(".student-hero__progress [role=progressbar]");
+    expect(bar.getAttribute("aria-label")).toBe("3 of 6");
+    expect(bar.getAttribute("aria-valuenow")).toBe("50");
   });
 });
 
@@ -122,13 +109,13 @@ describe("PerformanceChart", () => {
       ["2", "100%"],
       ["3", "100%"]
     ]);
-    expect(container.querySelectorAll(".hero-chart__bar--waiting")).toHaveLength(3);
+    expect(container.querySelectorAll(".skill-chart__bar--waiting")).toHaveLength(3);
 
     // The pass mark is drawn even with nothing standing against it.
-    expect(container.querySelector(".hero-chart__target").style.bottom).toBe("60%");
+    expect(container.querySelector(".skill-chart__target").style.bottom).toBe("60%");
     expect(screen.getByText("60% pass")).toBeInTheDocument();
     expect(screen.getByText("Not taken yet")).toBeInTheDocument();
-    expect(container.querySelector(".hero-chart__score--waiting").textContent).toBe("—");
+    expect(container.querySelector(".skill-chart__score--waiting").textContent).toBe("—");
   });
 
   it("fills the same plot once it has been taken", async () => {
@@ -154,11 +141,11 @@ describe("PerformanceChart", () => {
       ["1", "80%"],
       ["2", "40%"]
     ]);
-    expect(container.querySelectorAll(".hero-chart__bar--waiting")).toHaveLength(0);
+    expect(container.querySelectorAll(".skill-chart__bar--waiting")).toHaveLength(0);
 
     // Weak below the mark, strong above — the band drives the colour, and it
     // has to reach the column element for the CSS to see it.
-    const bands = [...container.querySelectorAll(".hero-chart__col")].map((col) =>
+    const bands = [...container.querySelectorAll(".skill-chart__col")].map((col) =>
       col.getAttribute("data-band")
     );
     expect(bands).toEqual(["strong", "weak"]);
@@ -168,300 +155,250 @@ describe("PerformanceChart", () => {
     ).toBeInTheDocument();
   });
 
+  /**
+   * A card at the head of the coursework column, not half the hero. Sharing
+   * the band with the name left a column per lesson a few pixels wide on a
+   * long course, and put an exam result inside the block that identifies the
+   * student.
+   */
+  it("stands as a card of its own, above the lessons it was drawn from", async () => {
+    detail = { ...base, skillGap: null };
+    const { container } = draw();
+
+    await screen.findByText("Performance — final exam");
+
+    expect(container.querySelector(".student-hero .skill-chart")).toBeNull();
+
+    const cards = [...container.querySelectorAll(".student-split .assessor-card")];
+    expect(cards[0].querySelector(".skill-chart")).not.toBeNull();
+    expect(cards[1].querySelector("table")).not.toBeNull();
+  });
+
   it("describes the plot for a screen reader, which cannot read the columns", async () => {
     detail = { ...base, skillGap: null };
     const { container } = draw();
 
     await screen.findByText("Performance — final exam");
 
-    const plot = container.querySelector(".hero-chart");
+    const plot = container.querySelector(".skill-chart");
     expect(plot.getAttribute("role")).toBe("img");
     expect(plot.getAttribute("aria-label")).toContain("pass mark is 60 percent");
   });
 });
+
+/** The cells of one row, in the order the header names them. */
+const cellsOf = (container, selector) => [
+  ...container.querySelector(selector).querySelectorAll("td")
+];
+
+/** A row's bar, as the pair it prints: what is done, and how far along. */
+const barOf = (container, selector) => {
+  const cell = cellsOf(container, selector)[0];
+  return {
+    label: [...cell.querySelectorAll(".progress__row span")].map((span) => span.textContent),
+    width: cell.querySelector(".progress__fill").style.width
+  };
+};
+
+/** The same date the screen writes, whatever locale the run is in. */
+const readable = (iso) =>
+  new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+const FINAL = {
+  title: "Final Exam",
+  state: "done",
+  passed: true,
+  attemptsUsed: 2,
+  attemptsAllowed: 3,
+  posted: true
+};
 
 describe("modules table", () => {
   beforeEach(() => {
     detail = { ...base };
   });
 
-  it("writes how long an attempt ran, in hours and minutes", async () => {
-    detail = {
-      ...base,
-      modules: [{ ...MODULES[0], durationMs: 75 * 60 * 1000, timeLimitMinutes: null }]
-    };
-
-    draw();
-    expect(await screen.findByText("1h 15m")).toBeInTheDocument();
-  });
-
-  it("names the clock a timed paper ran against", async () => {
-    // A limit is the assessor's to set and most papers have none, so it appears
-    // only where one was given.
-    detail = {
-      ...base,
-      modules: [{ ...MODULES[0], durationMs: 20 * 60 * 1000, timeLimitMinutes: 60 }]
-    };
-
-    draw();
-    expect(await screen.findByText("20m")).toBeInTheDocument();
-    expect(screen.getByText("of 1h allowed")).toBeInTheDocument();
-  });
-
-  it("leaves an untimed attempt blank rather than at zero", async () => {
-    // Every paper handed in before duration was recorded has none, and "0m"
-    // would read as a very fast attempt rather than as no answer.
-    detail = { ...base, modules: [{ ...MODULES[0], durationMs: null }] };
-
-    const { container } = draw();
-    await screen.findByText("One");
-    expect(container.querySelectorAll(".assessor-table__dash").length).toBeGreaterThan(0);
-  });
-
-  it("sets the final below the lessons, with no lesson number", async () => {
-    detail = {
-      ...base,
-      final: {
-        assessmentId: "f1",
-        title: "Final Exam",
-        state: "done",
-        score: 42,
-        total: 60,
-        durationMs: 55 * 60 * 1000,
-        timeLimitMinutes: 60,
-        submissionId: "sf",
-        submittedAt: "2026-09-01T00:00:00.000Z",
-        attempt: 2,
-        attemptsUsed: 2,
-        attemptsAllowed: 3,
-        posted: true
-      }
-    };
-
-    const { container } = draw();
-
-    const row = await screen.findByText("Final Exam");
-    expect(row).toBeInTheDocument();
-    // The Retakes column carries how many have gone, so the subtitle carries
-    // what is left instead of saying the same thing twice.
-    expect(screen.getByText("1 attempt left")).toBeInTheDocument();
-    expect(screen.getByText("42/60")).toBeInTheDocument();
-
-    // Its own row under the numbered list, and the number slot is empty.
-    const finalRow = container.querySelector(".module-row--final");
-    expect(finalRow).not.toBeNull();
-    expect(finalRow.querySelector(".module-row__num--none").textContent).toBe("");
-    expect(container.querySelector("tfoot .module-row--final")).not.toBeNull();
-  });
-
-  it("says a final nobody posted is not posted, rather than not taken", async () => {
-    // Not posting it is the assessor's own doing, and the row should not read
-    // as if the student had failed to turn up.
-    detail = {
-      ...base,
-      final: {
-        assessmentId: null,
-        title: "Final Exam",
-        state: "locked",
-        score: null,
-        total: null,
-        durationMs: null,
-        timeLimitMinutes: null,
-        submissionId: null,
-        submittedAt: null,
-        attempt: 0,
-        attemptsAllowed: 3,
-        posted: false
-      }
-    };
-
-    draw();
-    expect(await screen.findByText("Not posted yet")).toBeInTheDocument();
-  });
-});
-
-/**
- * The Retakes column is the last on the row, so it is read from the end rather
- * than by counting the ones before it — a column added in the middle later
- * should not silently move what these assert on.
- */
-const retakesCell = (container, selector) =>
-  [...container.querySelector(selector).querySelectorAll("td")].at(-1);
-
-const firstLesson = (container) => retakesCell(container, "tbody tr");
-
-describe("retakes column", () => {
-  it("counts the goes after the first, not the goes", async () => {
-    // Three attempts is two retakes. The header asks for retakes, so the
-    // column answers that question and not the neighbouring one.
-    detail = { ...base, modules: [{ ...MODULES[0], attemptsUsed: 3 }] };
-
-    const { container } = draw();
-    await screen.findByText("One");
-
-    expect(screen.getByRole("columnheader", { name: "Retakes" })).toBeInTheDocument();
-    expect(firstLesson(container).textContent).toBe("2");
-  });
-
-  it("writes nought for a paper taken once, and keeps it quiet", async () => {
-    detail = { ...base, modules: [{ ...MODULES[0], attemptsUsed: 1 }] };
-
-    const { container } = draw();
-    await screen.findByText("One");
-
-    const cell = firstLesson(container);
-    expect(cell.textContent).toBe("0");
-    // Getting it right first time is the ordinary case; a bold zero on every
-    // row would bury the ones worth looking at.
-    expect(cell.querySelector(".assessor-table__zero")).not.toBeNull();
-  });
-
-  it("dashes a quiz nobody has taken, which is not the same as taking it once", async () => {
-    detail = { ...base, modules: [{ ...MODULES[2], attemptsUsed: 0 }] };
-
-    const { container } = draw();
-    await screen.findByText("Three");
-
-    const cell = firstLesson(container);
-    expect(cell.textContent).toBe("—");
-    expect(cell.querySelector(".assessor-table__dash")).not.toBeNull();
-  });
-
-  it("dashes a row from a server that does not send the count yet", async () => {
-    // Inferring nought from "it was taken" would print a number nobody
-    // measured. An absent count is absent.
-    const { attemptsUsed, ...noCount } = MODULES[0];
-    detail = { ...base, modules: [noCount] };
-
-    const { container } = draw();
-    await screen.findByText("One");
-    expect(firstLesson(container).textContent).toBe("—");
-  });
-
-  it("counts the final's retakes on the same footing as a lesson's", async () => {
-    detail = {
-      ...base,
-      final: {
-        assessmentId: "f1",
-        title: "Final Exam",
-        state: "done",
-        score: 42,
-        total: 60,
-        durationMs: null,
-        timeLimitMinutes: null,
-        submissionId: "sf",
-        submittedAt: "2026-09-01T00:00:00.000Z",
-        attempt: 3,
-        attemptsUsed: 3,
-        attemptsAllowed: 3,
-        posted: true
-      }
-    };
-
-    const { container } = draw();
-    await screen.findByText("Final Exam");
-
-    expect(retakesCell(container, "tfoot .module-row--final").textContent).toBe("2");
-    // The one paper with a ceiling says when it has been reached.
-    expect(screen.getByText("No attempts left")).toBeInTheDocument();
-  });
-});
-
-/**
- * A row of the table opens the paper behind it. The table says a student
- * scored 8 of 10 on lesson one; this is how the assessor finds out which two
- * they lost — the one question the console could not answer before.
- */
-describe("opening a lesson's paper", () => {
-  beforeEach(() => {
-    detail = { ...base };
-  });
-
-  const openLesson = async (title) => {
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: `Open the paper for ${title}` }));
-    });
-  };
-
-  it("opens off the lesson a student has taken", async () => {
+  it("carries a column for each thing it now answers", async () => {
     draw();
     await screen.findByText("One");
 
-    await openLesson("One");
+    const table = screen.getAllByRole("table")[0];
+    const headers = [...table.querySelectorAll("thead th")].map((cell) => cell.textContent.trim());
 
-    expect(screen.getByText("What does a class declare?")).toBeInTheDocument();
-    expect(screen.getByText("8/10")).toBeInTheDocument();
+    expect(headers).toEqual(["Lesson", "Progress", "Lesson read", "Quiz"]);
   });
 
   /**
-   * A lesson nobody has taken has a quiz but no answers, and a name that
-   * looked pressable and then showed nothing would be worse than one that
-   * plainly is not.
+   * A lesson is two of the items the course figure over the table counts —
+   * reading it, and passing its quiz — so a row's bar is one row's worth of
+   * that same sum. The two cannot disagree because they are the same
+   * arithmetic, run once on the server and once per row here.
    */
-  it("leaves a lesson with no attempt as plain text", async () => {
-    draw();
-    await screen.findByText("Three");
+  describe("progress", () => {
+    it("counts a lesson read and passed as done", async () => {
+      detail = { ...base, modules: [MODULES[0]] };
 
-    expect(
-      screen.queryByRole("button", { name: "Open the paper for Three" })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Open the paper for Two" })
-    ).not.toBeInTheDocument();
-  });
+      const { container } = draw();
+      await screen.findByText("One");
 
-  // A row from a server that does not name the paper yet cannot open one.
-  it("leaves a taken lesson alone when the row does not name its paper", async () => {
-    const { assessmentId, ...noPaper } = MODULES[0];
-    detail = { ...base, modules: [noPaper] };
-
-    draw();
-    await screen.findByText("One");
-
-    expect(
-      screen.queryByRole("button", { name: "Open the paper for One" })
-    ).not.toBeInTheDocument();
-  });
-
-  it("comes back to the student it was opened from", async () => {
-    draw();
-    await screen.findByText("One");
-    await openLesson("One");
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Ana Cruz/ }));
+      expect(barOf(container, "tbody tr")).toEqual({ label: ["2 of 2", "100%"], width: "100%" });
     });
 
-    expect(screen.getByText("Badges")).toBeInTheDocument();
-    expect(screen.queryByText("What does a class declare?")).not.toBeInTheDocument();
+    it("counts a lesson read but not yet quizzed as half of it", async () => {
+      detail = { ...base, modules: [MODULES[1]] };
+
+      const { container } = draw();
+      await screen.findByText("Two");
+
+      expect(barOf(container, "tbody tr")).toEqual({ label: ["1 of 2", "50%"], width: "50%" });
+    });
+
+    it("counts a lesson nobody has opened as none of it", async () => {
+      detail = { ...base, modules: [MODULES[2]] };
+
+      const { container } = draw();
+      await screen.findByText("Three");
+
+      expect(barOf(container, "tbody tr")).toEqual({ label: ["0 of 2", "0%"], width: "0%" });
+    });
+
+    /**
+     * Taking a quiz is not passing it, and only passing it completes the
+     * lesson. A row half done and a chip saying the quiz was taken would
+     * otherwise look like a bug in the bar.
+     */
+    it("gives a failed quiz no credit it did not earn", async () => {
+      detail = { ...base, modules: [{ ...MODULES[0], state: "done", passed: false }] };
+
+      const { container } = draw();
+      await screen.findByText("One");
+
+      expect(barOf(container, "tbody tr").label).toEqual(["1 of 2", "50%"]);
+      expect(screen.getByText("Not passed")).toBeInTheDocument();
+    });
   });
 
-  // The final is a paper like any other here, and it is the one an assessor is
-  // most likely to be asked about.
-  it("opens the final exam the same way", async () => {
-    detail = {
-      ...base,
-      final: {
-        assessmentId: "f1",
-        title: "Final Exam",
-        state: "done",
-        score: 42,
-        total: 60,
-        durationMs: null,
-        timeLimitMinutes: null,
-        submissionId: "sf",
-        submittedAt: "2026-09-01T00:00:00.000Z",
-        attempt: 1,
-        attemptsUsed: 1,
-        attemptsAllowed: 3,
-        posted: true
-      }
-    };
+  describe("lesson read", () => {
+    it("writes the day the lesson was finished", async () => {
+      detail = { ...base, modules: [MODULES[0]] };
 
+      const { container } = draw();
+      await screen.findByText("One");
+
+      expect(cellsOf(container, "tbody tr")[1].textContent).toBe(readable(MODULES[0].readAt));
+    });
+
+    /**
+     * Nothing records the moment a lesson is opened — how far into one a
+     * reader has got stays in their own browser — so a lesson never finished
+     * has no day to write, and the row says so rather than guessing at one.
+     */
+    it("dashes a lesson that was never finished", async () => {
+      detail = { ...base, modules: [MODULES[2]] };
+
+      const { container } = draw();
+      await screen.findByText("Three");
+
+      const cell = cellsOf(container, "tbody tr")[1];
+      expect(cell.textContent).toBe("—");
+      expect(cell.querySelector(".assessor-table__dash")).not.toBeNull();
+    });
+  });
+
+  describe("quiz", () => {
+    it("says what became of every quiz, in three states", async () => {
+      detail = {
+        ...base,
+        modules: [MODULES[0], { ...MODULES[0], moduleId: "m9", n: 9, title: "Nine", passed: false }, MODULES[2]]
+      };
+
+      const { container } = draw();
+      await screen.findByText("One");
+
+      const chips = [...container.querySelectorAll("tbody .chip")].map((chip) => chip.textContent);
+      expect(chips).toEqual(["Passed", "Not passed", "Not taken"]);
+    });
+
+    /** What it scored is the register's to say, and is said there. */
+    it("carries no mark, no clock and no count of the goes", async () => {
+      detail = { ...base, modules: [{ ...MODULES[0], score: 8, total: 10, attemptsUsed: 3 }] };
+
+      const { container } = draw();
+      await screen.findByText("One");
+
+      const row = container.querySelector("tbody tr").textContent;
+      expect(row).not.toContain("8/10");
+      expect(row).not.toContain("3");
+    });
+  });
+
+  /**
+   * The register is the one way into a marked paper now. Two doors onto the
+   * same read is what put four of its columns on this table in the first
+   * place.
+   */
+  it("no longer opens a paper of its own", async () => {
     draw();
-    await screen.findByText("Final Exam");
-    await openLesson("Final Exam");
+    await screen.findByText("One");
 
-    expect(screen.getByText("What does a class declare?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open the paper/ })).not.toBeInTheDocument();
+  });
+
+  describe("the final", () => {
+    it("sits below the lessons, with no lesson number", async () => {
+      detail = { ...base, final: FINAL };
+
+      const { container } = draw();
+      await screen.findByText("Final Exam");
+
+      const row = container.querySelector("tfoot .module-row--final");
+      expect(row).not.toBeNull();
+      expect(row.querySelector(".module-row__num--none").textContent).toBe("");
+    });
+
+    /**
+     * The final is one item of the course rather than a lesson's two: there is
+     * nothing to read, only a paper to pass.
+     */
+    it("counts as one item, and has no lesson to have read", async () => {
+      detail = { ...base, final: FINAL };
+
+      const { container } = draw();
+      await screen.findByText("Final Exam");
+
+      const selector = "tfoot .module-row--final";
+      expect(barOf(container, selector)).toEqual({ label: ["1 of 1", "100%"], width: "100%" });
+      expect(cellsOf(container, selector)[1].textContent).toBe("—");
+    });
+
+    it("stands at nothing until it is passed", async () => {
+      detail = { ...base, final: { ...FINAL, state: "locked", passed: null } };
+
+      const { container } = draw();
+      await screen.findByText("Final Exam");
+
+      expect(barOf(container, "tfoot .module-row--final").label).toEqual(["0 of 1", "0%"]);
+      // The lessons carry chips of their own, so this asks the final's row.
+      expect(container.querySelector("tfoot .chip").textContent).toBe("Not taken");
+    });
+
+    /** The one paper with a ceiling on how often it may be taken. */
+    it("says how many goes are left, and when there are none", async () => {
+      detail = { ...base, final: FINAL };
+      draw();
+      expect(await screen.findByText("1 attempt left")).toBeInTheDocument();
+    });
+
+    it("says a final nobody posted is not posted, rather than not taken", async () => {
+      // Not posting it is the assessor's own doing, and the row should not read
+      // as if the student had failed to turn up.
+      detail = {
+        ...base,
+        final: { ...FINAL, state: "locked", passed: null, attemptsUsed: 0, posted: false }
+      };
+
+      draw();
+      expect(await screen.findByText("Not posted yet")).toBeInTheDocument();
+    });
   });
 });

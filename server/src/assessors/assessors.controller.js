@@ -11,7 +11,8 @@ import { buildStudentBadges, passedFromResults } from "../badges/badges.service.
 import { issueCertificate, listIssuedCertificates } from "../certificates/certificates.service.js";
 import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { papersByCourse } from "../assessments/papers.js";
-import { scoreOf } from "./grading.js";
+import { progressSummary } from "../courses/courses.controller.js";
+import { finalPassedFrom, scoreOf } from "./grading.js";
 import { loadAuthoringRestrictions, loadClassesByCourse } from "../lib/courseAccess.js";
 import { readSuspendedFlag } from "../lib/suspension.js";
 import { toIsoDay } from "../lib/courseDates.js";
@@ -437,6 +438,17 @@ export async function getRoster(request, response) {
     doneByStudent.set(key, (doneByStudent.get(key) ?? 0) + 1);
   });
 
+  // The papers behind those submissions, so a pass can be told from a sitting.
+  // One query for the whole roster rather than one per student.
+  const assessmentById = await assessmentMap(results);
+
+  const resultsByStudent = new Map();
+  results.forEach((result) => {
+    const key = asId(result.studentId);
+    if (!resultsByStudent.has(key)) resultsByStudent.set(key, []);
+    resultsByStudent.get(key).push(result);
+  });
+
   // Credentials this student already holds. Nothing here counts what is
   // still to be issued: that is a queue and it belongs on the Credentials
   // screen, which is where the assessor acts on it.
@@ -446,6 +458,28 @@ export async function getRoster(request, response) {
     const key = asId(result.studentId);
     credsByStudent.set(key, (credsByStudent.get(key) ?? 0) + 1);
   });
+
+  const courseProgressFor = (student) => {
+    const key = asId(student._id);
+    const mine = resultsByStudent.get(key) ?? [];
+    // Lesson quizzes are counted by the badge module, because a badge *is* a
+    // passed lesson quiz — one rule, so the roster and the badge wall can
+    // never disagree about the same student.
+    const quizzes = passedFromResults(mine, assessmentById).size;
+    const summary = progressSummary(
+      totalModules,
+      doneByStudent.get(key) ?? 0,
+      quizzes,
+      finalPassedFrom(mine, assessmentById)
+    );
+
+    return {
+      progress: summary.progress,
+      completedItems: summary.completedItems,
+      itemCount: summary.itemCount,
+      status: summary.status
+    };
+  };
 
   return response.json({
     course: {
@@ -472,6 +506,12 @@ export async function getRoster(request, response) {
       // they are not in.
       classes: classesByStudent.get(asId(student._id)) ?? [],
       done: doneByStudent.get(asId(student._id)) ?? 0,
+      // How far through the course, on the same terms the student is shown it:
+      // the lessons, a quiz for each of them, and the final. The column used to
+      // count completed lessons alone, so a student who had read everything and
+      // sat nothing read 100% here and 47% on their own card — the same student,
+      // the same course, two figures. progressSummary is the one sum now.
+      ...courseProgressFor(student),
       creds: credsByStudent.get(asId(student._id)) ?? 0,
       // Their place in *this* course, not their account. The admin's own
       // suspension stops somebody signing in at all and is not this column's
@@ -603,6 +643,9 @@ export async function getPendingCredentials(request, response) {
         name: studentName(student),
         sid: student?.student_id ?? null,
         credential: result.credential?.name ?? credentialNameFor(assessment),
+        // Both, because the row is read by code and filtered by id: two
+        // courses may share a code, and the picker must not fold them.
+        courseId: asId(result.courseId),
         courseCode: courseCode(course),
         assessmentTitle: assessment?.title ?? "Assessment",
         score: scoreOf(result),
@@ -754,41 +797,46 @@ export async function getStudentDetail(request, response) {
 
   const assessments = await assessmentMap(results);
   const resultByModule = new Map(liveResults.map((result) => [asId(result.moduleId), result]));
-  const readModules = new Set(progress.map((entry) => asId(entry.moduleId)));
 
+  // moduleId -> the day the lesson was finished. There is no moment of opening
+  // to report: how far into a lesson a reader has got is kept in their own
+  // browser and deliberately never sent here (see lessonProgress.js), so the
+  // day it was read is the last thing this side knows about it.
+  const readAtByModule = new Map(
+    progress.map((entry) => [asId(entry.moduleId), entry.completedAt ?? null])
+  );
+
+  // The lesson quizzes this student has passed, by the one rule the badge wall
+  // and the course figure also read. Taken once here so a row's progress and
+  // the figure over the table are the same sum rather than two of them.
+  const passedModules = passedFromResults(results, assessments);
+
+  /**
+   * One row per lesson: how far through it the student is, when they read it,
+   * and what became of its quiz.
+   *
+   * What a paper scored, how long it ran and how often it was taken are the
+   * register's to answer — every one of them is a column on the results screen,
+   * off its own read of the same submissions — so they are not sent here to be
+   * said a second time.
+   */
   const moduleRows = modules.map((module, index) => {
-    const result = resultByModule.get(asId(module._id));
-    const assessment = result ? assessments.get(asId(result.assessmentId)) : null;
-    const config = paperConfig(assessment);
-
-    // Taken or not taken. There is no third state now that a handed-in paper
-    // is marked on the spot rather than queued for someone.
-    const state = result ? "done" : "locked";
+    const id = asId(module._id);
+    const result = resultByModule.get(id);
 
     return {
       n: index + 1,
-      moduleId: asId(module._id),
-      // Which paper the score came off, so the row can open it. Null on a
-      // lesson nobody has taken — there is a quiz there, but no attempt at it
-      // to read, and this names the one that was marked rather than the one
-      // that stands now.
-      assessmentId: result ? asId(result.assessmentId) : null,
+      moduleId: id,
       title: module.title ?? module.fileName ?? "Untitled module",
-      state,
-      read: readModules.has(asId(module._id)),
-      score: result ? scoreOf(result) : null,
-      total: result ? config.total : null,
-      // How long it took, and the clock it was given. The limit is the
-      // assessor's to set and most papers have none, so it is null far more
-      // often than not — the screen reads the time on its own then.
-      durationMs: result?.durationMs ?? null,
-      timeLimitMinutes: assessment?.timeLimitMinutes ?? null,
-      // How many times this quiz has been taken, retakes included. A lesson
-      // quiz may be taken again without limit, so this has no ceiling to
-      // report alongside it — only the final does.
-      attemptsUsed: takesOf(result),
-      submissionId: result ? asId(result._id) : null,
-      submittedAt: result?.submittedAt ?? null
+      // Taken or not taken. There is no third state now that a handed-in paper
+      // is marked on the spot rather than queued for someone.
+      state: result ? "done" : "locked",
+      // The two halves of a lesson the course figure counts: reading it, and
+      // passing its quiz. Passed is null where nothing was taken, which is a
+      // different fact from taking it and not passing.
+      read: readAtByModule.has(id),
+      readAt: readAtByModule.get(id) ?? null,
+      passed: result ? passedModules.has(id) : null
     };
   });
 
@@ -804,21 +852,16 @@ export async function getStudentDetail(request, response) {
   const finalResult = finalDoc
     ? (liveResults.find((result) => asId(result.assessmentId) === asId(finalDoc._id)) ?? null)
     : null;
-  const finalConfig = paperConfig(finalDoc);
+  const finalPassed = finalPassedFrom(results, assessments);
 
   const finalRow = {
-    assessmentId: finalDoc ? asId(finalDoc._id) : null,
     title: finalDoc?.title ?? "Final Exam",
     state: finalResult ? "done" : "locked",
-    score: finalResult ? scoreOf(finalResult) : null,
-    total: finalResult ? finalConfig.total : null,
-    durationMs: finalResult?.durationMs ?? null,
-    timeLimitMinutes: finalDoc?.timeLimitMinutes ?? null,
-    submissionId: finalResult ? asId(finalResult._id) : null,
-    submittedAt: finalResult?.submittedAt ?? null,
+    // The final is one item of the course rather than a lesson's two: there is
+    // nothing to read, only a paper to pass.
+    passed: finalResult ? finalPassed : null,
     // The final is the one paper with a ceiling on how often it may be taken,
-    // so the row carries both which take this was and how many have gone.
-    attempt: finalResult ? Number(finalResult.attempt ?? 1) : 0,
+    // so the row carries how many goes have gone against how many there are.
     attemptsUsed: takesOf(finalResult),
     attemptsAllowed: FINAL_ATTEMPT_LIMIT,
     // Written but not released is a real state, and it is the assessor's own
@@ -831,8 +874,17 @@ export async function getStudentDetail(request, response) {
   // passed earns that lesson's badge. Counted against this course's lessons,
   // since the badge catalog holds one badge per lesson.
   const moduleIds = new Set(modules.map((module) => asId(module._id)));
-  const passedLessons = [...passedFromResults(results, assessments).keys()].filter((moduleId) =>
-    moduleIds.has(moduleId)
+  const passedLessons = [...passedModules.keys()].filter((moduleId) => moduleIds.has(moduleId));
+
+  // How far through the course this student is, on the same terms their own
+  // course card puts it: the lessons, a quiz for each of them, and the final.
+  // Built by the sum the Student End runs, so the two screens cannot report
+  // different figures about the same student — see progressSummary.
+  const courseProgress = progressSummary(
+    modules.length,
+    [...readAtByModule.keys()].filter((moduleId) => moduleIds.has(moduleId)).length,
+    passedLessons.length,
+    finalPassed
   );
 
   // The badges themselves, from the catalog: this course's artwork, one badge
@@ -908,6 +960,12 @@ export async function getStudentDetail(request, response) {
       section: course.section ?? null
     },
     totalModules: modules.length,
+    progress: {
+      completedItems: courseProgress.completedItems,
+      itemCount: courseProgress.itemCount,
+      percent: courseProgress.progress,
+      status: courseProgress.status
+    },
     skillGap: courseSkillGap
       ? {
           threshold: SKILL_THRESHOLD,

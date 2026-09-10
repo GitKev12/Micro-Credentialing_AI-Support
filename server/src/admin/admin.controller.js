@@ -3,6 +3,8 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges, passedFromResults, summarizeBadges } from "../badges/badges.service.js";
 import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
 import { papersByCourse } from "../assessments/papers.js";
+import { progressSummary } from "../courses/courses.controller.js";
+import { finalPassedFrom } from "../assessors/grading.js";
 import {
   assembleFinalAssessment,
   ensureAssessmentIndexes,
@@ -198,7 +200,16 @@ export async function getCourse(request, response) {
 
 /* ─────────────────────────── Students ─────────────────────────── */
 
-/** Completed-module counts per course for one student. */
+/**
+ * How far through each of their courses one student is.
+ *
+ * A course is its lessons, a quiz for each of them, and one final — the sum
+ * the Student End shows them on their own course card, run here by the same
+ * function so the two screens cannot report different figures about the same
+ * person. This counted finished lessons alone, which called a course complete
+ * with every paper still to take, and the credential line below it read off
+ * that. See progressSummary in courses.controller.js.
+ */
 async function progressForStudent(student, courses) {
   const enrolled = student.enrolledCourses ?? [];
   if (enrolled.length === 0) return [];
@@ -207,18 +218,55 @@ async function progressForStudent(student, courses) {
     .find({ studentId: { $in: idCandidates(student._id) } })
     .toArray();
 
+  // Their papers, and the assessments behind them — a submission on its own
+  // cannot say whether it passed, because the pass mark lives on the paper.
+  const results = (await collectionExists(RESULTS_COLLECTION))
+    ? await collection(RESULTS_COLLECTION)
+        .find({ studentId: { $in: idCandidates(student._id) }, superseded: { $ne: true } })
+        .toArray()
+    : [];
+
+  const papers =
+    results.length && (await collectionExists(ASSESSMENTS_COLLECTION))
+      ? await collection(ASSESSMENTS_COLLECTION)
+          .find({ _id: { $in: results.flatMap((result) => idCandidates(result.assessmentId)) } })
+          .toArray()
+      : [];
+  const assessmentById = new Map(papers.map((paper) => [asId(paper._id), paper]));
+
+  const resultsByCourse = new Map();
+  results.forEach((result) => {
+    // A result names its course; one written before it did is placed by the
+    // paper it was an attempt at.
+    const paper = assessmentById.get(asId(result.assessmentId));
+    const key = asId(result.courseId ?? paper?.courseId ?? "");
+    if (!key) return;
+    if (!resultsByCourse.has(key)) resultsByCourse.set(key, []);
+    resultsByCourse.get(key).push(result);
+  });
+
   const completedByCourse = new Map();
   // When each course was last worked on. A micro-credential has no record of
-  // its own — it is a course finished to the last lesson — so the newest
-  // completion in a course that is fully done is the date it was earned.
+  // its own — it is a course carried to the end — so the last thing done in a
+  // course that is finished is the date it was earned. Papers count as well as
+  // reading now: the final is what closes a course, and it is nearly always
+  // handed in after the last lesson was ticked.
   const finishedByCourse = new Map();
+  const noteDate = (key, value) => {
+    const at = toDate(value);
+    const newest = finishedByCourse.get(key);
+    if (at && (!newest || at > newest)) finishedByCourse.set(key, at);
+  };
+
   completed.forEach((entry) => {
     const key = asId(entry.courseId);
     completedByCourse.set(key, (completedByCourse.get(key) ?? 0) + 1);
+    noteDate(key, entry.completedAt);
+  });
 
-    const at = toDate(entry.completedAt);
-    const newest = finishedByCourse.get(key);
-    if (at && (!newest || at > newest)) finishedByCourse.set(key, at);
+  results.forEach((result) => {
+    const paper = assessmentById.get(asId(result.assessmentId));
+    noteDate(asId(result.courseId ?? paper?.courseId ?? ""), result.submittedAt);
   });
 
   const rows = [];
@@ -231,6 +279,16 @@ async function progressForStudent(student, courses) {
       $or: [{ courseId: { $in: idCandidates(courseId) } }, { courseCode: courseCode(course) }]
     });
     const done = completedByCourse.get(key) ?? 0;
+    const mine = resultsByCourse.get(key) ?? [];
+    // Lesson quizzes are counted by the badge module, since a badge is exactly
+    // a passed lesson quiz — one rule, so this and the badge column cannot
+    // disagree about the same student.
+    const summary = progressSummary(
+      total,
+      done,
+      passedFromResults(mine, assessmentById).size,
+      finalPassedFrom(mine, assessmentById)
+    );
 
     rows.push({
       // The id as well as the title: the student screen shows progress on the
@@ -238,9 +296,13 @@ async function progressForStudent(student, courses) {
       // title would break the moment two courses shared one.
       courseId: key,
       label: courseTitle(course),
-      pct: total > 0 ? Math.round((done / total) * 100) : 0,
-      completed: done,
-      total,
+      pct: summary.progress,
+      completed: summary.completedItems,
+      total: summary.itemCount,
+      // The reading on its own, still — it is a different question from how
+      // far through the course they are, and the row shows both.
+      lessonsCompleted: summary.completedModules,
+      lessonsTotal: summary.moduleCount,
       completedAt: finishedByCourse.get(key)?.toISOString() ?? null
     });
   }
@@ -555,7 +617,10 @@ export async function getStudent(request, response) {
     assessorsFor(student, courses)
   ]);
 
-  // A micro-credential is awarded when every module of a course is done.
+  // A micro-credential is awarded for a course carried to the end — every
+  // lesson read, every quiz passed and the final passed. It used to be counted
+  // off the reading alone, which awarded one to a student who had opened every
+  // lesson and taken nothing.
   const credentials = progress.filter((row) => row.total > 0 && row.pct === 100).length;
 
   return response.json({

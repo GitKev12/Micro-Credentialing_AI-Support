@@ -49,7 +49,7 @@ const COURSES_COLLECTION = "Course";
 const TEXT_COLLECTION = "ModuleText";
 
 /**
- * How long a final assessment is, whatever the blueprint adds up to.
+ * How long a final exam is, whatever the blueprint adds up to.
  *
  * The imported Tables of Specification each described a 60-item examination,
  * so the final took the blueprint's whole total and matched it. Lesson quizzes
@@ -258,7 +258,7 @@ export function buildAssessmentDocument({
 
   const title =
     scope === "final"
-      ? `${course?.courseCode ?? course?.title ?? "Course"} Final Assessment`
+      ? `${course?.courseCode ?? course?.title ?? "Course"} Final Exam`
       : (lesson?.title ?? blueprintRow?.coverage ?? "Lesson Quiz");
 
   return {
