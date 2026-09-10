@@ -283,18 +283,3 @@ export async function setAssessorSuspended(assessorId, suspended) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}/suspension`, { suspended });
   return data.assessor;
 }
-
-/* ---- Table of Specification ---- */
-
-// One blueprint per course, so both calls deal in the whole set. The save
-// names the course it applies to; without that the server has nothing to key
-// the write on.
-export async function fetchTableOfSpecification() {
-  const { data } = await api.get("/admin/table-of-specification");
-  return Array.isArray(data.blueprints) ? data.blueprints : [];
-}
-
-export async function saveTableOfSpecification(blueprint) {
-  const { data } = await api.put("/admin/table-of-specification", blueprint);
-  return Array.isArray(data.blueprints) ? data.blueprints : [];
-}

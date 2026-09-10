@@ -10,8 +10,10 @@ import {
   updateCourseAssessment
 } from "../../services/assessors";
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
-import { Chip, ScreenHeader } from "./components/ui";
+import { AssessorSelect, Chip, ScreenHeader } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
+import { noticeClass, useNotice } from "../../lib/useNotice";
+import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
 
 /**
  * Generating one course's papers.
@@ -22,23 +24,24 @@ import { SkeletonText } from "../../components/Skeleton";
  * releases them.
  *
  *   Assessment    — quiz or final, which lesson, how many questions, how long
- *                   the sitting runs. Pressing generate reads the lesson's
+ *                   the attempt runs. Pressing generate reads the lesson's
  *                   extracted text and writes a draft.
  *   Review & post — pick a question by its number to correct it, then post.
  *                   Posting applies to the whole class at once: an Assessment
  *                   holds no student, so there is nothing per-student to set.
  *
  * A draft is invisible to students until it is posted. That is the point of the
- * screen — a wrong answer key found here is found before a class sits it.
+ * screen — a wrong answer key found here is found before a class takes it.
  */
-
-/** The standard length of a final examination, until an assessor says otherwise. */
-const STANDARD_MINUTES = 60;
 
 const clampCount = (value) => Math.max(1, Math.min(120, Math.floor(Number(value) || 0)));
 
 /** A quiz's default length when the blueprint has not been consulted yet. */
 const DEFAULT_ITEMS = 10;
+
+/* What the Lesson field reads on a final, which is drawn from all of them.
+   Never sent anywhere: the field is disabled, and a final carries no lesson. */
+const EVERY_LESSON = "all";
 
 /** A final's, which is the length the imported Tables of Specification set. */
 const DEFAULT_FINAL_ITEMS = 60;
@@ -50,7 +53,7 @@ const DEFAULT_FINAL_ITEMS = 60;
  *
  * Both live in one component because they are one thing to the assessor: the
  * question they are reading is the question they are fixing, and swapping a
- * separate editor in over the top would lose their place in a bank of thirty.
+ * separate editor in over the top would lose their place in a paper of thirty.
  */
 function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnly }) {
   const [text, setText] = useState(item.q);
@@ -174,12 +177,15 @@ function GenerateCoursePage() {
   const [moduleId, setModuleId] = useState("");
   const [itemCount, setItemCount] = useState(DEFAULT_ITEMS);
   const [timed, setTimed] = useState(false);
-  const [minutes, setMinutes] = useState(STANDARD_MINUTES);
+  const [minutes, setMinutes] = useState(DEFAULT_MINUTES);
 
   const [paper, setPaper] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [busy, setBusy] = useState("");
-  const [notice, setNotice] = useState(null);
+  // Three seconds and it fades, like every other console's — see useNotice.
+  // The `closed` line below it is not one of these: a course whose run is over
+  // stays over, and that banner has to stay with it.
+  const [notice, setNotice] = useNotice();
   // Generating a lesson quiz is the only press on this screen that spends
   // money, so it asks first rather than firing on the click that reaches it.
   const [confirming, setConfirming] = useState(false);
@@ -224,7 +230,7 @@ function GenerateCoursePage() {
   const target = scope === "final" ? (overview?.final ?? null) : (lesson?.assessment ?? null);
 
   // Load the questions whenever the target changes, and clear them when the
-  // target has no paper — a stale bank under a lesson that has none is worse
+  // target has no paper — a stale question list under a lesson that has none is worse
   // than an empty panel.
   useEffect(() => {
     let active = true;
@@ -243,9 +249,9 @@ function GenerateCoursePage() {
         if (!active) return;
         setPaper(loaded);
         setEditingId(null);
-        setItemCount(loaded?.itemsPerAttempt ?? DEFAULT_ITEMS);
+        setItemCount(loaded?.itemCount ?? DEFAULT_ITEMS);
         setTimed(Boolean(loaded?.timeLimitMinutes));
-        setMinutes(loaded?.timeLimitMinutes ?? STANDARD_MINUTES);
+        setMinutes(loaded?.timeLimitMinutes ?? DEFAULT_MINUTES);
       })
       .catch(() => {
         if (active) setPaper(null);
@@ -256,22 +262,44 @@ function GenerateCoursePage() {
     };
   }, [assessorId, courseId, target?.id]);
 
-  // A final is an hour unless someone says otherwise; a quiz is untimed unless
-  // someone says otherwise. Only applied where there is no paper to read it off.
+  // A final runs an hour and a half unless someone says otherwise; a quiz is
+  // untimed unless someone says otherwise. Only applied where there is no paper to read it off.
   useEffect(() => {
     if (target?.id) return;
     setPaper(null);
     setTimed(scope === "final");
-    setMinutes(STANDARD_MINUTES);
+    setMinutes(DEFAULT_MINUTES);
     setItemCount(scope === "final" ? DEFAULT_FINAL_ITEMS : DEFAULT_ITEMS);
   }, [scope, moduleId, target?.id]);
 
   const students = course?.students ?? 0;
   const posted = target?.status === "posted";
+  // How the class stands on this paper, which is now read for one number only
+  // — how many people have handed it in. Null until the paper is posted: a
+  // draft has been released to nobody. The open paper is the fresher of the
+  // two reads, so it answers first.
+  const takers = paper?.takers ?? target?.takers ?? null;
+  // Attempts on record, not people: three goes at one quiz is three rows.
+  // That is the right number for the lock — any submission at all freezes the
+  // questions, because the marks already given were earned against them — and
+  // the wrong one for a sentence about students, which counts people.
   const taken = target?.submissions ?? 0;
   const locked = taken > 0;
 
-  const requestedMinutes = timed ? clampCount(minutes) : null;
+  // People, for the sentence that names them. Falls back to the attempt
+  // count for a paper posted before this was recorded, which is the number
+  // that used to be printed there either way.
+  const handedIn = takers?.submitted ?? taken;
+
+  // The course itself is shut to new papers: its run is over, or every class
+  // on it has been switched off. The server refuses generating, correcting and
+  // posting either way, so the screen turns those off rather than offering a
+  // press that comes back 423. Unposting stays available — see the server's
+  // resolveWritableScope.
+  const closed = course?.closed ?? null;
+  const frozen = locked || Boolean(closed);
+
+  const requestedMinutes = timeLimitFor({ timed, minutes });
 
   const run = async (label, work) => {
     setBusy(label);
@@ -300,7 +328,7 @@ function GenerateCoursePage() {
         setEditingId(null);
         setNotice({
           tone: "ok",
-          text: `${result.assessment.bankSize} questions written. Read them before posting.`
+          text: `${result.assessment.itemCount} questions written. Read them before posting.`
         });
         await reload();
       }
@@ -310,7 +338,6 @@ function GenerateCoursePage() {
   const applySettings = () =>
     run("settings", async () => {
       const result = await updateCourseAssessment(assessorId, courseId, paper.id, {
-        itemsPerAttempt: clampCount(itemCount),
         timeLimitMinutes: requestedMinutes
       });
       if (result.assessment) {
@@ -391,11 +418,11 @@ function GenerateCoursePage() {
           <header className="gen-paper__head">
             <div style={{ minWidth: 0 }}>
               <h2 className="assessor-card-title" style={{ margin: 0 }}>
-                {paper?.title || (scope === "final" ? "Final assessment" : "Lesson quiz")}
+                {paper?.title || (scope === "final" ? "Final assessment" : "Quiz")}
               </h2>
               <p className="assessor-meta" style={{ marginTop: "var(--sp-1)" }}>
                 {paper
-                  ? `${paper.itemsPerAttempt} questions per student · drawn from a bank of ${paper.bankSize} · pass mark ${paper.passMark}`
+                  ? `${paper.itemCount} questions · ${paper.totalPoints} points · pass mark ${paper.passMark}`
                   : "Nothing written for this assessment yet."}
               </p>
             </div>
@@ -412,12 +439,24 @@ function GenerateCoursePage() {
                   {paper.timeLimitMinutes} min
                 </Chip>
               ) : null}
-              {locked ? <Chip tone="outline">{taken} taken</Chip> : null}
+              {closed ? (
+                <Chip tone="danger" dot>
+                  {closed.suspended ? "Classes off" : "Course ended"}
+                </Chip>
+              ) : null}
             </div>
           </header>
 
+          {closed ? <p className="gen-notice is-error">{closed.reason}</p> : null}
+
           {notice ? (
-            <p className={`gen-notice${notice.tone === "error" ? " is-error" : ""}`}>
+            <p
+              className={noticeClass(
+                notice,
+                `gen-notice${notice.tone === "error" ? " is-error" : ""}`
+              )}
+              role="status"
+            >
               {notice.text}
             </p>
           ) : null}
@@ -430,7 +469,7 @@ function GenerateCoursePage() {
                   item={item}
                   editing={editingId === item.id}
                   saving={busy === "question"}
-                  readOnly={locked}
+                  readOnly={frozen}
                   onEdit={() => setEditingId(item.id)}
                   onCancel={() => setEditingId(null)}
                   onSave={saveQuestion}
@@ -460,7 +499,7 @@ function GenerateCoursePage() {
                   className={`gen-toggle__btn${scope === "lesson" ? " is-active" : ""}`}
                   onClick={() => setScope("lesson")}
                 >
-                  Lesson quiz
+                  Quiz
                 </button>
                 <button
                   type="button"
@@ -472,33 +511,72 @@ function GenerateCoursePage() {
               </div>
             </div>
 
-            {scope === "lesson" ? (
-              <label className="gen-field">
-                <span className="field-label">Lesson</span>
-                <select
-                  className="gen-input"
-                  value={moduleId}
-                  onChange={(event) => setModuleId(event.target.value)}
-                >
-                  {lessons.map((row) => (
-                    <option key={row.moduleId} value={row.moduleId}>
-                      {row.n}. {row.title}
-                      {row.assessment ? (row.assessment.status === "posted" ? " — posted" : " — draft") : ""}
-                    </option>
-                  ))}
-                </select>
-                {/* The generator reads the extracted text, so a lesson without
-                    it is worth saying before the button is pressed rather than
-                    after the call comes back empty. */}
-                {lesson && !lesson.hasText ? (
-                  <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
-                ) : null}
-              </label>
-            ) : null}
+            {/* Standing here in both types, so the panel keeps its height as the
+                type is toggled — the same reason the Minutes field below is
+                shown while the default is in force rather than swapped out.
+                Dropping it moved every control under it up by a field, and the
+                paper beside it with them.
 
-            <label className="gen-field">
-              <span className="field-label">Questions per student</span>
+                A final is not drawn from one lesson but from all of them,
+                which is what it says while it cannot be used. */}
+            <div className="gen-field">
+              <span className="field-label">Lesson</span>
+              {scope === "lesson" ? (
+                <>
+                  {/* Each lesson says on its own line whether its paper is
+                      already out, which is the thing that decides whether
+                      generating over it is a new paper or a replacement. */}
+                  <AssessorSelect
+                    label="Lesson"
+                    value={moduleId}
+                    onChange={setModuleId}
+                    options={lessons.map((row) => ({
+                      value: row.moduleId,
+                      label: `${row.n}. ${row.title}`,
+                      meta: row.assessment
+                        ? row.assessment.status === "posted"
+                          ? "Posted"
+                          : "Draft"
+                        : undefined
+                    }))}
+                  />
+                  {/* The generator reads the extracted text, so a lesson without
+                      it is worth saying before the button is pressed rather than
+                      after the call comes back empty. */}
+                  {lesson && !lesson.hasText ? (
+                    <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
+                  ) : null}
+                </>
+              ) : (
+                <AssessorSelect
+                  label="Lesson"
+                  value={EVERY_LESSON}
+                  onChange={() => {}}
+                  options={[{ value: EVERY_LESSON, label: "Every lesson" }]}
+                  disabled
+                />
+              )}
+            </div>
+
+            {/* The blueprint is where this number is decided — how long the
+                paper runs, and how it splits across the six levels — so the way
+                back to it belongs beside the field that would otherwise
+                overrule it by hand. */}
+            <div className="gen-field">
+              <div className="gen-field__head">
+                <label className="field-label" htmlFor="gen-item-count">
+                  Number of questions
+                </label>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => navigate(`/assessor/blueprint/${courseId}`)}
+                >
+                  Open the blueprint
+                </button>
+              </div>
               <input
+                id="gen-item-count"
                 type="number"
                 className="gen-input"
                 min={1}
@@ -506,47 +584,61 @@ function GenerateCoursePage() {
                 value={itemCount}
                 onChange={(event) => setItemCount(event.target.value)}
               />
-            </label>
+            </div>
 
+            {/* The assessor's own figure first, and the department's under it.
+                Unticking the box is how the default is given up, so it reads
+                as a note on the field above rather than as the field itself. */}
             <div className="gen-field">
+              {/* Shown either way, so the pair does not jump about as the box
+                  is ticked. While the default is in force it is the default
+                  being displayed, not a field waiting to be filled in — which
+                  is what the disabled state says. */}
+              <label className={`gen-field gen-field--inline${timed ? " is-off" : ""}`}>
+                <span className="field-label">Minutes</span>
+                <input
+                  type="number"
+                  className="gen-input"
+                  min={0}
+                  max={600}
+                  value={minutes}
+                  disabled={timed}
+                  onChange={(event) => setMinutes(event.target.value)}
+                />
+              </label>
+
               <label className="gen-check">
                 <input
                   type="checkbox"
                   checked={timed}
                   onChange={(event) => {
                     setTimed(event.target.checked);
-                    if (event.target.checked) setMinutes(STANDARD_MINUTES);
+                    if (event.target.checked) setMinutes(DEFAULT_MINUTES);
                   }}
                 />
                 <span>
-                  <ClockIcon size={14} /> {STANDARD_MINUTES} minutes (standard)
+                  <ClockIcon size={13} /> {DEFAULT_MINUTES} minutes (default)
                 </span>
               </label>
-              {/* Unticking is how the standard hour is changed — the box is the
-                  department's figure, the field below is the assessor's. */}
-              {timed ? null : (
-                <label className="gen-field gen-field--inline">
-                  <span className="field-label">Minutes</span>
-                  <input
-                    type="number"
-                    className="gen-input"
-                    min={0}
-                    max={600}
-                    value={minutes}
-                    onChange={(event) => setMinutes(event.target.value)}
-                  />
-                </label>
-              )}
             </div>
 
-            {/* Assembling a final is free — it draws on questions that already
-                exist — so only a lesson quiz has to be asked about. */}
+            {/* Only a quiz is asked about. Assembling a final draws on questions
+                that already exist and takes nothing from the outside, so there
+                is nothing to stop and check.
+
+                Asked as a question, and naming what is about to be written:
+                how many questions, and off which lesson. That is the thing
+                worth catching at this press — the wrong lesson still picked,
+                or a count left at somebody else's figure — and it is read off
+                the fields above, so what the sentence says is what gets sent.
+                A replacement adds what it undoes and is the only one of the two
+                that warns; a first write has nothing to lose and just asks. */}
             {confirming ? (
               <>
-                <p className="gen-hint is-warn">
+                <p className={`gen-hint${paper ? " is-warn" : ""}`}>
                   {paper
-                    ? "This calls the AI and costs money. The questions below are replaced, and the assessment goes back to a draft."
-                    : "This calls the AI and costs money."}
+                    ? `Replace all ${paper.itemCount} questions with ${clampCount(itemCount)} new ones written from ${lesson?.title ?? "this lesson"}? The assessment goes back to a draft.`
+                    : `Write ${clampCount(itemCount)} questions from ${lesson?.title ?? "this lesson"}?`}
                 </p>
                 <div className="gen-actions">
                   <button
@@ -569,7 +661,7 @@ function GenerateCoursePage() {
                   className="btn btn--primary"
                   disabled={
                     Boolean(busy) ||
-                    locked ||
+                    frozen ||
                     (scope === "lesson" && (!moduleId || !lesson?.hasText))
                   }
                   onClick={scope === "final" ? generate : () => setConfirming(true)}
@@ -578,14 +670,14 @@ function GenerateCoursePage() {
                   {busy === "generate" ? "Generating…" : paper ? "Regenerate" : "Generate"}
                 </button>
 
-                {paper && !locked ? (
+                {paper && !frozen ? (
                   <button
                     type="button"
                     className="btn btn--ghost"
                     disabled={Boolean(busy)}
                     onClick={applySettings}
                   >
-                    {busy === "settings" ? "Applying…" : "Update assessment"}
+                    {busy === "settings" ? "Applying…" : "Update time limit"}
                   </button>
                 ) : null}
               </div>
@@ -593,8 +685,8 @@ function GenerateCoursePage() {
 
             {locked ? (
               <p className="gen-hint is-warn">
-                {taken} student{taken === 1 ? " has" : "s have"} already taken this assessment, so
-                its questions can no longer be changed.
+                {handedIn} student{handedIn === 1 ? " has" : "s have"} already taken this
+                assessment, so its questions can no longer be changed.
               </p>
             ) : null}
           </section>
@@ -612,7 +704,7 @@ function GenerateCoursePage() {
                       type="button"
                       className={`gen-number${editingId === item.id ? " is-active" : ""}`}
                       onClick={() => openQuestion(item)}
-                      disabled={locked}
+                      disabled={frozen}
                       title={item.q}
                     >
                       {item.n}
@@ -640,7 +732,7 @@ function GenerateCoursePage() {
                 <button
                   type="button"
                   className="btn btn--primary"
-                  disabled={Boolean(busy) || !paper || items.length === 0}
+                  disabled={Boolean(busy) || !paper || items.length === 0 || Boolean(closed)}
                   onClick={post}
                 >
                   <CheckIcon size={15} />

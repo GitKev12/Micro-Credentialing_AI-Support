@@ -48,6 +48,13 @@ const INDEXES = [
   ["StudentResult", { courseId: 1 }],
   ["StudentResult", { assessmentId: 1 }],
 
+  // Papers somebody has open. Read by assessment for the generate screen,
+  // and written per student per paper — which is also the shape that must
+  // not duplicate, since a second row for the same pair would count one
+  // student twice.
+  ["AssessmentAttempt", { studentId: 1, assessmentId: 1 }, { unique: true }],
+  ["AssessmentAttempt", { assessmentId: 1 }],
+
   // A course's lessons, fetched on nearly every screen either end.
   ["LearningModule", { courseId: 1 }],
   ["LearningModule", { courseCode: 1 }],

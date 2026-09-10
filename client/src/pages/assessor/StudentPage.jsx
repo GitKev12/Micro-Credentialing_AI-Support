@@ -4,17 +4,11 @@ import { ColumnPlot } from "../../components/ColumnPlot";
 import { certificateFileUrl } from "../../services/achievements";
 import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
 import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
-import { Chip, ScreenHeader } from "./components/ui";
+import { Chip, ProgressBar, ScreenHeader } from "./components/ui";
 import { SkeletonDetail } from "../../components/Skeleton";
 
 /** The server's own pass ratio, used until a run reports its own threshold. */
 const PASS_MARK = 60;
-
-const MODULE_CHIP = {
-  done: { tone: "info", label: "Graded" },
-  pending: { tone: "brand", label: "Awaiting your grade" },
-  locked: { tone: "neutral", label: "Not started" }
-};
 
 /** Dates here are read off the record, so they are written out rather than
  *  counted back from today. */
@@ -50,7 +44,7 @@ function badgeMeta(badge) {
 }
 
 /**
- * The final exam, one column per lesson, read against the pass mark.
+ * The final exam: everything this screen knows about it, in one card.
  *
  * The line is the encoding: a column standing below it is a gap, which is what
  * an assessor opens this page to find. Colour says the same thing a second
@@ -62,10 +56,26 @@ function badgeMeta(badge) {
  * Before the exam is taken the same frame is drawn empty: the pass line, and
  * one waiting seat per lesson of the course. The chart is the thing being
  * looked at, so the empty state is the chart — a paragraph standing in its
- * place made the hero change shape the moment a student took the exam, and
+ * place made the card change shape the moment a student took the exam, and
  * said nothing the plot does not already show.
+ *
+ * It is a card at the head of the coursework column rather than half the hero.
+ * Sharing a band with the student's name gave it a fifth of the page to draw a
+ * column per lesson in, which on a long course left them a few pixels wide;
+ * and it put an exam result inside the block that identifies the student,
+ * which is not what that block is for. Here it is the first thing under the
+ * name, at the width of the table whose lesson numbers its ticks are read by.
+ *
+ * The paper also had a row at the foot of that table, which said the same
+ * thing this card says: a Passed chip beside a figure already drawn against
+ * the pass line, and a bar with only two heights saying it a third time — in a
+ * table whose "lesson read" column a paper can never answer. The two facts
+ * that were only in the row moved up here instead: how many goes are left, and
+ * whether the exam has been posted at all. So the head carries the paper — its
+ * name and what is still open on one side, what it scored and what that means
+ * on the other — and the table is the lessons.
  */
-function PerformanceChart({ skillGap, modules, lessonNumbers }) {
+function FinalExam({ final, skillGap, modules, lessonNumbers }) {
   const threshold = skillGap?.threshold ?? PASS_MARK;
   const skills = skillGap?.skills ?? [];
   const taken = skills.length > 0;
@@ -90,9 +100,9 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
           title: `${skill.topic} — ${skill.score}% (${skill.correct}/${skill.total}), ${
             isWeak ? "weak" : "strong"
           }`,
-          before: isWeak ? <span className="hero-chart__value">{skill.score}</span> : null,
+          before: isWeak ? <span className="skill-chart__value">{skill.score}</span> : null,
           after: (
-            <span className="hero-chart__tick">
+            <span className="skill-chart__tick">
               {lessonNumbers.get(skill.moduleId) ?? index + 1}
             </span>
           )
@@ -101,8 +111,8 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
     : modules.map((module) => ({
         key: module.moduleId,
         score: 100,
-        barClass: "hero-chart__bar--waiting",
-        after: <span className="hero-chart__tick">{module.n}</span>
+        barClass: "skill-chart__bar--waiting",
+        after: <span className="skill-chart__tick">{module.n}</span>
       }));
 
   let caption = "Not taken yet";
@@ -112,22 +122,35 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
     caption = `${weak.length} of ${skills.length} topics below ${threshold}% — weakest is ${weakest.topic} at ${weakest.score}%.`;
   }
 
+  // The paper's own verdict, which is the record's rather than this chart's
+  // arithmetic — a card that computed it from the columns would be marking the
+  // paper a second time.
+  const verdict = final?.state === "done" ? (final.passed ? "Passed" : "Not passed") : null;
+
   return (
-    <div className="student-hero__chart">
-      <div className="hero-chart__head">
-        <span className="metric__label">Performance — final exam</span>
-        {taken ? (
-          <span className="hero-chart__score">
-            {skillGap.performance}%
-            {skillGap.released ? null : <Chip tone="brand-soft">Provisional</Chip>}
-          </span>
-        ) : (
-          <span className="hero-chart__score hero-chart__score--waiting">—</span>
-        )}
-      </div>
+    <section className="assessor-card skill-card">
+      <header className="card-head final-head">
+        <div>
+          <h2 className="assessor-card-title">{final?.title ?? "Final exam"}</h2>
+          {final ? <span className="final-head__note">{finalNote(final)}</span> : null}
+        </div>
+
+        <div
+          className={`final-head__mark${
+            verdict === null ? "" : final.passed ? " is-passed" : " is-under"
+          }`}
+        >
+          {taken ? (
+            <span className="skill-chart__score">{skillGap.performance}%</span>
+          ) : (
+            <span className="skill-chart__score skill-chart__score--waiting">—</span>
+          )}
+          {verdict ? <span className="final-head__verdict">{verdict}</span> : null}
+        </div>
+      </header>
 
       <ColumnPlot
-        prefix="hero-chart"
+        prefix="skill-chart"
         columns={columns}
         target={threshold}
         targetLabel={`${threshold}% pass`}
@@ -139,33 +162,107 @@ function PerformanceChart({ skillGap, modules, lessonNumbers }) {
         }
       />
 
-      <p className="assessor-meta">{caption}</p>
-    </div>
+      <p className="skill-card__caption assessor-meta">{caption}</p>
+    </section>
   );
 }
 
 function credentialMeta(credential) {
-  if (credential.status !== "issued") return "Awaiting approval";
+  if (credential.status !== "issued") return "Awaiting release";
 
   const date = formatDate(credential.issuedAt, { year: false });
   return date ? `Issued ${date}` : "Issued";
 }
 
+/**
+ * The line under the final's title.
+ *
+ * The final is the only paper with a ceiling on how often it may be taken, so
+ * a taken one says how much of that is left — the one fact about the final
+ * that the results register does not carry. An untaken one says what it is
+ * waiting on, and "not posted" is the assessor's own doing rather than the
+ * student's — those are different facts and the card should not report both as
+ * "not taken".
+ */
+function finalNote(final) {
+  if (final.state !== "done") return final.posted ? "Not taken" : "Not posted yet";
+
+  const used = Number(final.attemptsUsed ?? final.attempt ?? 1);
+  const left = Math.max(0, Number(final.attemptsAllowed ?? 0) - used);
+
+  if (left === 0) return "No attempts left";
+  return `${left} attempt${left === 1 ? "" : "s"} left`;
+}
+
+/**
+ * What became of a paper, in the three states the record actually holds.
+ *
+ * Not passed is its own state rather than a shade of taken: it is what a row
+ * sitting half done is explained by, and it is the one an assessor is looking
+ * for. What it scored is the register's to say.
+ */
+const QUIZ = {
+  passed: { label: "Passed", tone: "success" },
+  failed: { label: "Not passed", tone: "danger" },
+  none: { label: "Not taken", tone: "outline" }
+};
+
+const quizState = (row) =>
+  row.state !== "done" ? QUIZ.none : row.passed ? QUIZ.passed : QUIZ.failed;
+
+/**
+ * The three columns a row answers: how far through it the student is, when
+ * they read the lesson, and what became of its quiz.
+ *
+ * The bar is the course figure's own arithmetic, one row's worth of it: a
+ * lesson is two of the items that figure counts, reading it and passing its
+ * quiz, and the final is one. So the bars down the table add up to the bar in
+ * the hero rather than offering a second opinion about it.
+ *
+ * The final used to borrow this for a row of its own, which is why it took a
+ * flag saying it had no lesson to read. It has a card now, so every row this
+ * draws is a lesson's.
+ */
+function LessonCells({ row }) {
+  const done = (row.read ? 1 : 0) + (row.passed ? 1 : 0);
+  const readOn = formatDate(row.readAt);
+  const quiz = quizState(row);
+
+  return (
+    <>
+      <td className="assessor-table__progress-cell">
+        <ProgressBar label={`${done} of 2`} pct={done * 50} />
+      </td>
+
+      {/* The day the lesson was finished. Nothing records the moment one is
+          opened — how far into a lesson a reader has got stays in their own
+          browser — so this is the last of it this side knows. */}
+      <td className="assessor-table__when">
+        {readOn ?? <span className="assessor-table__dash">—</span>}
+      </td>
+
+      <td>
+        <Chip tone={quiz.tone}>{quiz.label}</Chip>
+      </td>
+    </>
+  );
+}
+
 function StudentPage() {
   const navigate = useNavigate();
-  const { classId, studentId } = useParams();
+  const { courseId, studentId } = useParams();
   const [detail, setDetail] = useState(null);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let active = true;
     const assessorId = storedAssessorId();
-    if (!assessorId || !classId || !studentId) {
+    if (!assessorId || !courseId || !studentId) {
       setLoadError(true);
       return undefined;
     }
 
-    fetchStudentDetail(assessorId, classId, studentId)
+    fetchStudentDetail(assessorId, courseId, studentId)
       .then((data) => {
         if (active) setDetail(data);
       })
@@ -176,13 +273,13 @@ function StudentPage() {
     return () => {
       active = false;
     };
-  }, [classId, studentId]);
+  }, [courseId, studentId]);
 
   if (loadError || !detail) {
     return (
       <>
         <ScreenHeader
-          back={{ label: "Students", onClick: () => navigate(`/assessor/classes/${classId}`) }}
+          back={{ label: "Students", onClick: () => navigate(`/assessor/classes/${courseId}`) }}
           eyebrow="Student"
           title={loadError ? "Student not found" : "Student"}
         />
@@ -199,11 +296,14 @@ function StudentPage() {
     );
   }
 
-  const { student, course, modules, credentials, waiting } = detail;
+  const { student, course, modules, credentials } = detail;
+  // Absent from a server that predates the course figure; an empty course has
+  // nothing to be part-way through either, and both read as no bar.
+  const progress = detail.progress ?? { completedItems: 0, itemCount: 0, percent: 0 };
+  const final = detail.final ?? null;
   const badges = detail.badges ?? { earned: 0, total: detail.totalModules ?? 0 };
   const badgeItems = badges.items ?? [];
   const issuedCount = credentials.filter((credential) => credential.status === "issued").length;
-  const gradedCount = modules.filter((module) => module.state === "done").length;
   const skillGap = detail.skillGap ?? null;
   // The chart's columns carry the lesson numbers the table uses, so a column
   // and a row point at the same lesson.
@@ -241,25 +341,39 @@ function StudentPage() {
             </div>
           </div>
 
-          <PerformanceChart
-            skillGap={skillGap}
-            modules={modules}
-            lessonNumbers={lessonNumbers}
-          />
+          {/* The figure the student is shown on their own course card, not a
+              second opinion about it: the lessons, a quiz for each of them, and
+              the final. An assessor asking "how far along are they" and the
+              student reading the same course were being given different
+              answers, because this screen had only the papers to count.
+
+              It stands at the far end of the band rather than under the name:
+              the hero holds two things now, who the student is and how far
+              through they are, and one at each end says so without a heading.
+              It is the only figure here, so it takes a label. */}
+          {progress.itemCount > 0 ? (
+            <div className="student-hero__progress">
+              <span className="metric__label">Course progress</span>
+              <ProgressBar
+                label={`${progress.completedItems} of ${progress.itemCount}`}
+                pct={progress.percent}
+              />
+            </div>
+          ) : null}
         </section>
 
         <div className="student-split">
-          <section className="assessor-card">
-            <header className="card-head">
-              <h2 className="assessor-card-title">
-                Modules — {course.code} {course.name}
-              </h2>
-              {modules.length ? (
-                <span className="assessor-meta">
-                  {gradedCount} of {modules.length} graded
-                </span>
-              ) : null}
-            </header>
+          <div className="assessor-stack">
+            {/* The exam first, then the lessons it was drawn from: an assessor
+                opens this page to find out where a student is weak, and the
+                answer is one card rather than a table to read down. The ticks
+                under the columns are the lesson numbers in the table below. */}
+            <FinalExam
+              final={final}
+              skillGap={skillGap}
+              modules={modules}
+              lessonNumbers={lessonNumbers}
+            />
 
             {modules.length === 0 ? (
               <p className="assessor-meta">This course has no modules yet.</p>
@@ -267,78 +381,44 @@ function StudentPage() {
               <div className="card-table">
                 <table className="assessor-table">
                   <caption className="assessor-sr-only">
-                    Every lesson in this course, when its quiz was taken, what it
-                    scored and where it stands.
+                    Every lesson in this course, how far through it the student
+                    is, the day they read it and what became of its quiz. What a
+                    paper scored and how long it took are on the results screen.
                   </caption>
 
                   <thead>
                     <tr>
                       <th scope="col">Lesson</th>
-                      <th scope="col">Date taken</th>
-                      <th scope="col" className="assessor-table__num">
-                        Score
-                      </th>
-                      <th scope="col">Status</th>
+                      <th scope="col">Progress</th>
+                      <th scope="col">Lesson read</th>
+                      <th scope="col">Quiz</th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {modules.map((module) => {
-                      const chip = MODULE_CHIP[module.state];
-                      const locked = module.state === "locked";
-                      const takenOn = formatDate(module.submittedAt);
-
-                      // An attempt can be opened; a lesson nobody has taken
-                      // has nothing to open.
-                      const openReview = module.submissionId
-                        ? () => navigate(`/assessor/review/${module.submissionId}`)
-                        : undefined;
-
-                      return (
-                        <tr
-                          key={module.moduleId}
-                          className={openReview ? "assessor-table__row" : undefined}
-                          onClick={openReview}
-                        >
-                          <th scope="row">
-                            <span className="module-cell">
-                              <span className={`module-row__num${locked ? " is-locked" : ""}`}>
-                                {module.n}
-                              </span>
-                              <span style={{ minWidth: 0 }}>
-                                <span className="assessor-table__name">{module.title}</span>
-                                {locked ? (
-                                  <span className="assessor-table__sub">
-                                    {module.read ? "Lesson read" : "Not opened"}
-                                  </span>
-                                ) : null}
-                              </span>
+                    {modules.map((module) => (
+                      <tr key={module.moduleId}>
+                        <th scope="row">
+                          <span className="module-cell">
+                            <span
+                              className={`module-row__num${
+                                module.state === "locked" ? " is-locked" : ""
+                              }`}
+                            >
+                              {module.n}
                             </span>
-                          </th>
+                            <span className="assessor-table__name">{module.title}</span>
+                          </span>
+                        </th>
 
-                          <td className="assessor-table__when">
-                            {takenOn ?? <span className="assessor-table__dash">—</span>}
-                          </td>
-
-                          <td className="assessor-table__num">
-                            {module.score !== null ? (
-                              `${module.score}/${module.total}`
-                            ) : (
-                              <span className="assessor-table__dash">—</span>
-                            )}
-                          </td>
-
-                          <td>
-                            <Chip tone={chip.tone}>{chip.label}</Chip>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                        <LessonCells row={module} />
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
-          </section>
+          </div>
 
           <div className="assessor-stack">
             <section className="assessor-card">
@@ -431,24 +511,6 @@ function StudentPage() {
               )}
             </section>
 
-            {waiting ? (
-              <section className="callout">
-                <div className="callout__eyebrow">Waiting on you</div>
-                <h2 className="callout__title">{waiting.credentialName}</h2>
-                <p className="callout__body">
-                  {waiting.aiScore !== null
-                    ? `AI scored ${waiting.assessmentTitle} at ${waiting.aiScore}/${waiting.total}. Confirm or adjust the grade to release this credential.`
-                    : `${waiting.assessmentTitle} needs manual grading. Approve a final grade to release this credential.`}
-                </p>
-                <button
-                  type="button"
-                  className="btn btn--light"
-                  onClick={() => navigate(`/assessor/review/${waiting.submissionId}`)}
-                >
-                  Open assessment review
-                </button>
-              </section>
-            ) : null}
           </div>
         </div>
       </div>

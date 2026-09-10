@@ -8,9 +8,9 @@ import { LAYOUT_VERSION, analyzeCertificateTemplate } from "./certificates.ocr.j
  * into it, and keep the result.
  *
  * The template is a design export with no text layer (see certificates.ocr.js
- * for how its blanks are located). That analysis is the expensive half, so it
- * is cached per template file and only rerun when the template changes or the
- * detection logic is versioned up.
+ * for how its blanks are located). That analysis is the expensive half, so a
+ * layout is held in memory for the life of the process and worked out again
+ * after a restart, or when the detection logic is versioned up.
  *
  * A filled certificate is stored, not generated on demand, because it is a
  * record: it states what was true when the assessor released it. Re-running
@@ -18,7 +18,6 @@ import { LAYOUT_VERSION, analyzeCertificateTemplate } from "./certificates.ocr.j
  * quietly rewrite history, so the bytes are frozen at issue time.
  */
 const TEMPLATES_COLLECTION = "Certificate";
-const LAYOUTS_COLLECTION = "CertificateLayout";
 const ISSUED_COLLECTION = "IssuedCertificate";
 const ISSUED_BUCKET = "IssuedCertificate";
 const COURSES_COLLECTION = "Course";
@@ -82,25 +81,62 @@ export async function findCertificateTemplate(courseId) {
   )[0];
 }
 
-/** The template's field map — analysed once, then read from cache. */
-export async function getCertificateLayout(template, templateBuffer) {
-  const key = { templateFileId: String(template.fileId), version: LAYOUT_VERSION };
+/**
+ * Analysed layouts, held for the life of the process and keyed on the template
+ * file and the version of the detection logic. Nothing is written down: the
+ * layout is derived from the template's own bytes, so a stored copy would be a
+ * second source of truth needing its own invalidation, and re-analysing after
+ * a restart costs one pass over one PDF.
+ */
+const layouts = new Map();
 
-  if (await collectionExists(LAYOUTS_COLLECTION)) {
-    const cached = await collection(LAYOUTS_COLLECTION).findOne(key);
-    if (cached?.layout) return cached.layout;
+/** The template's field map — analysed once per template, then held. */
+export async function getCertificateLayout(template, templateBuffer) {
+  const key = `${String(template.fileId)}:${LAYOUT_VERSION}`;
+
+  const held = layouts.get(key);
+  if (held) return held;
+
+  // The promise is what is held, not the result, so a request arriving while
+  // the analysis is still running waits on it instead of starting a second
+  // pass over the same PDF — which is exactly what the boot warm-up would
+  // otherwise race against.
+  const analysis = (async () => {
+    const buffer = templateBuffer ?? (await readGridFsFile(template.bucket, template.fileId));
+    return analyzeCertificateTemplate(buffer);
+  })();
+
+  layouts.set(key, analysis);
+
+  try {
+    return await analysis;
+  } catch (error) {
+    // A failure must not be remembered as the answer; the next caller retries.
+    layouts.delete(key);
+    throw error;
+  }
+}
+
+/**
+ * Analyses the stored template at boot.
+ *
+ * The analysis takes about ten seconds on the current template, and without
+ * this the bill lands on the first assessor to release a certificate. Nothing
+ * here is fatal: with no template stored, or none that can be read, every
+ * other screen carries on and the failure surfaces at issue time as before.
+ */
+export async function warmCertificateLayout() {
+  if (mongoose.connection.readyState !== 1) {
+    return { ran: false, reason: "database-not-connected" };
   }
 
-  const buffer = templateBuffer ?? (await readGridFsFile(template.bucket, template.fileId));
-  const layout = await analyzeCertificateTemplate(buffer);
+  const template = await findCertificateTemplate(null);
+  if (!template) return { ran: false, reason: "no-template-stored" };
 
-  await collection(LAYOUTS_COLLECTION).updateOne(
-    key,
-    { $set: { ...key, layout, analyzedAt: new Date() } },
-    { upsert: true }
-  );
+  const startedAt = Date.now();
+  const layout = await getCertificateLayout(template);
 
-  return layout;
+  return { ran: true, fields: layout.fields.length, ms: Date.now() - startedAt };
 }
 
 function toRgb(color) {

@@ -1,67 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
-import { AssessorsIcon, StudentsIcon } from "../icons";
+import { StudentsIcon } from "../icons";
 import { AdminButton, SearchField } from "../ui";
 
 /**
- * What the picker says, per kind of person.
- *
- * Assessors and students are the same job — tick people, add them to the class,
- * write through to their course list — and differ only in the field that says
- * which courses they already have and in the words for it. One component, two
- * vocabularies, rather than two components that drift apart.
- */
-const PICKER_KINDS = {
-  student: {
-    title: "Add students",
-    Icon: StudentsIcon,
-    noun: ["student", "students"],
-    courses: (person) => person.enrolled ?? [],
-    number: (person) => person.studentNumber,
-    openLabel: "Not enrolled in this course",
-    takenNote: "already in this course",
-    takenToggle: "already in this course",
-    emptyAll: "Every student is already in this course.",
-    emptySearch: "No unenrolled student matches that search."
-  },
-  assessor: {
-    title: "Add assessors",
-    Icon: AssessorsIcon,
-    noun: ["assessor", "assessors"],
-    courses: (person) => person.assigned ?? [],
-    number: (person) => person.assessorNumber,
-    openLabel: "Not assigned to this course",
-    takenNote: "already assessing this course",
-    takenToggle: "already assessing this course",
-    emptyAll: "Every assessor already assesses this course.",
-    emptySearch: "No unassigned assessor matches that search."
-  }
-};
-
-/**
- * The people picker — a panel beside the class form.
+ * The student picker — a panel beside the class form.
  *
  * Tagging a roster is one decision repeated, and a dropdown that took one name
  * per open made it feel like six decisions. The panel lists everyone at once,
  * ticks any number of them, and keeps a count in view because "how many am I
  * adding" is the question being answered.
  *
- * The list is whoever is *not* on the course yet — the people where ticking the
- * box actually changes something. The rest stay reachable behind a toggle
- * rather than hidden outright, since someone can be enrolled or assigned
- * directly and still belong in this class.
+ * ── Who can be ticked ──
+ *
+ * A student belongs to one class per course. So anyone already in a section of
+ * this course is *shown and refused* rather than hidden: hiding them raises
+ * "where did Nicole go?", and the answer — she is in the other section — is the
+ * one thing the admin needs. They sit behind the toggle, greyed, with their
+ * boxes disabled.
+ *
+ * `ownIds` are the students this class already has. They are enrolled in its
+ * course too, so without naming them the panel would read a class's own roster
+ * as somebody else's and lock it out of editing itself. They stay in the open
+ * list, ticked, and can be unticked to remove them.
+ *
+ * This used to serve assessors as well, in a second vocabulary. It no longer
+ * does: a class has one assessor, and one is a dropdown on the form, not a
+ * list of checkboxes.
  */
 export function PeoplePicker({
-  kind = "student",
   people,
   courseId,
   courseLabel,
   selected,
+  ownIds = [],
   closing = false,
   onApply,
   onClose,
   onClosed
 }) {
-  const words = PICKER_KINDS[kind] ?? PICKER_KINDS.student;
   const [picked, setPicked] = useState(() => new Set(selected));
   const [query, setQuery] = useState("");
   const [showTaken, setShowTaken] = useState(false);
@@ -90,15 +66,28 @@ export function PeoplePicker({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  // The parent rebuilds `ownIds` on every render, so the memo below keys off
+  // its contents rather than the array itself — and reads them back out of the
+  // key, so there is no reference to go stale behind it.
+  const ownKey = ownIds.join(",");
+
   const { open, taken } = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const onCourse = (person) => words.courses(person).some((course) => course.id === courseId);
+    const mine = new Set(ownKey ? ownKey.split(",") : []);
+    // Enrolment is only ever written by a class, so being on the course means
+    // being in a section of it — and any section but this one blocks the tick.
+    const heldElsewhere = (person) =>
+      !mine.has(person.id) &&
+      (person.enrolled ?? []).some((course) => course.id === courseId);
     const matches = (person) =>
-      !term || `${person.name} ${words.number(person) ?? ""}`.toLowerCase().includes(term);
+      !term || `${person.name} ${person.studentNumber ?? ""}`.toLowerCase().includes(term);
 
     const visible = people.filter(matches);
-    return { open: visible.filter((p) => !onCourse(p)), taken: visible.filter(onCourse) };
-  }, [people, query, courseId, words]);
+    return {
+      open: visible.filter((person) => !heldElsewhere(person)),
+      taken: visible.filter(heldElsewhere)
+    };
+  }, [people, query, courseId, ownKey]);
 
   const toggle = (id) =>
     setPicked((current) => {
@@ -109,22 +98,27 @@ export function PeoplePicker({
     });
 
   const count = picked.size;
-  const noun = count === 1 ? words.noun[0] : words.noun[1];
+  const noun = count === 1 ? "student" : "students";
 
   const row = (person, isTaken) => (
     <li key={person.id}>
-      <label className={`admin-pick${picked.has(person.id) ? " is-picked" : ""}`}>
+      <label
+        className={`admin-pick${picked.has(person.id) ? " is-picked" : ""}${
+          isTaken ? " is-locked" : ""
+        }`}
+      >
         <input
           type="checkbox"
           className="admin-pick__box"
-          checked={picked.has(person.id)}
+          checked={isTaken ? false : picked.has(person.id)}
+          disabled={isTaken}
           onChange={() => toggle(person.id)}
         />
         <span className="admin-pick__text">
           <span className="admin-pick__name">{person.name}</span>
           <span className="admin-pick__meta">
-            {words.number(person) ?? person.email ?? "No ID number"}
-            {isTaken ? ` · ${words.takenNote}` : ""}
+            {person.studentNumber ?? person.email ?? "No ID number"}
+            {isTaken ? " · already in this course" : ""}
           </span>
         </span>
       </label>
@@ -132,7 +126,13 @@ export function PeoplePicker({
   );
 
   return (
-    <div className="admin-drawer" role="dialog" aria-modal="true" aria-label={words.title} onClick={onClose}>
+    <div
+      className="admin-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add students"
+      onClick={onClose}
+    >
       <aside
         className={`admin-modal__panel admin-modal__panel--form admin-drawer__panel${
           closing ? " is-closing" : ""
@@ -149,9 +149,9 @@ export function PeoplePicker({
           <div>
             <h2 className="admin-drawer__title">
               <span className="admin-card__title-mark" aria-hidden="true">
-                <words.Icon size={18} />
+                <StudentsIcon size={18} />
               </span>
-              {words.title}
+              Add students
             </h2>
             <p className="admin-drawer__sub">{courseLabel || "This class"}</p>
           </div>
@@ -171,20 +171,20 @@ export function PeoplePicker({
             value={query}
             onChange={setQuery}
             placeholder="Search name or ID number…"
-            label={`Search ${words.noun[1]}`}
+            label="Search students"
           />
         </div>
 
         <div className="admin-drawer__body">
-          <p className="admin-drawer__group">
-            {words.openLabel} ({open.length})
-          </p>
+          <p className="admin-drawer__group">Available for this class ({open.length})</p>
 
           <ul className="admin-pick-list">{open.map((person) => row(person, false))}</ul>
 
           {open.length === 0 ? (
             <p className="admin-empty-note">
-              {query.trim() ? words.emptySearch : words.emptyAll}
+              {query.trim()
+                ? "No available student matches that search."
+                : "Every student is already in a class on this course."}
             </p>
           ) : null}
 
@@ -195,11 +195,18 @@ export function PeoplePicker({
                 className="admin-drawer__toggle"
                 onClick={() => setShowTaken((on) => !on)}
               >
-                {showTaken ? "Hide" : "Show"} the {taken.length} {words.takenToggle}
+                {showTaken ? "Hide" : "Show"} the {taken.length} already in this course
               </button>
 
               {showTaken ? (
-                <ul className="admin-pick-list">{taken.map((person) => row(person, true))}</ul>
+                <>
+                  <ul className="admin-pick-list">{taken.map((person) => row(person, true))}</ul>
+                  {/* Said once under the group, not on every row: the greyed
+                      boxes show *that* they are closed, this says why. */}
+                  <p className="admin-empty-note">
+                    Each of these is in another class on this course. A student can only be in one.
+                  </p>
+                </>
               ) : null}
             </>
           ) : null}

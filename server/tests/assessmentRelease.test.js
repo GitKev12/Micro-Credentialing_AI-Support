@@ -27,14 +27,18 @@ const item = (id) => ({
   key: "a"
 });
 
-/** A stored Assessment, in the shape the generator writes. */
+/**
+ * A stored Assessment, in the shape the generator writes.
+ *
+ * Two questions, so it is worth two points and passes at two — the pass mark
+ * follows the paper rather than being stored, since a paper is its questions.
+ */
 const paper = (extra = {}) => ({
   _id: "a1",
   courseId: "c1",
   moduleId: "m1",
   scope: "lesson",
   title: "Lesson 1 Quiz",
-  itemsPerAttempt: 1,
   items: [item("g1"), item("g2")],
   ...extra
 });
@@ -48,12 +52,14 @@ const state = ({ done = [], modules = [], assessments = [], results = new Map() 
 });
 
 describe("assessmentStatus", () => {
-  it("reads a document written before posting existed as posted", () => {
-    // Those papers were live the moment they existed — a student pressing
-    // "Take the Quiz" is what wrote them. Treating a missing status as a draft
-    // would shut every existing course's quizzes on deploy.
-    expect(assessmentStatus({})).toBe("posted");
-    expect(isPosted({})).toBe(true);
+  it("holds a paper nobody posted shut, however it was written", () => {
+    // Posting is the only thing that writes the status, so a document without
+    // one was never released — including the papers written before the gate
+    // existed, which reached students as finished quizzes their assessor had
+    // never read.
+    expect(assessmentStatus({})).toBe("draft");
+    expect(isPosted({})).toBe(false);
+    expect(isPosted({ status: "" })).toBe(false);
   });
 
   it("holds a draft shut and lets a posted paper through", () => {
@@ -64,9 +70,19 @@ describe("assessmentStatus", () => {
 
 describe("normalizeMinutes", () => {
   it("keeps a positive number of minutes, in whichever form it arrives", () => {
-    expect(normalizeMinutes(60)).toBe(DEFAULT_FINAL_MINUTES);
+    expect(normalizeMinutes(90)).toBe(90);
     expect(normalizeMinutes("45")).toBe(45);
     expect(normalizeMinutes(45.7)).toBe(45);
+  });
+
+  /**
+   * An hour and a half is the department's figure for a final. It has to
+   * survive the same gate every other length goes through — a default that
+   * normalised away to null would generate the paper untimed.
+   */
+  it("passes the default length through unchanged", () => {
+    expect(DEFAULT_FINAL_MINUTES).toBe(90);
+    expect(normalizeMinutes(DEFAULT_FINAL_MINUTES)).toBe(DEFAULT_FINAL_MINUTES);
   });
 
   it("reads anything else as untimed rather than as no time at all", () => {
@@ -94,12 +110,12 @@ describe("lockStateFor", () => {
     expect(lock.reason).toBe("Your assessor will unlock this quiz.");
   });
 
-  it("names the final assessment when the final is the paper being held back", () => {
+  it("names the final exam when the final is the paper being held back", () => {
     const draft = paper({ _id: "f1", moduleId: null, scope: "final", status: "draft" });
     expect(lockStateFor(draft, state()).reason).toBe(
-      "Your assessor will unlock this final assessment."
+      "Your assessor will unlock this final exam."
     );
-    expect(unreleasedReason("final")).toBe("Your assessor will unlock this final assessment.");
+    expect(unreleasedReason("final")).toBe("Your assessor will unlock this final exam.");
   });
 
   it("still requires the lesson to be finished once the quiz is posted", () => {
@@ -134,7 +150,7 @@ describe("lockStateFor", () => {
   });
 
   it("holds the final until every posted lesson quiz has been passed", () => {
-    const quiz = paper({ _id: "a1", moduleId: "m1", status: "posted", passMark: 1 });
+    const quiz = paper({ _id: "a1", moduleId: "m1", status: "posted" });
     const final = paper({ _id: "f1", moduleId: null, scope: "final", status: "posted" });
 
     const failed = new Map([["a1", { aiGrading: { score: 0 } }]]);
@@ -143,9 +159,9 @@ describe("lockStateFor", () => {
       state({ done: ["m1"], modules: [{ _id: "m1" }], assessments: [quiz, final], results: failed })
     );
     expect(shut.locked).toBe(true);
-    expect(shut.reason).toBe("Complete 1 quiz to unlock the final assessment.");
+    expect(shut.reason).toBe("Complete 1 quiz to unlock the final exam.");
 
-    const passed = new Map([["a1", { aiGrading: { score: 1 } }]]);
+    const passed = new Map([["a1", { aiGrading: { score: 2 } }]]);
     const open = lockStateFor(
       final,
       state({ done: ["m1"], modules: [{ _id: "m1" }], assessments: [quiz, final], results: passed })

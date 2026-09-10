@@ -1,5 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import {
+  authoringRestrictionFrom,
   classSuspensionFrom,
   courseRestriction,
   formatCourseDay,
@@ -142,5 +143,117 @@ describe("classSuspensionFrom", () => {
     expect(classSuspensionFrom([])).toBeNull();
     expect(classSuspensionFrom(null)).toBeNull();
     expect(classSuspensionFrom(undefined)).toBeNull();
+  });
+
+  /**
+   * The other way a place closes: the assessor stands one student down from
+   * the course, on a class that is otherwise running for everybody else.
+   *
+   * This is course access, not the admin console's account suspension — that
+   * one stops a person signing in at all and is nowhere near this file.
+   */
+  describe("a student their assessor has closed the course to", () => {
+    const running = [{ active: true, studentIds: ["s1", "s2"], suspendedStudentIds: ["s1"] }];
+
+    it("is closed out while the class carries on", () => {
+      const suspension = classSuspensionFrom(running, "s1");
+
+      expect(suspension.suspended).toBe(true);
+      expect(suspension.by).toBe("assessor");
+      // It says what is *not* affected, because the two suspensions in this
+      // system are easy to confuse from the receiving end.
+      expect(suspension.reason).toMatch(/other courses are not affected/);
+    });
+
+    it("leaves everybody else in the class alone", () => {
+      expect(classSuspensionFrom(running, "s2")).toBeNull();
+    });
+
+    it("is not read at all when nobody is named", () => {
+      // The staff side asks this of a course with no student in mind.
+      expect(classSuspensionFrom(running)).toBeNull();
+      expect(classSuspensionFrom(running, null)).toBeNull();
+    });
+
+    it("compares ids as text, whatever type they arrived as", () => {
+      const objectish = [{ active: true, suspendedStudentIds: [{ toString: () => "s1" }] }];
+      expect(classSuspensionFrom(objectish, "s1").by).toBe("assessor");
+    });
+
+    it("survives a class that has never had one", () => {
+      expect(classSuspensionFrom([{ active: true, studentIds: ["s1"] }], "s1")).toBeNull();
+    });
+
+    /**
+     * Both can be true at once. The student's own standing is the one still
+     * true after the class is switched back on, so answering with the class
+     * would send them to the admin and then close on them again.
+     */
+    it("is reported ahead of a class that is also switched off", () => {
+      const both = [{ active: false, suspendedStudentIds: ["s1"] }];
+
+      expect(classSuspensionFrom(both, "s1").by).toBe("assessor");
+      expect(classSuspensionFrom(both, "s2").by).toBe("class");
+    });
+  });
+});
+
+describe("authoringRestrictionFrom", () => {
+  const during = new Date(iso("2026-09-15"));
+  const after = new Date(iso("2026-10-11"));
+
+  it("lets papers be written while the course is running", () => {
+    expect(authoringRestrictionFrom(running, [{ active: true }], during)).toBeNull();
+    expect(authoringRestrictionFrom(running, [], during)).toBeNull();
+  });
+
+  it("closes writing once the run is over, and says which day it ended", () => {
+    const restriction = authoringRestrictionFrom(running, [{ active: true }], after);
+
+    expect(restriction.ended).toBe(true);
+    expect(restriction.suspended).toBe(false);
+    expect(restriction.endedOn).toBe(iso("2026-10-10"));
+    expect(restriction.reason).toContain("Oct 10, 2026");
+  });
+
+  it("closes writing when every class on the course is switched off", () => {
+    const restriction = authoringRestrictionFrom(running, [{ active: false }, { active: false }], during);
+
+    expect(restriction.suspended).toBe(true);
+    // The run is untouched. It is the classes that closed, and an administrator
+    // can reopen them this afternoon — so the reason has to say which it is.
+    expect(restriction.ended).toBe(false);
+    expect(restriction.reason).toMatch(/switched off/);
+    expect(restriction.reason).toMatch(/back to active/);
+  });
+
+  it("keeps writing open while one class is still running", () => {
+    expect(authoringRestrictionFrom(running, [{ active: false }, { active: true }], during)).toBeNull();
+    // A class written before the switch existed carries no field, and every one
+    // of those was running.
+    expect(authoringRestrictionFrom(running, [{}, { active: false }], during)).toBeNull();
+  });
+
+  // A course nobody has built a class for is reached straight from the Students
+  // screen. There is no switch to read, so nothing closes it by proxy.
+  it("closes nothing for a course with no classes at all", () => {
+    expect(authoringRestrictionFrom(running, [], during)).toBeNull();
+    expect(authoringRestrictionFrom(running, null, during)).toBeNull();
+  });
+
+  it("names the switch rather than the calendar when both have closed", () => {
+    // The stricter of the two, and the one that can be undone — the same order
+    // the student's own gate answers in.
+    const restriction = authoringRestrictionFrom(running, [{ active: false }], after);
+
+    expect(restriction.suspended).toBe(true);
+    expect(restriction.ended).toBe(false);
+  });
+
+  // Courses written before the run dates existed carry neither, and are not
+  // retrospectively closed to their assessor by a field they never had.
+  it("never closes a course that has no end date", () => {
+    expect(authoringRestrictionFrom({}, [{ active: true }], new Date(iso("2030-01-01")))).toBeNull();
+    expect(authoringRestrictionFrom(null, [], new Date(iso("2030-01-01")))).toBeNull();
   });
 });

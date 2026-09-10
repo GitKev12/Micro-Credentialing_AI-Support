@@ -1,11 +1,14 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import {
+  credentialNameFor,
   gradeSubmission,
   isPosted,
   toAssessmentSummary,
   toStudentAssessment
 } from "./assessments.format.js";
+import { closeAttempt, openAttempt } from "./attempts.js";
+import { scoreOf } from "../assessors/grading.js";
 import { lessonBadgeFor } from "../badges/badges.service.js";
 import { loadStudentRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
 
@@ -55,12 +58,30 @@ function courseMatch(courseId) {
   return { $or: [{ courseId: { $in: idCandidates(courseId) } }, { courseCode: courseId }] };
 }
 
-/** The score that counts: a released review overrides the automatic mark. */
-function effectiveScore(result) {
-  if (result?.review?.status === "released" && result.review.finalScore != null) {
-    return Number(result.review.finalScore);
-  }
-  return Number(result?.aiGrading?.score ?? 0);
+/** The score that counts. Marked at hand-in, and there is no second mark. */
+const effectiveScore = (result) => scoreOf(result);
+
+/**
+ * The longest a sitting is believed to have lasted: twelve hours.
+ *
+ * The figure is timed by the student's own browser, so it is evidence rather
+ * than fact. A tab left open overnight, a clock changed underneath it, or a
+ * number typed by hand into the request would all otherwise be shown to an
+ * assessor as how long somebody worked.
+ */
+const MAX_SITTING_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * How long the sitting took, or null when the client did not say.
+ *
+ * Null rather than zero for a missing figure: no paper takes no time, and a
+ * column of zeroes would read as a claim about every attempt handed in before
+ * this was recorded.
+ */
+function sittingDuration(raw) {
+  const ms = Math.round(Number(raw));
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return Math.min(ms, MAX_SITTING_MS);
 }
 
 function resultPassed(result, assessment) {
@@ -76,8 +97,8 @@ function resultPassed(result, assessment) {
  * lesson again and come back, as often as it takes, and no credential rests on
  * it. The final is the examination that issues the credential, so it is capped.
  *
- * Retaking costs nothing to generate. The bank was written once and every
- * sitting is drawn from it — see selectItemsFor — so an unlimited quiz is
+ * Retaking costs nothing to generate. The paper was written once and every
+ * sitting serves the same questions in a fresh order, so an unlimited quiz is
  * unlimited only in a student's time, never in tokens.
  */
 export const FINAL_ATTEMPT_LIMIT = 3;
@@ -95,6 +116,25 @@ const attemptNo = (result) => Number(result?.attempt ?? 1);
 
 export const currentAttempt = (results) =>
   results.reduce((latest, result) => (!latest || attemptNo(result) >= attemptNo(latest) ? result : latest), null);
+
+/**
+ * How many times a paper has been taken, from every row kept for it.
+ *
+ * Not simply how many rows there are. A row written before retakes existed
+ * carries no `attempt` at all, and a history missing a row would report fewer
+ * takes than the live row says it is — so the count and the highest attempt
+ * number are both consulted and the larger one wins. `live` is the row that
+ * counts, passed separately because a caller may hold it when it has no
+ * history to go with it.
+ *
+ * Shared with the assessor's student page, so the number an assessor reads is
+ * the number the student was told they had used.
+ */
+export function attemptsUsedFrom(rows, live = null) {
+  const list = Array.isArray(rows) ? rows : [];
+  const highest = list.reduce((most, row) => Math.max(most, attemptNo(row)), 0);
+  return Math.max(list.length, highest, live ? attemptNo(live) : 0);
+}
 
 async function loadCourseState(studentId, courseId) {
   const [hasAssessments, hasModules, hasProgress, hasResults] = await Promise.all([
@@ -162,7 +202,7 @@ async function loadCourseState(studentId, courseId) {
  */
 export function unreleasedReason(scope) {
   return scope === "final"
-    ? "Your assessor will unlock this final assessment."
+    ? "Your assessor will unlock this final exam."
     : "Your assessor will unlock this quiz.";
 }
 
@@ -208,7 +248,7 @@ export function lockStateFor(assessment, state) {
   if (lessonsLeft > 0) parts.push(`${lessonsLeft} lesson${lessonsLeft === 1 ? "" : "s"}`);
   if (quizzesLeft > 0) parts.push(`${quizzesLeft} quiz${quizzesLeft === 1 ? "" : "zes"}`);
 
-  return { locked: true, reason: `Complete ${parts.join(" and ")} to unlock the final assessment.` };
+  return { locked: true, reason: `Complete ${parts.join(" and ")} to unlock the final exam.` };
 }
 
 /**
@@ -220,12 +260,11 @@ export function lockStateFor(assessment, state) {
  * is nothing to game either way: a second attempt is refused (see the 409 in
  * submitAssessment), so the marked paper cannot be turned back into a better one.
  *
- * An assessor's override wins over the automatic verdict, the same way it wins
- * in the score printed beside it — a student must never read "incorrect" on an
- * item their assessor has since allowed.
+ * The verdicts are the ones written at hand-in, and nothing overrides them: an
+ * assessor no longer re-marks a handed-in paper, so what the key said is what
+ * the student is shown.
  */
 function resultItems(result) {
-  const overrides = result?.review?.overrides ?? {};
   // What the student put down, from the submission itself. Sending it back is
   // what lets a sat paper be reopened as the paper they actually sat: without
   // it the questions return blank, and the marks have nothing to sit against.
@@ -235,7 +274,7 @@ function resultItems(result) {
 
   return (result?.aiGrading?.items ?? []).map((item) => ({
     itemId: asId(item.itemId),
-    verdict: overrides[asId(item.itemId)] ?? item.verdict ?? null,
+    verdict: item.verdict ?? null,
     choice: chosen.get(asId(item.itemId)) ?? item.chosen ?? null
   }));
 }
@@ -244,7 +283,7 @@ function resultSummary(result, summary, attempts = [], restriction = null) {
   if (!result) return null;
   const score = effectiveScore(result);
   const limit = attemptLimitFor(summary.scope);
-  const used = Math.max(attempts.length, attemptNo(result));
+  const used = attemptsUsedFrom(attempts, result);
 
   return {
     score,
@@ -252,7 +291,9 @@ function resultSummary(result, summary, attempts = [], restriction = null) {
     passMark: summary.passMark,
     passed: score >= summary.passMark,
     submittedAt: result.submittedAt ?? null,
-    reviewStatus: result.review?.status ?? "pending",
+    // How long the sitting took. Null on every paper handed in before this was
+    // recorded, which is all of them until the first one after this change.
+    durationMs: result.durationMs ?? null,
     items: resultItems(result),
     // What the rail needs to offer a retake, or explain why it cannot.
     attempt: attemptNo(result),
@@ -314,7 +355,6 @@ function placeholderRow(courseId, { scope, moduleId = null, reason = null }) {
     title: "",
     description: "",
     pointsPerItem: 0,
-    itemsPerAttempt: 0,
     itemCount: 0,
     totalPoints: 0,
     passMark: 0,
@@ -465,13 +505,31 @@ export async function getAssessmentForStudent(request, response) {
   }
 
   const summary = toAssessmentSummary(doc);
+  const live = state.resultByAssessment.get(asId(doc._id));
+
+  /*
+   * From here the paper is open on somebody's screen, which is the only
+   * moment the server is ever told about (see attempts.js).
+   *
+   * Two things are not that. Staff read this endpoint too — an assessor
+   * opening a student's paper is not the student working on it — so only a
+   * request the student makes about themselves counts. And a paper that has
+   * already been marked reopens as a review of the mark, which is the same
+   * request as starting another attempt; the client marks the second one
+   * `?retake=1` because nothing on the wire could otherwise tell them apart.
+   */
+  const isTheStudent = String(studentId) === String(request.session?.id ?? "");
+  const retaking = String(request.query?.retake ?? "") === "1";
+  if (isTheStudent && (!live || retaking)) {
+    await openAttempt({ studentId, assessment: doc });
+  }
 
   return response.json({
-    // studentId decides which questions of the bank this student is given, and
-    // it has to be the same id grading uses — see selectItemsFor.
-    assessment: toStudentAssessment(doc, { studentId }),
+    // Every student sits every question; only the order differs, and it is
+    // re-drawn here on each request.
+    assessment: toStudentAssessment(doc),
     result: resultSummary(
-      state.resultByAssessment.get(asId(doc._id)),
+      live,
       summary,
       state.attemptsByAssessment.get(asId(doc._id)) ?? [],
       state.restriction
@@ -491,7 +549,7 @@ export async function submitAssessment(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   const { studentId, assessmentId } = request.params;
-  const { answers } = request.body ?? {};
+  const { answers, durationMs } = request.body ?? {};
 
   if (!Array.isArray(answers)) {
     return response.status(400).json({ message: "answers must be an array." });
@@ -527,7 +585,7 @@ export async function submitAssessment(request, response) {
   }
 
   const attempt = priorAttempts.length + 1;
-  const graded = gradeSubmission(doc, answers, { studentId });
+  const graded = gradeSubmission(doc, answers);
 
   const record = {
     assessmentId: doc._id,
@@ -547,6 +605,11 @@ export async function submitAssessment(request, response) {
       itemId: String(answer?.itemId ?? ""),
       choice: String(answer?.choice ?? "")
     })),
+    // How long the sitting took, as the client timed it. Clamped to something
+    // a sitting could plausibly have lasted: the figure comes from the
+    // student's own browser, so a negative or absurd number is discarded
+    // rather than shown to an assessor as fact.
+    durationMs: sittingDuration(durationMs),
     aiGrading: {
       // Marked by exact comparison against the key, not by a model — the AI's
       // job is writing the questions, not scoring these two item types.
@@ -555,14 +618,16 @@ export async function submitAssessment(request, response) {
       score: graded.score,
       items: graded.items
     },
-    review: {
-      status: "pending",
-      overrides: {},
-      finalScore: null,
-      gradedBy: null,
-      gradedAt: null
-    },
-    credential: { status: "none", name: null, issuedAt: null, issuedBy: null }
+    // Only the final earns a credential, and issuing it is the assessor's act
+    // — this puts it in front of them on the Credentials screen, which is what
+    // "pending" means. A lesson quiz earns a badge instead (below): that one is
+    // the student's the moment they pass it and is nobody's to release, so a
+    // passing quiz must never write a pending credential. It used to, and the
+    // assessor was being asked to approve every badge in the course.
+    credential:
+      graded.passed && summary?.scope === "final"
+        ? { status: "pending", name: credentialNameFor(doc), issuedAt: null, issuedBy: null }
+        : { status: "none", name: null, issuedAt: null, issuedBy: null }
   };
 
   // Retire the earlier sittings first. Doing it before the insert means a
@@ -579,6 +644,11 @@ export async function submitAssessment(request, response) {
   }
 
   await collection(RESULTS_COLLECTION).insertOne(record);
+
+  // The paper is in, so it is no longer open. Done after the insert: a row
+  // left behind by a failed write says "still working", which is true, and
+  // one cleared before a failed write would say the opposite.
+  await closeAttempt({ studentId, assessmentId: doc._id });
 
   /**
    * The badge this pass just earned, so the client can say so by name.
@@ -606,7 +676,7 @@ export async function submitAssessment(request, response) {
       correct: graded.correct,
       itemCount: graded.items.length,
       submittedAt: record.submittedAt,
-      reviewStatus: "pending",
+      durationMs: record.durationMs,
       attempt,
       attemptsAllowed: Number.isFinite(attemptLimitFor(summary.scope))
         ? attemptLimitFor(summary.scope)

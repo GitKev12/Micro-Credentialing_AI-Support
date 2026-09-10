@@ -2,10 +2,7 @@ import { describe, it, expect } from "@jest/globals";
 import { SKILL_THRESHOLD, skillGapFromFinal } from "../src/skillgap/skillgap.service.js";
 
 /** A graded result in the shape the assessments controller writes. */
-const result = (items, overrides = {}) => ({
-  aiGrading: { status: "graded", items },
-  review: { status: "released", overrides }
-});
+const result = (items) => ({ aiGrading: { status: "graded", items } });
 
 const answered = (itemId, moduleId, verdict, topic = "") => ({
   itemId,
@@ -134,22 +131,21 @@ describe("skillGapFromFinal", () => {
     expect(gap.weightedPerformance).toBe(100);
   });
 
-  it("lets an assessor override beat the automatic mark", () => {
-    // The override wins in the score the console reports, so a topic breakdown
-    // that ignored it would contradict the grade printed above it.
+  it("reads the verdicts the key wrote, with nothing overriding them", () => {
+    // Marking happens once, when the paper is handed in. There is no second
+    // pass an assessor could use to overrule an item, so the breakdown is the
+    // key's answer and cannot drift from the score printed above it.
     const items = [
-      answered("a1", "m1", "incorrect"),
-      answered("a2", "m1", "incorrect"),
+      answered("a1", "m1", "correct"),
+      answered("a2", "m1", "correct"),
       answered("a3", "m1", "incorrect"),
       answered("a4", "m1", "incorrect")
     ];
 
-    const before = skillGapFromFinal(result(items), finalExam);
-    expect(before.skills.find((skill) => skill.moduleId === "m1").correct).toBe(0);
+    const gap = skillGapFromFinal(result(items), finalExam);
 
-    const after = skillGapFromFinal(result(items, { a1: "correct", a2: "correct" }), finalExam);
-    expect(after.skills.find((skill) => skill.moduleId === "m1").correct).toBe(2);
-    expect(after.skills.find((skill) => skill.moduleId === "m1").score).toBe(50);
+    expect(gap.skills.find((skill) => skill.moduleId === "m1").correct).toBe(2);
+    expect(gap.skills.find((skill) => skill.moduleId === "m1").score).toBe(50);
   });
 
   it("lists lessons in the paper's order, not weakest first", () => {

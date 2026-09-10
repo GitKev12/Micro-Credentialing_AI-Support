@@ -19,12 +19,17 @@ export function moduleMeta(module) {
  * student is not the course's to delete — they are unenrolled and keep their
  * account. Saying only the first half would make this look like it removes
  * people.
+ *
+ * The classes are named for the same reason. They are the only thing in this
+ * list an admin might have set up by hand — a section, its schedule, its
+ * roster — and the dialog used to take them without a word.
  */
 export function courseLosses(impact) {
   if (!impact) return null;
   if (impact.unknown) {
     return [
       "its lessons, with their files and quizzes",
+      "any class set up on it, with its schedule and roster",
       "any completions and submissions recorded in it",
       "its Table of Specification blueprint"
     ];
@@ -32,6 +37,9 @@ export function courseLosses(impact) {
 
   return [
     impact.modules ? `${plural(impact.modules, "lesson")}, with their files and quizzes` : "",
+    impact.classes
+      ? `${plural(impact.classes, "class", "es")}, with their schedules and rosters`
+      : "",
     impact.completions ? plural(impact.completions, "lesson completion") : "",
     impact.submissions ? plural(impact.submissions, "quiz submission") : "",
     impact.blueprints ? "its Table of Specification blueprint" : ""

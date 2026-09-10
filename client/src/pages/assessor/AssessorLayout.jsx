@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import AssessorSidebar from "./components/AssessorSidebar";
+import { ScreenSkeleton } from "./components/ui";
 import { getStoredSession } from "../../auth/services/authService";
 import { fetchAssessorOverview, storedAssessorId } from "../../services/assessors";
 import "./assessor.css";
@@ -33,8 +34,13 @@ function AssessorLayout() {
   return (
     <div className="assessor-app entity-enter">
       <AssessorSidebar name={name} idNumber={idNumber} counts={overview?.summary} />
+      {/* Each screen is its own download, so the rail stays put and only the
+          page it points at waits — the console's own shapes this time, since
+          by now its stylesheet has arrived with the layout. */}
       <div className="assessor-main">
-        <Outlet />
+        <Suspense fallback={<ScreenSkeleton />}>
+          <Outlet />
+        </Suspense>
       </div>
     </div>
   );

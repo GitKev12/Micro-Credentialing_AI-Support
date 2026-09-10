@@ -5,6 +5,7 @@ import ProgressCell from "./ProgressCell";
 import StudentForm from "./StudentForm";
 import { courseRows, lastActiveLabel, latestLine } from "./studentText";
 import { formatDate } from "../../lib/format";
+import { noticeClass } from "../../../../lib/useNotice";
 
 /**
  * One student, opened from the list.
@@ -22,6 +23,7 @@ export default function StudentDetail({
   onBack,
   onEdit,
   onDelete,
+  onToggleSuspended,
   onCancelForm,
   onSave
 }) {
@@ -51,16 +53,7 @@ export default function StudentDetail({
                 <UserIcon size={46} color="var(--brand)" />
               </div>
               <div>
-                <h1 className="admin-identity__name">
-                  {selected.name}
-                  <span
-                    className={`admin-status-pill${
-                      selected.suspended ? " admin-status-pill--off" : ""
-                    }`}
-                  >
-                    {selected.suspended ? "Suspended" : "Active"}
-                  </span>
-                </h1>
+                <h1 className="admin-identity__name">{selected.name}</h1>
                 {/* A degree batch belongs to a registrar, not to a
                     micro-credential record — the student number and a way to
                     reach them are what this screen actually needs. */}
@@ -70,28 +63,59 @@ export default function StudentDetail({
                 <p className="admin-identity__meta">{lastActiveLabel(selected.lastActive)}</p>
               </div>
 
+              {/* Two kinds of control, kept apart by a hairline. The switch
+                  is a state — what this account is right now, readable at a
+                  glance and reversible in one press. Edit and Delete are acts
+                  performed on it. Run together as three chips they read as one
+                  menu, and "Suspended" and "Delete" are not decisions of the
+                  same weight. */}
               <div className="admin-identity__actions">
                 <button
                   type="button"
-                  className="admin-chip-btn admin-chip-btn--quiet"
+                  className={`admin-switch admin-switch--lg${
+                    selected.suspended ? "" : " is-on"
+                  }`}
+                  role="switch"
+                  aria-checked={!selected.suspended}
                   disabled={busy}
-                  onClick={onEdit}
+                  onClick={onToggleSuspended}
+                  title={
+                    selected.suspended
+                      ? `Activate ${selected.name}`
+                      : `Suspend ${selected.name}`
+                  }
                 >
-                  Edit details
+                  <span className="admin-switch__track">
+                    <span className="admin-switch__thumb" />
+                  </span>
+                  <span className="admin-switch__label">
+                    {selected.suspended ? "Suspended" : "Active"}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  className="admin-chip-btn admin-chip-btn--danger"
-                  disabled={busy}
-                  onClick={onDelete}
-                >
-                  Delete
-                </button>
+
+                <div className="admin-identity__acts">
+                  <button
+                    type="button"
+                    className="admin-chip-btn admin-chip-btn--quiet"
+                    disabled={busy}
+                    onClick={onEdit}
+                  >
+                    Edit details
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-chip-btn admin-chip-btn--danger"
+                    disabled={busy}
+                    onClick={onDelete}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
 
             {notice ? (
-              <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
+              <p className={noticeClass(notice, `admin-notice admin-notice--${notice.tone}`)} role="status">
                 {notice.text}
               </p>
             ) : null}

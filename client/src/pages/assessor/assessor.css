@@ -228,13 +228,13 @@
 /* Cards sit on a near-black page, so give them a hairline edge. */
 [data-theme="dark"] .assessor-app .assessor-card,
 [data-theme="dark"] .assessor-app .assessor-table-wrap,
-[data-theme="dark"] .assessor-app .data-row,
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
 [data-theme="dark"] .assessor-app .grade-panel,
 [data-theme="dark"] .assessor-app .gen-card,
 [data-theme="dark"] .assessor-app .gen-paper,
-[data-theme="dark"] .assessor-app .gen-q {
+[data-theme="dark"] .assessor-app .gen-q,
+[data-theme="dark"] .assessor-app .assessor-select__list {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -312,8 +312,10 @@
   background: var(--rail-bg);
   /* Right edge only — the rail is flush with the viewport on the other
      three sides, so an all-around outline had nothing to trace there.
-     box-shadow (not border) so it still follows the rounded corners. */
-  box-shadow: 2px 0 0 0 var(--brand), var(--shadow-sidebar);
+     box-shadow (not border) so it still follows the rounded corners, and
+     1px to match the keyline round the tables — two weights of the same
+     brand line on one screen read as two different kinds of edge. */
+  box-shadow: 1px 0 0 0 var(--brand), var(--shadow-sidebar);
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -512,7 +514,7 @@
 
 /* Dark-mode switch, sits just above Sign Out. */
 .assessor-rail__theme {
-  outline: 2px solid var(--brand);
+  outline: 1px solid var(--brand);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -845,7 +847,18 @@
   color: var(--white);
 }
 
-/* Search field */
+/* ── Search field ────────────────────────────────
+   The admin console's field, in this console's clothes. Same behaviour on both
+   ends — a hairline that darkens under the pointer, a brand ring while the
+   caret is in it, and a clear button of our own — over this one's own tokens,
+   so the row it stands in is still the row it was.
+
+   Round-ended, and the only field on the screen that is. That is the admin
+   console's arrangement rather than an exception to it: over there the search
+   takes the widest radius on the scale and the pickers beside it take the
+   narrowest, so the one control you type into never has to be picked out of a
+   row of controls you choose from. --radius-lg on a 44px field is that same
+   shape here; the misnamed --radius-pill is this console's 8px. */
 .assessor-search {
   display: flex;
   align-items: center;
@@ -853,14 +866,31 @@
   width: min(320px, 100%);
   height: 44px;
   padding: 0 var(--sp-4);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-field);
+  transition: box-shadow 0.15s ease;
+}
+
+.assessor-search:hover {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
+/* The field, not the input: the caret is inside a box drawn by the wrapper, so
+   the wrapper is what has to look focused. The input's own outline is off for
+   the same reason — it would ring the text and not the control. */
+.assessor-search:focus-within {
+  box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 4px var(--brand-hover);
 }
 
 .assessor-search__icon {
   flex-shrink: 0;
   color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.assessor-search:focus-within .assessor-search__icon {
+  color: var(--brand-text);
 }
 
 .assessor-search input {
@@ -874,14 +904,48 @@
   color: var(--ink);
 }
 
-/* Person cell (avatar + name + id) */
+/* Suppress the browser's own search decorations — the clear button below
+   replaces them with one that looks the same everywhere. */
+.assessor-search input::-webkit-search-decoration,
+.assessor-search input::-webkit-search-cancel-button,
+.assessor-search input::-webkit-search-results-button,
+.assessor-search input::-webkit-search-results-decoration {
+  appearance: none;
+  display: none;
+}
+
+.assessor-search__clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-150);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.assessor-search__clear:hover {
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.assessor-search__clear:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Person cell (name over id) */
 .person {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  display: block;
   min-width: 0;
 }
 
+/* The avatar disc, which only the student screen's hero still draws. */
 .person__disc {
   display: grid;
   place-items: center;
@@ -899,6 +963,7 @@
 }
 
 .person__name {
+  display: block;
   font-size: var(--fs-title-sm);
   font-weight: var(--fw-medium);
   line-height: 1.35;
@@ -910,6 +975,7 @@
 }
 
 .person__id {
+  display: block;
   font-size: var(--fs-label);
   font-weight: var(--fw-regular);
   color: var(--text-muted);
@@ -1037,6 +1103,23 @@
 }
 
 .assessor-table {
+  /**
+   * The console's type scale, stepped down about a pixel, for the inside of a
+   * table only.
+   *
+   * A table is read by comparing rows, not by reading one — the eye wants more
+   * of them in view at once, and the text is scanned rather than read through.
+   * Declared as the tokens rather than as a size on each rule so everything in
+   * here comes down together: the row headings, the chips, the sub-lines, the
+   * counts. A scale that moved by halves would leave the hierarchy the same
+   * shape but blurred; a whole step keeps the steps between them.
+   */
+  --fs-micro: 0.6875rem;
+  --fs-label: 0.75rem;
+  --fs-body: 0.875rem;
+  --fs-body-lg: 0.9375rem;
+  --fs-title-sm: 1rem;
+
   width: 100%;
   min-width: 68rem;
   border-collapse: collapse;
@@ -1061,6 +1144,28 @@
    name, and names read from their first letter. */
 .assessor-table th:first-child,
 .assessor-table td:first-child {
+  width: 100%;
+  text-align: left;
+}
+
+/**
+ * Where a student's number leads the row, the name takes the slack instead.
+ *
+ * A number is a fixed width and a name is not, so the two used to share a cell
+ * with the number set small underneath. Read down a column that way, a number
+ * is never in the same place twice — which is the one thing a reference number
+ * is looked up by.
+ */
+.assessor-table--roster th:first-child,
+.assessor-table--roster td:first-child,
+.assessor-table--creds th:first-child,
+.assessor-table--creds td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.assessor-table--roster th:nth-child(2),
+.assessor-table--roster td:nth-child(2) {
   width: 100%;
   text-align: left;
 }
@@ -1113,6 +1218,14 @@
 /* A measured column with nothing in it. Present, so the eye still counts the
    column, but quiet enough not to read as a value. */
 .assessor-table__dash {
+  color: var(--gray-400);
+}
+
+/* A count that really is nought. Written out rather than dashed — the paper was
+   taken, and taking it once is not the same as never taking it — but held at
+   the weight of an empty cell, because the column is read to find the rows
+   where a student needed another go. */
+.assessor-table__zero {
   color: var(--gray-400);
 }
 
@@ -1206,8 +1319,36 @@
   white-space: nowrap;
 }
 
-.assessor-table__empty {
+/* Six columns since the student number took one of its own, and still not the
+   register's — inheriting that width would put a scrollbar under a table that
+   fits. */
+.assessor-table--roster {
+  min-width: 58rem;
+}
+
+/* Six columns, one of which is a button. */
+.assessor-table--creds {
+  min-width: 62rem;
+}
+
+/* The credential and the paper it came off — a name, so it reads from its
+   first letter like the student beside it. It is also the longest thing on
+   the row, so it takes the slack the first column takes everywhere else. */
+.assessor-table__paper {
+  text-align: left;
+}
+
+.assessor-table--creds .assessor-table__paper {
+  width: 100%;
+}
+
+/* The one row that is not a row of data. It spans the whole table, so it is
+   centred on the table rather than left against the first column — which is
+   the cell it happens to be, and the only column that stays left. Written
+   at the same weight as the first-child rule it has to outrank. */
+.assessor-table td.assessor-table__empty {
   padding: var(--sp-8) var(--sp-4);
+  text-align: center;
   color: var(--text-muted);
 }
 
@@ -1224,55 +1365,160 @@
   border: 0;
 }
 
-/* ── Data rows (roster / credentials) ───────────────────── */
+/* The row is no longer one button — it cannot be, with a switch inside it — so
+   the chevron is a control of its own: the keyboard's way into the student,
+   drawn exactly as the cue it replaces. */
+.roster-open {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--brand);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
 
-.row-head {
-  display: grid;
+.roster-open:hover {
+  opacity: 1;
+}
+
+.roster-open:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  opacity: 1;
+}
+
+/* Whether this account can sign in at all. The same control the admin console
+   puts on a student's record, in the assessor's own type — one press, and its
+   own target, so aiming at the row never lands on it. */
+.roster-switch {
+  display: inline-flex;
   align-items: center;
-  gap: var(--sp-5);
-  padding: 0 var(--sp-6);
+  gap: var(--sp-2);
+  padding: 3px 5px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--warning-text);
+  font-family: inherit;
   font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.data-row {
-  display: grid;
-  align-items: center;
-  gap: var(--sp-5);
-  width: 100%;
-  padding: var(--sp-4) var(--sp-6);
-  border: none;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-row);
-  text-align: left;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-}
-
-.data-row--clickable {
   cursor: pointer;
+  transition: color 0.15s ease;
 }
 
-.data-row--clickable:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-row-hover);
+.roster-switch.is-on {
+  color: var(--teal-700);
 }
 
-.roster-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 230px) minmax(0, 170px) 130px 24px;
+.roster-switch[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-/* The scope chip sits beside the assessment title. */
-.cell-title .chip {
-  margin-left: var(--sp-2);
-  vertical-align: middle;
+.roster-switch:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
-.creds-grid {
-  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 96px 150px auto;
+.roster-switch__track {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 17px;
+  /* Round-ended, not the console's 8px --radius-pill: on a 17px track that
+     reads as a rounded box rather than a switch. */
+  border-radius: 999px;
+  background: rgba(150, 96, 10, 0.45);
+  transition: background 0.18s ease;
+}
+
+.roster-switch.is-on .roster-switch__track {
+  background: var(--teal-700);
+}
+
+.roster-switch__thumb {
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s ease;
+}
+
+.roster-switch.is-on .roster-switch__thumb {
+  transform: translateX(13px);
+}
+
+/* What the last thing the assessor pressed did. A floating message rather
+   than a line in the page (see .notice-toast), so it lands in the same corner
+   however far down a list the press happened.
+
+   A glyph, then the words. Held to a readable measure, because .notice-toast
+   sizes itself to its content and two sentences of it ran a single line most
+   of the way across the foot of the screen — which reads as a bar fixed to the
+   bottom of the window rather than as a receipt for the press that made it. */
+.assessor-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  max-width: min(27rem, calc(100vw - 2 * var(--notice-gap)));
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+}
+
+/* The tone, at full strength. The panel behind these words is the tone mixed
+   to 13% — enough to agree with a message somebody is already reading, not
+   enough to tell a landed write from a refused one across a room, and nothing
+   at all to a reader who cannot separate the two colours. The disc says which
+   it is before a word of it is read. */
+.assessor-notice__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.assessor-notice__icon svg {
+  /* The card colour, so the glyph is cut out of the disc rather than drawn on
+     it — light on the tone in either theme. */
+  color: var(--surface);
+}
+
+.assessor-notice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The line the reader does not have to take in, kept out of the way of the one
+   they do: what the press did stays at body size, what it did not do is
+   smaller and lighter under it. */
+.assessor-notice__detail {
+  font-size: var(--fs-label);
+  opacity: 0.82;
+}
+
+.assessor-notice--ok {
+  background: rgba(2, 110, 120, 0.1);
+  color: var(--teal-700);
+}
+
+.assessor-notice--error {
+  background: rgba(150, 96, 10, 0.13);
+  color: var(--warning-text);
 }
 
 /* Progress bar */
@@ -1323,7 +1569,10 @@
   color: var(--text-muted);
 }
 
-/* Stacked metric inside a row */
+/* The name over a figure. The component that stacked the three of these is
+   gone with the paper's head, which was its only caller; the label is still
+   the console's way of naming a lone figure — the hero's progress bar on the
+   student page uses it. */
 .metric__label {
   font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
@@ -1332,53 +1581,79 @@
   color: var(--text-muted);
 }
 
-.metric__value {
-  font-size: var(--fs-h3);
-  font-weight: var(--fw-medium);
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--text-strong);
-  white-space: nowrap;
-}
-
-.metric__hint {
-  font-size: var(--fs-micro);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.cell-title {
-  font-size: var(--fs-body-lg);
-  font-weight: var(--fw-medium);
-  color: var(--text-strong);
-  letter-spacing: -0.01em;
-}
-
 /* ── Student detail ─────────────────────────────────────── */
 
-/* ── Skill gap, in the hero ──────────────────────
+/* ── Skill gap ───────────────────────────────────
    One column per lesson from the final exam. The pass line does the work: a
    column standing under it is a gap, which is what an assessor came to find.
    The fills are the student app's own good/critical steps, so a weak topic is
    the same colour on both ends of the system — and because that pair is the
    one colour-blind readers cannot separate, a weak column is also striped and
-   is the only one that prints its number. */
-.student-hero__chart {
-  flex: 1 1 20rem;
-  min-width: min(100%, 17rem);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+   is the only one that prints its number.
+
+   A card at the head of the coursework column. It carries no furniture of its
+   own: the card's header holds the title and the score, and the plot's own
+   bottom margin is the room the tick numbers hang in. */
+/* The plot's own bottom margin is the room the tick numbers hang in, not a
+   gap under them, so the sentence takes one of its own. */
+.skill-card__caption {
+  margin: var(--sp-2) 0 0;
 }
 
-.hero-chart__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-3);
+/**
+ * The head of the final exam's card: the paper on one side, the mark on the
+ * other.
+ *
+ * Two stacks rather than one line, because the head carries four facts and
+ * they pair off — what the paper is with what is still open on it, what it
+ * scored with what that scored means. The card's own head is baseline-aligned
+ * for a title beside a figure; a stack under each of them wants their tops
+ * level instead, or the two second lines land at different heights.
+ */
+.final-head {
+  align-items: flex-start;
+  margin-bottom: var(--sp-3);
 }
 
-.hero-chart__score {
+.final-head__note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+/* The tone is the block's, so the figure and the word under it cannot
+   disagree about whether the paper cleared — the same pairing the marked
+   paper's own score uses. */
+.final-head__mark {
+  text-align: right;
+}
+
+.final-head__mark .skill-chart__score {
+  display: block;
+  color: inherit;
+}
+
+.final-head__mark.is-passed {
+  color: var(--teal-700);
+}
+
+.final-head__mark.is-under {
+  color: var(--warning-text);
+}
+
+/* Said in a word as well as in colour: green against red is the one pair a
+   colour-blind reader cannot separate, and this card never says anything with
+   colour alone. */
+.final-head__verdict {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+
+.skill-chart__score {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
@@ -1390,16 +1665,26 @@
 
 /* The plot's box: the ground the pass line is positioned against, and the
    gutter at the right for that line's label. Without the gutter the label
-   lands on whatever column happens to be last and one of them loses. */
-.hero-chart {
+   lands on whatever column happens to be last and one of them loses.
+
+   Taller than it was in the hero. At a fifth of the page 76px was already the
+   most a column could be given without the plot reading as a strip; across the
+   card there is width enough that the same height would have flattened it. */
+.skill-chart {
   position: relative;
-  height: 76px;
+  /* Short enough to read at a glance beside the table it annotates. The
+     columns are drawn as a percentage of this and the pass line with them, so
+     the picture keeps its shape at any height — what a shorter plot costs is
+     the distance between two scores either side of the line. At 68px the
+     weakest column a course can show is still a bar rather than a sliver, and
+     its own number stands above it. */
+  height: 68px;
   padding-right: 4.25rem;
   margin-bottom: 1.25em;
 }
 
 /* The columns, sharing the width inside it. */
-.hero-chart__plot {
+.skill-chart__plot {
   display: flex;
   align-items: flex-end;
   gap: 2px;
@@ -1408,7 +1693,7 @@
 
 /* The pass mark. One hairline, solid — the only rule in the plot, so it needs
    no dashes to say it is not data. */
-.hero-chart__target {
+.skill-chart__target {
   position: absolute;
   left: 0;
   right: 0;
@@ -1416,7 +1701,7 @@
   pointer-events: none;
 }
 
-.hero-chart__target span {
+.skill-chart__target span {
   position: absolute;
   right: 0;
   bottom: -0.6em;
@@ -1433,7 +1718,7 @@
    only space between two bars is the plot's 2px gap. Filling the column keeps
    the pass line honest too, because the bars run the full width the line is
    drawn across. */
-.hero-chart__col {
+.skill-chart__col {
   position: relative;
   flex: 1 1 0;
   min-width: 8px;
@@ -1444,14 +1729,14 @@
   height: 100%;
 }
 
-.hero-chart__bar {
+.skill-chart__bar {
   width: 100%;
   min-height: 2px;
   border-radius: 4px 4px 0 0;
   background: var(--skill-strong);
 }
 
-.hero-chart__col[data-band="weak"] .hero-chart__bar {
+.skill-chart__col[data-band="weak"] .skill-chart__bar {
   background-color: var(--skill-weak);
   background-image: repeating-linear-gradient(
     45deg,
@@ -1463,19 +1748,19 @@
 /* Before the exam is taken. The seat is drawn full height so the plot shows
    the scale it will be read against, in a neutral that is neither of the two
    data colours — an empty column can never be misread as a score. */
-.hero-chart__bar--waiting {
+.skill-chart__bar--waiting {
   background: var(--gray-150);
 }
 
 /* The figure that is not there yet. */
-.hero-chart__score--waiting {
+.skill-chart__score--waiting {
   font-weight: var(--fw-regular);
   color: var(--text-muted);
 }
 
 /* Only the gaps carry a number: a value on every column is a value nobody
    reads, and these are the ones being looked for. */
-.hero-chart__value {
+.skill-chart__value {
   margin-bottom: 2px;
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
@@ -1483,7 +1768,7 @@
   color: var(--text-body);
 }
 
-.hero-chart__tick {
+.skill-chart__tick {
   position: absolute;
   bottom: -1.2em;
   font-size: var(--fs-micro);
@@ -1502,9 +1787,12 @@
   box-shadow: var(--shadow-card);
 }
 
+/* Wide enough that the band breaks before the name does: below this the
+   progress drops to a line of its own, which reads better than a name
+   split over two lines beside a bar. */
 .student-hero__lead {
   flex: 1;
-  min-width: min(100%, 14rem);
+  min-width: min(100%, 20rem);
 }
 
 .student-hero__name {
@@ -1542,6 +1830,18 @@
   color: var(--text-muted);
 }
 
+/* One end of the band. It keeps its own width rather than stretching to
+   whatever the name leaves: a progress bar as wide as the page reads as the
+   subject of the screen, and the student is. Below the hero's wrapping point
+   it drops under the name and takes the full width it is given. */
+.student-hero__progress {
+  flex: 0 0 auto;
+  width: min(100%, 20rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
 .student-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
@@ -1566,17 +1866,28 @@
   color: var(--text-muted);
 }
 
-/* A table inside a card. The card is already the surface, so this adds only
-   the sideways scroll and a floor narrow enough for the column it sits in —
-   the full-width tables elsewhere set theirs at 68rem. */
+/* A table standing on its own in a column, where a card used to hold it: the
+   surface is this container's now, or the rows would read on the app's grey
+   and the header stripe would disappear into it. Sideways scroll and a floor
+   narrow enough for the column it sits in — the full-width tables elsewhere
+   set theirs at 68rem. */
 .card-table {
   overflow-x: auto;
   border: 1px solid var(--brand);
   border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
+/* Wide enough for what the row now carries — a name, a bar, a date and a chip
+   — so the card scrolls before a cell is squeezed narrower than what stands in
+   it. The bar comes in from the roster's width: this card is half of a split,
+   and 13rem of track there would push the chip beside it off the edge. */
 .card-table .assessor-table {
-  min-width: 26rem;
+  min-width: 34rem;
+}
+
+.card-table .assessor-table__progress-cell {
+  min-width: 9rem;
 }
 
 .card-table .assessor-table th,
@@ -2207,8 +2518,10 @@
   flex: 1 1 24rem;
 }
 
+/* No bottom margin: every one of these sits in a .gen-field, whose own gap
+   already spaces it off the control. The two together held the label a full
+   rem clear of the thing it names, which reads as belonging to nothing. */
 .field-label {
-  margin-bottom: var(--sp-2);
   font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
   letter-spacing: 0.08em;
@@ -2258,6 +2571,9 @@
   color: var(--text-muted);
 }
 
+/* A way out to another screen, set beside the thing it decides. Soft at rest
+   so it does not read as a second button on a card that already has one, and
+   definite the moment it is reached. */
 .link-btn {
   padding: 0;
   border: none;
@@ -2266,7 +2582,15 @@
   font: inherit;
   font-size: var(--fs-micro);
   text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 0.2em;
   cursor: pointer;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.link-btn:hover,
+.link-btn:focus-visible {
+  text-decoration-color: currentColor;
 }
 
 .summary-line {
@@ -2339,6 +2663,19 @@
   border-color: var(--brand);
   box-shadow: var(--shadow-row-hover);
   transform: translateY(-2px);
+}
+
+/* The same card, before there is a class to put in it. Nothing to press yet,
+   so it neither lifts nor lights up under the pointer. */
+.gen-card--loading {
+  gap: var(--sp-3);
+  cursor: default;
+}
+
+.gen-card--loading:hover {
+  border-color: var(--gray-200);
+  box-shadow: var(--shadow-row);
+  transform: none;
 }
 
 .gen-card:focus-visible {
@@ -2478,6 +2815,76 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
+}
+
+/* ── Where the class has got to on a posted paper ──
+   Four cards under the paper's heading: everyone on the course, then the three
+   states they divide between. Exclusive and adding up to the first, so the row
+   reads left to right as the class working its way across.
+
+   Only the middle two carry colour, and they are the two an assessor acts on:
+   amber for the papers open right now, teal for the ones in. "All students" and
+   "Not started" are the ground those two are read against and stay quiet. */
+
+.gen-takers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* On the page's own ground rather than inside a card, so the tile has to draw
+   its own edge. It was --gray-050 on a --bg-app page: #f5f5f5 on #f6f7f8, one
+   point apart, which left four counts floating on the background with only a
+   hairline to say where each one stopped. The console's surface is what every
+   other block on the page stands on, and against the sunken page it is the
+   difference the row was missing. */
+.gen-taker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--gray-200);
+}
+
+.gen-taker__value {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.gen-taker__label {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Nobody has opened it. Said quietly — on the morning a paper goes out this
+   is every student on the course, and it is not a problem yet. */
+.gen-taker--waiting .gen-taker__value {
+  color: var(--text-muted);
+}
+
+.gen-taker--working .gen-taker__value {
+  color: var(--warning-text);
+}
+
+.gen-taker--done .gen-taker__value {
+  color: var(--teal-700);
+}
+
+@media (max-width: 860px) {
+  .gen-takers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .gen-paper__tags {
@@ -2639,6 +3046,25 @@
   margin-top: var(--sp-2);
 }
 
+/* A field whose label shares its line with a way out to the screen that
+   decides it. Both sides are set at --fs-micro, so they meet on one baseline
+   rather than one riding above the other.
+
+   The link is pushed over by an auto margin rather than by space-between, so
+   that a narrow column drops it onto a line of its own still against the right
+   edge, instead of leaving the two to wrap into each other. */
+.gen-field__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+}
+
+.gen-field__head .link-btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .gen-input {
   width: 100%;
   padding: 0.625rem 0.75rem;
@@ -2659,6 +3085,212 @@
 .gen-input:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
+}
+
+/* Not for filling in — it is showing a figure that is in force elsewhere. Kept
+   readable rather than faded to nothing, because the number in it is the
+   answer to "how long", which is still worth being able to read. */
+.gen-input:disabled {
+  background: var(--gray-050);
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.gen-field.is-off .field-label {
+  color: var(--text-muted);
+}
+
+/* ── Select (the shared listbox — see components/Select) ──
+   A native <select> hands its list to the operating system, which draws it in
+   the system's type on the system's white, ignoring this console's radii and
+   its dark theme — and can only render one flat line per option, which is why
+   a lesson used to say its paper was out by trailing an em dash after the
+   title. This list is the console's, so that goes on a line of its own.
+
+   The trigger is the same field as the .gen-input beside it — same shell, same
+   shadow, same radius — because it is the same kind of thing. */
+
+.assessor-select {
+  position: relative;
+  display: block;
+}
+
+.assessor-select__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.assessor-select__trigger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.assessor-select__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.assessor-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assessor-select__value.is-placeholder {
+  color: var(--text-muted);
+}
+
+/* Ahead of the value, at the weight of the caret on the other side: it says
+   what the control is for, and is not the thing being read. */
+.assessor-select__lead {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.assessor-select__caret {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s ease, color 0.15s ease;
+}
+
+.assessor-select__trigger:hover .assessor-select__caret,
+.assessor-select__trigger:focus-visible .assessor-select__caret {
+  color: var(--brand);
+}
+
+.assessor-select.is-open .assessor-select__caret {
+  transform: rotate(180deg);
+  color: var(--brand);
+}
+
+.assessor-select__list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  /* At least as wide as the trigger, but free to grow to its content: the card
+     is narrow and lesson titles are not, so matching the trigger exactly would
+     wrap every option onto three lines. */
+  min-width: 100%;
+  width: max-content;
+  max-width: min(26rem, 80vw);
+  max-height: 16.5rem;
+  margin: 0;
+  padding: var(--sp-2);
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-row-hover);
+  animation: assessor-select-in 0.14s ease both;
+}
+
+/* These sit low in a card, so the component flips the list above the trigger
+   when that is the roomier side; it comes in from the matching direction. */
+.assessor-select__list[data-placement="top"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: assessor-select-in-up;
+}
+
+@keyframes assessor-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes assessor-select-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.assessor-select__option {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* One highlight, driven by the keyboard and mirrored by the pointer, so
+   hovering and arrowing never light up two different rows at once. */
+.assessor-select__option.is-active {
+  background: var(--brand-hover);
+}
+
+/* Listed, and shut. A paper nobody has been given has no results to show, and
+   an assessor looking for one they wrote should find it greyed with the reason
+   on it rather than not find it at all — which reads as having lost it. */
+.assessor-select__option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.assessor-select__option-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Whether this lesson's paper is already out. Set above the title and in the
+   same small caps the field labels use, so it reads as a state and not as
+   part of the lesson's name. */
+.assessor-select__option-meta {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.assessor-select__option-label {
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  color: var(--text-strong);
+}
+
+.assessor-select__option[aria-selected="true"] .assessor-select__option-label {
+  font-weight: var(--fw-semibold);
+}
+
+.assessor-select__tick {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .assessor-select__list {
+    animation: none;
+  }
+
+  .assessor-select__caret {
+    transition: none;
+  }
 }
 
 .gen-hint {
@@ -2699,11 +3331,14 @@
   color: var(--white);
 }
 
+/* Sits under the minutes field as a note on it — the department's figure,
+   offered — so it is set a step below the field's own type rather than
+   competing with it. */
 .gen-check {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--fs-body);
+  font-size: var(--fs-label);
   color: var(--text-strong);
   cursor: pointer;
 }
@@ -2811,19 +3446,6 @@
   }
 }
 
-@media (max-width: 960px) {
-
-  .roster-grid,
-  .creds-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-4);
-  }
-
-  .row-head {
-    display: none;
-  }
-}
-
 @media (max-width: 780px) {
   .assessor-app {
     flex-direction: column;
@@ -2890,13 +3512,1126 @@
 
   .assessor-rail,
   .assessor-rail__avatar,
-  .data-row,
   .progress__fill,
   .focus-dot {
     transition: none;
   }
+}
 
-  .data-row--clickable:hover {
-    transform: none;
+/**
+ * A read that did not come back.
+ *
+ * Sits where the rows would have been, so it is read in place of the list
+ * rather than beside it, and carries the retry with it — the alternative was
+ * an empty table, which told the assessor something false about their own
+ * class and gave them no reason to doubt it.
+ */
+.load-failed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-4);
+  align-items: center;
+  justify-content: center;
+  color: var(--maroon-900);
+}
+
+/* ── Results ─────────────────────────────────────
+   Two pickers name the paper, and the cards and the table under them are about
+   that one paper. Side by side because they read as one sentence — this course,
+   that quiz — and stacked on a narrow screen rather than squeezed to where a
+   lesson title no longer fits. */
+
+/**
+ * The controls that decide what the table holds: the two pickers that name the
+ * paper, and the search that narrows it to one person. The credentials queue
+ * takes the same row, minus the paper: a queue standing across every course an
+ * assessor teaches is read the same way a register is.
+ *
+ * Held to their own width at the left rather than stretched across the screen —
+ * a control as wide as seven columns reads as the subject of the page, and the
+ * table is.
+ */
+.assessor-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.assessor-pickers .gen-field {
+  flex: 0 1 17rem;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+/**
+ * The state filter is as wide as what it is holding.
+ *
+ * Off it is a funnel and the word Filter; on it is a funnel and one of three
+ * states. A fixed track would leave it standing part empty beside a search
+ * field that wants every pixel it can have.
+ *
+ * It carries no label of its own, so it is hung from the bottom of the row
+ * instead of the top: the funnel lines up with the search field beside it
+ * rather than with the words above it. Matching that field's height is what
+ * makes the two read as one control split in half.
+ */
+.assessor-pickers .gen-field--state {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+/* Height only. It matches the search's, so the two line up along the row —
+   but it is a select, and it keeps the shape every other select on the screen
+   has rather than borrowing the search's ends. */
+.assessor-pickers .gen-field--state .assessor-select__trigger {
+  height: 44px;
+}
+
+/**
+ * The two that narrow what is already on screen, kept together.
+ *
+ * The course and the paper say which register is being read; the state and the
+ * search narrow the one in front of you, and they are read as one gesture. Left
+ * loose on the row they wrap apart on a laptop — the funnel landing on the line
+ * above the field it belongs beside — so they wrap as a pair instead, and take
+ * the row's slack between them.
+ */
+.assessor-pickers__pair {
+  display: flex;
+  gap: var(--sp-4);
+  flex: 1 1 30rem;
+  min-width: 0;
+}
+
+/**
+ * The one picker whose content is typed rather than chosen.
+ *
+ * A course and a paper are picked off a list and only need width enough to be
+ * recognised; a name is typed, and a field that cuts it off halfway makes the
+ * assessor check what they have written instead of reading the table. So it
+ * takes all the slack on the row, since none of the pickers beside it want any.
+ *
+ * What it asks for to begin with is another matter: at 26rem the row could not
+ * hold four controls beside a sidebar, and the state filter — which belongs
+ * next to the search, being the other half of narrowing what is already on
+ * screen — was pushed onto a line of its own. Asking for less costs nothing
+ * where there is room, because it grows into whatever is left.
+ */
+.assessor-pickers .gen-field--find {
+  flex: 1 1 18rem;
+  /* Growing, but not without end. On the credentials queue this field has only
+     the course picker beside it, so all the slack on the row was its own and
+     the bar ran most of the way across the screen — a search box wider than
+     the table it is searching, holding one word. It takes what it needs to
+     show a name being typed and leaves the rest of the row empty, which is how
+     the row was meant to sit in the first place. */
+  max-width: 26rem;
+}
+
+/* The search's own 320px cap is for a toolbar, where it sits beside other
+   things. Here the field is the width of its column. */
+.assessor-pickers .gen-field--find .assessor-search {
+  width: 100%;
+}
+
+/**
+ * Seven columns, two of which carry a date over a time — and the only table in
+ * the console whose columns are all the same width.
+ *
+ * It earns the exception by what it is read for. The other tables are lists
+ * you look down for one row; this one is a class held against a single paper,
+ * scanned across as much as down — who has not started, who is under the pass
+ * mark, who handed in late. Even columns keep that grid still, where columns
+ * sized to their content would put Status and Score wherever the longest name
+ * in the class happened to leave room.
+ *
+ * Fixed layout takes its widths from the header row, so the first column has
+ * to give back the slack it takes everywhere else, and the headings have to be
+ * allowed a second line rather than spilling out of their cells.
+ */
+.assessor-table--results {
+  table-layout: fixed;
+  min-width: 76rem;
+}
+
+/* A fixed layout hands every unsized column the same track, so the one that
+   carries the way out has to say how much it needs. */
+.assessor-table--results th:last-child,
+.assessor-table--results td:last-child {
+  width: 8rem;
+}
+
+/**
+ * A fixed layout hands every unsized column the same track, which is more than
+ * a two-character count needs and less than a name does — long ones were
+ * ellipsed in the one cell that has to be read in full. So the columns whose
+ * contents have a known length say what they need, and the student's name,
+ * the row's heading and the only cell of unknown length, takes what is left.
+ */
+.assessor-table--results th:first-child,
+.assessor-table--results td:first-child,
+.assessor-table--results th:nth-child(7),
+.assessor-table--results td:nth-child(7) {
+  width: 9.5rem;
+}
+
+.assessor-table--results th:nth-child(3),
+.assessor-table--results td:nth-child(3),
+.assessor-table--results th:nth-child(4),
+.assessor-table--results td:nth-child(4) {
+  width: 7rem;
+}
+
+.assessor-table--results th:nth-child(5),
+.assessor-table--results td:nth-child(5),
+.assessor-table--results th:nth-child(6),
+.assessor-table--results td:nth-child(6) {
+  width: 8rem;
+}
+
+.assessor-table--results thead th {
+  white-space: normal;
+}
+
+.results-score {
+  font-weight: var(--fw-semibold);
+  color: var(--teal-700);
+}
+
+/* Under the pass mark. Coloured rather than flagged: the mark beside it already
+   says how far under, and this only has to be findable down a column. */
+.results-score.is-under {
+  color: var(--warning-text);
+}
+
+/* ── One student's marked paper ──────────────────
+   Reached one way now: the whole row of a handed-in paper on the register,
+   marked by the Open at the end of it. A student's own lesson list used to
+   open a paper too, off an underlined name, which put the same read behind two
+   doors and gave the lessons table four columns the register already had. */
+
+/**
+ * The sheet the questions are laid on.
+ *
+ * A question block is a light grey card, and the page's own ground is within a
+ * shade of it — on the generate screen the same list sits inside .gen-paper
+ * and reads against white, and dropped straight onto the page the blocks
+ * disappeared into it. This is that white sheet, so a paper looks the same
+ * wherever it is opened from.
+ */
+.paper {
+  padding: var(--sp-6);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* Whose paper it is, then how it went, ruled off from the questions so the
+   sheet has a head and a body.
+ *
+ * The two sat side by side and fought over the width: the figures had to fold
+ * into two rows of unequal length long before the head itself was short of
+ * room. Stacked, the figures get the whole sheet and stay on one line. */
+.paper__head {
+  display: grid;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.paper__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paper__name {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  line-height: 1.25;
+  color: var(--text-strong);
+}
+
+.paper__id {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * The attempt in figures: the mark, and then everything else.
+ *
+ * Five columns of equal width gave five figures the same voice, so a handed-in
+ * timestamp stood as tall as the mark; each carried its own footnote, so the
+ * block was five columns of three lines with a ragged bottom where only three
+ * of them had one; and the whole strip re-spaced itself when a paper had
+ * nothing left blank. It also ran the full width of the screen to hold about
+ * forty characters.
+ *
+ * So: one bold thing, and a list. The mark leads at the console's numeral size
+ * with the pass mark drawn under it as a tick on its own meter, and the four
+ * supporting facts read down a two-column list where their names line up. The
+ * panel is as wide as what it holds, and a fact that is missing takes a line
+ * out instead of moving the ones that are left.
+ */
+.paper__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: var(--sp-5) var(--sp-8);
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+/* The block carries the tone, not the numeral: the meter's fill is drawn in
+   currentColor, so the mark and the bar under it can never disagree about
+   whether the paper cleared. */
+.paper__score {
+  flex: 0 0 auto;
+  width: 15rem;
+  max-width: 100%;
+  color: var(--teal-700);
+}
+
+.paper__score.is-under {
+  color: var(--warning-text);
+}
+
+/* The words around the figure stay grey — the tone is the figure's. */
+.paper__score-name,
+.paper__verdict {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+.paper__score-name {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.paper__mark {
+  display: block;
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-semibold);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The paper as a length, with the mark filling as much of it as was earned. */
+.paper__meter {
+  position: relative;
+  height: 6px;
+  margin: var(--sp-3) 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--gray-200);
+}
+
+.paper__meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+/* The pass mark. It stands over the fill rather than beside it, so where the
+   mark falls against the line is the first thing read — and it overhangs the
+   track top and bottom, so it is still visible once the fill has passed it. */
+.paper__meter-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--text-strong);
+}
+
+/* Passed or not at one end, the mark it was measured against at the other —
+   which puts the pass mark at the end of the meter it belongs to. */
+.paper__verdict {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+/* Names in one column and figures in the next, so four facts of four kinds
+   read down a straight edge instead of across the screen. */
+.paper__rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-5);
+  align-items: baseline;
+  margin: 0;
+}
+
+.paper__rows dt {
+  font-size: var(--fs-label);
+  color: var(--text-muted);
+}
+
+.paper__rows dd {
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.paper__note {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--pink-100);
+  font-size: var(--fs-label);
+  color: var(--maroon-900);
+}
+
+/* The verdict sits at the end of the question's own line, and stays there:
+   a long question wraps around it rather than pushing it onto a line of its
+   own, where it would read as a heading for the choices below. */
+.paper .gen-q__head > .chip {
+  flex-shrink: 0;
+}
+
+
+/* ===========================================================
+   Table of Specification — the assessor's blueprint.
+
+   The console's palette is maroon chrome on white with a teal
+   and a blue for support, and the screen keeps it. What it adds
+   is one thing: a ramp for the six levels of thinking, because
+   they are the only data on this screen and six unlabelled
+   greys would make the matrix unreadable.
+
+   The ramp is two families rather than one gradient. LOTS runs
+   cool through the console's own teal, HOTS runs warm towards
+   its maroon without landing on it — brand maroon is what a
+   button is, and a cell must not be mistaken for one. Within
+   each family the three steps darken with the level, so depth
+   of colour is depth of thinking, and the two halves of a
+   blueprint are told apart before a single label is read.
+   =========================================================== */
+
+.assessor-app {
+  --lv-remember: #7ec8d2;
+  --lv-understand: #2f97a4;
+  --lv-apply: #086f79;
+  --lv-analyze: #e2a33f;
+  --lv-evaluate: #c4703a;
+  --lv-create: #9c4a2f;
+
+  --lv-lots-ink: #06616b;
+  --lv-hots-ink: #8d4227;
+}
+
+/* Lifted onto the navy, where the deep ends of both ramps would otherwise
+   close up into the surface. */
+[data-theme="dark"] .assessor-app {
+  --lv-remember: #8fd6e0;
+  --lv-understand: #3fb0bf;
+  --lv-apply: #1a8e99;
+  --lv-analyze: #f0b95f;
+  --lv-evaluate: #dc8a52;
+  --lv-create: #c26343;
+
+  --lv-lots-ink: #7fcdd8;
+  --lv-hots-ink: #eaa863;
+}
+
+[data-level="remember"] {
+  --level: var(--lv-remember);
+}
+[data-level="understand"] {
+  --level: var(--lv-understand);
+}
+[data-level="apply"] {
+  --level: var(--lv-apply);
+}
+[data-level="analyze"] {
+  --level: var(--lv-analyze);
+}
+[data-level="evaluate"] {
+  --level: var(--lv-evaluate);
+}
+[data-level="create"] {
+  --level: var(--lv-create);
+}
+
+.tos-screen {
+  --tos-gap: var(--sp-5);
+}
+
+/* ── Prose ────────────────────────────────────────────────── */
+
+.tos-note {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.tos-note--lead {
+  margin-bottom: var(--sp-2);
+}
+
+/* Whether the numbers agree, in the words the assessor would use. Quiet when
+   they do — a finished sum is not news — and plain body ink when they do not,
+   because it is a state of the work rather than an error in it. */
+.tos-check {
+  margin: 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-200);
+  color: var(--text-body);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+}
+
+.tos-check.is-ok {
+  color: var(--text-muted);
+  font-weight: var(--fw-regular);
+}
+
+/* ── Picking a class ──────────────────────────────────────── */
+
+.tos-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tos-picker__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: var(--sp-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-row);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.tos-picker__card:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow-row-hover);
+}
+
+.tos-picker__code {
+  color: var(--brand-text);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-picker__name {
+  color: var(--text-strong);
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1.35;
+}
+
+.tos-picker__go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+/* ── A section of the blueprint ───────────────────────────── */
+
+.tos-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tos-gap);
+}
+
+.tos-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.tos-block__title {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-block__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* ── The allocation bar ───────────────────────────────────────
+   The one loud thing on the screen, and the only question it has
+   to answer without being read: is the paper spent.
+
+   The length is set in the console's lightest weight rather than
+   its heaviest. A blueprint's total is a setting, not a result —
+   the figure worth reading here is how much of it is still
+   unplaced, and that is the line beside it.
+   ─────────────────────────────────────────────────────────── */
+
+.tos-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.tos-bar__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.tos-bar__count {
+  color: var(--text-strong);
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-light);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.tos-bar__unit {
+  color: var(--text-muted);
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-regular);
+}
+
+.tos-bar__status {
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+.tos-bar.is-done .tos-bar__status {
+  color: var(--skill-strong);
+  font-weight: var(--fw-medium);
+}
+
+.tos-bar.is-over .tos-bar__status {
+  color: var(--skill-weak);
+  font-weight: var(--fw-medium);
+}
+
+.tos-bar__track {
+  display: flex;
+  overflow: hidden;
+  gap: 2px;
+  height: 2.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+}
+
+.tos-bar__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3px;
+  background: var(--level);
+  color: #fff;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  transition: width 0.22s ease;
+}
+
+/* The two lightest steps of the cool ramp cannot carry white type. */
+.tos-bar__seg[data-level="remember"] .tos-bar__seg-n,
+.tos-bar__seg[data-level="analyze"] .tos-bar__seg-n {
+  color: #16323a;
+}
+
+/* What is left, drawn rather than left blank so that an untouched blueprint
+   and a paper of no length are different pictures. The rule is the console's
+   hairline at an angle; nothing here is a texture for its own sake. */
+.tos-bar__open {
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    var(--gray-150) 6px 7px
+  );
+  transition: width 0.22s ease;
+}
+
+.tos-bar.is-over .tos-bar__track {
+  box-shadow: inset 0 0 0 1px var(--skill-weak);
+}
+
+/* ── LOTS and HOTS ────────────────────────────────────────── */
+
+.tos-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: var(--sp-5);
+}
+
+.tos-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+.tos-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.tos-group__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-group[data-group="lots"] .tos-group__name {
+  color: var(--lv-lots-ink);
+}
+
+.tos-group[data-group="hots"] .tos-group__name {
+  color: var(--lv-hots-ink);
+}
+
+.tos-group__expand {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+}
+
+.tos-group__tally {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-group__tally strong {
+  color: var(--text-strong);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-group__tally span {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+.tos-levels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tos-level {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+
+.tos-level + .tos-level {
+  border-top: 1px solid var(--gray-200);
+}
+
+.tos-level__swatch {
+  flex: none;
+  width: 10px;
+  height: 24px;
+  border-radius: 3px;
+  background: var(--level);
+}
+
+.tos-level__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.tos-level__name {
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.tos-level__blurb {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+
+/* ── A list of lessons ────────────────────────────────────── */
+
+.tos-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.tos-content__lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.tos-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tos-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+
+.tos-row + .tos-row {
+  border-top: 1px solid var(--gray-200);
+}
+
+.tos-row__n {
+  flex: none;
+  width: 1.5rem;
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tos-row__name,
+.tos-row__pick {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+}
+
+.tos-row__pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tos-row__pick:hover {
+  color: var(--brand-text);
+}
+
+.tos-row.is-current .tos-row__pick {
+  color: var(--brand-text);
+  font-weight: var(--fw-semibold);
+}
+
+/* The count again as a length, for the comparison a column of figures cannot
+   make: which lessons are carrying the paper. */
+.tos-row__meter {
+  flex: none;
+  overflow: hidden;
+  width: 5.5rem;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gray-150);
+}
+
+.tos-row__meter span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--gray-400);
+  transition: width 0.2s ease;
+}
+
+.tos-row__pct {
+  flex: none;
+  width: 3rem;
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tos-row__items {
+  flex: none;
+  color: var(--text-body);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-row__items.is-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── The stepper ──────────────────────────────────────────── */
+
+.tos-step {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.tos-step__btn {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.tos-step__btn:hover:not(:disabled) {
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.tos-step__btn:disabled {
+  color: var(--gray-400);
+  cursor: default;
+}
+
+.tos-step__field {
+  width: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--gray-200);
+  border-right: 1px solid var(--gray-200);
+  background: none;
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  text-align: center;
+}
+
+.tos-step__field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+/* ── The matrix ───────────────────────────────────────────── */
+
+.tos-matrix-scroll {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
+}
+
+.tos-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-label);
+}
+
+.tos-matrix th,
+.tos-matrix td {
+  padding: var(--sp-2);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.tos-matrix thead th {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.tos-matrix thead th[data-group="lots"] {
+  color: var(--lv-lots-ink);
+  border-bottom: 2px solid var(--lv-understand);
+}
+
+.tos-matrix thead th[data-group="hots"] {
+  color: var(--lv-hots-ink);
+  border-bottom: 2px solid var(--lv-evaluate);
+}
+
+.tos-matrix thead tr:last-child th {
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.tos-matrix th.is-lesson {
+  min-width: 12rem;
+  color: var(--text-strong);
+  font-weight: var(--fw-medium);
+  text-align: left;
+}
+
+.tos-matrix tbody th.is-lesson {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-label);
+}
+
+.tos-matrix__n {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-matrix tbody tr + tr th,
+.tos-matrix tbody tr + tr td {
+  border-top: 1px solid var(--gray-150);
+}
+
+/* The cell's wash is its column's colour at the weight of what is in it, so
+   the shape of a paper reads off the grid before the columns are added up.
+   Painted behind rather than on the field, which has to stay legible at every
+   density. */
+.tos-cell {
+  position: relative;
+  display: inline-flex;
+  border-radius: 8px;
+}
+
+.tos-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--level);
+  opacity: calc(var(--fill, 0) * var(--wash, 0.28));
+}
+
+/* A tint has less room to be seen on the navy than on white, so the same
+   density is drawn harder rather than fading out of the grid. */
+[data-theme="dark"] .assessor-app .tos-cell {
+  --wash: 0.45;
+}
+
+.tos-cell__field {
+  position: relative;
+  width: 2.5rem;
+  padding: var(--sp-2) 0;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  background: none;
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.tos-cell__field:hover {
+  border-color: var(--gray-300);
+}
+
+.tos-cell__field:focus-visible {
+  border-color: var(--brand);
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.tos-tally {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+/* What the margin was aiming at, under what it came to. Only drawn when they
+   differ — a total that matches has nothing to compare itself against. */
+.tos-tally em {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-style: normal;
+  font-weight: var(--fw-regular);
+}
+
+.tos-matrix .is-total {
+  color: var(--text-strong);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-matrix .is-off .tos-tally,
+.tos-matrix .is-off .tos-tally em {
+  color: var(--skill-weak);
+}
+
+.tos-matrix tfoot td,
+.tos-matrix tfoot th {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-300);
+}
+
+.tos-matrix tfoot th.is-lesson {
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+}
+
+/* ── Narrow ───────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .tos-level__blurb {
+    display: none;
+  }
+
+  .tos-row__meter {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tos-bar__seg,
+  .tos-bar__open,
+  .tos-row__meter span {
+    transition: none;
   }
 }

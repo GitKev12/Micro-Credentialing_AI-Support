@@ -219,40 +219,50 @@ body:has(.student-app) {
   min-width: 0;
 }
 
+/* The college seal, not a lettermark: it carries its own colours and
+   transparent edge, so it sits on the bar rather than in a filled chip. The
+   shadow traces that edge — enough to lift the seal off the bar without
+   turning it into a button. */
 .sd-topbar__mark {
-  display: grid;
-  place-items: center;
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--sd-r-sm);
-  background: var(--sd-brand);
-  color: var(--sd-on-brand);
-  font-size: var(--sd-fs-meta);
-  font-weight: var(--sd-fw-bold);
-  letter-spacing: 0.02em;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(42, 21, 23, 0.18));
 }
 
-.sd-topbar__titles {
+/* The hairline is the lockup: the seal says whose portal this is, the greeting
+   says who is in it, and the rule keeps them from reading as one phrase. */
+.sd-topbar__rule {
+  flex-shrink: 0;
+  width: 1px;
+  height: 26px;
+  background: var(--sd-border-strong);
+}
+
+/* Baselines, not centres — the two sizes are set as one line of type. */
+.sd-topbar__greeting {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 0.45ch;
   min-width: 0;
+  margin: 0;
 }
 
-.sd-topbar__eyebrow {
-  margin: 0;
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-semibold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.sd-topbar__hello {
+  flex-shrink: 0;
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-medium);
   color: var(--sd-muted);
 }
 
+/* The name is the only word here worth reading twice, so it takes the size and
+   the colour. */
 .sd-topbar__name {
-  margin: 0;
-  font-size: var(--sd-fs-body-lg);
-  font-weight: var(--sd-fw-semibold);
-  color: var(--sd-ink);
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-bold);
+  color: var(--sd-brand-text);
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -762,6 +772,25 @@ body:has(.student-app) {
 .sd-btn--sm {
   padding: var(--sd-2) var(--sd-3);
   font-size: var(--sd-fs-meta);
+}
+
+/* Icon-only round variant, for a control with room for a glyph and nothing
+   else. Used by the learning-modules reader, which hides the nav bar (see
+   StudentLayout) and so has this as its only way out: 36px keeps it a
+   comfortable target at that job, and the label it cannot show is carried on
+   aria-label and title instead. Everything else — the border, the surface, the
+   hover wash — comes from .sd-btn, so the disc cannot drift from the pills. */
+.sd-btn--disc {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* The shared focus ring sets --sd-r-sm on whatever it lands on, which would
+   square the disc off the moment it took keyboard focus. */
+.sd-btn--disc:focus-visible {
+  border-radius: 50%;
 }
 
 /* ── Segmented control (chart/table switch) ── */
@@ -1567,7 +1596,9 @@ body:has(.student-app) {
 .sd-badge-toast {
   position: fixed;
   bottom: var(--sd-5);
-  left: var(--sd-5);
+  /* The corner every message in this system arrives in — see .notice-toast in
+     styles.css, which the other two consoles' notices float in. */
+  right: var(--sd-5);
   /* Above the reader and the rail, below nothing else — it is the only thing
      on this page that floats over the layout. */
   z-index: 60;
@@ -1575,8 +1606,11 @@ body:has(.student-app) {
   flex-direction: column;
   align-items: center;
   gap: var(--sd-2);
+  /* Its words decide its width. The only ceiling is the window it floats
+     over, so a long badge name is a wide toast rather than a stack of two
+     letters — no fixed maximum, and none below it either. */
   width: max-content;
-  max-width: 16rem;
+  max-width: calc(100vw - 2 * var(--sd-5));
   padding: var(--sd-4) var(--sd-5);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-lg);
@@ -1584,6 +1618,23 @@ body:has(.student-app) {
   box-shadow: var(--sd-shadow-lift);
   text-align: center;
   animation: sd-badge-toast-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* Back out the way it came, once its three seconds are up. It is still on
+   screen while this runs — BadgeToast marks it, then unmounts it a fade later
+   — because a toast removed on the tick its time is up has nothing to fade
+   out through. */
+.sd-badge-toast.is-leaving {
+  animation: sd-badge-toast-out 0.2s ease-in both;
+}
+
+@keyframes sd-badge-toast-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* In from the corner it lives in, so the motion points at where it came from. */
@@ -1623,7 +1674,8 @@ body:has(.student-app) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sd-badge-toast {
+  .sd-badge-toast,
+  .sd-badge-toast.is-leaving {
     animation: none;
   }
 }
@@ -2213,30 +2265,46 @@ body:has(.student-app) {
    alone — done carries a check, current carries a brand ring,
    and the state is spelled out in words underneath. */
 
+/* The bullet is the progress.
+   A hollow ring that fills green clockwise as the lesson is read, with the
+   lesson's number inside it. Two background layers do the whole job: the conic
+   one sweeps green as far as `--read`, and the flat disc painted over its
+   middle is what leaves a ring rather than a pie. Both are backgrounds, so the
+   number still paints on top of them and the circle needs no extra element and
+   no z-index to hold it.
+
+   `--read` arrives inline from LessonNav as a bare number, which is why the
+   conic stop multiplies it into a percentage here. */
 .sd-lesson__marker {
   display: grid;
   place-items: center;
   flex-shrink: 0;
   width: 26px;
   height: 26px;
-  border: 1px solid var(--sd-border-strong);
   border-radius: 50%;
-  background: var(--sd-surface);
+  background:
+    radial-gradient(
+      closest-side,
+      var(--sd-surface) calc(100% - 3px),
+      transparent calc(100% - 3px)
+    ),
+    conic-gradient(var(--sd-good) calc(var(--read, 0) * 1%), var(--sd-border-strong) 0);
   color: var(--sd-muted);
   font-size: var(--sd-fs-label);
   font-weight: var(--sd-fw-semibold);
   font-variant-numeric: tabular-nums;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background 0.3s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* Where you are reading, which the ring cannot say — it only says how far. */
 .sd-lesson__marker[data-state="current"] {
-  border-color: var(--sd-brand);
   color: var(--sd-brand-text);
   box-shadow: 0 0 0 3px var(--sd-brand-wash);
 }
 
+/* Finished fills the middle in as well, so a full ring and a finished lesson
+   are not the same picture. */
 .sd-lesson__marker[data-state="done"] {
-  border-color: transparent;
   background: var(--sd-good);
   color: #fff;
 }
@@ -2270,6 +2338,30 @@ body:has(.student-app) {
 .sd-lesson.is-current .sd-lesson__state {
   color: var(--sd-brand-text);
 }
+
+/* The word and the figure share a line: one says where you are, the other how
+   much is behind you, and neither answers for the other. */
+.sd-lesson__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sd-2);
+}
+
+.sd-lesson__pct {
+  flex-shrink: 0;
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--sd-muted);
+}
+
+.sd-lesson.is-current .sd-lesson__pct {
+  color: var(--sd-brand-text);
+}
+
+/* There was a bar under the title here as well, saying the same thing the
+   ring in the bullet now says. One row cannot usefully carry a figure twice. */
 
 /* ── Disclosure toggle ────────────────────────────────── */
 
@@ -2339,72 +2431,159 @@ body:has(.student-app) {
   }
 }
 
-/* The spine sits at the marker's centre line: 12px of row padding
-   plus half of the 26px marker. */
-.sd-lesson__sections {
-  margin: 0 0 0 13px;
-  padding: var(--sd-1) 0;
-  border-left: 1px solid var(--sd-border-strong);
+/* ── Sections ───────────────────────────────────────────
+   A run of section links became a timeline the lesson is read down: a spine
+   that colours in behind you, a node per section saying which of the three
+   states it is in, and how far each one has been read.
+
+   The list used to be plain text links, which could say which section you had
+   jumped to and nothing else — so a student returning to a half-read chapter
+   had to open sections one at a time to find where they had stopped. That is
+   the question this list exists to answer, and now it does.
+
+   The spine stays where it was, at 13px from the panel's edge, on the lesson
+   marker's centre line: 6px of margin plus half of the 14px node. */
+
+.sd-sections {
+  margin: 0 0 0 6px;
+  padding: 2px 0;
   list-style: none;
 }
 
-.sd-lesson__section {
+.sd-sections__item {
   position: relative;
 }
 
-/* Node on the spine — hollow by default, filled for the section
-   you are reading. */
-.sd-lesson__section::before {
+/* One segment per section rather than one line down the whole list, so the
+   spine can carry each section's own state — read behind you, unread ahead. */
+.sd-sections__item::before {
   content: "";
   position: absolute;
-  top: 50%;
-  left: -4px;
-  width: 7px;
-  height: 7px;
-  border: 1px solid var(--sd-border-strong);
-  border-radius: 50%;
-  background: var(--sd-surface-2);
-  transform: translateY(-50%);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background: var(--sd-border);
+  transition: background 0.2s ease;
 }
 
-.sd-lesson__section.is-here::before {
-  border-color: var(--sd-brand);
-  background: var(--sd-brand);
+/* Only a finished section colours its segment, so the line stops exactly where
+   the reading did — and the part-read node sits on the join between the
+   coloured length behind it and the plain one ahead. */
+.sd-sections__item[data-state="done"]::before {
+  background: var(--sd-good);
 }
 
-.sd-lesson__section-btn {
-  display: block;
+/* The line is a join between nodes, so it has nothing to reach towards past
+   the first and the last. */
+.sd-sections__item:first-child::before {
+  top: 15px;
+}
+
+.sd-sections__item:last-child::before {
+  bottom: calc(100% - 15px);
+}
+
+.sd-sections__btn {
+  display: flex;
+  gap: var(--sd-2);
   width: 100%;
-  padding: 6px var(--sd-2) 6px var(--sd-4);
+  padding: 6px var(--sd-2) 7px 0;
   border: 0;
   border-radius: var(--sd-r-sm);
   background: transparent;
-  color: var(--sd-ink-2);
   font: inherit;
-  font-size: var(--sd-fs-meta);
-  line-height: 1.4;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
-.sd-lesson__section-btn:hover {
+.sd-sections__btn:hover {
   background: var(--sd-brand-wash);
+}
+
+.sd-sections__item.is-here .sd-sections__btn {
+  background: var(--sd-brand-wash);
+}
+
+/* The same ring as the lesson's bullet, at the smaller scale — hollow, filling
+   green clockwise with how much of this section has been read. The part-read
+   state needs no marking of its own any more: a ring stopped halfway round is
+   what a part-read section looks like, and it says how far as well as that.
+
+   Positioned so it paints over the spine rather than under it — the segment
+   above is absolutely placed, and an in-flow node would be crossed by it. The
+   opaque disc in its middle is the panel's own colour, which is what masks the
+   join and what makes an unread node read as hollow. */
+.sd-sections__node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      closest-side,
+      var(--sd-surface-2) calc(100% - 3px),
+      transparent calc(100% - 3px)
+    ),
+    conic-gradient(var(--sd-good) calc(var(--read, 0) * 1%), var(--sd-border-strong) 0);
+  color: #fff;
+  transition: background 0.3s ease;
+}
+
+.sd-sections__item[data-state="done"] .sd-sections__node {
+  background: var(--sd-good);
+}
+
+.sd-sections__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sd-sections__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sd-2);
+}
+
+.sd-sections__title {
+  font-size: var(--sd-fs-meta);
+  line-height: 1.35;
+  color: var(--sd-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.sd-sections__btn:hover .sd-sections__title,
+.sd-sections__item.is-here .sd-sections__title {
   color: var(--sd-brand-text);
 }
 
-.sd-lesson__section.is-here .sd-lesson__section-btn {
-  background: var(--sd-brand-wash);
-  color: var(--sd-brand-text);
+.sd-sections__item.is-here .sd-sections__title {
   font-weight: var(--sd-fw-semibold);
 }
 
-.sd-lesson__section-skeleton {
+.sd-sections__pct {
+  flex-shrink: 0;
+  font-size: var(--sd-fs-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--sd-muted);
+}
+
+.sd-sections__item[data-state="done"] .sd-sections__pct {
+  color: var(--sd-good-text);
+}
+
+.sd-sections__skeleton {
   display: block;
-  height: 13px;
-  margin: 8px var(--sd-2) 8px var(--sd-4);
-  border-radius: 4px;
+  height: 26px;
+  margin: 6px 0 6px 20px;
+  border-radius: 6px;
 }
 
 /* ── Assessment inside a module's panel ─────────────────
@@ -2442,7 +2621,7 @@ body:has(.student-app) {
   margin-top: var(--sd-1);
 }
 
-.sd-lesson__quiz:hover:not(:disabled) {
+.sd-lesson__quiz:hover {
   border-color: var(--sd-brand);
   background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
@@ -2455,11 +2634,13 @@ body:has(.student-app) {
   font-weight: var(--sd-fw-semibold);
 }
 
-.sd-lesson__quiz:disabled {
+/* Shut, but not dead: the row opens and says who opens it. The dashed border
+   stays because the paper is still shut, and it survives the hover — only the
+   colour changes there, so hovering cannot make a locked quiz look posted. */
+.sd-lesson__quiz.is-locked {
   border-style: dashed;
   background: transparent;
   color: var(--sd-muted);
-  cursor: not-allowed;
 }
 
 .sd-lesson__quiz-icon {
@@ -2468,7 +2649,7 @@ body:has(.student-app) {
   color: var(--sd-muted);
 }
 
-.sd-lesson__quiz:hover:not(:disabled) .sd-lesson__quiz-icon,
+.sd-lesson__quiz:hover .sd-lesson__quiz-icon,
 .sd-lesson__quiz.is-open-item .sd-lesson__quiz-icon {
   color: inherit;
 }
@@ -2619,10 +2800,13 @@ body:has(.student-app) {
 /* Separated from the lesson list by more than the lessons are from each other,
    because it is a different kind of thing — the course's one exam, not another
    chapter. */
+/* Pinned under the scroller now rather than sitting at the end of it, so the
+   rule above it marks the edge of the list instead of a break inside one. A
+   hairline is enough for that — the 2px it used to carry was shouting across a
+   boundary the layout already makes. */
 .sd-final {
-  margin-top: var(--sd-4);
   padding-top: var(--sd-3);
-  border-top: 2px solid var(--sd-border-strong);
+  border-top: 1px solid var(--sd-border);
 }
 
 .sd-final__label {
@@ -2651,18 +2835,20 @@ body:has(.student-app) {
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.sd-final__btn:hover:not(:disabled),
+.sd-final__btn:hover,
 .sd-final__btn.is-open-item {
   border-color: var(--sd-brand);
   background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
 }
 
-.sd-final__btn:disabled {
+/* Shut, but not dead — the same arrangement a lesson's quiz row uses. The
+   dashed border survives the hover, so hovering cannot make a paper that has
+   not been released look as though it has. */
+.sd-final__btn.is-locked {
   border-style: dashed;
   background: transparent;
   color: var(--sd-muted);
-  cursor: not-allowed;
 }
 
 .sd-final__icon {
@@ -2671,7 +2857,7 @@ body:has(.student-app) {
   color: var(--sd-muted);
 }
 
-.sd-final__btn:hover:not(:disabled) .sd-final__icon,
+.sd-final__btn:hover .sd-final__icon,
 .sd-final__btn.is-open-item .sd-final__icon {
   color: inherit;
 }
@@ -2689,8 +2875,9 @@ body:has(.student-app) {
   font-weight: var(--sd-fw-semibold);
 }
 
-/* The lock reason lands here and can run long, so it wraps rather than
-   truncating — being told what is left is the point of showing it. */
+/* The mark, or what the paper is. The lock reason used to land here too and
+   could run to a couple of lines; it is given in the viewer now, which the row
+   can be opened on. */
 .sd-final__state {
   font-size: var(--sd-fs-micro);
   color: var(--sd-muted);
@@ -2941,12 +3128,17 @@ body:has(.student-app) {
   color: var(--sd-muted);
 }
 
+/* The paper's one footer: where it is up to on the left, the way on from here
+   on the right. It carries the rule the submit row used to, because it is now
+   the last thing under the question rather than the second-to-last. */
 .sd-quiz__nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sd-3);
   flex-wrap: wrap;
+  padding-top: var(--sd-4);
+  border-top: 1px solid var(--sd-border);
 }
 
 .sd-quiz__nav-btns {
@@ -2977,16 +3169,6 @@ body:has(.student-app) {
 /* The badge that used to sit inside the question sentence. Nothing renders it
    now — the pager strip above already says which question you are on, and the
    head says it in words. */
-
-.sd-quiz__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sd-4);
-  flex-wrap: wrap;
-  padding-top: var(--sd-4);
-  border-top: 1px solid var(--sd-border);
-}
 
 .sd-quiz__progress {
   font-size: var(--sd-fs-body);
@@ -3083,14 +3265,65 @@ body:has(.student-app) {
   color: var(--sd-crit-text);
 }
 
+/* What a shut quiz opens on.
+   Centred and roomy like the offer below it, and for the same reason: it
+   stands where the questions would have been. It used to be a strip along the
+   top of the pane, which was all it needed to be while the row behind it was
+   dead — a student who could not open a locked quiz never saw this. They can
+   open it now, so this is the answer to the press, and it is given in the
+   space the paper would have filled. */
+/* The frame is solid, not dashed. A dashed outline is the convention for
+   something missing — an empty slot, a space waiting to be filled — and a shut
+   quiz is neither: it is a state the course is deliberately in, and it will
+   open on its own terms. */
 .sd-quiz__locked {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--sd-2);
-  padding: var(--sd-4);
-  border: 1px dashed var(--sd-border-strong);
+  justify-content: center;
+  text-align: center;
+  gap: var(--sd-4);
+  min-height: 260px;
+  padding: var(--sd-8) var(--sd-5);
+  border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-md);
-  color: var(--sd-muted);
+  background: var(--sd-surface-2);
+}
+
+/* The reason is the whole content of this panel, so it is written in ink at
+   the size of a line meant to be read. Muted and body-sized, under a grey
+   icon, it read as a disabled control's small print — which made a quiz that
+   is merely waiting look like one that had failed. */
+.sd-quiz__locked-text {
+  max-width: 42ch;
+  margin: 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-medium);
+  line-height: 1.6;
+  color: var(--sd-ink);
+}
+
+/* Secondary on purpose: it leads back to the reading, and the quiz itself is
+   still the thing being aimed at. */
+.sd-quiz__locked-btn {
+  padding: 9px 20px;
+  border: 1px solid var(--sd-border-strong);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-surface);
+  color: var(--sd-brand-text);
+  font-family: inherit;
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-semibold);
+  cursor: pointer;
+}
+
+.sd-quiz__locked-btn:hover {
+  background: var(--sd-brand-wash);
+}
+
+.sd-quiz__locked-btn:focus-visible {
+  outline: 2px solid var(--sd-brand-text);
+  outline-offset: 2px;
 }
 
 /* ── "Take the Quiz" ──────────────────────────────────────
@@ -3158,9 +3391,19 @@ body:has(.student-app) {
   outline-offset: 2px;
 }
 
+/* The lock on a disc of the course's own colour, rather than a grey glyph
+   floating on the panel. Grey on grey is the language of something broken or
+   switched off; this is neither. */
 .sd-quiz__locked-icon {
   display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
 }
 
 /* Stacked, a left-hand rule would divide nothing — it turns on its side. */
@@ -3184,14 +3427,6 @@ body:has(.student-app) {
   .sd-raw__formula + .sd-raw__formula {
     border-left: 0;
     border-top: 1px solid var(--sd-border-strong);
-  }
-}
-
-@media (max-width: 640px) {
-  .sd-quiz__actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--sd-2);
   }
 }
 

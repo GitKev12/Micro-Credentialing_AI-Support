@@ -5,12 +5,8 @@ import {
   getStudentCertificates,
   previewCertificateTemplate
 } from "./certificates.controller.js";
-import {
-  requireAuth,
-  requireDownloadAuth,
-  requireRole,
-  requireSelfOrRole
-} from "../middleware/auth.js";
+import { requireAuth, requireDownloadAuth, requireRole } from "../middleware/auth.js";
+import { requireOwnStudent } from "../middleware/student.guard.js";
 
 // Mounted at /api, so these resolve to:
 //   GET /api/students/:id/certificates                  — issued certificates
@@ -22,7 +18,7 @@ const router = Router();
 router.get(
   "/students/:id/certificates",
   requireAuth,
-  requireSelfOrRole("id", "assessor", "admin"),
+  requireOwnStudent("id"),
   getStudentCertificates
 );
 
@@ -30,7 +26,7 @@ router.get(
 router.get(
   "/students/:id/certificates/:certificateId/file",
   requireDownloadAuth,
-  requireSelfOrRole("id", "assessor", "admin"),
+  requireOwnStudent("id"),
   getStudentCertificateFile
 );
 

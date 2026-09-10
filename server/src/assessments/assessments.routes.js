@@ -4,7 +4,8 @@ import {
   getCourseAssessmentsForStudent,
   submitAssessment
 } from "./assessments.controller.js";
-import { requireAuth, requireSelfOrRole } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/auth.js";
+import { requireOwnStudent } from "../middleware/student.guard.js";
 
 // Mounted at /api, so these resolve to:
 //   GET  /api/students/:studentId/courses/:courseId/assessments — rail rows,
@@ -17,8 +18,10 @@ import { requireAuth, requireSelfOrRole } from "../middleware/auth.js";
 // generated and released by the assessor, so the student side only ever reads.
 const router = Router();
 
-// A student's own quizzes; staff may look at anyone's.
-const ownWork = [requireAuth, requireSelfOrRole("studentId", "assessor", "admin")];
+// A student's own quizzes; their assessor's, and an admin's, to look at. Not
+// every assessor's — teaching them is the claim, not being staff (see
+// student.guard.js).
+const ownWork = [requireAuth, requireOwnStudent("studentId")];
 
 router.get("/students/:studentId/courses/:courseId/assessments", ownWork, getCourseAssessmentsForStudent);
 

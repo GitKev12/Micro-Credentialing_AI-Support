@@ -2,40 +2,48 @@ import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
 import {
   DEFAULT_POINTS_PER_ITEM,
-  TRUE_FALSE_CHOICES,
-  defaultPassMark
+  credentialNameFor,
+  defaultPassMark,
+  isPosted
 } from "../assessments/assessments.format.js";
+import { FINAL_ATTEMPT_LIMIT, attemptsUsedFrom } from "../assessments/assessments.controller.js";
 import { buildStudentBadges, passedFromResults } from "../badges/badges.service.js";
 import { issueCertificate, listIssuedCertificates } from "../certificates/certificates.service.js";
 import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.service.js";
-import { aiStatusOf, isReleased } from "./grading.js";
+import { papersByCourse } from "../assessments/papers.js";
+import { progressSummary } from "../courses/courses.controller.js";
+import { finalPassedFrom, scoreOf } from "./grading.js";
+import { loadAuthoringRestrictions, loadClassesByCourse } from "../lib/courseAccess.js";
+import { readSuspendedFlag } from "../lib/suspension.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
 /**
- * Assessor console endpoints — classes, roster, grading queue, submission
- * review and credential release.
+ * Assessor console endpoints — classes, roster, student detail and credential
+ * release.
  *
- * These read the live MainSystemDB collections. Grading data lives in two
- * collections that the AI assessment pipeline will populate:
+ * There is no grading here any more. A paper is marked against its key the
+ * moment it is handed in and that mark stands, so the console never reopens a
+ * submission to re-mark it: what an assessor does is write papers, post them,
+ * and decide which passes become credentials.
+ *
+ * These read the live MainSystemDB collections:
  *
  * Assessment — one generated quiz per module:
  *   { moduleId, courseId, title, credentialName?, pointsPerItem, totalPoints,
  *     passMark, source, items: [{ id, n, q, choices, key }] }
  *
  * StudentResult — one submission per student per assessment:
- *   { assessmentId, moduleId, courseId, studentId, submittedAt,
+ *   { assessmentId, moduleId, courseId, studentId, submittedAt, durationMs,
  *     answers: [{ itemId, choice }],
- *     aiGrading: { status: "graded"|"unavailable", reason?, score,
- *                  items: [{ itemId, verdict: "correct"|"incorrect"|"flagged",
- *                            aiGuess?, why?, choices: [{ id, text }] }] },
- *     review: { status: "pending"|"draft"|"released", overrides: { itemId: verdict },
- *               finalScore, gradedBy, gradedAt },
+ *     aiGrading: { status: "graded", score,
+ *                  items: [{ itemId, verdict: "correct"|"incorrect" }] },
  *     credential: { status: "none"|"pending"|"issued", name, issuedAt, issuedBy } }
  *
- * Both collections exist but are empty until assessments are generated, so
- * every list endpoint degrades to empty rows rather than failing. Everything
- * shown is derived from real documents:
+ * A passed final writes its own `credential.status: "pending"`, so the
+ * Credentials screen fills without anyone grading anything. Only the final: a
+ * lesson quiz earns a badge, which is the student's on passing and never
+ * reaches this screen. Everything shown is derived from real documents:
  *
  *   class.lessons    <- LearningModules published for that course
  *   class.posted     <- Assessments released to that course
@@ -45,6 +53,7 @@ import { sortLessons } from "../lib/lessonOrder.js";
  */
 const ASSESSORS_COLLECTION = "Assessor";
 const ASSESSMENTS_COLLECTION = "Assessment";
+const CLASSES_COLLECTION = "Class";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
@@ -75,9 +84,28 @@ export function courseCode(course) {
   return (course?.courseCode ?? course?.code ?? "").trim();
 }
 
-function studentName(student) {
+export function studentName(student) {
   const full = [student?.first_name, student?.last_name].filter(Boolean).join(" ").trim();
   return full || student?.full_name || student?.name || student?.email || "Unnamed student";
+}
+
+/**
+ * The same student written surname first: "Dayan, Chris Jerome".
+ *
+ * For a list read down the column to find one person. Alphabetical by class
+ * means alphabetical by surname, and writing the given name first would put
+ * the thing the list is ordered by in the middle of the cell, where the eye
+ * cannot run down it.
+ *
+ * Falls back to the ordinary name unless both halves are on record — "Cruz,"
+ * with nothing after it reads as a fault rather than as a name.
+ */
+export function surnameFirst(student) {
+  const last = String(student?.last_name ?? "").trim();
+  const first = String(student?.first_name ?? "").trim();
+  if (!last || !first) return studentName(student);
+
+  return `${last}, ${first}`;
 }
 
 /** Assessors sign in with either their Mongo id or their ASS### number. */
@@ -117,60 +145,17 @@ async function resultsForCourses(courses) {
 }
 
 /**
- * What a paper is worth. `itemCount` is the caller's best guess at its length,
- * used only when the assessment does not say — and a bank-backed assessment
- * always says, because counting the bank instead of the paper drawn from it
- * would inflate every total on these screens several times over.
- */
-function reviewConfig(assessment, itemCount) {
-  const pointsPerItem = assessment?.pointsPerItem ?? DEFAULT_POINTS_PER_ITEM;
-  const perAttempt = Number(assessment?.itemsPerAttempt) > 0
-    ? Number(assessment.itemsPerAttempt)
-    : itemCount;
-  const total = assessment?.totalPoints ?? pointsPerItem * perAttempt;
-  const passMark = assessment?.passMark ?? defaultPassMark(total);
-  return { pointsPerItem, total, passMark };
-}
-
-function credentialName(assessment) {
-  if (assessment?.credentialName) return assessment.credentialName;
-  return assessment?.title ? `${assessment.title} Credential` : "Course Credential";
-}
-
-/**
- * The questions this submission actually contained.
+ * What a paper is worth: one point per question, over every question on it.
  *
- * An Assessment may hold a bank several times longer than the paper drawn from
- * it, so `assessment.items` is the wrong thing to count or to display. The
- * submission records what was served; the two older shapes are the fallbacks
- * for results written before it did.
+ * Derived rather than read off the document. A paper written while assessments
+ * still held a bank carries a `totalPoints` for the shorter paper that used to
+ * be drawn out of it, and marking today's attempt against that number would
+ * put a student's score over the total.
  */
-function servedItemIds(result, assessment) {
-  if (result?.servedItemIds?.length) return result.servedItemIds.map(asId);
-  if (assessment?.items?.length) {
-    return assessment.items.map((item, index) => asId(item.id ?? index + 1));
-  }
-  return (result?.answers ?? []).map((answer) => asId(answer.itemId));
-}
-
-/** The AI's verdict for an item — a flagged item falls back to its best guess. */
-function aiVerdict(item) {
-  return item?.verdict === "flagged" ? (item.aiGuess ?? null) : (item?.verdict ?? null);
-}
-
-/** Score implied by the AI verdicts plus the assessor's overrides. */
-function computedScore(result, assessment) {
-  const overrides = result.review?.overrides ?? {};
-  const aiByItem = new Map(
-    (result.aiGrading?.items ?? []).map((item) => [asId(item.itemId), item])
-  );
-  const itemIds = servedItemIds(result, assessment);
-  const { pointsPerItem } = reviewConfig(assessment, itemIds.length);
-
-  return itemIds.reduce((sum, itemId) => {
-    const verdict = overrides[itemId] ?? aiVerdict(aiByItem.get(itemId));
-    return sum + (verdict === "correct" ? pointsPerItem : 0);
-  }, 0);
+function paperConfig(assessment) {
+  const pointsPerItem = assessment?.pointsPerItem ?? DEFAULT_POINTS_PER_ITEM;
+  const total = pointsPerItem * (assessment?.items ?? []).length;
+  return { pointsPerItem, total, passMark: defaultPassMark(total) };
 }
 
 /** Students keyed by string id, for resolving submission references. */
@@ -193,8 +178,8 @@ async function assessmentMap(results) {
 export async function getOverview(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const courses = await coursesForAssessor(assessor);
   const [results, lessonCounts, assessments] = await Promise.all([
@@ -204,23 +189,11 @@ export async function getOverview(request, response) {
   ]);
 
   // What the rail's "Generate Assessment" badge counts: papers this assessor's
-  // classes are still waiting on. One per lesson, plus one final per course —
-  // a course with eight lessons owes nine papers.
-  const postedLessons = new Set(
-    assessments
-      .filter((doc) => doc.scope !== "final" && doc.status !== "draft")
-      .map((doc) => asId(doc.moduleId))
-  );
-  const postedFinals = new Set(
-    assessments
-      .filter((doc) => doc.scope === "final" && doc.status !== "draft")
-      .map((doc) => asId(doc.courseId))
-  );
-
-  const owed = courses.reduce((sum, course) => {
-    const lessons = lessonCounts.get(asId(course._id)) ?? 0;
-    return sum + lessons + 1;
-  }, 0);
+  // classes are still waiting on, added up across them. The same sum the admin
+  // console reports about this assessor, because it is the same function —
+  // see assessments/papers.js for what happened when it was two.
+  const papers = papersByCourse(assessments, lessonCounts);
+  const toPost = [...papers.values()].reduce((sum, row) => sum + row.toPost, 0);
 
   return response.json({
     assessor: {
@@ -230,9 +203,9 @@ export async function getOverview(request, response) {
       email: assessor.email ?? null
     },
     summary: {
-      toPost: Math.max(0, owed - postedLessons.size - postedFinals.size),
+      toPost,
       credentials: results.filter(
-        (result) => isReleased(result) && result.credential?.status === "pending"
+        (result) => result.credential?.status === "pending"
       ).length
     }
   });
@@ -285,8 +258,8 @@ async function lessonCountsForCourses(courses) {
 /**
  * Every assessment written for these courses, drafts included.
  *
- * Both the overview and the register now report on what has been released
- * rather than on what is waiting to be marked, and both need the same read.
+ * Both the overview and the register report on what has been posted, and both
+ * need the same read.
  */
 async function assessmentsForCourses(courses) {
   if (courses.length === 0) return [];
@@ -312,7 +285,7 @@ function countByCourse(results, predicate) {
  * One row per assigned course, with everything the Classes table shows.
  *
  * The screen is a register, not a set of shortcuts: it answers how big the
- * class is, how far it has read, what is waiting to be graded, how many
+ * class is, how far it has read, how many of its papers are out, how many
  * credentials have come out of it, and when the class was last heard from —
  * all derived from the live collections, so an empty database reports zeroes
  * rather than failing.
@@ -320,15 +293,22 @@ function countByCourse(results, predicate) {
 export async function getClasses(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const courses = await coursesForAssessor(assessor);
-  const [results, lessonCounts, students, assessments] = await Promise.all([
+  const [results, lessonCounts, students, assessments, closedCourses, classesByCourse] =
+    await Promise.all([
     resultsForCourses(courses),
     lessonCountsForCourses(courses),
     collection(STUDENTS_COLLECTION).find({}, { projection: { enrolledCourses: 1 } }).toArray(),
-    assessmentsForCourses(courses)
+    assessmentsForCourses(courses),
+    // A course whose run is over, or whose classes have all been switched off,
+    // can still be read but can no longer be written for. The register is
+    // where an assessor decides what to work on next, so it is where that
+    // belongs — otherwise the first sign is a refusal on the generate screen.
+    loadAuthoringRestrictions(courses),
+    loadClassesByCourse(courses)
   ]);
 
   // Enrollment counts per course, derived from Student.enrolledCourses.
@@ -340,24 +320,14 @@ export async function getClasses(request, response) {
     });
   });
 
-  // Papers written and papers released, per course. The register's job is now
-  // to say what a class is still waiting on, and a draft nobody has posted is
+  // Papers written and papers released, per course. The register's job is to
+  // say what a class is still waiting on, and a draft nobody has posted is
   // waiting exactly as much as a lesson with no quiz at all.
-  const written = new Map();
-  const posted = new Map();
-  const finalPosted = new Set();
-
-  assessments.forEach((doc) => {
-    const key = asId(doc.courseId);
-    written.set(key, (written.get(key) ?? 0) + 1);
-    if (doc.status === "draft") return;
-    posted.set(key, (posted.get(key) ?? 0) + 1);
-    if (doc.scope === "final") finalPosted.add(key);
-  });
+  const papers = papersByCourse(assessments, lessonCounts);
 
   const credentialsPending = countByCourse(
     results,
-    (result) => isReleased(result) && result.credential?.status === "pending"
+    (result) => result.credential?.status === "pending"
   );
   const credentialsIssued = countByCourse(
     results,
@@ -390,11 +360,23 @@ export async function getClasses(request, response) {
         // When the course runs — the register's duration column.
         startsOn: toIsoDay(course.startsOn),
         endsOn: toIsoDay(course.endsOn),
+        // Null while it is open to new papers.
+        closed: closedCourses.get(key) ?? null,
+        // The classes this course is taught through. A course can carry more
+        // than one, and the register used to show it as a single row with no
+        // sign of that — an assessor reading "24 students" could not tell it
+        // was two classes of twelve.
+        classes: (classesByCourse.get(key) ?? []).map((cls) => ({
+          id: asId(cls._id),
+          name: cls.name ?? "Unnamed class",
+          active: cls.active !== false,
+          students: (cls.studentIds ?? []).length
+        })),
         // One paper per lesson, plus the course's final.
-        assessmentsExpected: (lessonCounts.get(key) ?? 0) + 1,
-        assessmentsWritten: written.get(key) ?? 0,
-        assessmentsPosted: posted.get(key) ?? 0,
-        finalPosted: finalPosted.has(key),
+        assessmentsExpected: papers.get(key)?.expected ?? 0,
+        assessmentsWritten: papers.get(key)?.written ?? 0,
+        assessmentsPosted: papers.get(key)?.posted ?? 0,
+        finalPosted: papers.get(key)?.finalPosted ?? false,
         credentialsPending: credentialsPending.get(key) ?? 0,
         credentialsIssued: credentialsIssued.get(key) ?? 0,
         lastSubmission: lastSubmission.get(key) ?? null
@@ -414,13 +396,13 @@ export async function findAssignedCourse(assessor, courseId) {
 export async function getRoster(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const course = await findAssignedCourse(assessor, request.params.courseId);
   if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
 
-  const [students, totalModules, results, progress] = await Promise.all([
+  const [students, totalModules, results, progress, classesByCourse] = await Promise.all([
     collection(STUDENTS_COLLECTION)
       .find({ enrolledCourses: { $in: idCandidates(course._id) } })
       .sort({ last_name: 1 })
@@ -429,8 +411,26 @@ export async function getRoster(request, response) {
     resultsForCourses([course]),
     collection(PROGRESS_COLLECTION)
       .find({ courseId: { $in: idCandidates(course._id) } })
-      .toArray()
+      .toArray(),
+    // Which class each student sits in. Enrolment is written through from the
+    // classes, so the two agree on *who* is here — what the class adds is
+    // *which one*, and that is the whole question on a course taught through
+    // more than one.
+    loadClassesByCourse([course])
   ]);
+
+  const classesByStudent = new Map();
+  // Whose access to this course the assessor has closed. Read off the same
+  // class rows as the names above, so the column costs no extra query.
+  const closedHere = new Set();
+  for (const cls of classesByCourse.get(asId(course._id)) ?? []) {
+    for (const studentId of cls.studentIds ?? []) {
+      const key = asId(studentId);
+      if (!classesByStudent.has(key)) classesByStudent.set(key, []);
+      classesByStudent.get(key).push(cls.name ?? "Unnamed class");
+    }
+    for (const studentId of cls.suspendedStudentIds ?? []) closedHere.add(asId(studentId));
+  }
 
   const doneByStudent = new Map();
   progress.forEach((entry) => {
@@ -438,17 +438,48 @@ export async function getRoster(request, response) {
     doneByStudent.set(key, (doneByStudent.get(key) ?? 0) + 1);
   });
 
-  const pendingByStudent = new Map();
-  const credsByStudent = new Map();
+  // The papers behind those submissions, so a pass can be told from a sitting.
+  // One query for the whole roster rather than one per student.
+  const assessmentById = await assessmentMap(results);
+
+  const resultsByStudent = new Map();
   results.forEach((result) => {
     const key = asId(result.studentId);
-    if (!isReleased(result)) {
-      pendingByStudent.set(key, (pendingByStudent.get(key) ?? 0) + 1);
-    }
-    if (result.credential?.status === "issued") {
-      credsByStudent.set(key, (credsByStudent.get(key) ?? 0) + 1);
-    }
+    if (!resultsByStudent.has(key)) resultsByStudent.set(key, []);
+    resultsByStudent.get(key).push(result);
   });
+
+  // Credentials this student already holds. Nothing here counts what is
+  // still to be issued: that is a queue and it belongs on the Credentials
+  // screen, which is where the assessor acts on it.
+  const credsByStudent = new Map();
+  results.forEach((result) => {
+    if (result.credential?.status !== "issued") return;
+    const key = asId(result.studentId);
+    credsByStudent.set(key, (credsByStudent.get(key) ?? 0) + 1);
+  });
+
+  const courseProgressFor = (student) => {
+    const key = asId(student._id);
+    const mine = resultsByStudent.get(key) ?? [];
+    // Lesson quizzes are counted by the badge module, because a badge *is* a
+    // passed lesson quiz — one rule, so the roster and the badge wall can
+    // never disagree about the same student.
+    const quizzes = passedFromResults(mine, assessmentById).size;
+    const summary = progressSummary(
+      totalModules,
+      doneByStudent.get(key) ?? 0,
+      quizzes,
+      finalPassedFrom(mine, assessmentById)
+    );
+
+    return {
+      progress: summary.progress,
+      completedItems: summary.completedItems,
+      itemCount: summary.itemCount,
+      status: summary.status
+    };
+  };
 
   return response.json({
     course: {
@@ -458,20 +489,122 @@ export async function getRoster(request, response) {
       section: course.section ?? null
     },
     totalModules,
+    // The classes this course is taught through, so the roster can say which
+    // one it is showing rather than presenting two as one list.
+    classes: (classesByCourse.get(asId(course._id)) ?? []).map((cls) => ({
+      id: asId(cls._id),
+      name: cls.name ?? "Unnamed class",
+      active: cls.active !== false,
+      students: (cls.studentIds ?? []).length
+    })),
     roster: students.map((student) => ({
       id: asId(student._id),
       name: studentName(student),
       sid: student.student_id ?? null,
+      // Empty for a student enrolled outside a class — seeded rows, or ones a
+      // deleted class left behind. Naming that is better than implying a class
+      // they are not in.
+      classes: classesByStudent.get(asId(student._id)) ?? [],
       done: doneByStudent.get(asId(student._id)) ?? 0,
+      // How far through the course, on the same terms the student is shown it:
+      // the lessons, a quiz for each of them, and the final. The column used to
+      // count completed lessons alone, so a student who had read everything and
+      // sat nothing read 100% here and 47% on their own card — the same student,
+      // the same course, two figures. progressSummary is the one sum now.
+      ...courseProgressFor(student),
       creds: credsByStudent.get(asId(student._id)) ?? 0,
-      pending: pendingByStudent.get(asId(student._id)) ?? 0
+      // Their place in *this* course, not their account. The admin's own
+      // suspension stops somebody signing in at all and is not this column's
+      // business — an assessor closes a course, not a person's login.
+      suspended: closedHere.has(asId(student._id))
     }))
   });
 }
 
-/* ─────────────────────────── Review ─────────────────────────── */
+/**
+ * PATCH .../classes/:courseId/students/:studentId/suspension — close this
+ * course to one student, or open it again.
+ *
+ * Course access, not a login control. It shuts the same amount as switching
+ * their class off does — the lessons, the quizzes and the tick that completes a
+ * lesson are all refused (lib/courseAccess.js) — and it shuts it for this
+ * course only. The student still signs in, still has their other courses, and
+ * keeps their enrolment, their progress and every badge they have earned here;
+ * turning it back on restores them exactly as they were.
+ *
+ * That is a different thing from the admin console's suspension, which is on
+ * the account and stops the person signing in at all (lib/suspension.js). An
+ * assessor owns a course, not an account, so this is the one they get.
+ *
+ * It is recorded on the class rather than on the student, because the class is
+ * what puts them in the course: `Class.suspendedStudentIds` is a subset of its
+ * own `studentIds`, so it cannot name somebody who is not there, it travels
+ * with the class when the class is deleted, and the gate already holds the
+ * class documents when it asks.
+ *
+ * What makes this safe to hand an assessor is the enrolment clause below. The
+ * guard on the route says the :assessorId is theirs; this says the student is
+ * one of theirs to act on. Anyone else answers 404 — the same reply as a
+ * student who does not exist, so the endpoint cannot be walked to find out who
+ * is on somebody else's roster.
+ */
+export async function setRosterStudentSuspension(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
 
-/** A StudentResult from the route, but only inside this assessor's courses. */
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
+
+  const suspended = readSuspendedFlag(request.body);
+  if (suspended === null) {
+    return response.status(400).json({ message: "Send suspended: true or false." });
+  }
+
+  const course = await findAssignedCourse(assessor, request.params.courseId);
+  if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
+
+  const student = await collection(STUDENTS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.studentId) },
+    enrolledCourses: { $in: idCandidates(course._id) }
+  });
+  if (!student) {
+    return response.status(404).json({ message: "Student not found in this course." });
+  }
+
+  // A student belongs to one class per course, so there is one row to write.
+  // An enrolment with no class behind it predates that rule and has nowhere to
+  // record this — said plainly rather than answered with a silent success.
+  const cls = await collection(CLASSES_COLLECTION).findOne({
+    courseId: { $in: idCandidates(course._id) },
+    studentIds: { $in: idCandidates(student._id) }
+  });
+  if (!cls) {
+    return response.status(409).json({
+      message: "This student is on the course without a class, so there is nothing to close."
+    });
+  }
+
+  await collection(CLASSES_COLLECTION).updateOne(
+    { _id: cls._id },
+    suspended
+      ? { $addToSet: { suspendedStudentIds: student._id } }
+      : { $pull: { suspendedStudentIds: { $in: idCandidates(student._id) } } }
+  );
+
+  return response.json({
+    student: { id: asId(student._id), name: studentName(student), suspended }
+  });
+}
+
+/* ───────────────────────── Credentials ───────────────────────── */
+
+/**
+ * A StudentResult from the route, but only inside this assessor's courses.
+ *
+ * All that is left of reaching one submission: issuing its credential. The
+ * assessor no longer opens a handed-in paper to re-mark it, so this is a check
+ * on whose course a paper belongs to rather than the front door of a review
+ * screen.
+ */
 async function findAssignedResult(assessor, submissionId) {
   const result = await collection(RESULTS_COLLECTION).findOne({
     _id: { $in: idCandidates(submissionId) }
@@ -482,206 +615,17 @@ async function findAssignedResult(assessor, submissionId) {
   return { result: course ? result : null, course };
 }
 
-/** Choice ids are compared lowercase everywhere else; do the same here. */
-function choiceId(value) {
-  return value == null || value === "" ? null : String(value).toLowerCase();
-}
-
-/**
- * The options as the assessor should see them.
- *
- * Stored items already carry `{ id, text }` — assessments.format.js letters
- * them on the way in — but an older document may hold plain strings, so letter
- * those the same way rather than rendering a column of blank rows.
- *
- * A true-false item stores no choices at all. The generator only writes a
- * `choices` array on the multiple-choice branch, and `normalizeItem` supplies
- * True/False when the paper is read — which every path except this one goes
- * through. Reading the raw document therefore found nothing, and the review
- * screen fell back to bare "Student · false" pills on exactly the items whose
- * wording an assessor most needs to see.
- *
- * Bank order, not the order the student saw: `toStudentAssessment` shuffles the
- * options per sitting, and re-deriving that shuffle here would be guesswork.
- * It costs nothing, because an answer names a choice id and the id is assigned
- * before the shuffle — so "c" is the same option on every screen it appears on.
- */
-function reviewChoices(item) {
-  const stored = Array.isArray(item?.choices) ? item.choices : [];
-  if (stored.length === 0 && item?.type === "true-false") return [...TRUE_FALSE_CHOICES];
-
-  return stored.map((choice, index) => {
-    const fallbackId = String.fromCharCode(97 + index);
-    if (choice && typeof choice === "object") {
-      return {
-        id: choiceId(choice.id) ?? fallbackId,
-        text: String(choice.text ?? choice.label ?? "")
-      };
-    }
-    return { id: fallbackId, text: String(choice ?? "") };
-  });
-}
-
-async function reviewPayload(result, course) {
-  const [assessment, student] = await Promise.all([
-    collection(ASSESSMENTS_COLLECTION).findOne({
-      _id: { $in: idCandidates(result.assessmentId) }
-    }),
-    collection(STUDENTS_COLLECTION).findOne({ _id: { $in: idCandidates(result.studentId) } })
-  ]);
-
-  const answerByItem = new Map(
-    (result.answers ?? []).map((answer) => [asId(answer.itemId), answer.choice])
-  );
-  const aiByItem = new Map(
-    (result.aiGrading?.items ?? []).map((item) => [asId(item.itemId), item])
-  );
-
-  // Only the questions this student was given. Reviewing the whole bank would
-  // show the assessor twenty-four questions against eight answers, and mark
-  // the sixteen nobody was asked as wrong.
-  const served = new Set(servedItemIds(result, assessment));
-  const sourceItems = (
-    assessment?.items ??
-    (result.answers ?? []).map((answer, index) => ({ id: answer.itemId, n: index + 1 }))
-  ).filter((item, index) => served.has(asId(item.id ?? index + 1)));
-
-  const items = sourceItems.map((item, index) => {
-    const id = asId(item.id ?? index + 1);
-    const ai = aiByItem.get(id);
-    return {
-      id,
-      n: item.n ?? index + 1,
-      q: item.q ?? item.question ?? "",
-      choices: reviewChoices(item),
-      // Lowercased to match how the scorer compares them
-      // (assessments.format.js). A true-false item is answered by the word,
-      // and a client that posted "True" against a stored id of "true" would
-      // otherwise show the assessor a paper with nothing marked on it.
-      choice: choiceId(answerByItem.get(id)),
-      key: choiceId(item.key),
-      verdict: ai?.verdict ?? null,
-      aiGuess: ai?.aiGuess ?? null,
-      why: ai?.why ?? null
-    };
-  });
-
-  const config = reviewConfig(assessment, items.length);
-  const title = assessment?.title ?? "Assessment";
-
-  return {
-    submission: {
-      id: asId(result._id),
-      studentId: asId(result.studentId),
-      studentName: studentName(student),
-      sid: student?.student_id ?? null,
-      submittedAt: result.submittedAt ?? null
-    },
-    assessment: {
-      id: assessment ? asId(assessment._id) : null,
-      title,
-      meta: `${courseCode(course)} · ${title} · ${config.total} points`,
-      source: assessment?.source ?? null,
-      credentialName: credentialName(assessment)
-    },
-    reviewConfig: config,
-    aiStatus: aiStatusOf(result),
-    aiStatusReason: result.aiGrading?.reason ?? null,
-    aiScore: aiStatusOf(result) === "graded" ? (result.aiGrading?.score ?? null) : null,
-    items,
-    review: {
-      status: result.review?.status ?? "pending",
-      overrides: result.review?.overrides ?? {},
-      finalScore: result.review?.finalScore ?? null,
-      gradedAt: result.review?.gradedAt ?? null
-    },
-    credential: {
-      status: result.credential?.status ?? "none",
-      name: result.credential?.name ?? null,
-      issuedAt: result.credential?.issuedAt ?? null
-    }
-  };
-}
-
-export async function getSubmission(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
-
-  const { result, course } = await findAssignedResult(assessor, request.params.submissionId);
-  if (!result) return response.status(404).json({ message: "Submission not found." });
-
-  return response.json(await reviewPayload(result, course));
-}
-
-const VERDICTS = new Set(["correct", "incorrect"]);
-
-export async function saveReview(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
-
-  const { result, course } = await findAssignedResult(assessor, request.params.submissionId);
-  if (!result) return response.status(404).json({ message: "Submission not found." });
-
-  const { action, overrides, finalScore } = request.body ?? {};
-  if (action !== "draft" && action !== "release") {
-    return response.status(400).json({ message: 'action must be "draft" or "release".' });
-  }
-
-  // Keep only well-formed overrides: { itemId: "correct" | "incorrect" }.
-  const cleanOverrides = {};
-  Object.entries(overrides ?? {}).forEach(([itemId, verdict]) => {
-    if (VERDICTS.has(verdict)) cleanOverrides[asId(itemId)] = verdict;
-  });
-
-  const assessment = await collection(ASSESSMENTS_COLLECTION).findOne({
-    _id: { $in: idCandidates(result.assessmentId) }
-  });
-  const config = reviewConfig(assessment, (assessment?.items ?? result.answers ?? []).length);
-
-  const draft = { ...result, review: { ...result.review, overrides: cleanOverrides } };
-  const typed = Number.parseInt(finalScore, 10);
-  const score = Number.isFinite(typed)
-    ? Math.min(Math.max(typed, 0), config.total)
-    : computedScore(draft, assessment);
-
-  const review = {
-    status: action === "release" ? "released" : "draft",
-    overrides: cleanOverrides,
-    finalScore: score,
-    gradedBy: asId(assessor._id),
-    gradedAt: new Date()
-  };
-
-  const update = { review };
-  if (action === "release") {
-    update.credential =
-      score >= config.passMark
-        ? { status: "pending", name: credentialName(assessment) }
-        : { status: "none", name: null };
-  }
-
-  await collection(RESULTS_COLLECTION).updateOne({ _id: result._id }, { $set: update });
-
-  return response.json(await reviewPayload({ ...result, ...update }, course));
-}
-
-/* ─────────────────────────── Credentials ─────────────────────────── */
-
 export async function getPendingCredentials(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const courses = await coursesForAssessor(assessor);
   const courseById = new Map(courses.map((course) => [asId(course._id), course]));
 
   const results = (await resultsForCourses(courses)).filter(
-    (result) => isReleased(result) && result.credential?.status === "pending"
+    (result) => result.credential?.status === "pending"
   );
 
   const [students, assessments] = await Promise.all([studentMap(), assessmentMap(results)]);
@@ -691,23 +635,23 @@ export async function getPendingCredentials(request, response) {
       const student = students.get(asId(result.studentId));
       const assessment = assessments.get(asId(result.assessmentId));
       const course = courseById.get(asId(result.courseId));
-      const config = reviewConfig(assessment, (assessment?.items ?? []).length);
-      const overrideCount = Object.keys(result.review?.overrides ?? {}).length;
+      const config = paperConfig(assessment);
 
       return {
         id: asId(result._id),
         studentId: asId(result.studentId),
         name: studentName(student),
         sid: student?.student_id ?? null,
-        credential: result.credential?.name ?? credentialName(assessment),
+        credential: result.credential?.name ?? credentialNameFor(assessment),
+        // Both, because the row is read by code and filtered by id: two
+        // courses may share a code, and the picker must not fold them.
+        courseId: asId(result.courseId),
         courseCode: courseCode(course),
         assessmentTitle: assessment?.title ?? "Assessment",
-        finalScore: result.review?.finalScore ?? null,
+        score: scoreOf(result),
         totalPoints: config.total,
-        source:
-          overrideCount > 0
-            ? `You overrode ${overrideCount} item${overrideCount === 1 ? "" : "s"}`
-            : "AI score accepted"
+        passMark: config.passMark,
+        submittedAt: result.submittedAt ?? null
       };
     })
   });
@@ -716,13 +660,13 @@ export async function getPendingCredentials(request, response) {
 export async function issueCredential(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const { result } = await findAssignedResult(assessor, request.params.submissionId);
   if (!result) return response.status(404).json({ message: "Submission not found." });
 
-  if (!isReleased(result) || result.credential?.status !== "pending") {
+  if (result.credential?.status !== "pending") {
     return response.status(409).json({ message: "This submission has no credential awaiting release." });
   }
 
@@ -752,7 +696,7 @@ export async function issueCredential(request, response) {
       issuedAt,
       credentialName:
         result.credential?.name ??
-        credentialName((await assessmentMap([result])).get(asId(result.assessmentId)))
+        credentialNameFor((await assessmentMap([result])).get(asId(result.assessmentId)))
     });
   } catch (error) {
     certificateError = error.message;
@@ -801,8 +745,8 @@ async function issueStudentCertificate({ result, assessor, issuedAt, credentialN
 export async function getStudentDetail(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const assessor = await findAssessor(request.params.assessorId);
-  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  // Resolved and checked against the session by requireOwnAssessor.
+  const assessor = request.assessor;
 
   const course = await findAssignedCourse(assessor, request.params.courseId);
   if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
@@ -830,36 +774,117 @@ export async function getStudentDetail(request, response) {
 
   sortLessons(modules);
 
+  // The attempt that counts. A quiz may be retaken without limit and a final
+  // three times; every attempt is kept, but only the live one is the student's
+  // record — keying the map off all of them let whichever row happened to load
+  // last decide what the screen said.
+  const liveResults = results.filter((result) => result.superseded !== true);
+
+  // Every attempt is kept — a superseded row is history, not waste — so how
+  // many times a paper was taken is a count of all its rows, and the live list
+  // above cannot answer it. Grouped by paper rather than by lesson: the retake
+  // limit is the paper's, and a lesson whose quiz was regenerated starts its
+  // count again with the new one, which is what the student is told too.
+  const attemptsByAssessment = new Map();
+  for (const result of results) {
+    const key = asId(result.assessmentId);
+    if (!attemptsByAssessment.has(key)) attemptsByAssessment.set(key, []);
+    attemptsByAssessment.get(key).push(result);
+  }
+
+  const takesOf = (result) =>
+    result ? attemptsUsedFrom(attemptsByAssessment.get(asId(result.assessmentId)), result) : 0;
+
   const assessments = await assessmentMap(results);
-  const resultByModule = new Map(results.map((result) => [asId(result.moduleId), result]));
-  const readModules = new Set(progress.map((entry) => asId(entry.moduleId)));
+  const resultByModule = new Map(liveResults.map((result) => [asId(result.moduleId), result]));
 
+  // moduleId -> the day the lesson was finished. There is no moment of opening
+  // to report: how far into a lesson a reader has got is kept in their own
+  // browser and deliberately never sent here (see lessonProgress.js), so the
+  // day it was read is the last thing this side knows about it.
+  const readAtByModule = new Map(
+    progress.map((entry) => [asId(entry.moduleId), entry.completedAt ?? null])
+  );
+
+  // The lesson quizzes this student has passed, by the one rule the badge wall
+  // and the course figure also read. Taken once here so a row's progress and
+  // the figure over the table are the same sum rather than two of them.
+  const passedModules = passedFromResults(results, assessments);
+
+  /**
+   * One row per lesson: how far through it the student is, when they read it,
+   * and what became of its quiz.
+   *
+   * What a paper scored, how long it ran and how often it was taken are the
+   * register's to answer — every one of them is a column on the results screen,
+   * off its own read of the same submissions — so they are not sent here to be
+   * said a second time.
+   */
   const moduleRows = modules.map((module, index) => {
-    const result = resultByModule.get(asId(module._id));
-    const assessment = result ? assessments.get(asId(result.assessmentId)) : null;
-    const config = reviewConfig(assessment, (assessment?.items ?? []).length);
-
-    const state = result ? (isReleased(result) ? "done" : "pending") : "locked";
+    const id = asId(module._id);
+    const result = resultByModule.get(id);
 
     return {
       n: index + 1,
-      moduleId: asId(module._id),
+      moduleId: id,
       title: module.title ?? module.fileName ?? "Untitled module",
-      state,
-      read: readModules.has(asId(module._id)),
-      score: result && isReleased(result) ? (result.review?.finalScore ?? null) : null,
-      total: result ? config.total : null,
-      submissionId: result ? asId(result._id) : null,
-      submittedAt: result?.submittedAt ?? null
+      // Taken or not taken. There is no third state now that a handed-in paper
+      // is marked on the spot rather than queued for someone.
+      state: result ? "done" : "locked",
+      // The two halves of a lesson the course figure counts: reading it, and
+      // passing its quiz. Passed is null where nothing was taken, which is a
+      // different fact from taking it and not passing.
+      read: readAtByModule.has(id),
+      readAt: readAtByModule.get(id) ?? null,
+      passed: result ? passedModules.has(id) : null
     };
   });
+
+  // The final, which is not a lesson and does not belong in the numbered list.
+  // It is reported whether or not one has been written yet: every course owes
+  // one, and a course still missing its final is worth seeing on the row where
+  // its result would go.
+  const finalDoc = await collection(ASSESSMENTS_COLLECTION).findOne({
+    courseId: { $in: idCandidates(course._id) },
+    scope: "final"
+  });
+
+  const finalResult = finalDoc
+    ? (liveResults.find((result) => asId(result.assessmentId) === asId(finalDoc._id)) ?? null)
+    : null;
+  const finalPassed = finalPassedFrom(results, assessments);
+
+  const finalRow = {
+    title: finalDoc?.title ?? "Final Exam",
+    state: finalResult ? "done" : "locked",
+    // The final is one item of the course rather than a lesson's two: there is
+    // nothing to read, only a paper to pass.
+    passed: finalResult ? finalPassed : null,
+    // The final is the one paper with a ceiling on how often it may be taken,
+    // so the row carries how many goes have gone against how many there are.
+    attemptsUsed: takesOf(finalResult),
+    attemptsAllowed: FINAL_ATTEMPT_LIMIT,
+    // Written but not released is a real state, and it is the assessor's own
+    // to act on — the row should not read as "not taken" when nobody could
+    // have taken it.
+    posted: isPosted(finalDoc)
+  };
 
   // Badges, by the one rule the student's own badge wall uses: a lesson quiz
   // passed earns that lesson's badge. Counted against this course's lessons,
   // since the badge catalog holds one badge per lesson.
   const moduleIds = new Set(modules.map((module) => asId(module._id)));
-  const passedLessons = [...passedFromResults(results, assessments).keys()].filter((moduleId) =>
-    moduleIds.has(moduleId)
+  const passedLessons = [...passedModules.keys()].filter((moduleId) => moduleIds.has(moduleId));
+
+  // How far through the course this student is, on the same terms their own
+  // course card puts it: the lessons, a quiz for each of them, and the final.
+  // Built by the sum the Student End runs, so the two screens cannot report
+  // different figures about the same student — see progressSummary.
+  const courseProgress = progressSummary(
+    modules.length,
+    [...readAtByModule.keys()].filter((moduleId) => moduleIds.has(moduleId)).length,
+    passedLessons.length,
+    finalPassed
   );
 
   // The badges themselves, from the catalog: this course's artwork, one badge
@@ -902,7 +927,7 @@ export async function getStudentDetail(request, response) {
       const certificate = certificateBySubmission.get(asId(result._id)) ?? null;
 
       return {
-        name: result.credential?.name ?? credentialName(assessments.get(asId(result.assessmentId))),
+        name: result.credential?.name ?? credentialNameFor(assessments.get(asId(result.assessmentId))),
         status: result.credential?.status,
         issuedAt: result.credential?.issuedAt ?? null,
         submissionId: asId(result._id),
@@ -917,14 +942,6 @@ export async function getStudentDetail(request, response) {
           : null
       };
     });
-
-  // The oldest ungraded submission, so the UI can point the assessor at it.
-  const waitingResult = results
-    .filter((result) => !isReleased(result))
-    .sort((a, b) => new Date(a.submittedAt ?? 0) - new Date(b.submittedAt ?? 0))[0];
-  const waitingAssessment = waitingResult
-    ? assessments.get(asId(waitingResult.assessmentId))
-    : null;
 
   return response.json({
     student: {
@@ -943,15 +960,18 @@ export async function getStudentDetail(request, response) {
       section: course.section ?? null
     },
     totalModules: modules.length,
+    progress: {
+      completedItems: courseProgress.completedItems,
+      itemCount: courseProgress.itemCount,
+      percent: courseProgress.progress,
+      status: courseProgress.status
+    },
     skillGap: courseSkillGap
       ? {
           threshold: SKILL_THRESHOLD,
           performance: courseSkillGap.performance,
           itemsAsked: courseSkillGap.itemsAsked,
           itemsCorrect: courseSkillGap.itemsCorrect,
-          // Provisional until the assessor releases the final's grade — the
-          // same rule the certificate follows.
-          released: courseSkillGap.status === "completed",
           skills: courseSkillGap.skills.map((skill) => ({
             moduleId: skill.moduleId,
             topic: skill.topic,
@@ -970,18 +990,7 @@ export async function getStudentDetail(request, response) {
       items: badgeWall
     },
     modules: moduleRows,
-    credentials,
-    waiting: waitingResult
-      ? {
-          submissionId: asId(waitingResult._id),
-          assessmentTitle: waitingAssessment?.title ?? "Assessment",
-          credentialName: credentialName(waitingAssessment),
-          aiScore:
-            aiStatusOf(waitingResult) === "graded"
-              ? (waitingResult.aiGrading?.score ?? null)
-              : null,
-          total: reviewConfig(waitingAssessment, (waitingAssessment?.items ?? []).length).total
-        }
-      : null
+    final: finalRow,
+    credentials
   });
 }

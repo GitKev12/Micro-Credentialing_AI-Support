@@ -12,11 +12,26 @@ import {
 } from "../../services/classes";
 import { fetchAssessors, fetchCourses, fetchStudents } from "../../services/admin";
 import { ChevronRightIcon, ClassesIcon } from "./components/icons";
-import { AdminButton, AdminModal, ConfirmDeleteModal, PageHeader, SearchField } from "./components/ui";
+import {
+  AdminButton,
+  AdminModal,
+  chosenOption,
+  ConfirmDeleteModal,
+  FILTER_ALL,
+  ListFilter,
+  PageHeader,
+  passesFilter,
+  SearchField,
+  useListFilter
+} from "./components/ui";
 import ClassForm from "./components/classes/ClassForm";
 import { classKeeps, classLosses, scheduleSummary } from "./components/classes/classText";
 import { errorMessage, plural } from "./lib/format";
 import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
+
+// The option that means "the ones with none of it" - no course, no assessor.
+// Its sense is the field's, so the same id serves both without colliding.
+const NONE = "none";
 
 function ClassesManagement() {
   const [classes, setClasses] = useState([]);
@@ -25,6 +40,7 @@ function ClassesManagement() {
   const [assessors, setAssessors] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
+  const filter = useListFilter("course");
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useNotice();
@@ -170,10 +186,107 @@ function ClassesManagement() {
     }
   };
 
+  /**
+   * The three things a class can be narrowed by, in the order an admin asks
+   * about them: which course it teaches, whether it is running, and whose it
+   * is to assess.
+   *
+   * Every course and every assessor is offered whether or not they hold a
+   * class: that a course has none scheduled, or that an assessor has been
+   * given nothing, is the answer to a question this screen is opened with, and
+   * dropping the empty rows makes it unanswerable here.
+   */
+  const fields = useMemo(() => {
+    const all = { value: FILTER_ALL, label: "All classes", meta: `${classes.length}` };
+
+    const perCourse = new Map(courses.map((course) => [course.id, 0]));
+    const perAssessor = new Map(assessors.map((assessor) => [assessor.id, 0]));
+    let unlinked = 0;
+    let unstaffed = 0;
+    let running = 0;
+
+    for (const cls of classes) {
+      if (cls.active) running += 1;
+
+      if (cls.course) perCourse.set(cls.course.id, (perCourse.get(cls.course.id) ?? 0) + 1);
+      else unlinked += 1;
+
+      const staff = cls.assessors ?? [];
+      if (staff.length === 0) unstaffed += 1;
+      staff.forEach((one) => perAssessor.set(one.id, (perAssessor.get(one.id) ?? 0) + 1));
+    }
+
+    return [
+      {
+        id: "course",
+        label: "Course",
+        options: [
+          all,
+          ...courses.map((course) => ({
+            value: course.id,
+            label: course.title || course.code,
+            meta: `${course.code} · ${perCourse.get(course.id) ?? 0}`,
+            empty: "No class on this course yet."
+          })),
+          {
+            value: NONE,
+            label: "Not tied to any course",
+            meta: `${unlinked}`,
+            empty: "Every class is tied to a course."
+          }
+        ],
+        match: (cls, value) => (value === NONE ? !cls.course : cls.course?.id === value)
+      },
+      {
+        id: "status",
+        label: "Status",
+        options: [
+          all,
+          { value: "active", label: "Active", meta: `${running}`, empty: "No class is running." },
+          {
+            value: "inactive",
+            label: "Inactive",
+            meta: `${classes.length - running}`,
+            empty: "Every class is running."
+          }
+        ],
+        match: (cls, value) => (value === "active" ? Boolean(cls.active) : !cls.active)
+      },
+      {
+        id: "assessor",
+        label: "Assessor",
+        options: [
+          all,
+          ...assessors.map((assessor) => ({
+            value: assessor.id,
+            label: assessor.name,
+            meta: `${perAssessor.get(assessor.id) ?? 0}`,
+            empty: "No class is theirs to assess yet."
+          })),
+          {
+            value: NONE,
+            label: "No assessor",
+            meta: `${unstaffed}`,
+            empty: "Every class has an assessor."
+          }
+        ],
+        match: (cls, value) =>
+          value === NONE
+            ? (cls.assessors ?? []).length === 0
+            : (cls.assessors ?? []).some((one) => one.id === value)
+      }
+    ];
+  }, [classes, courses, assessors]);
+
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return classes;
+
     return classes.filter((cls) => {
+      // The filter narrows first, so the search only ever runs over the rows
+      // already on screen.
+      if (!passesFilter(fields, filter.field, filter.value, cls)) return false;
+      if (!term) return true;
+
       const haystack = [
         cls.name,
         cls.course?.code,
@@ -185,21 +298,29 @@ function ClassesManagement() {
         .toLowerCase();
       return haystack.includes(term);
     });
-  }, [classes, query]);
+  }, [classes, query, fields, filter.field, filter.value]);
 
   return (
     <div className="admin-main__inner">
       <PageHeader title="Classes Management" icon={ClassesIcon} />
 
+      {/* Filter first, then type. Dropdowns rather than a row of chips: they
+          hold any number of courses and assessors without growing sideways. */}
       <div className="admin-toolbar">
-        <SearchField
-          value={query}
-          onChange={setQuery}
-          placeholder="Search classes…"
-          label="Search classes"
-          hint={`${visible.length} of ${classes.length}`}
-          notice={notice}
-        />
+        <div className="admin-toolbar__filter admin-toolbar__filter--wide">
+          <ListFilter fields={fields} noun="classes" {...filter} />
+        </div>
+
+        <div className="admin-toolbar__search">
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder="Search classes…"
+            label="Search classes"
+            hint={`${visible.length} of ${classes.length}`}
+            notice={notice}
+          />
+        </div>
 
         <AdminButton
           variant="admin-toolbar__action"
@@ -260,15 +381,15 @@ function ClassesManagement() {
                       {assessorNames.length > 0 ? (
                         <span className="admin-cell__quiet">{assessorNames.join(", ")}</span>
                       ) : (
-                        <span className="admin-count admin-count--none">None</span>
+                        <span className="admin-count admin-count--none">0</span>
                       )}
                     </td>
                     <td className="is-center">
-                      {cls.studentCount > 0 ? (
-                        <span className="admin-count">{cls.studentCount}</span>
-                      ) : (
-                        <span className="admin-count admin-count--none">None</span>
-                      )}
+                      <span
+                        className={`admin-count${cls.studentCount > 0 ? "" : " admin-count--none"}`}
+                      >
+                        {cls.studentCount}
+                      </span>
                     </td>
                     <td>
                       {schedule ? (
@@ -323,10 +444,16 @@ function ClassesManagement() {
               })}
               {visible.length === 0 ? (
                 <tr className="admin-table__empty">
+                  {/* A filtered-to-nothing table says something different from
+                      a search that missed, and both say something different
+                      from a console nobody has made a class in yet. */}
                   <td colSpan={7}>
                     {query.trim()
                       ? "No classes match your search."
-                      : "No classes yet. Create one to enrol students and assign assessors together."}
+                      : filter.value !== FILTER_ALL
+                        ? chosenOption(fields, filter.field, filter.value)?.empty ??
+                          "No class matches this filter."
+                        : "No classes yet. Create one to enrol students and assign assessors together."}
                   </td>
                 </tr>
               ) : null}

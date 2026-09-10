@@ -19,6 +19,18 @@ export function ClassesIcon({ size = 20 }) {
   );
 }
 
+/** Rows under a heading — one line per student, which is what Results is. */
+export function ResultsIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 9h18" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9 9v11" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 13h6M12 16.5h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** A paper with a spark on it — writing a quiz, rather than marking one. */
 export function GenerateIcon({ size = 20 }) {
   return (
@@ -31,6 +43,33 @@ export function GenerateIcon({ size = 20 }) {
 }
 
 /** A clock face — how long a sitting runs. */
+/**
+ * The blueprint, drawn as the grid it is — content down one side, thinking
+ * across the other. A ruled sheet would have been the obvious glyph and says
+ * only "a document"; the two axes are the whole idea of a specification.
+ */
+export function TosIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="3.5"
+        y="3.5"
+        width="17"
+        height="17"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M3.5 9.5h17M9.5 9.5V20.5M14.5 9.5V20.5M3.5 15h17"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function ClockIcon({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -95,6 +134,29 @@ export function SearchIcon({ size = 18 }) {
   );
 }
 
+/** The cross a search field is emptied by — see SearchField. */
+export function CloseIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The funnel, for a control that narrows a list rather than searching it. */
+export function FilterIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M3 4.5h14l-5.4 6.3v4.7l-3.2 1.5v-6.2L3 4.5z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -150,6 +212,17 @@ export function CheckIcon({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The other half of a notice's tone: what a check is for a write that landed,
+    this is for one that did not. */
+export function AlertIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 3.5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="8" cy="12" r="1.15" fill="currentColor" />
     </svg>
   );
 }

@@ -4,7 +4,8 @@ import {
   getStudentCourses,
   getStudentSkillGap
 } from "./courses.controller.js";
-import { requireAuth, requireSelfOrRole } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/auth.js";
+import { requireOwnStudent } from "../middleware/student.guard.js";
 
 // Mounted at /api/students, so these resolve to:
 //   GET /api/students/:id/courses      — course list (client fetchStudentCourses)
@@ -12,8 +13,9 @@ import { requireAuth, requireSelfOrRole } from "../middleware/auth.js";
 //   GET /api/students/:id/achievements — certifications + badges
 const router = Router();
 
-// A student's own progress, or any student's if you are staff.
-const ownRecord = [requireAuth, requireSelfOrRole("id", "assessor", "admin")];
+// A student's own record, their assessor's, or anyone's if you are an admin —
+// being staff is not on its own a claim on a student (see student.guard.js).
+const ownRecord = [requireAuth, requireOwnStudent("id")];
 
 router.get("/:id/courses", ownRecord, getStudentCourses);
 router.get("/:id/skill-gap", ownRecord, getStudentSkillGap);

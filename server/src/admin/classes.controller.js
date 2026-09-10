@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
+import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
 
 /**
  * Classes — one row tying a course to the assessors and students in it, plus a
@@ -20,7 +21,26 @@ import { syncAssessorsForCourse } from "./enrollment.sync.js";
  * not introduce one.
  *
  *   Class { _id, name, courseId, assessorIds[], studentIds[], active,
- *           schedule: { days, time, room }, createdAt, updatedAt }
+ *           suspendedStudentIds[], schedule: { days, time, room },
+ *           createdAt, updatedAt }
+ *
+ * `suspendedStudentIds` is a subset of `studentIds`: the students whose access
+ * to this course the assessor has closed from their own roster. It is read by
+ * lib/courseAccess.js and written from the assessor console, never from here —
+ * this screen only keeps it honest, by dropping anyone who leaves the class.
+ *
+ * A class is a *section*: one course, one assessor — required, since a section
+ * with nobody in front of it is a timetable entry — and students who are in
+ * this section of that course and no other. Those two rules live in
+ * class.rules.js, which explains why they are enforced here rather than by a
+ * unique index. `assessorIds` stays a list under a rule that allows one, so the
+ * field keeps working with `$in` and `$pull` the way `studentIds` does, and so
+ * the documents already written need no migration — the cap is on what may be
+ * saved, not on what the field can hold.
+ *
+ * One assessor may still take a second section of the same course. Removing
+ * them from one of those must not unassign them from the course, which is what
+ * `inAnotherClass` is for.
  *
  * `active` is the one field here the rest of the app reads. An inactive class
  * keeps its roster and its people keep the course, but its students lose the
@@ -103,11 +123,14 @@ async function resolveMany(collectionName, ids) {
 /**
  * Is this person still a member of some *other* class on the same course?
  *
- * The course link is shared: two classes can teach the same course, and a
- * student may also have been enrolled straight from the Students screen.
- * Removing someone from one class must not pull an enrolment another class (or a
- * direct enrolment) still stands on, so a removal is only carried through when
- * no other class keeps it.
+ * The course link is shared: two sections can teach the same course. For an
+ * assessor that is ordinary — one teacher may hold both sections — so dropping
+ * them from one must not pull an assignment the other still stands on, and a
+ * removal is only carried through when no other class keeps it.
+ *
+ * For a student it should now never be true, since a student may only be in one
+ * class per course. It is still asked, because the rule guards what is written
+ * from here and this database predates it.
  */
 async function inAnotherClass(personId, courseId, exceptClassId, memberField) {
   const query = {
@@ -147,6 +170,44 @@ async function unlinkFromCourse(collectionName, field, personIds, courseId, memb
   }
 
   return removed;
+}
+
+/**
+ * Checks a proposed roster against the section rules. Returns the refusal, or
+ * null when it may be saved.
+ *
+ * Read here rather than in each caller because create and edit ask exactly the
+ * same question — an edit that moves a class to another course is a new section
+ * on that course as far as its students are concerned, so it is checked against
+ * the course it is going to, not the one it is leaving.
+ *
+ * The clashing students are looked up by name for the message. It is one query
+ * on a refusal only, and "Nicole Fernandez is already in IT01" is a sentence an
+ * admin can act on where a list of ids is not.
+ *
+ * Either list may be null, meaning this edit is not touching it and it is not
+ * to be judged. That is not the same as an empty list, which is a roster being
+ * set to nobody — and for the assessors, is now a refusal.
+ */
+async function rosterRefusal({ courseId, assessorIds, studentIds, exceptClassId }) {
+  if (assessorIds) {
+    const wrongCount = assessorCountError(assessorIds);
+    if (wrongCount) return wrongCount;
+  }
+
+  if (!studentIds || studentIds.length === 0) return null;
+
+  const onCourse = await collection(CLASSES_COLLECTION)
+    .find({ courseId: { $in: idCandidates(courseId) } })
+    .toArray();
+
+  const clashes = studentsHeldElsewhere(onCourse, studentIds, exceptClassId);
+  if (clashes.length === 0) return null;
+
+  const people = await resolveMany(STUDENTS_COLLECTION, clashes.map((c) => c.studentId));
+  const nameById = new Map(people.map((person) => [asId(person._id), personName(person)]));
+
+  return studentClashError(clashes, (id) => nameById.get(id) ?? "A student");
 }
 
 /** One class joined to its course, assessors and students, for the detail view. */
@@ -288,6 +349,9 @@ export async function createClass(request, response) {
   const assessorIds = assessorDocs.map((doc) => doc._id);
   const studentIds = studentDocs.map((doc) => doc._id);
 
+  const refusal = await rosterRefusal({ courseId: course._id, assessorIds, studentIds });
+  if (refusal) return response.status(400).json({ message: refusal });
+
   const now = new Date();
   const document = {
     name,
@@ -339,6 +403,14 @@ export async function updateClass(request, response) {
   }
   if ("studentIds" in body) {
     updates.studentIds = (await resolveMany(STUDENTS_COLLECTION, body.studentIds)).map((d) => d._id);
+
+    // A closed place belongs to somebody in the class. Dropping a student has
+    // to take it with them, or re-adding them later would silently restore a
+    // suspension nobody asked for a second time.
+    const staying = new Set(updates.studentIds.map(asId));
+    updates.suspendedStudentIds = (cls.suspendedStudentIds ?? []).filter((id) =>
+      staying.has(asId(id))
+    );
   }
   if ("schedule" in body) updates.schedule = cleanSchedule(body.schedule);
   if ("active" in body) updates.active = body.active !== false;
@@ -350,12 +422,29 @@ export async function updateClass(request, response) {
   const oldAssessors = cls.assessorIds ?? [];
   const newAssessors = updates.assessorIds ?? oldAssessors;
 
+  /*
+   * Only what this edit actually touches is judged. A class written before
+   * these rules existed may break them, and re-checking untouched fields would
+   * leave it unrenameable and unswitchable — the edit that fixes it would be
+   * refused along with every other. Sending a roster is what gets it checked;
+   * moving the class to another course counts, because its students land among
+   * that course's sections and may already be in one.
+   */
+  const movingCourse = asId(oldCourseId) !== asId(newCourseId);
+  const refusal = await rosterRefusal({
+    courseId: newCourseId,
+    assessorIds: "assessorIds" in body ? newAssessors : null,
+    studentIds: "studentIds" in body || movingCourse ? newStudents : null,
+    exceptClassId: cls._id
+  });
+  if (refusal) return response.status(400).json({ message: refusal });
+
   updates.updatedAt = new Date();
   // Written before reconciling so the "in another class?" guard reads the new
   // membership, not the version this edit is replacing.
   await collection(CLASSES_COLLECTION).updateOne({ _id: cls._id }, { $set: updates });
 
-  if (asId(oldCourseId) !== asId(newCourseId)) {
+  if (movingCourse) {
     // The whole class leaves the old course and joins the new one.
     await unlinkFromCourse(STUDENTS_COLLECTION, "enrolledCourses", oldStudents, oldCourseId, "studentIds", cls._id);
     await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", oldAssessors, oldCourseId, "assessorIds", cls._id);

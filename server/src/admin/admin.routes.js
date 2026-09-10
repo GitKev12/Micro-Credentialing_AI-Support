@@ -7,11 +7,9 @@ import {
   getAssessor,
   getCourse,
   getStudent,
-  getTableOfSpecification,
   listAssessors,
   listCourses,
-  listStudents,
-  saveTableOfSpecification
+  listStudents
 } from "./admin.controller.js";
 import {
   createAssessor,
@@ -81,8 +79,6 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   PATCH  /api/admin/classes/:id                      — edit     { name?, courseId?, assessorIds?, studentIds?, schedule? }
 //   GET    /api/admin/classes/:id/impact               — what deleting it would unenroll/unassign
 //   DELETE /api/admin/classes/:id                      — delete the class, reconcile links
-//   GET    /api/admin/table-of-specification           — blueprint
-//   PUT    /api/admin/table-of-specification           — save blueprint
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
 //   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
 //   POST   /api/admin/assessments/final                — assemble the final { courseId, dryRun? }
@@ -181,9 +177,6 @@ router.get("/classes/:id", getClass);
 router.patch("/classes/:id", updateClass);
 router.get("/classes/:id/impact", getClassImpact);
 router.delete("/classes/:id", deleteClass);
-
-router.get("/table-of-specification", getTableOfSpecification);
-router.put("/table-of-specification", saveTableOfSpecification);
 
 /**
  * Authoring, not scheduling — and deliberately not on a screen.

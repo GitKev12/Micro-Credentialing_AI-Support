@@ -26,7 +26,7 @@ import { courseKeeps, courseLosses, courseMark } from "./components/course/impac
 import { errorMessage } from "./lib/format";
 import { SkeletonTable } from "../../components/Skeleton";
 import { useLatestRequest } from "../../lib/useLatestRequest";
-import { useNotice } from "../../lib/useNotice";
+import { noticeClass, useNotice } from "../../lib/useNotice";
 
 function CourseManagement() {
   const [courses, setCourses] = useState([]);
@@ -379,7 +379,7 @@ function CourseManagement() {
         />
 
         {notice ? (
-          <p className={`admin-notice admin-notice--${notice.tone}`} role="status">
+          <p className={noticeClass(notice, `admin-notice admin-notice--${notice.tone}`)} role="status">
             {notice.text}
           </p>
         ) : null}
@@ -536,14 +536,15 @@ function CourseManagement() {
                       </span>
                     </td>
                     {/* The one thing an admin is here to act on: a course with
-                        nothing uploaded yet. A bare "0" is invisible in a
-                        column of counts. */}
+                        nothing uploaded yet. The zero stays a zero and takes
+                        the warning colour, so it is still the figure the eye
+                        stops on without being a word in a column of numbers. */}
                     <td className="is-center">
-                      {course.moduleCount === 0 ? (
-                        <span className="admin-count admin-count--none">None</span>
-                      ) : (
-                        <span className="admin-count">{course.moduleCount}</span>
-                      )}
+                      <span
+                        className={`admin-count${course.moduleCount === 0 ? " admin-count--none" : ""}`}
+                      >
+                        {course.moduleCount}
+                      </span>
                     </td>
                     <td className="is-center">
                       <strong className="admin-strong-brand">{course.studentCount}</strong>

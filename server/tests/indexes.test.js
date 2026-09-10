@@ -26,8 +26,15 @@ describe("the declared index set", () => {
     const unique = CORE_INDEXES.filter(([, , o]) => o?.unique).map(
       ([name, key]) => `${name}:${Object.keys(key).join(",")}`
     );
-    // A student completes a lesson once; a lesson has one extracted text.
-    expect(unique).toEqual(["ModuleProgress:studentId,moduleId", "ModuleText:moduleId"]);
+    // A student completes a lesson once; a lesson has one extracted text;
+    // and a student has a given paper open once, not twice — a second row
+    // for the same pair would count one student twice on the generate
+    // screen, which is the whole reason that one is written this way.
+    expect(unique).toEqual([
+      "ModuleProgress:studentId,moduleId",
+      "AssessmentAttempt:studentId,assessmentId",
+      "ModuleText:moduleId"
+    ]);
   });
 });
 

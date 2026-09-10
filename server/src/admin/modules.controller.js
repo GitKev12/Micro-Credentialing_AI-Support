@@ -29,6 +29,7 @@ import { readCourseDates, toIsoDay } from "../lib/courseDates.js";
 
 const ASSESSMENTS_COLLECTION = "Assessment";
 const ASSESSORS_COLLECTION = "Assessor";
+const CLASSES_COLLECTION = "Class";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
 const MODULE_TEXT_COLLECTION = "ModuleText";
@@ -573,13 +574,14 @@ async function courseContents(course) {
     assigned_courses: { $in: idCandidates(course._id) }
   });
 
-  const [submissions, completions, blueprints] = await Promise.all([
+  const [submissions, completions, blueprints, classes] = await Promise.all([
     countIn(RESULTS_COLLECTION, byCourse),
     countIn(PROGRESS_COLLECTION, byCourse),
-    countIn(TOS_COLLECTION, { courseId: asId(course._id) })
+    countIn(TOS_COLLECTION, { courseId: asId(course._id) }),
+    countIn(CLASSES_COLLECTION, byCourse)
   ]);
 
-  return { modules, enrolled, assessors, submissions, completions, blueprints };
+  return { modules, enrolled, assessors, submissions, completions, blueprints, classes };
 }
 
 /** GET /api/admin/courses/:id/impact — what deleting this course destroys. */
@@ -602,7 +604,8 @@ export async function getCourseImpact(request, response) {
       assessors: contents.assessors,
       submissions: contents.submissions,
       completions: contents.completions,
-      blueprints: contents.blueprints
+      blueprints: contents.blueprints,
+      classes: contents.classes
     }
   });
 }
@@ -642,6 +645,14 @@ export async function deleteCourse(request, response) {
   await removeMany(PROGRESS_COLLECTION, byCourse);
   const blueprints = await removeMany(TOS_COLLECTION, { courseId: asId(course._id) });
 
+  // A class is a section *of* a course — a roster and a schedule for one, and
+  // nothing without it. Left behind, it stayed on Classes Management as a row
+  // reading "No course", still naming students who were no longer enrolled in
+  // anything, with no course to open it against. Withdrawing the enrolments
+  // below is what ends the students' access; this is what stops the empty
+  // shell of the class outliving the course it belonged to.
+  const classes = await removeMany(CLASSES_COLLECTION, byCourse);
+
   // The people keep their accounts; they simply are not in this course now.
   const enrolments = await collection(STUDENTS_COLLECTION).updateMany(
     { enrolledCourses: { $in: idCandidates(course._id) } },
@@ -672,6 +683,7 @@ export async function deleteCourse(request, response) {
       submissions,
       completions: contents.completions,
       blueprints,
+      classes,
       unenrolled: enrolments.modifiedCount ?? 0,
       unassigned: assignments.modifiedCount ?? 0
     }

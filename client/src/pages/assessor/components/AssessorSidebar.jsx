@@ -9,17 +9,34 @@ import {
   CredentialIcon,
   GenerateIcon,
   MoonIcon,
+  ResultsIcon,
   SignOutIcon,
   SunIcon,
+  TosIcon,
   UserIcon
 } from "./icons";
 
 const NAV_ITEMS = [
   { to: "/assessor/classes", label: "My Classes", Icon: ClassesIcon },
+  // Sits above Generate because it is what Generate reads: the blueprint says
+  // how long a paper is and how it divides, and writing one is the step before
+  // asking for the questions.
+  { to: "/assessor/blueprint", label: "Table of Specification", Icon: TosIcon },
   // The badge counts papers the assessor's classes are still waiting on: one
   // per lesson plus a final per course, less whatever has been posted.
   { to: "/assessor/generate", label: "Generate Assessment", Icon: GenerateIcon, countKey: "toPost" },
-  { to: "/assessor/credentials", label: "Credentials", Icon: CredentialIcon }
+  // What came back off a paper once it went out. Sits after Generate because
+  // that is the order the work happens in: write it, post it, then read it.
+  { to: "/assessor/results", label: "Results", Icon: ResultsIcon },
+  // Passes waiting to be issued. The one screen here that is a queue — every
+  // number on it is a student who has finished and is waiting on the assessor
+  // — so it is the one that most needs saying so from the rail.
+  {
+    to: "/assessor/credentials",
+    label: "Credentials",
+    Icon: CredentialIcon,
+    countKey: "credentials"
+  }
 ];
 
 const COLLAPSED_KEY = "assessorSidebarCollapsed";

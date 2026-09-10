@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { toAssessmentSummary } from "../assessments/assessments.format.js";
+import { passedResult } from "../assessors/grading.js";
 import { buildStudentBadges } from "../badges/badges.service.js";
 import { buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { listIssuedCertificates } from "../certificates/certificates.service.js";
@@ -60,23 +62,50 @@ function toPublicCourse(course, progress, suspension = null) {
 /**
  * Where the student stands in one course.
  *
- * Status is derived rather than stored, so the "My Courses" card can never
- * drift from the checkmarks the reader writes: a course is completed once
- * every lesson has a ModuleProgress row, in progress from the first one, and
- * not started before that. A course with no lessons published yet reports
- * moduleCount 0 — the client says so rather than showing a 0% bar.
+ * A course is not only its lessons. It is a quiz for each of them and one final
+ * at the end, all three worked through in the same rail — so counting only the
+ * reading put a student at 100% with every paper still to sit.
+ *
+ * The denominator is what a course *owes* rather than what has been posted so
+ * far: one paper per lesson plus the final, which is the same total
+ * papersByCourse holds an assessor to. Counting only released papers would make
+ * the figure fall each time an assessor posted another one, and a percentage
+ * that drops for something the student did not do is worse than one that starts
+ * low.
+ *
+ * Status is still derived rather than stored, so the "My Courses" card can
+ * never drift from what the student has actually done: a course is completed
+ * once every lesson is read, every lesson quiz passed and the final passed; in
+ * progress from the first of those; not started before that. A course with no
+ * lessons published yet reports nothing to do — the client says so rather than
+ * showing a 0% bar.
+ *
+ * The student's rail runs this same sum on its own copy of the data (see
+ * LearningModules.jsx). They must agree; change them together.
  */
-function progressSummary(moduleCount, completedModules) {
-  const completed = Math.max(0, Math.min(completedModules, moduleCount));
+export function progressSummary(moduleCount, completedModules, passedQuizzes = 0, finalPassed = false) {
+  const lessons = Math.max(0, moduleCount);
+  const lessonsDone = Math.max(0, Math.min(completedModules, lessons));
+  // One quiz per lesson, so no more of them can be passed than there are.
+  const quizzesDone = Math.max(0, Math.min(passedQuizzes, lessons));
+
+  // A course with no lessons owes nothing yet — not even a final.
+  const itemCount = lessons ? lessons * 2 + 1 : 0;
+  const completedItems = Math.min(lessonsDone + quizzesDone + (finalPassed ? 1 : 0), itemCount);
 
   return {
-    moduleCount,
-    completedModules: completed,
-    progress: moduleCount ? Math.round((completed / moduleCount) * 100) : 0,
+    // The lessons on their own, still, for anything that counts reading rather
+    // than progress through the course.
+    moduleCount: lessons,
+    completedModules: lessonsDone,
+    // The whole course: its lessons, their quizzes, and the final.
+    itemCount,
+    completedItems,
+    progress: itemCount ? Math.round((completedItems / itemCount) * 100) : 0,
     status:
-      moduleCount > 0 && completed >= moduleCount
+      itemCount > 0 && completedItems >= itemCount
         ? "completed"
-        : completed > 0
+        : completedItems > 0
           ? "in-progress"
           : "not-started"
   };
@@ -100,7 +129,10 @@ async function buildProgressIndex(studentId, student, courses) {
   // Every counted completion, oldest first, so a caller can date the moment a
   // threshold was crossed rather than guess at it.
   const completions = [];
-  const empty = { index, completions };
+  // moduleId -> the course it counts towards. Handed back so the quizzes can be
+  // attributed through the same map, rather than a second copy of it.
+  const owner = new Map();
+  const empty = { index, completions, owner };
 
   if (!courses.length || !(await collectionExists(MODULES_COLLECTION))) return empty;
 
@@ -133,8 +165,6 @@ async function buildProgressIndex(studentId, student, courses) {
     )
     .toArray();
 
-  // moduleId → the course it counts towards.
-  const owner = new Map();
   for (const module of modules) {
     const key =
       byId.get(String(module.courseId)) ??
@@ -175,7 +205,77 @@ async function buildProgressIndex(studentId, student, courses) {
 
   completions.sort((a, b) => new Date(a.completedAt ?? 0) - new Date(b.completedAt ?? 0));
 
-  return { index, completions };
+  return { index, completions, owner };
+}
+
+/**
+ * The lesson quizzes and the final this student has passed, per course.
+ *
+ * Passing is `passedResult` against the normalised paper and nothing else —
+ * the same question the assessor's console, the badge wall and the student's
+ * own rail all ask of a submission. A quiz that earned a badge is therefore a
+ * quiz that counts here, which is the point: a student should not be able to
+ * hold a badge for a lesson their progress bar says they have not finished.
+ *
+ * Superseded sittings decide nothing; the latest attempt is the one that
+ * counts, the same rule everywhere else applies.
+ *
+ * Quizzes are attributed through the module → course map for the same reason
+ * completions are — a quiz whose lesson has since been deleted counts towards
+ * nothing. A final belongs to no lesson, so it is attributed by the course it
+ * names. Quizzes are gathered as a set of module ids rather than counted,
+ * because two attempts at one paper must not read as two quizzes passed.
+ */
+async function buildPassIndex(studentId, student, courses, owner) {
+  const index = new Map();
+  for (const course of courses) {
+    index.set(String(course._id), { quizzes: new Set(), final: false });
+  }
+
+  if (!courses.length) return index;
+  if (!(await collectionExists(RESULTS_COLLECTION))) return index;
+  if (!(await collectionExists(ASSESSMENTS_COLLECTION))) return index;
+
+  const studentKeys = [
+    ...idCandidates(studentId),
+    ...(student?._id ? idCandidates(student._id) : [])
+  ];
+
+  const results = await mongoose.connection
+    .collection(RESULTS_COLLECTION)
+    .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
+    .toArray();
+  if (results.length === 0) return index;
+
+  const assessments = await mongoose.connection
+    .collection(ASSESSMENTS_COLLECTION)
+    .find({ _id: { $in: results.flatMap((result) => idCandidates(result.assessmentId)) } })
+    .toArray();
+
+  const assessmentById = new Map(assessments.map((entry) => [String(entry._id), entry]));
+
+  for (const result of results) {
+    const assessment = assessmentById.get(String(result.assessmentId));
+    if (!assessment) continue;
+
+    // Normalised rather than read raw: a paper written while assessments still
+    // held a bank carries the pass mark of the shorter paper drawn out of it,
+    // and the rail marks the student against the normalised one.
+    const summary = toAssessmentSummary(assessment);
+    if (!summary || !passedResult(result, summary)) continue;
+
+    if (summary.scope === "final") {
+      const key = String(result.courseId ?? assessment.courseId ?? "");
+      if (index.has(key)) index.get(key).final = true;
+      continue;
+    }
+
+    const moduleId = String(result.moduleId ?? summary.moduleId ?? "");
+    const key = owner.get(moduleId);
+    if (key) index.get(key).quizzes.add(moduleId);
+  }
+
+  return index;
 }
 
 /**
@@ -217,7 +317,8 @@ export async function getStudentCourses(request, response) {
   const { student, courses } = await loadEnrollment(studentId);
   if (courses.length === 0) return response.json({ courses: [] });
 
-  const { index } = await buildProgressIndex(studentId, student, courses);
+  const { index, owner } = await buildProgressIndex(studentId, student, courses);
+  const passes = await buildPassIndex(studentId, student, courses, owner);
   // Classes hold the student by their Mongo _id; the route may have been given
   // their student number instead, so ask with the id the class would have used.
   const suspensions = await loadStudentSuspensions(student?._id ?? studentId);
@@ -225,9 +326,10 @@ export async function getStudentCourses(request, response) {
   return response.json({
     courses: courses.map((course) => {
       const { total, completed } = index.get(String(course._id));
+      const passed = passes.get(String(course._id)) ?? { quizzes: new Set(), final: false };
       return toPublicCourse(
         course,
-        progressSummary(total, completed),
+        progressSummary(total, completed, passed.quizzes.size, passed.final),
         suspensions.get(String(course._id)) ?? null
       );
     })
@@ -284,9 +386,11 @@ async function buildCertifications(studentId, student, courses) {
     .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
     .toArray();
 
-  // Only released credentials are the student's business: "none" means the
-  // assessor has not approved the grade, and showing it would promise a
-  // certificate that may never be issued.
+  // Certificates only, which is all a credential ever is: one per course, off
+  // the final. "none" is every other result — a failed final, and every lesson
+  // quiz whether passed or not, since those earn badges and are shown as
+  // badges. A pending one is named here because the student has passed and is
+  // waiting on the assessor to release it.
   const claimed = results.filter((result) =>
     ["pending", "issued"].includes(result.credential?.status)
   );
@@ -321,7 +425,7 @@ async function buildCertifications(studentId, student, courses) {
         assessmentTitle: assessment?.title ?? "",
         status: result.credential?.status,
         issuedAt: isoDate(result.credential?.issuedAt),
-        score: result.review?.status === "released" ? (result.review?.finalScore ?? null) : null,
+        score: Number(result.aiGrading?.score ?? 0),
         totalPoints: assessment?.totalPoints ?? null
       };
     })

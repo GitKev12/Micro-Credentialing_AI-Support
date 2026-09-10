@@ -1,15 +1,15 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges, passedFromResults, summarizeBadges } from "../badges/badges.service.js";
-import { blueprintFromTos } from "../assessments/assessments.blueprint.js";
-import { isPosted } from "../assessments/assessments.format.js";
+import { papersByCourse } from "../assessments/papers.js";
+import { progressSummary } from "../courses/courses.controller.js";
+import { finalPassedFrom } from "../assessors/grading.js";
 import {
   assembleFinalAssessment,
   ensureAssessmentIndexes,
   generateModuleAssessment,
   getGenerationStatus
 } from "../assessments/assessments.generate.js";
-import { isReleased } from "../assessors/grading.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -42,7 +42,6 @@ const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
 const RESULTS_COLLECTION = "StudentResult";
 const STUDENTS_COLLECTION = "Student";
-const TOS_COLLECTION = "TableOfSpecification";
 
 const collection = (name) => mongoose.connection.collection(name);
 
@@ -199,7 +198,16 @@ export async function getCourse(request, response) {
 
 /* ─────────────────────────── Students ─────────────────────────── */
 
-/** Completed-module counts per course for one student. */
+/**
+ * How far through each of their courses one student is.
+ *
+ * A course is its lessons, a quiz for each of them, and one final — the sum
+ * the Student End shows them on their own course card, run here by the same
+ * function so the two screens cannot report different figures about the same
+ * person. This counted finished lessons alone, which called a course complete
+ * with every paper still to take, and the credential line below it read off
+ * that. See progressSummary in courses.controller.js.
+ */
 async function progressForStudent(student, courses) {
   const enrolled = student.enrolledCourses ?? [];
   if (enrolled.length === 0) return [];
@@ -208,18 +216,55 @@ async function progressForStudent(student, courses) {
     .find({ studentId: { $in: idCandidates(student._id) } })
     .toArray();
 
+  // Their papers, and the assessments behind them — a submission on its own
+  // cannot say whether it passed, because the pass mark lives on the paper.
+  const results = (await collectionExists(RESULTS_COLLECTION))
+    ? await collection(RESULTS_COLLECTION)
+        .find({ studentId: { $in: idCandidates(student._id) }, superseded: { $ne: true } })
+        .toArray()
+    : [];
+
+  const papers =
+    results.length && (await collectionExists(ASSESSMENTS_COLLECTION))
+      ? await collection(ASSESSMENTS_COLLECTION)
+          .find({ _id: { $in: results.flatMap((result) => idCandidates(result.assessmentId)) } })
+          .toArray()
+      : [];
+  const assessmentById = new Map(papers.map((paper) => [asId(paper._id), paper]));
+
+  const resultsByCourse = new Map();
+  results.forEach((result) => {
+    // A result names its course; one written before it did is placed by the
+    // paper it was an attempt at.
+    const paper = assessmentById.get(asId(result.assessmentId));
+    const key = asId(result.courseId ?? paper?.courseId ?? "");
+    if (!key) return;
+    if (!resultsByCourse.has(key)) resultsByCourse.set(key, []);
+    resultsByCourse.get(key).push(result);
+  });
+
   const completedByCourse = new Map();
   // When each course was last worked on. A micro-credential has no record of
-  // its own — it is a course finished to the last lesson — so the newest
-  // completion in a course that is fully done is the date it was earned.
+  // its own — it is a course carried to the end — so the last thing done in a
+  // course that is finished is the date it was earned. Papers count as well as
+  // reading now: the final is what closes a course, and it is nearly always
+  // handed in after the last lesson was ticked.
   const finishedByCourse = new Map();
+  const noteDate = (key, value) => {
+    const at = toDate(value);
+    const newest = finishedByCourse.get(key);
+    if (at && (!newest || at > newest)) finishedByCourse.set(key, at);
+  };
+
   completed.forEach((entry) => {
     const key = asId(entry.courseId);
     completedByCourse.set(key, (completedByCourse.get(key) ?? 0) + 1);
+    noteDate(key, entry.completedAt);
+  });
 
-    const at = toDate(entry.completedAt);
-    const newest = finishedByCourse.get(key);
-    if (at && (!newest || at > newest)) finishedByCourse.set(key, at);
+  results.forEach((result) => {
+    const paper = assessmentById.get(asId(result.assessmentId));
+    noteDate(asId(result.courseId ?? paper?.courseId ?? ""), result.submittedAt);
   });
 
   const rows = [];
@@ -232,6 +277,16 @@ async function progressForStudent(student, courses) {
       $or: [{ courseId: { $in: idCandidates(courseId) } }, { courseCode: courseCode(course) }]
     });
     const done = completedByCourse.get(key) ?? 0;
+    const mine = resultsByCourse.get(key) ?? [];
+    // Lesson quizzes are counted by the badge module, since a badge is exactly
+    // a passed lesson quiz — one rule, so this and the badge column cannot
+    // disagree about the same student.
+    const summary = progressSummary(
+      total,
+      done,
+      passedFromResults(mine, assessmentById).size,
+      finalPassedFrom(mine, assessmentById)
+    );
 
     rows.push({
       // The id as well as the title: the student screen shows progress on the
@@ -239,9 +294,13 @@ async function progressForStudent(student, courses) {
       // title would break the moment two courses shared one.
       courseId: key,
       label: courseTitle(course),
-      pct: total > 0 ? Math.round((done / total) * 100) : 0,
-      completed: done,
-      total,
+      pct: summary.progress,
+      completed: summary.completedItems,
+      total: summary.itemCount,
+      // The reading on its own, still — it is a different question from how
+      // far through the course they are, and the row shows both.
+      lessonsCompleted: summary.completedModules,
+      lessonsTotal: summary.moduleCount,
       completedAt: finishedByCourse.get(key)?.toISOString() ?? null
     });
   }
@@ -369,10 +428,11 @@ export function tallyActivity(students, courses, sources) {
     activity.badgesTotal = catalogue.length;
     activity.badgesEarned = catalogue.filter((badge) => passed.has(asId(badge.moduleId))).length;
 
-    // Retired attempts are not waiting on anyone — the assessor queue drops
-    // them too, and the two counts have to agree.
+    // Passing papers whose credential nobody has issued yet — the one thing
+    // still waiting on staff now that marking happens at hand-in. Retired
+    // attempts are dropped, as they are on the assessor's own screens.
     const live = submissions.filter((result) => result.superseded !== true);
-    activity.pending = live.filter((result) => !isReleased(result)).length;
+    activity.awaiting = live.filter((result) => result.credential?.status === "pending").length;
 
     activity.lastActive = latestActivity(
       newestDate(completions.map((entry) => entry.completedAt)),
@@ -404,7 +464,6 @@ async function activityForStudents(students, courses) {
       assessmentId: 1,
       submittedAt: 1,
       superseded: 1,
-      review: 1,
       aiGrading: 1
     }),
     load(BADGES_COLLECTION, { courseId: 1, courseCode: 1, moduleId: 1, active: 1 }),
@@ -556,7 +615,10 @@ export async function getStudent(request, response) {
     assessorsFor(student, courses)
   ]);
 
-  // A micro-credential is awarded when every module of a course is done.
+  // A micro-credential is awarded for a course carried to the end — every
+  // lesson read, every quiz passed and the final passed. It used to be counted
+  // off the reading alone, which awarded one to a student who had opened every
+  // lesson and taken nothing.
   const credentials = progress.filter((row) => row.total > 0 && row.pct === 100).length;
 
   return response.json({
@@ -584,31 +646,16 @@ export async function getStudent(request, response) {
  *                 the bulk of their console and the half this screen used to be
  *                 silent about: an assessor who has posted nothing leaves a
  *                 class with nothing to take, and no other screen says so.
- *   Credentials — a released pass leaves a credential still to issue. That is
+ *   Credentials — a passing paper leaves a credential still to issue. That is
  *                 its own section of their console, and the last step a student
  *                 is actually waiting on.
  *
- * Three counts have gone, all of them belonging to a console that marked
- * papers with a model and worked them off a queue:
- *
- *   flagged — "needs a decision", the items the AI would not commit to a
- *     verdict on. Marking is an exact key comparison now (see
- *     `gradeSubmission`), which returns only correct or incorrect, so nothing
- *     has written a flagged verdict since and the figure could only read zero.
- *   toGrade, and the age of the oldest paper under it — the unreleased
- *     backlog. The assessor's console has no grading section to work it from:
- *     their rail is classes, generating and credentials. Reviewing one
- *     student's paper is still reachable from inside a class roster, and that
- *     roster counts it there; it is not a figure this screen reports.
- *   released — how many grades had been put out. A running total of finished
- *     work, which is a different thing from a screen for spotting work that is
- *     not moving: it only ever grew, so it read the same whether an assessor
- *     had stopped last week or was still going. What is left of it here is the
- *     part somebody is waiting on, the credentials below.
- *
- * Marking itself is untouched — releasing a grade still overrides the automatic
- * mark, and a passing release is what creates the pending credential. It is the
- * reporting of it that has gone, not the act.
+ * Nothing here reports on marking, because an assessor no longer marks. A paper
+ * is scored against its key when it is handed in and that score is final, so
+ * there is no backlog to age, no flagged item to rule on, and no running total
+ * of grades put out. What a person can still be behind on is the credential: a
+ * pass writes it as pending, and only an assessor turns that into an issued
+ * one.
  */
 function blankCourseTally() {
   return {
@@ -623,10 +670,9 @@ function blankCourseTally() {
 function blankTally() {
   return {
     ...blankCourseTally(),
-    // Only the assessor's own totals carry these: the two dates decide
-    // `lastActive`, and no table breaks a date down per course.
+    // Only the assessor's own totals carry this: it decides `lastActive`, and
+    // no table breaks a date down per course.
     lastPosted: null,
-    lastGraded: null,
     perCourse: new Map()
   };
 }
@@ -637,68 +683,6 @@ function courseTally(tally, courseKey) {
 }
 
 /**
- * Papers per course: what it owes, what is posted, and what is written but not.
- *
- * One per lesson plus one final — the same arithmetic the assessor's own
- * "Generate Assessment" badge does, so the two consoles cannot disagree about
- * how much a class is still waiting on.
- *
- * Posted lessons are counted as a set rather than added up. Regenerating a
- * lesson's paper replaces it, and two documents for one lesson must not read as
- * two papers delivered — that would let a course report more posted than it has
- * lessons, and `toPost` would reach zero with lessons still uncovered.
- *
- * Kept separate from the query that feeds it so the arithmetic can be exercised
- * without a database, the same way `tallyWorkload` and `tallyActivity` are.
- */
-export function papersByCourse(assessments, lessonCounts) {
-  const papers = new Map();
-
-  const rowFor = (courseKey) => {
-    if (!papers.has(courseKey)) {
-      papers.set(courseKey, {
-        expected: (lessonCounts.get(courseKey) ?? 0) + 1,
-        postedLessons: new Set(),
-        finalPosted: false,
-        draft: 0,
-        lastPosted: null
-      });
-    }
-    return papers.get(courseKey);
-  };
-
-  // Every course owes papers whether or not one has ever been written for it,
-  // and the course with none written is the one worth reporting.
-  lessonCounts.forEach((_count, courseKey) => rowFor(courseKey));
-
-  for (const doc of assessments) {
-    const row = rowFor(asId(doc.courseId));
-
-    // `isPosted` rather than a status check of our own: a document written
-    // before releasing existed carries no status at all, and those were live
-    // from the moment they were generated. It is what the student side reads,
-    // so it is what decides here.
-    if (!isPosted(doc)) {
-      row.draft += 1;
-      continue;
-    }
-
-    if (doc.scope === "final" || !doc.moduleId) row.finalPosted = true;
-    else row.postedLessons.add(asId(doc.moduleId));
-
-    const postedAt = toDate(doc.postedAt);
-    if (postedAt && (!row.lastPosted || postedAt > row.lastPosted)) row.lastPosted = postedAt;
-  }
-
-  papers.forEach((row) => {
-    row.posted = row.postedLessons.size + (row.finalPosted ? 1 : 0);
-    row.toPost = Math.max(0, row.expected - row.posted);
-  });
-
-  return papers;
-}
-
-/**
  * Folds papers and submissions into a tally per assessor.
  *
  * The list shows a total per assessor and the detail breaks the same total down
@@ -706,10 +690,7 @@ export function papersByCourse(assessments, lessonCounts) {
  * row.
  *
  * Papers and submissions both count toward whoever is assigned to the course
- * today. `lastGraded` is the exception: it follows `review.gradedBy`, so an
- * assessor keeps credit for work they did on a course they have since been
- * unassigned from — the question it answers is whether this person is working
- * at all, not what their current classes look like.
+ * today.
  *
  * Kept separate from the queries that feed it so the arithmetic can be
  * exercised without a database. StudentResult stays empty until the first paper
@@ -763,21 +744,12 @@ export function tallyWorkload(assessors, sources) {
     // badge wall and the student tally beside this one all drop them already.
     if (result.superseded === true) continue;
 
-    const gradedBy = result.review?.gradedBy ? asId(result.review.gradedBy) : null;
-    const gradedAt = toDate(result.review?.gradedAt);
-    const grader = gradedBy ? tallies.get(gradedBy) : null;
-    if (grader && gradedAt && (!grader.lastGraded || gradedAt > grader.lastGraded)) {
-      grader.lastGraded = gradedAt;
-    }
-
     const courseKey = asId(result.courseId);
     const owners = assessorsByCourse.get(courseKey) ?? [];
     if (owners.length === 0) continue;
 
-    // A submission reaches this screen only through its credential. Neither
-    // the backlog before the grade goes out nor the count of grades that have
-    // is reported here any more, so nothing else about it is read.
-    const released = isReleased(result);
+    // A submission reaches this screen only through its credential. Nothing
+    // else about it is read, because nothing else about it is anyone's work.
     const credential = result.credential?.status;
 
     for (const assessorId of owners) {
@@ -785,11 +757,10 @@ export function tallyWorkload(assessors, sources) {
       if (!tally) continue;
       const perCourse = courseTally(tally, courseKey);
 
-      // Released and still pending: the grade is out and the credential behind
-      // it is not. The pair matches the condition behind the assessor's own
-      // Credentials screen exactly, so the two cannot disagree about what is
-      // waiting on them.
-      if (released && credential === "pending") {
+      // Pending: the paper passed and nobody has issued the credential behind
+      // it. The same condition the assessor's own Credentials screen uses, so
+      // the two cannot disagree about what is waiting on them.
+      if (credential === "pending") {
         tally.credentialsPending += 1;
         perCourse.credentialsPending += 1;
       }
@@ -822,7 +793,6 @@ async function workloadByAssessor(assessors, courses) {
     load(RESULTS_COLLECTION, {
       courseId: 1,
       superseded: 1,
-      review: 1,
       credential: 1
     }),
     load(ASSESSMENTS_COLLECTION, {
@@ -856,10 +826,9 @@ function publicWorkload(tally) {
     // Credentials, split by which side of the issue they are on. The screen
     // only ever showed the issued ones, which is the half nobody is waiting on.
     //
-    // No `lastPosted` or `lastGraded` beside them: both are folded into
-    // `lastActive`, which is the only form any screen renders. Sending them
-    // as well would be the same fact three times, and two of the three would
-    // be a second answer nothing keeps true.
+    // No `lastPosted` beside them: it is folded into `lastActive`, which is the
+    // only form any screen renders. Sending it as well would be the same fact
+    // twice, and the second copy would be an answer nothing keeps true.
     credentialsPending: tally.credentialsPending,
     credentialsIssued: tally.credentialsIssued
   };
@@ -900,22 +869,16 @@ function publicAssessor(assessor, courses, tally = blankTally()) {
 }
 
 /**
- * The newer of an assessor's two kinds of work, named.
+ * When an assessor last did something, named.
  *
- * `latestActivity` answers the same question for a student, but over a fixed
- * pair of kinds; this is the assessor's pair. Posting is assignment-based and
- * releasing follows `gradedBy`, so the two are not measured the same way — what
- * they share is that either one means somebody was working.
+ * Posting a paper is the only kind of work left that carries a date of its own.
+ * Marking is the system's now, and an issued credential is stamped on the
+ * StudentResult rather than tallied per assessor — so the question this answers
+ * is narrower than it was: has this person put a paper out lately.
  */
 function latestAssessorWork(tally) {
-  const { lastPosted, lastGraded } = tally;
-  if (!lastPosted && !lastGraded) return { at: null, kind: null };
-
-  const postedIsNewer = lastPosted && (!lastGraded || lastPosted > lastGraded);
-  return {
-    at: (postedIsNewer ? lastPosted : lastGraded).toISOString(),
-    kind: postedIsNewer ? "posted" : "graded"
-  };
+  if (!tally.lastPosted) return { at: null, kind: null };
+  return { at: tally.lastPosted.toISOString(), kind: "posted" };
 }
 
 /**
@@ -1079,151 +1042,6 @@ export async function getAssessor(request, response) {
   });
 }
 
-/* ──────────────────── Table of Specification ──────────────────── */
-
-const LEVELS = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
-
-function toCount(value) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function publicTosRow(row) {
-  const clean = { course: String(row?.course ?? ""), hours: toCount(row?.hours) };
-  LEVELS.forEach((level) => {
-    clean[level] = toCount(row?.[level]);
-  });
-  // The row's item count is the sum of its levels — carried so callers don't
-  // each re-derive the one number the row exists to state.
-  clean.items = LEVELS.reduce((sum, level) => sum + clean[level], 0);
-
-  // `course` holds the coverage topic — a lesson title, which anyone may
-  // retype here. The moduleId says which lesson that row actually covers, and
-  // is preserved rather than rebuilt: a save round-trips rows through the
-  // admin form, and anything dropped here is lost from the blueprint.
-  if (row?.moduleId) clean.moduleId = String(row.moduleId);
-
-  return clean;
-}
-
-function publicTos(doc) {
-  return {
-    id: asId(doc._id),
-    courseId: doc.courseId ? String(doc.courseId) : null,
-    courseCode: doc.courseCode ?? "",
-    examination: doc.examination ?? "",
-    rows: Array.isArray(doc.rows) ? doc.rows.map(publicTosRow) : [],
-    // What the rows mean for quiz generation, derived rather than stored so it
-    // can never drift from the rows beside it.
-    blueprint: blueprintFromTos(doc)
-  };
-}
-
-/**
- * One blueprint per course, enforced by the database rather than by whoever
- * happens to call the save.
- *
- * Keying the upsert on courseId is what makes a save land on the right
- * document, but it only holds while every document spells courseId the same
- * way. A row written as an ObjectId where the rest are strings would not match
- * the filter, so the upsert would insert a second blueprint for one course —
- * and the screen would then list the same course twice with no way to tell
- * which one generation reads.
- *
- * Best-effort on purpose. If duplicates already exist the index cannot be
- * built, and that must not stop an admin loading the page: the reason is
- * returned so a caller can surface it, and the endpoints work as before.
- */
-let tosIndexChecked = false;
-
-async function ensureTosIndex() {
-  if (tosIndexChecked) return { created: false, reason: "already-checked" };
-  if (!(await collectionExists(TOS_COLLECTION))) return { created: false, reason: "no-collection" };
-
-  try {
-    await collection(TOS_COLLECTION).createIndex(
-      { courseId: 1 },
-      { unique: true, name: "one_blueprint_per_course" }
-    );
-    tosIndexChecked = true;
-    return { created: true, index: "one_blueprint_per_course" };
-  } catch (error) {
-    // Duplicates already in the data, most likely. Worth reporting, not worth
-    // failing the request over — and worth retrying on the next call, once
-    // whoever saw the warning has merged them.
-    return { created: false, reason: error.message };
-  }
-}
-
-/**
- * Every course's blueprint — one document per course, its rows being that
- * course's lessons.
- *
- * These endpoints once read a single document with no course filter, so with
- * several stored the screen showed, and a save overwrote, whichever happened
- * to sort first. Both are keyed on courseId now.
- */
-export async function getTableOfSpecification(_request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  // The collection may not exist yet — respond with an empty list rather than
-  // failing, same "abang" behaviour as the student endpoints.
-  if (!(await collectionExists(TOS_COLLECTION))) {
-    return response.json({ blueprints: [], pending: true });
-  }
-
-  await ensureTosIndex();
-
-  const docs = await collection(TOS_COLLECTION).find({}).toArray();
-  const blueprints = docs
-    .map(publicTos)
-    .sort((left, right) => left.examination.localeCompare(right.examination, "en"));
-
-  return response.json({ blueprints, pending: blueprints.length === 0 });
-}
-
-export async function saveTableOfSpecification(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const { courseId, examination, rows } = request.body ?? {};
-  if (!Array.isArray(rows)) {
-    return response.status(400).json({ message: "rows must be an array." });
-  }
-  // Without this a save has no course to land on, and would fall back to
-  // overwriting an arbitrary one — the failure this endpoint used to have.
-  if (!courseId) {
-    return response.status(400).json({ message: "courseId is required." });
-  }
-
-  const payload = {
-    examination: String(examination ?? "").trim(),
-    rows: rows.map(publicTosRow),
-    updatedAt: new Date()
-  };
-
-  try {
-    await collection(TOS_COLLECTION).updateOne(
-      { courseId: String(courseId) },
-      { $set: payload, $setOnInsert: { courseId: String(courseId), createdAt: new Date() } },
-      { upsert: true }
-    );
-  } catch (error) {
-    // Only reachable once the unique index exists: the upsert found no document
-    // to match but the insert collided, which means one is already stored under
-    // a differently-typed courseId.
-    if (error?.code === 11000) {
-      return response.status(409).json({
-        message: "This course already has a blueprint stored under a different key. Merge the duplicates before saving."
-      });
-    }
-    throw error;
-  }
-
-  await ensureTosIndex();
-
-  return getTableOfSpecification(request, response);
-}
-
 /* ──────────────────── Assessment generation ──────────────────── */
 
 /**
@@ -1251,7 +1069,7 @@ export async function getAssessmentGenerationStatus(request, response) {
 
 /**
  * POST /api/admin/assessments/generate
- * Body: { courseId, moduleId?, dryRun?, bankMultiplier? }
+ * Body: { courseId, moduleId?, dryRun? }
  *
  * With a moduleId, one lesson. Without, every lesson in the course that still
  * needs a quiz — skipping, rather than failing on, the ones that have no text.
@@ -1259,12 +1077,12 @@ export async function getAssessmentGenerationStatus(request, response) {
 export async function generateAssessments(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
-  const { courseId, moduleId, dryRun = false, bankMultiplier } = request.body ?? {};
+  const { courseId, moduleId, dryRun = false } = request.body ?? {};
   if (!courseId) return response.status(400).json({ message: "courseId is required." });
 
   await ensureAssessmentIndexes();
 
-  const options = { courseId, dryRun: Boolean(dryRun), bankMultiplier: Number(bankMultiplier) || undefined };
+  const options = { courseId, dryRun: Boolean(dryRun) };
 
   if (moduleId) {
     return response.json({ results: [await generateModuleAssessment({ ...options, moduleId })] });

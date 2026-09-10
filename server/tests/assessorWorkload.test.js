@@ -1,5 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
-import { papersByCourse, tallyWorkload } from "../src/admin/admin.controller.js";
+import { papersByCourse } from "../src/assessments/papers.js";
+import { isPosted } from "../src/assessments/assessments.format.js";
+import { tallyWorkload } from "../src/admin/admin.controller.js";
 
 /**
  * The admin console's view of an assessor, without a database.
@@ -71,14 +73,46 @@ describe("papersByCourse", () => {
     expect(papers.get(CC2).toPost).toBe(8);
   });
 
-  it("reads a paper written before releasing existed as posted", () => {
-    // Those were live from the moment they were generated, and the student side
-    // still serves them. Treating a missing status as a draft would shut every
-    // existing course's quizzes the day this shipped.
+  it("counts a paper written before releasing existed as still owed", () => {
+    // No assessor posted it, so no student may see it — the workload screen
+    // has to report it as a paper the course is still waiting on rather than
+    // as one already out.
     const papers = papersByCourse([{ courseId: CC2, moduleId: "m1", scope: "lesson" }], lessons);
 
-    expect(papers.get(CC2).posted).toBe(1);
-    expect(papers.get(CC2).draft).toBe(0);
+    expect(papers.get(CC2).posted).toBe(0);
+    expect(papers.get(CC2).draft).toBe(1);
+  });
+
+  it("reads a statusless paper the same way the student side does", () => {
+    // The bug this function exists to prevent. Both consoles once counted
+    // posted papers themselves: the admin asked `isPosted`, the assessor asked
+    // `status !== "draft"`, and a document carrying no status at all was a
+    // draft to one and a live paper to the other. The assessor's register said
+    // a class had its quiz; the student opening it was refused.
+    const statusless = [
+      { courseId: CC2, moduleId: "m1", scope: "lesson" },
+      { courseId: CC2, moduleId: null, scope: "final" }
+    ];
+
+    const papers = papersByCourse(statusless, lessons);
+
+    expect(isPosted(statusless[0])).toBe(false);
+    expect(papers.get(CC2).posted).toBe(0);
+    expect(papers.get(CC2).finalPosted).toBe(false);
+    expect(papers.get(CC2).toPost).toBe(papers.get(CC2).expected);
+  });
+
+  it("splits what is written between posted and still owed", () => {
+    // `written` is what the assessor's register shows beside `posted`, and the
+    // two have to come from one pass or a draft can be counted as delivered.
+    const papers = papersByCourse(
+      [lessonPaper(CC2, "m1"), lessonPaper(CC2, "m2", { status: "draft" }), finalPaper(CC2)],
+      lessons
+    );
+
+    expect(papers.get(CC2).written).toBe(3);
+    expect(papers.get(CC2).posted).toBe(2);
+    expect(papers.get(CC2).draft).toBe(1);
   });
 
   it("counts the final separately from the lessons", () => {
@@ -104,19 +138,16 @@ describe("papersByCourse", () => {
 
 const assessor = (id, courses) => ({ _id: id, assigned_courses: courses });
 
-/** A submission whose grade the assessor has not put out. */
-const unreleased = (courseId, overrides = {}) => ({
+/** A submission that did not clear the pass mark, so it earned nothing. */
+const failed = (courseId, overrides = {}) => ({
   courseId,
-  review: { status: "pending" },
   credential: { status: "none" },
   ...overrides
 });
 
-const released = (courseId, overrides = {}) =>
-  unreleased(courseId, {
-    review: { status: "released", gradedBy: "a1", gradedAt: "2026-08-11T00:00:00.000Z" },
-    ...overrides
-  });
+/** A pass, which writes its own pending credential when it is handed in. */
+const passed = (courseId, overrides = {}) =>
+  failed(courseId, { credential: { status: "pending" }, ...overrides });
 
 describe("tallyWorkload", () => {
   const papers = papersByCourse([lessonPaper(CC2, "m1"), finalPaper(CC2)], lessons);
@@ -152,12 +183,12 @@ describe("tallyWorkload", () => {
     expect(tallies.get("a3").credentialsPending).toBe(0);
   });
 
-  it("counts nothing off a submission whose grade is not out yet", () => {
-    // The unreleased backlog is the class roster's business, and a credential
-    // is not the assessor's to issue until the grade behind it is out.
+  it("counts nothing off a submission that did not pass", () => {
+    // A failed paper earns no credential, so there is nothing on it for an
+    // assessor to be behind on.
     const tallies = tallyWorkload([assessor("a1", [CC2])], {
       papers,
-      results: [unreleased(CC2), unreleased(CC2, { credential: { status: "pending" } })]
+      results: [failed(CC2), failed(CC2)]
     });
 
     const tally = tallies.get("a1");
@@ -172,23 +203,23 @@ describe("tallyWorkload", () => {
     const tallies = tallyWorkload([assessor("a1", [CC2])], {
       papers,
       results: [
-        released(CC2, { superseded: true, credential: { status: "issued" } }),
-        released(CC2, { credential: { status: "issued" } })
+        passed(CC2, { superseded: true, credential: { status: "issued" } }),
+        passed(CC2, { credential: { status: "issued" } })
       ]
     });
 
     expect(tallies.get("a1").credentialsIssued).toBe(1);
   });
 
-  it("counts a credential as waiting only once its grade is out", () => {
-    // Pending on an unreleased paper is not the assessor's to act on yet — it
-    // matches the condition behind their own Credentials screen exactly.
+  it("separates a credential still waiting from one already issued", () => {
+    // The same pair the assessor's own Credentials screen splits on, so the
+    // two cannot disagree about what is waiting on them.
     const tallies = tallyWorkload([assessor("a1", [CC2])], {
       papers,
       results: [
-        released(CC2, { credential: { status: "pending" } }),
-        unreleased(CC2, { credential: { status: "pending" } }),
-        released(CC2, { credential: { status: "issued" } })
+        passed(CC2),
+        failed(CC2),
+        passed(CC2, { credential: { status: "issued" } })
       ]
     });
 
@@ -198,25 +229,23 @@ describe("tallyWorkload", () => {
     expect(tally.perCourse.get(CC2).credentialsPending).toBe(1);
   });
 
-  it("keeps an assessor's grading credit on a course they no longer hold", () => {
-    // Everything else counts toward whoever holds the course today. lastGraded
-    // follows gradedBy, because what it answers is whether this person is
-    // working at all — not what their current classes look like.
+  it("counts a submission toward whoever holds its course today", () => {
+    // Nothing on a submission names the assessor any more — marking is the
+    // system's and issuing is stamped on the result — so the course is the
+    // only link back to a person.
     const tallies = tallyWorkload([assessor("a1", []), assessor("a2", [CC2])], {
       papers,
-      results: [released(CC2, { credential: { status: "issued" } })]
+      results: [passed(CC2, { credential: { status: "issued" } })]
     });
 
-    expect(tallies.get("a1").lastGraded.toISOString()).toBe("2026-08-11T00:00:00.000Z");
     expect(tallies.get("a1").credentialsIssued).toBe(0);
     expect(tallies.get("a2").credentialsIssued).toBe(1);
-    expect(tallies.get("a2").lastGraded).toBeNull();
   });
 
   it("ignores submissions in a course nobody is assigned to", () => {
     const tallies = tallyWorkload([assessor("a1", [CC2])], {
       papers,
-      results: [released(CC3, { credential: { status: "issued" } })]
+      results: [passed(CC3, { credential: { status: "issued" } })]
     });
 
     expect(tallies.get("a1").credentialsIssued).toBe(0);

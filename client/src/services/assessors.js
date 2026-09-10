@@ -8,10 +8,12 @@ import { getStoredSession } from "../auth/services/authService";
  *   GET  /api/assessors/:id/classes                               → { classes: [...] }
  *   GET  /api/assessors/:id/classes/:courseId/roster              → { course, totalModules, roster }
  *   GET  /api/assessors/:id/classes/:courseId/students/:studentId → per-student detail
- *   GET  /api/assessors/:id/submissions/:sid                      → full review payload
- *   PUT  /api/assessors/:id/submissions/:sid/review               → save draft / release grade
  *   GET  /api/assessors/:id/credentials                           → { pendingCredentials }
  *   POST /api/assessors/:id/credentials/:sid/issue                → { credential }
+ *
+ * Nothing here reads or writes a grade. A paper is marked against its key when
+ * the student hands it in, and a pass writes its own pending credential — so
+ * the only thing left to do about a submission is issue that credential.
  *
  * Generating and releasing a course's papers — the Generate Assessment screen:
  *   GET  /api/assessors/:id/classes/:courseId/assessments         → { course, lessons, final }
@@ -20,6 +22,10 @@ import { getStoredSession } from "../auth/services/authService";
  *   PUT  /api/assessors/:id/classes/:courseId/assessments/:aid    → correct questions
  *   POST /api/assessors/:id/classes/:courseId/assessments/:aid/post
  *   POST /api/assessors/:id/classes/:courseId/assessments/:aid/unpost
+ *
+ * The Table of Specification — the blueprint those papers are generated from:
+ *   GET  /api/assessors/:id/classes/:courseId/tos                 → { tos, lessons, course }
+ *   PUT  /api/assessors/:id/classes/:courseId/tos                 → the saved blueprint
  *
  * :id accepts the Mongo id or the ASS### number, so whichever the auth
  * session carries works.
@@ -49,6 +55,23 @@ export async function fetchStudentDetail(assessorId, courseId, studentId) {
     `/assessors/${assessorId}/classes/${courseId}/students/${studentId}`
   );
   return data;
+}
+
+/**
+ * Close this course to a student, or open it again.
+ *
+ * Course access, not a login control: it shuts the lessons, the quizzes and the
+ * tick that completes a lesson, for this course only. The student still signs
+ * in, keeps their other courses, and keeps their enrolment, progress and badges
+ * here. The admin console's suspension is the other thing — that one is on the
+ * account and stops them signing in at all.
+ */
+export async function setRosterStudentSuspended(assessorId, courseId, studentId, suspended) {
+  const { data } = await api.patch(
+    `/assessors/${assessorId}/classes/${courseId}/students/${studentId}/suspension`,
+    { suspended }
+  );
+  return data?.student ?? null;
 }
 
 /* ─────────────── Generating and releasing assessments ─────────────── */
@@ -92,8 +115,9 @@ export async function generateCourseAssessment(assessorId, courseId, body) {
  * Saves corrections to specific questions.
  *
  * `items` is a patch: send only the questions that changed, each as
- * { id, q?, choices?, key?, type? }. `timeLimitMinutes` and `itemsPerAttempt`
- * may travel with them.
+ * { id, q?, choices?, key?, type? }. `timeLimitMinutes` may travel with them.
+ * A paper's length is however many questions it has, so it is not settable
+ * here.
  */
 export async function updateCourseAssessment(assessorId, courseId, assessmentId, body) {
   try {
@@ -142,17 +166,20 @@ function errorMessage(error, fallback) {
   return error?.response?.data?.message ?? fallback;
 }
 
-export async function fetchSubmissionReview(assessorId, submissionId) {
-  const { data } = await api.get(`/assessors/${assessorId}/submissions/${submissionId}`);
+/**
+ * One course's blueprint, with the lessons it is written against.
+ *
+ * The lessons come back with it rather than from a second call because the
+ * blueprint is meaningless without them: a stored row names a moduleId, and
+ * the screen has to put a lesson title beside it before anything can be read.
+ */
+export async function fetchCourseTos(assessorId, courseId) {
+  const { data } = await api.get(`/assessors/${assessorId}/classes/${courseId}/tos`);
   return data;
 }
 
-// body: { action: "draft" | "release", overrides, finalScore }
-export async function saveSubmissionReview(assessorId, submissionId, body) {
-  const { data } = await api.put(
-    `/assessors/${assessorId}/submissions/${submissionId}/review`,
-    body
-  );
+export async function saveCourseTos(assessorId, courseId, body) {
+  const { data } = await api.put(`/assessors/${assessorId}/classes/${courseId}/tos`, body);
   return data;
 }
 
@@ -168,3 +195,44 @@ export async function issueCredential(assessorId, submissionId) {
   return data;
 }
 
+
+/**
+ * The Results screen: one posted paper, student by student.
+ *
+ *   GET .../assessments/:id/results → { course, assessment, rows }
+ */
+export async function fetchAssessmentResults(assessorId, courseId, assessmentId) {
+  const { data } = await api.get(
+    `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results`
+  );
+  return {
+    course: data?.course ?? null,
+    assessment: data?.assessment ?? null,
+    rows: Array.isArray(data?.rows) ? data.rows : []
+  };
+}
+
+/**
+ * One student's marked paper, opened from a row of that register.
+ *
+ *   GET .../results/:studentId → { student, assessment, result, items }
+ *
+ * A 404 here is an ordinary answer, not a fault: it is what a student who has
+ * not handed the paper in looks like. The message comes back for the screen to
+ * print rather than being swallowed into an empty paper.
+ */
+export async function fetchStudentPaper(assessorId, courseId, assessmentId, studentId) {
+  try {
+    const { data } = await api.get(
+      `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results/${studentId}`
+    );
+    return {
+      student: data?.student ?? null,
+      assessment: data?.assessment ?? null,
+      result: data?.result ?? null,
+      items: Array.isArray(data?.items) ? data.items : []
+    };
+  } catch (error) {
+    return { error: errorMessage(error, "This paper could not be opened.") };
+  }
+}

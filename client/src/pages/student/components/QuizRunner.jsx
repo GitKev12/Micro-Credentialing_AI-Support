@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchAssessment, submitAssessment } from "../../../services/assessments";
 import { CheckIcon, LockIcon, QuizIcon } from "./icons";
 import { SkeletonText } from "../../../components/Skeleton";
@@ -18,8 +18,15 @@ import { SkeletonText } from "../../../components/Skeleton";
  * posted it to the course; until then the rail's row is a locked placeholder
  * and this component is never opened on it.
  */
-function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
+function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenLesson }) {
   const assessmentId = assessment?.id ?? null;
+  // A row standing in for a paper that was never written, or written and not
+  // yet posted. There is no document behind its id.
+  const placeholder = Boolean(assessment?.placeholder);
+  // Why it is shut, as the rail was told. Only read for a placeholder — a real
+  // paper is refused by the server, which sends its own reason with the 423,
+  // and that one is authoritative where the rail may be a moment out of date.
+  const lockedReason = assessment?.reason ?? "Your assessor will unlock this quiz.";
   const [state, setState] = useState({ status: "loading" });
   const [answers, setAnswers] = useState({});
   // Which question is on screen. The paper is answered one question at a time,
@@ -29,6 +36,11 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
   const [retaking, setRetaking] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  // When this sitting began. A ref rather than state because nothing on screen
+  // depends on it — it must not cause a redraw, and a redraw must not reset it.
+  // The server never sees the paper being worked on, only fetched and handed
+  // in, so this is the only place the length of a sitting can be observed.
+  const startedAt = useRef(null);
 
   // Opening a different quiz starts it over.
   useEffect(() => {
@@ -37,10 +49,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     setCurrent(0);
     setResult(null);
     setError("");
+    startedAt.current = null;
   }, [assessmentId]);
 
   useEffect(() => {
     if (!studentId || !assessmentId) return undefined;
+
+    // Nothing to ask for: a placeholder's id resolves to no document, so the
+    // request would come back a 404 and be shown as a quiz that failed to
+    // load — which is not what happened. Nobody has posted it yet, and the
+    // row already carries the sentence that says so.
+    if (placeholder) {
+      setState({ status: "locked", message: lockedReason });
+      return undefined;
+    }
 
     let active = true;
     setState({ status: "loading" });
@@ -53,6 +75,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
           return;
         }
         setState({ status: "ready", assessment: data.assessment });
+        startedAt.current = Date.now();
 
         // A quiz already sat opens straight to its mark — and to the answers
         // that earned it. Restoring them is what makes reopening a paper a
@@ -76,7 +99,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     return () => {
       active = false;
     };
-  }, [studentId, assessmentId]);
+  }, [studentId, assessmentId, placeholder, lockedReason]);
 
   const items = state.assessment?.items ?? [];
   const answeredCount = useMemo(
@@ -85,6 +108,8 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
   );
   const allAnswered = items.length > 0 && answeredCount === items.length;
   const question = items[current] ?? null;
+  // The end of the paper, which is where handing it in lives.
+  const isLast = items.length > 0 && current === items.length - 1;
 
   // A paper that arrives shorter than the one before it must not leave the
   // pager pointing past its end.
@@ -137,7 +162,10 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
 
     try {
       const payload = items.map((item) => ({ itemId: item.id, choice: answers[item.id] }));
-      const response = await submitAssessment(studentId, assessmentId, payload);
+      // Null when the paper was reopened rather than taken — there is no
+      // sitting to measure then, and sending zero would record one.
+      const took = startedAt.current ? Date.now() - startedAt.current : null;
+      const response = await submitAssessment(studentId, assessmentId, payload, took);
 
       if (response.locked) {
         setState({ status: "locked", message: response.message });
@@ -177,7 +205,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     setError("");
 
     try {
-      const data = await fetchAssessment(studentId, assessmentId);
+      const data = await fetchAssessment(studentId, assessmentId, { retake: true });
 
       if (data.locked) {
         setState({ status: "locked", message: data.message });
@@ -188,6 +216,9 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
       setResult(null);
       setAnswers({});
       setCurrent(0);
+      // A retake is its own sitting, timed from here — not from whenever the
+      // first attempt was opened.
+      startedAt.current = Date.now();
     } catch (_error) {
       setError("Could not start another attempt. Try again.");
     } finally {
@@ -203,9 +234,19 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
     return (
       <div className="sd-quiz__locked">
         <span className="sd-quiz__locked-icon">
-          <LockIcon size={18} />
+          <LockIcon size={24} />
         </span>
-        <p className="student-courses__status">{state.message}</p>
+        <p className="sd-quiz__locked-text">{state.message}</p>
+        {/* There is one thing a student can do about a shut quiz, and only
+            sometimes: read the lesson that opens it. The caller decides
+            whether that is what is holding this one — a quiz waiting on its
+            assessor gets no button, because there would be nothing behind
+            it. */}
+        {onOpenLesson ? (
+          <button type="button" className="sd-quiz__locked-btn" onClick={onOpenLesson}>
+            Go to the lesson
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -245,10 +286,6 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
               `Not passed. ${result.passMark} needed to earn the badge.`
             )}
           </p>
-          {result.reviewStatus === "pending" ? (
-            <p className="sd-quiz__note">Pending assessor review.</p>
-          ) : null}
-
           <div className="sd-quiz__retake">
             <span className="sd-quiz__attempts">
               {result.attemptsAllowed
@@ -375,7 +412,15 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
           working straight through wants. Skip hunts down the next question with
           no answer on it and wraps past the end to find one — so a student who
           left three blank on the way through is walked back to exactly those,
-          rather than paging through the finished ones to reach them. */}
+          rather than paging through the finished ones to reach them.
+
+          On the last question the same button hands the paper in. It used to be
+          a second button in a row of its own, live from the first question on
+          and greyed out for most of the paper — a control the student could not
+          use yet, sitting under one they could. Now there is one button in that
+          corner throughout, and reaching the end of the paper is what turns it
+          into the way out. Skip stays beside it while anything is still blank,
+          which is how the last few unanswered questions are reached from here. */}
       <div className="sd-quiz__nav">
         <span className="sd-quiz__progress">
           Question {current + 1} of {items.length} · {answeredCount} answered
@@ -388,34 +433,27 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned }) {
             </button>
           ) : null}
 
-          <button
-            type="button"
-            className="module-row__action"
-            disabled={current >= items.length - 1}
-            onClick={() => setCurrent((index) => Math.min(index + 1, items.length - 1))}
-          >
-            Next question
-          </button>
+          {isLast && !done ? (
+            <button
+              type="button"
+              className="module-row__action"
+              disabled={!allAnswered || submitting}
+              onClick={handleSubmit}
+            >
+              {submitting ? "Submitting…" : "Submit quiz"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="module-row__action"
+              disabled={isLast}
+              onClick={() => setCurrent((index) => Math.min(index + 1, items.length - 1))}
+            >
+              Next question
+            </button>
+          )}
         </div>
       </div>
-
-      {!done ? (
-        <div className="sd-quiz__actions">
-          <span className="sd-quiz__progress">
-            {allAnswered
-              ? "Every question answered — hand it in when you are ready."
-              : `${items.length - answeredCount} still to answer`}
-          </span>
-          <button
-            type="button"
-            className="module-row__action"
-            disabled={!allAnswered || submitting}
-            onClick={handleSubmit}
-          >
-            {submitting ? "Submitting…" : "Submit quiz"}
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

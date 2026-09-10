@@ -48,9 +48,18 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 // anchor to their "Figure N" caption text when present (geometry is only the
 // fallback), since the reflowed text makes raw position unreliable. v26:
 // full-page covers/scans are skipped and over-tall merges are split, so a
-// figure is never a whole page or a stack of unrelated diagrams.
+// figure is never a whole page or a stack of unrelated diagrams. v27: five
+// numbering and placement fixes — a marker stranded on its own line is
+// rejoined to its step, a blank line between steps no longer ends the run, a
+// split run says which number it resumes at, a numbered section title is a
+// heading rather than the first item of a list, and a digits-only line is
+// dropped wherever it falls. Prose that merely mentions "Figure N" is now
+// read as introducing the picture, so the image follows it instead of being
+// placed above it as though the sentence were a caption.
 const MODULE_TEXT_COLLECTION = "ModuleText";
-const TEXT_FORMAT_VERSION = 26;
+// Bumping this is what re-extracts every cached module. The fixes above only
+// reach a lesson whose cache entry is older than the version that made them.
+const TEXT_FORMAT_VERSION = 27;
 
 // Cropped figure images (PNG) are stored here, one GridFS file per figure,
 // tagged with metadata.moduleId so a re-extraction can replace them.

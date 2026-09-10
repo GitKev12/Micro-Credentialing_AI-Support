@@ -20,8 +20,9 @@ const PLACEHOLDER_GRADIENTS = [
 /**
  * Where the student stands in a course, as the card says it.
  *
- * The server derives `status` from the lessons marked complete in the reader,
- * but the card recomputes it from the counts when an older response omits it,
+ * The server derives `status` from what the student has worked through — the
+ * lessons read, the quizzes passed and the final — but the card recomputes it
+ * from the counts when an older response omits it,
  * so a missing field degrades to "not started" rather than to a blank chip.
  * Every state carries a word as well as a colour — the dot alone never
  * carries the meaning.
@@ -46,33 +47,49 @@ const isEnded = (course) => course.ended ?? hasCourseEnded(course);
 // field, and no switched-off class either.
 const isSuspended = (course) => Boolean(course.suspended);
 
+/**
+ * What the course is worth, and how much of it is behind them.
+ *
+ * Not the lessons alone: a course is its lessons, a quiz for each of them and
+ * one final, and the server counts all three (see progressSummary in
+ * courses.controller.js). A card that counted only the reading called a course
+ * finished with every paper still to sit.
+ *
+ * `moduleCount` and `completedModules` are the fallback rather than the answer.
+ * They are the lesson figures, which is all a server from before this change
+ * sends — a card that showed nothing at all would be worse than one showing the
+ * older, smaller sum.
+ */
+function tallyOf(course) {
+  const total = Number(course.itemCount ?? course.moduleCount) || 0;
+  if (!total) return { total: 0, done: 0 };
+
+  const done = Math.min(Number(course.completedItems ?? course.completedModules) || 0, total);
+  return { total, done };
+}
+
 function statusOf(course) {
   if (isSuspended(course)) return STATUSES.suspended;
   if (isEnded(course)) return STATUSES.ended;
   if (STATUSES[course.status]) return STATUSES[course.status];
 
-  const total = Number(course.moduleCount) || 0;
-  const done = Number(course.completedModules) || 0;
+  const { total, done } = tallyOf(course);
   if (total > 0 && done >= total) return STATUSES.completed;
   return done > 0 ? STATUSES["in-progress"] : STATUSES["not-started"];
 }
 
-function lessonLine(course) {
-  const total = Number(course.moduleCount) || 0;
+function doneLine(course) {
+  const { total, done } = tallyOf(course);
   if (!total) return "No lessons yet";
 
-  const done = Math.min(Number(course.completedModules) || 0, total);
-  return `${done} of ${total} ${total === 1 ? "lesson" : "lessons"} done`;
+  return `${done} of ${total} done`;
 }
 
 // Recomputed from the counts rather than read from `progress`, so the bar and
-// the "3 of 8" beside it can never disagree.
+// the "8 of 25" beside it can never disagree.
 function percentOf(course) {
-  const total = Number(course.moduleCount) || 0;
-  if (!total) return 0;
-
-  const done = Math.min(Number(course.completedModules) || 0, total);
-  return Math.round((done / total) * 100);
+  const { total, done } = tallyOf(course);
+  return total ? Math.round((done / total) * 100) : 0;
 }
 
 function StudentCourses() {
@@ -134,7 +151,6 @@ function StudentCourses() {
   return (
     <section className="student-courses">
       <h2 className="student-courses__title">Your Courses</h2>
-      {!isLoading && summary ? <p className="student-courses__summary">{summary}</p> : null}
 
       {isLoading ? (
         <ul className="student-courses__list" aria-hidden="true">
@@ -165,7 +181,8 @@ function StudentCourses() {
 
             const status = statusOf(course);
             const percent = percentOf(course);
-            const lessons = lessonLine(course);
+            const tally = tallyOf(course);
+            const lessons = doneLine(course);
             const run = formatCourseRun(course);
             const ended = status.id === "ended";
             const suspended = status.id === "suspended";
@@ -219,7 +236,7 @@ function StudentCourses() {
                     </span>
                     <span className="course-card__progress-text">
                       <span>{lessons}</span>
-                      {course.moduleCount ? <span>{percent}%</span> : null}
+                      {tally.total ? <span>{percent}%</span> : null}
                     </span>
                   </div>
                 </div>
