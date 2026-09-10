@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   fetchCourseAssessment,
   fetchCourseAssessments,
+  fetchCourseTos,
   generateCourseAssessment,
   postCourseAssessment,
   storedAssessorId,
@@ -14,6 +15,9 @@ import { AssessorSelect, Chip, ScreenHeader } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
+import BlueprintBrief from "./components/tos/BlueprintBrief";
+import TosModal from "./components/tos/TosModal";
+import { LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
 
 /**
  * Generating one course's papers.
@@ -26,6 +30,10 @@ import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
  *   Assessment    — quiz or final, which lesson, how many questions, how long
  *                   the attempt runs. Pressing generate reads the lesson's
  *                   extracted text and writes a draft.
+ *   Blueprint     — what the Table of Specification asks of this paper, and
+ *                   the way in to change it. It opens over this screen rather
+ *                   than on one of its own, because the assessor is already
+ *                   looking at the lesson and the count it governs.
  *   Review & post — pick a question by its number to correct it, then post.
  *                   Posting applies to the whole class at once: an Assessment
  *                   holds no student, so there is nothing per-student to set.
@@ -190,6 +198,11 @@ function GenerateCoursePage() {
   // money, so it asks first rather than firing on the click that reaches it.
   const [confirming, setConfirming] = useState(false);
 
+  // The blueprint, read for the card beside the fields it governs and written
+  // in the dialog that card opens.
+  const [tos, setTos] = useState(null);
+  const [tosOpen, setTosOpen] = useState(false);
+
   const reload = useCallback(async () => {
     if (!assessorId || !courseId) return null;
     const data = await fetchCourseAssessments(assessorId, courseId);
@@ -217,6 +230,23 @@ function GenerateCoursePage() {
       active = false;
     };
   }, [reload]);
+
+  // Separately from the overview: a course with no blueprint yet is a normal
+  // state, not a failure, and the rest of the screen works without one.
+  useEffect(() => {
+    if (!assessorId || !courseId) return undefined;
+
+    let active = true;
+    fetchCourseTos(assessorId, courseId)
+      .then((payload) => {
+        if (active) setTos(payload?.tos ?? null);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [assessorId, courseId]);
 
   const lessons = overview?.lessons ?? [];
   const course = overview?.course ?? null;
@@ -298,6 +328,25 @@ function GenerateCoursePage() {
   // resolveWritableScope.
   const closed = course?.closed ?? null;
   const frozen = locked || Boolean(closed);
+
+  /**
+   * The blueprint for the paper the fields are pointed at.
+   *
+   * A final reads its own block; a quiz reads the row for the lesson picked
+   * above. They are different plans and the card must not show one while the
+   * assessor is generating the other.
+   */
+  const brief = useMemo(() => {
+    if (scope === "final") {
+      const split = tos?.final?.levels ?? {};
+      const assigned = splitItems(split);
+      return { split, items: toCount(tos?.final?.items) || assigned };
+    }
+
+    const row = (tos?.rows ?? []).find((entry) => String(entry.moduleId) === String(moduleId));
+    const split = Object.fromEntries(LEVEL_KEYS.map((key) => [key, toCount(row?.[key])]));
+    return { split, items: splitItems(split) };
+  }, [tos, scope, moduleId]);
 
   const requestedMinutes = timeLimitFor({ timed, minutes });
 
@@ -558,25 +607,9 @@ function GenerateCoursePage() {
               )}
             </div>
 
-            {/* The blueprint is where this number is decided — how long the
-                paper runs, and how it splits across the six levels — so the way
-                back to it belongs beside the field that would otherwise
-                overrule it by hand. */}
-            <div className="gen-field">
-              <div className="gen-field__head">
-                <label className="field-label" htmlFor="gen-item-count">
-                  Number of questions
-                </label>
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={() => navigate(`/assessor/blueprint/${courseId}`)}
-                >
-                  Open the blueprint
-                </button>
-              </div>
+            <label className="gen-field">
+              <span className="field-label">Number of questions</span>
               <input
-                id="gen-item-count"
                 type="number"
                 className="gen-input"
                 min={1}
@@ -584,7 +617,7 @@ function GenerateCoursePage() {
                 value={itemCount}
                 onChange={(event) => setItemCount(event.target.value)}
               />
-            </div>
+            </label>
 
             {/* The assessor's own figure first, and the department's under it.
                 Unticking the box is how the default is given up, so it reads
@@ -691,6 +724,14 @@ function GenerateCoursePage() {
             ) : null}
           </section>
 
+          <BlueprintBrief
+            items={brief.items}
+            split={brief.split}
+            asked={clampCount(itemCount)}
+            paper={scope === "final" ? "final exam" : "quiz"}
+            onModify={() => setTosOpen(true)}
+          />
+
           <section className="assessor-card gen-post">
             <h2 className="assessor-card-title">Review &amp; post</h2>
 
@@ -757,6 +798,16 @@ function GenerateCoursePage() {
           </section>
         </div>
       </div>
+
+      {tosOpen ? (
+        <TosModal
+          courseId={courseId}
+          mode={scope === "final" ? "final" : "lesson"}
+          lessonId={scope === "final" ? "" : moduleId}
+          onSaved={setTos}
+          onClose={() => setTosOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

@@ -41,10 +41,7 @@ export default function LevelSplit({ split, total, onChange, disabled = false })
               {levelsIn(group.key).map((level) => (
                 <li className="tos-level" key={level.key}>
                   <span className="tos-level__swatch" data-level={level.key} aria-hidden="true" />
-                  <span className="tos-level__text">
-                    <span className="tos-level__name">{level.label}</span>
-                    <span className="tos-level__blurb">{level.blurb}</span>
-                  </span>
+                  <span className="tos-level__name">{level.label}</span>
                   <Stepper
                     value={split?.[level.key] ?? 0}
                     label={level.label}

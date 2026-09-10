@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import {
-  fetchAssessorClasses,
-  fetchCourseTos,
-  saveCourseTos,
-  storedAssessorId
-} from "../../services/assessors";
-import { ChevronRightIcon } from "./components/icons";
-import { AssessorSelect, LoadFailed, ScreenHeader, Segmented } from "./components/ui";
-import { SkeletonText } from "../../components/Skeleton";
-import { noticeClass, useNotice } from "../../lib/useNotice";
-import AllocationBar from "./components/tos/AllocationBar";
-import ContentSplit from "./components/tos/ContentSplit";
-import LevelSplit from "./components/tos/LevelSplit";
-import Matrix from "./components/tos/Matrix";
-import Stepper from "./components/tos/Stepper";
+import { fetchCourseTos, saveCourseTos, storedAssessorId } from "../../../../services/assessors";
+import { AssessorSelect, LoadFailed, Segmented } from "../ui";
+import { SkeletonText } from "../../../../components/Skeleton";
+import { noticeClass, useNotice } from "../../../../lib/useNotice";
+import AllocationBar from "./AllocationBar";
+import ContentSplit from "./ContentSplit";
+import LevelSplit from "./LevelSplit";
+import Matrix from "./Matrix";
+import Stepper from "./Stepper";
 import {
   LEVEL_KEYS,
   apportion,
@@ -23,7 +16,7 @@ import {
   emptySplit,
   splitItems,
   toCount
-} from "./components/tos/levels";
+} from "./levels";
 
 /**
  * The Table of Specification, written by the assessor who will generate from it.
@@ -45,6 +38,11 @@ import {
  *   paper each lesson carries, what thinking the paper as a whole demands, and
  *   then the matrix where those two answers meet.
  *
+ * It is opened over the generate screen rather than reached from the rail,
+ * because writing the blueprint and spending it are one task: the assessor is
+ * already looking at the course, the lesson and the count when they find that
+ * the plan behind those numbers needs changing.
+ *
  * Nothing here calls a model or costs anything. It is the sentence generation
  * will be given — how many questions, from where, at what level — written down
  * before any money is spent on it.
@@ -53,35 +51,7 @@ import {
 const MAX_ITEMS = 120;
 const DEFAULT_FINAL_ITEMS = 40;
 
-/* ───────────────────────────── Picking a class ───────────────────────────── */
-
-function ClassPicker({ classes, onOpen }) {
-  if (classes.length === 0) {
-    return <p className="gen-empty__title">You are not assigned to a class yet.</p>;
-  }
-
-  return (
-    <ul className="tos-picker">
-      {classes.map((course) => (
-        <li key={course.id}>
-          <button type="button" className="tos-picker__card" onClick={() => onOpen(course.id)}>
-            <span className="tos-picker__code">
-              {course.code}
-              {course.section ? ` · ${course.section}` : ""}
-            </span>
-            <span className="tos-picker__name">{course.title}</span>
-            <span className="tos-picker__go">
-              Open blueprint
-              <ChevronRightIcon size={15} />
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/* ─────────────────────────────── The screen ─────────────────────────────── */
+/* ───────────────────────────── The blueprint ───────────────────────────── */
 
 /** The stored document, turned into the two things this screen edits. */
 function readTos(tos, lessons) {
@@ -133,39 +103,21 @@ function readTos(tos, lessons) {
   };
 }
 
-function TosPage() {
-  const navigate = useNavigate();
-  const { courseId } = useParams();
+function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved }) {
   const assessorId = storedAssessorId();
 
-  const [classes, setClasses] = useState(null);
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useNotice();
   const [saving, setSaving] = useState(false);
 
-  const [mode, setMode] = useState("lesson");
-  const [lessonId, setLessonId] = useState("");
+  // Opened from the generate screen, so it opens on the paper that screen is
+  // pointed at — the assessor came here about that one.
+  const [mode, setMode] = useState(defaultMode ?? "lesson");
+  const [lessonId, setLessonId] = useState(defaultLesson ?? "");
   const [draft, setDraft] = useState(null);
 
   /* ── Loading ──────────────────────────────────────────────────────────── */
-
-  useEffect(() => {
-    if (courseId || !assessorId) return undefined;
-
-    let active = true;
-    fetchAssessorClasses(assessorId)
-      .then((list) => {
-        if (active) setClasses(list);
-      })
-      .catch(() => {
-        if (active) setFailed(true);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [assessorId, courseId]);
 
   const load = useCallback(async () => {
     if (!courseId || !assessorId) return;
@@ -281,6 +233,7 @@ function TosPage() {
       });
       setData((current) => ({ ...current, tos: payload.tos }));
       setNotice({ tone: "ok", text: "Blueprint saved." });
+      onSaved?.(payload.tos);
     } catch (_error) {
       setNotice({ tone: "bad", text: "That did not save. Try again." });
     } finally {
@@ -290,28 +243,9 @@ function TosPage() {
 
   /* ── Views ────────────────────────────────────────────────────────────── */
 
-  if (!courseId) {
-    return (
-      <div className="assessor-body assessor-stack">
-        <ScreenHeader eyebrow="Blueprints" title="Table of Specification" />
-        <p className="tos-note tos-note--lead">
-          A blueprint says how many questions a paper holds, which lessons they come
-          from, and what level of thinking each one asks for. Generation follows it.
-        </p>
-        {failed ? (
-          <LoadFailed what="your classes" onRetry={() => window.location.reload()} />
-        ) : classes === null ? (
-          <SkeletonText lines={4} label="Loading your classes…" />
-        ) : (
-          <ClassPicker classes={classes} onOpen={(id) => navigate(`/assessor/blueprint/${id}`)} />
-        )}
-      </div>
-    );
-  }
-
   if (failed) {
     return (
-      <div className="assessor-body assessor-stack">
+      <div className="tos-editor">
         <LoadFailed what="this blueprint" onRetry={load} />
       </div>
     );
@@ -319,27 +253,35 @@ function TosPage() {
 
   if (!draft) {
     return (
-      <div className="assessor-body assessor-stack">
+      <div className="tos-editor">
         <SkeletonText lines={6} label="Loading the blueprint…" />
       </div>
     );
   }
 
-  const lesson = lessons.find((entry) => String(entry.id) === String(lessonId)) ?? null;
   const gridTotal = draft.grid.reduce((sum, row) => sum + splitItems(row), 0);
-  const levelTotal = splitItems(draft.levels);
 
   return (
-    <div className="assessor-body assessor-stack tos-screen">
-      <ScreenHeader
-        back={{ label: "Blueprints", onClick: () => navigate("/assessor/blueprint") }}
-        eyebrow={course ? `${course.code}${course.section ? ` · ${course.section}` : ""}` : ""}
-        title="Table of Specification"
-      >
-        <button type="button" className="btn btn--primary" disabled={saving} onClick={save}>
-          {saving ? "Saving…" : "Save blueprint"}
-        </button>
-      </ScreenHeader>
+    <div className="tos-editor assessor-stack">
+      {/* The dialog's only chrome is the close control the frame hands in, so
+          that the blueprint keeps one header rather than gaining a second. */}
+      <header className="tos-editor__head">
+        <div className="tos-editor__lead">
+          {course ? (
+            <div className="assessor-eyebrow">
+              {course.code}
+              {course.section ? ` · ${course.section}` : ""}
+            </div>
+          ) : null}
+          <h2 className="tos-editor__title">Table of Specification</h2>
+        </div>
+        <div className="tos-editor__actions">
+          <button type="button" className="btn btn--primary" disabled={saving} onClick={save}>
+            {saving ? "Saving…" : "Save blueprint"}
+          </button>
+          {headerEnd}
+        </div>
+      </header>
 
       {notice ? <p className={noticeClass(notice)}>{notice.text}</p> : null}
 
@@ -375,11 +317,6 @@ function TosPage() {
             </div>
 
             <AllocationBar target={quizItems} split={quizSplit} />
-
-            <p className="tos-note">
-              Every question comes from {lesson?.title ?? "this lesson"}, so all that is
-              left to decide is what kind of thinking they ask for.
-            </p>
 
             <LevelSplit split={quizSplit} total={quizItems} onChange={setQuizLevel} />
           </section>
@@ -429,13 +366,17 @@ function TosPage() {
           </section>
 
           <section className="assessor-card tos-block">
-            <h2 className="tos-block__title">Where the questions come from</h2>
+            <div className="tos-block__head">
+              <h2 className="tos-block__title">Where the questions come from</h2>
+              <button type="button" className="btn btn--ghost" onClick={spreadEvenly}>
+                Spread evenly
+              </button>
+            </div>
             <ContentSplit
               lessons={lessons}
               counts={draft.content}
               total={draft.finalItems}
               onChange={setContent}
-              onEven={spreadEvenly}
             />
             <p className={`tos-check${contentTotal === draft.finalItems ? " is-ok" : ""}`}>
               {contentTotal === draft.finalItems
@@ -447,11 +388,6 @@ function TosPage() {
           <section className="assessor-card tos-block">
             <h2 className="tos-block__title">What thinking they ask for</h2>
             <LevelSplit split={draft.levels} total={draft.finalItems} onChange={setFinalLevel} />
-            <p className={`tos-check${levelTotal === draft.finalItems ? " is-ok" : ""}`}>
-              {levelTotal === draft.finalItems
-                ? `All ${draft.finalItems} questions have a level.`
-                : `The levels add up to ${levelTotal}, and the exam is ${draft.finalItems}.`}
-            </p>
           </section>
 
           <section className="assessor-card tos-block">
@@ -480,4 +416,4 @@ function TosPage() {
   );
 }
 
-export default TosPage;
+export default TosEditor;

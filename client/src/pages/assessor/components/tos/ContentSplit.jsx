@@ -14,21 +14,11 @@ import { share } from "./levels";
  * commonest answer, but it is a starting point rather than the rule — a lesson
  * with more in it may well deserve more of the paper.
  */
-export default function ContentSplit({ lessons, counts, total, onChange, onEven, disabled }) {
+export default function ContentSplit({ lessons, counts, total, onChange, disabled }) {
   const most = Math.max(1, ...lessons.map((lesson) => counts[lesson.id] ?? 0));
 
   return (
     <div className="tos-content">
-      <div className="tos-content__lead">
-        <p className="tos-note">
-          Every question in the final exam comes from one lesson. Decide how many each
-          one contributes.
-        </p>
-        <button type="button" className="btn btn--ghost" disabled={disabled} onClick={onEven}>
-          Spread evenly
-        </button>
-      </div>
-
       <ul className="tos-rows">
         {lessons.map((lesson, index) => {
           const count = counts[lesson.id] ?? 0;

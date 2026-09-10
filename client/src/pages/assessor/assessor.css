@@ -3962,93 +3962,266 @@
   --level: var(--lv-create);
 }
 
-.tos-screen {
+.tos-editor {
   --tos-gap: var(--sp-5);
 }
 
-/* ── Prose ────────────────────────────────────────────────── */
+/* ── The blueprint's own header ───────────────────── */
 
-.tos-note {
-  max-width: 62ch;
+/* Sticky, because a final's blueprint is four cards long and Save must not be
+   a scroll away from the cell that was just corrected. It carries the dialog's
+   own ground so the cards pass under it rather than through it. */
+.tos-editor__head {
+  --edge: var(--pad, var(--sp-5));
+  position: sticky;
+  top: calc(var(--edge) * -1);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin: calc(var(--edge) * -1) calc(var(--edge) * -1) 0;
+  padding: var(--edge);
+  background: var(--bg-app);
+}
+
+.tos-editor__lead {
+  min-width: 0;
+}
+
+.tos-editor__title {
   margin: 0;
+  color: var(--brand-text);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+.tos-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ── Opened over the screen that spends it ────────── */
+
+/* The dialog is portalled to the body, out of reach of the transform that
+   .entity-enter leaves on the console. This host is only there to carry the
+   console's custom properties down to it, so it generates no box of its own —
+   no background, no layout, and nothing a fixed child could be trapped by. */
+.assessor-app.tos-portal {
+  display: contents;
+}
+
+/* Blurred rather than merely dimmed: dimming says the page behind is
+   inactive, blurring says it is still the subject. The blueprint is about that
+   course, and this is a layer over the work rather than a different place. */
+.tos-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-8);
+  /* Literal rather than tokenised: a scrim must darken in both themes, and
+     --ink inverts to a pale colour on the navy. */
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  animation: tos-modal-scrim 0.18s ease-out;
+}
+
+[data-theme="dark"] .tos-modal {
+  background: rgba(2, 6, 16, 0.55);
+}
+
+.tos-modal__panel {
+  --pad: var(--sp-5);
+  width: min(62rem, 100%);
+  /* Without this the flex item refuses to go below its content's own
+     min-content width, and a narrow window pushes the blueprint off the
+     right-hand edge of the dialog rather than scrolling it. */
+  min-width: 0;
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--pad);
+  border-radius: var(--radius-xl);
+  background: var(--bg-app);
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.32);
+  animation: tos-modal-panel 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.tos-modal__panel:focus {
+  outline: none;
+}
+
+/**
+ * The console's own scrollbar on the blueprint, not the platform's.
+ *
+ * styles.css asks for thin scrollbars app-wide through `scrollbar-width`, and
+ * in Chromium naming `scrollbar-width` or `scrollbar-color` at all switches the
+ * element to the native bar and discards the `::-webkit-scrollbar` rules sitting
+ * beside them — which on Windows is a stepper arrow at each end of the track.
+ * Handing both properties back to `auto` puts those rules back in charge, and a
+ * webkit scrollbar draws no buttons unless it is asked for them.
+ *
+ * Scoped to the engines that have the pseudo-element. Firefox honours
+ * `scrollbar-width` and has never drawn arrows, so it keeps the thin bar.
+ */
+@supports selector(::-webkit-scrollbar) {
+  .tos-modal__panel,
+  .tos-matrix-scroll {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  /* A custom scrollbar is painted outside the element's rounded clip, so a
+     thumb at either end of its travel rode over the dialog's corner and out
+     past its silhouette. Holding the track off by the radius keeps the thumb
+     inside the straight part of the edge, where the corner has nothing to
+     say. The matrix scrolls in a square box and needs none of this. */
+  .tos-modal__panel::-webkit-scrollbar-track {
+    margin: var(--radius-xl) 0;
+  }
+}
+
+.tos-modal__close {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-100);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tos-modal__close:hover {
+  background: var(--gray-200);
+  color: var(--text-strong);
+}
+
+@media (max-width: 640px) {
+  .tos-modal {
+    padding: var(--sp-3);
+  }
+
+  .tos-modal__panel {
+    --pad: var(--sp-4);
+  }
+}
+
+@keyframes tos-modal-scrim {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tos-modal-panel {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* ── What the blueprint asks, beside the fields it governs ── */
+
+.tos-brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.tos-brief .assessor-card-title {
+  margin: 0;
+}
+
+/* The card already rules between its two rows and spaces them; a third rule
+   under the last would make a two-row card look like a table with a footer. */
+.tos-brief .tos-check {
+  padding-top: 0;
+  border-top: none;
+}
+
+.tos-brief__total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4ch;
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-light);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.tos-brief__total span {
   color: var(--text-muted);
   font-size: var(--fs-body);
-  line-height: 1.55;
-}
-
-.tos-note--lead {
-  margin-bottom: var(--sp-2);
-}
-
-/* Whether the numbers agree, in the words the assessor would use. Quiet when
-   they do — a finished sum is not news — and plain body ink when they do not,
-   because it is a state of the work rather than an error in it. */
-.tos-check {
-  margin: 0;
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--gray-200);
-  color: var(--text-body);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-}
-
-.tos-check.is-ok {
-  color: var(--text-muted);
   font-weight: var(--fw-regular);
 }
 
-/* ── Picking a class ──────────────────────────────────────── */
+/* The same bar as the blueprint's own, at a height that reads as a summary
+   rather than a control — and without the figures, which have no room and are
+   named underneath anyway. */
+.tos-bar__track.tos-bar__track--slim {
+  height: 0.6rem;
+  gap: 1.5px;
+  border-radius: var(--radius-pill);
+}
 
-.tos-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: var(--sp-4);
+.tos-brief__groups {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.tos-picker__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  width: 100%;
-  padding: var(--sp-5);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-row);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+.tos-brief__group {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  font-variant-numeric: tabular-nums;
 }
 
-.tos-picker__card:hover {
-  border-color: var(--brand);
-  box-shadow: var(--shadow-row-hover);
+.tos-brief__group + .tos-brief__group {
+  border-top: 1px solid var(--gray-200);
 }
 
-.tos-picker__code {
-  color: var(--brand-text);
+.tos-brief__label {
   font-size: var(--fs-label);
   font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
 }
 
-.tos-picker__name {
+.tos-brief__group[data-group="lots"] .tos-brief__label {
+  color: var(--lv-lots-ink);
+}
+
+.tos-brief__group[data-group="hots"] .tos-brief__label {
+  color: var(--lv-hots-ink);
+}
+
+.tos-brief__count {
   color: var(--text-strong);
-  font-size: var(--fs-title-sm);
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
-  line-height: 1.35;
 }
 
-.tos-picker__go {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  margin-top: var(--sp-3);
+.tos-brief__pct {
+  min-width: 3ch;
   color: var(--text-muted);
   font-size: var(--fs-label);
+  text-align: right;
 }
 
 /* ── A section of the blueprint ───────────────────────────── */
@@ -4275,23 +4448,12 @@
   background: var(--level);
 }
 
-.tos-level__text {
-  display: flex;
-  flex-direction: column;
+.tos-level__name {
   flex: 1;
   min-width: 0;
-}
-
-.tos-level__name {
   color: var(--text-strong);
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
-}
-
-.tos-level__blurb {
-  color: var(--text-muted);
-  font-size: var(--fs-micro);
-  line-height: 1.4;
 }
 
 /* ── A list of lessons ────────────────────────────────────── */
@@ -4300,14 +4462,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-}
-
-.tos-content__lead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
 }
 
 .tos-rows {
@@ -4619,10 +4773,6 @@
 /* ── Narrow ───────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
-  .tos-level__blurb {
-    display: none;
-  }
-
   .tos-row__meter {
     display: none;
   }
@@ -4633,5 +4783,10 @@
   .tos-bar__open,
   .tos-row__meter span {
     transition: none;
+  }
+
+  .tos-modal,
+  .tos-modal__panel {
+    animation: none;
   }
 }

@@ -369,7 +369,6 @@ applyStoredTheme();
 
 function previewRoute() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("tos")) return 4;
   if (params.get("students")) return 3;
   if (params.get("admin")) return 2;
   if (params.get("modules")) return 1;

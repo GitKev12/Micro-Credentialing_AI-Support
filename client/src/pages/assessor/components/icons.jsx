@@ -42,34 +42,7 @@ export function GenerateIcon({ size = 20 }) {
   );
 }
 
-/** A clock face — how long a sitting runs. */
-/**
- * The blueprint, drawn as the grid it is — content down one side, thinking
- * across the other. A ruled sheet would have been the obvious glyph and says
- * only "a document"; the two axes are the whole idea of a specification.
- */
-export function TosIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect
-        x="3.5"
-        y="3.5"
-        width="17"
-        height="17"
-        rx="2.5"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      />
-      <path
-        d="M3.5 9.5h17M9.5 9.5V20.5M14.5 9.5V20.5M3.5 15h17"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
+/** A clock face — how long an attempt runs. */
 export function ClockIcon({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">

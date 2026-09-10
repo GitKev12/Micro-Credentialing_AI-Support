@@ -17,43 +17,37 @@ export const LEVELS = [
     key: "remember",
     label: "Remembering",
     short: "Rem",
-    group: "lots",
-    blurb: "Recalling facts, terms and definitions"
+    group: "lots"
   },
   {
     key: "understand",
     label: "Understanding",
     short: "Und",
-    group: "lots",
-    blurb: "Explaining or interpreting concepts"
+    group: "lots"
   },
   {
     key: "apply",
     label: "Applying",
     short: "App",
-    group: "lots",
-    blurb: "Using knowledge or a procedure in a given situation"
+    group: "lots"
   },
   {
     key: "analyze",
     label: "Analyzing",
     short: "Ana",
-    group: "hots",
-    blurb: "Breaking information apart, finding relationships"
+    group: "hots"
   },
   {
     key: "evaluate",
     label: "Evaluating",
     short: "Eva",
-    group: "hots",
-    blurb: "Judging or choosing against criteria"
+    group: "hots"
   },
   {
     key: "create",
     label: "Creating",
     short: "Cre",
-    group: "hots",
-    blurb: "Producing or designing something new"
+    group: "hots"
   }
 ];
 
