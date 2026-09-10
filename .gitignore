@@ -41,3 +41,7 @@ assessment-backup-*.json
 # paper down from the bank it used to be. Holds the whole discarded bank, keys
 # included, and exists only to be fed back through that script's --restore.
 assessment-bank-backup-*.json
+
+# JetBrains data sources: local IDE config, and it carries the cluster host.
+.idea/dataSources.xml
+.idea/dataSources.local.xml
