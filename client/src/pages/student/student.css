@@ -219,40 +219,50 @@ body:has(.student-app) {
   min-width: 0;
 }
 
+/* The college seal, not a lettermark: it carries its own colours and
+   transparent edge, so it sits on the bar rather than in a filled chip. The
+   shadow traces that edge — enough to lift the seal off the bar without
+   turning it into a button. */
 .sd-topbar__mark {
-  display: grid;
-  place-items: center;
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--sd-r-sm);
-  background: var(--sd-brand);
-  color: var(--sd-on-brand);
-  font-size: var(--sd-fs-meta);
-  font-weight: var(--sd-fw-bold);
-  letter-spacing: 0.02em;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(42, 21, 23, 0.18));
 }
 
-.sd-topbar__titles {
+/* The hairline is the lockup: the seal says whose portal this is, the greeting
+   says who is in it, and the rule keeps them from reading as one phrase. */
+.sd-topbar__rule {
+  flex-shrink: 0;
+  width: 1px;
+  height: 26px;
+  background: var(--sd-border-strong);
+}
+
+/* Baselines, not centres — the two sizes are set as one line of type. */
+.sd-topbar__greeting {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 0.45ch;
   min-width: 0;
+  margin: 0;
 }
 
-.sd-topbar__eyebrow {
-  margin: 0;
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-semibold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.sd-topbar__hello {
+  flex-shrink: 0;
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-medium);
   color: var(--sd-muted);
 }
 
+/* The name is the only word here worth reading twice, so it takes the size and
+   the colour. */
 .sd-topbar__name {
-  margin: 0;
-  font-size: var(--sd-fs-body-lg);
-  font-weight: var(--sd-fw-semibold);
-  color: var(--sd-ink);
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-bold);
+  color: var(--sd-brand-text);
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

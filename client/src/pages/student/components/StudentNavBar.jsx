@@ -5,6 +5,13 @@ import { resolveAvatarUrl } from "../../../services/avatar";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import ProfileAvatar from "./ProfileAvatar";
 import { CoursesIcon, DashboardIcon, LogoutIcon, MoonIcon, SunIcon } from "./icons";
+import ccsLogo from "../../../assets/ccs-logo.png";
+
+/** The bar greets the student by given name; `displayName` is "First Last". */
+function firstName(displayName) {
+  const first = String(displayName ?? "").trim().split(/\s+/)[0];
+  return first || "there";
+}
 
 const NAV_ITEMS = [
   { to: "/student", label: "My Courses", Icon: CoursesIcon, end: true },
@@ -78,13 +85,16 @@ function StudentNavBar() {
   return (
     <header className="sd-topbar">
       <div className="sd-topbar__brand">
-        <span className="sd-topbar__mark" aria-hidden="true">
-          TSU
-        </span>
-        <span className="sd-topbar__titles">
-          <span className="sd-topbar__eyebrow">MicroCred</span>
-          <span className="sd-topbar__name">Student Portal</span>
-        </span>
+        <img
+          className="sd-topbar__mark"
+          src={ccsLogo}
+          alt="College of Computer Studies, Tarlac State University"
+        />
+        <span className="sd-topbar__rule" aria-hidden="true" />
+        <p className="sd-topbar__greeting">
+          <span className="sd-topbar__hello">Welcome!</span>
+          <span className="sd-topbar__name">{firstName(studentName)}</span>
+        </p>
       </div>
 
       <nav className="sd-topbar__nav" aria-label="Student sections">
