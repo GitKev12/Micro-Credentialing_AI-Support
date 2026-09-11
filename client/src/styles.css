@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
 :root {
-  /* Global UI scale. The whole app renders as if the browser were zoomed to
-     95% while the browser itself stays at 100%, so more fits on screen.
-     Change this one number to retune the whole interface.
+  /* Global UI scale. 1 is normal size; a smaller number renders the whole app
+     as if the browser were zoomed out (0.95 looks like 95%) while the browser
+     itself stays at 100%. Change this one number to retune the whole interface.
 
      `zoom` scales every length, px and rem alike, and reflows the layout the
      way real browser zoom does (unlike transform: scale). It does NOT scale
-     viewport units the same way, though: under zoom, 100vh paints at 95% of
+     viewport units the same way, though: at 0.95, 100vh paints at 95% of
      the window. The --vh/--vw/--dvh helpers below divide that back out, so
      `calc(100 * var(--vh))` still means "exactly one screen tall". Use them
      instead of raw vh/vw anywhere a length must line up with the window. */
-  --app-zoom: 0.95;
+  --app-zoom: 0.97;
   --vh: calc(1vh / var(--app-zoom));
   --vw: calc(1vw / var(--app-zoom));
   --dvh: calc(1dvh / var(--app-zoom));
