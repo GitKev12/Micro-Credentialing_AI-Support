@@ -75,9 +75,12 @@ jest.unstable_mockModule("../src/services/assessments.js", () => ({
 }));
 
 let LearningModules, MemoryRouter, Routes, Route;
+// The live standing store, written to here the way the watcher writes to it.
+let reportCourseStanding, clearStanding;
 
 beforeAll(async () => {
   ({ MemoryRouter, Routes, Route } = await import("react-router-dom"));
+  ({ reportCourseStanding, clearStanding } = await import("../src/auth/services/standing.js"));
   ({ default: LearningModules } = await import("../src/pages/student/LearningModules.jsx"));
 });
 
@@ -87,6 +90,9 @@ beforeEach(() => {
   completed = [];
   lessonText = EMPTY_LESSON;
   window.localStorage.clear();
+  // It outlives a test otherwise: it is one module-level store, and a course
+  // closed in one test would open the next one closed.
+  clearStanding();
 });
 
 const draw = async () => {
@@ -453,5 +459,87 @@ describe("the back control", () => {
     await draw();
     await press(screen.getByRole("button", { name: "Back to courses" }));
     expect(screen.getByText("Course list")).toBeInTheDocument();
+  });
+});
+
+
+/**
+ * Closed while they were reading it.
+ *
+ * A suspension is written in another console, and the page a student is looking
+ * at has no way of knowing. They used to carry on reading — and finishing
+ * lessons, and handing papers in — until something made this page load again.
+ * The watcher asks the server every few seconds and writes the answer into the
+ * standing store; these are what the reader does with it.
+ */
+describe("a course closed under the student", () => {
+  const ASSESSOR_CLOSED =
+    "Your assessor has closed this course for you, so its lessons are shut for now.";
+
+  const close = async (reason = ASSESSOR_CLOSED, by = "assessor") => {
+    await act(async () => {
+      reportCourseStanding([{ courseId: "c1", by, reason }]);
+    });
+  };
+
+  it("shuts the page, with the reason, and without being reloaded", async () => {
+    modules = [{ id: "m1", title: "Introduction to Java" }];
+    const { container } = await draw();
+    // Named twice while the page is open — once in the rail and once over the
+    // viewer — which is the shape being checked has gone afterwards.
+    expect(screen.getAllByText("Introduction to Java")).toHaveLength(2);
+
+    await close();
+
+    expect(screen.getByText(ASSESSOR_CLOSED)).toBeInTheDocument();
+    // Not a banner over the lessons: there are no lessons to have one over.
+    expect(container.querySelector(".modules-layout")).toBeNull();
+  });
+
+  /**
+   * The two suspensions are undone by different people, so the student is sent
+   * to the right one. The sentence is the server's either way — this only
+   * checks the page shows whichever it was handed.
+   */
+  it("says the administrator's, when it was the class that was switched off", async () => {
+    await draw();
+    await close("Your class for this course is switched off, so its lessons are closed for now.", "class");
+
+    expect(screen.getByText(/class for this course is switched off/)).toBeInTheDocument();
+    expect(screen.queryByText(/assessor has closed/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * And back again. Closing needs no reload — the page has everything it needs
+   * to say so — but opening does: the lessons, the quizzes and the progress
+   * were all refused while it was shut, so the page is holding nothing.
+   */
+  it("reads the course again when it opens back up", async () => {
+    const { container } = await draw();
+    await close();
+
+    modules = [{ id: "m1", title: "Introduction to Java" }];
+    await act(async () => {
+      reportCourseStanding([]);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.queryByText(ASSESSOR_CLOSED)).not.toBeInTheDocument();
+    expect(container.querySelector(".modules-layout")).toBeInTheDocument();
+    // The lessons are back, which they could only be by being asked for again:
+    // the page had none of them while the course was shut.
+    expect(screen.getAllByText("Introduction to Java").length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Silence is not an answer. Until the watcher has heard back there is nothing
+   * newer than what the page loaded with, and an empty store must not be read
+   * as "everything is open".
+   */
+  it("leaves a course that loaded shut shut, until the server says otherwise", async () => {
+    await draw();
+    expect(screen.queryByText(ASSESSOR_CLOSED)).not.toBeInTheDocument();
   });
 });

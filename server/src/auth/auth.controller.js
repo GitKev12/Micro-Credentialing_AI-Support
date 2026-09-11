@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { signAuthToken } from "./tokens.js";
+import { loadStudentSuspensions } from "../lib/courseAccess.js";
 
 const roleCollections = {
   student: "Student",
@@ -143,6 +144,47 @@ export async function loginUser(request, response) {
     token: signAuthToken(result.account, result.role),
     user: toPublicUser(result.account, result.role),
     redirectTo: roleRoutes[result.role]
+  });
+}
+
+/**
+ * GET /api/auth/standing — what is closed for the caller, as of now.
+ *
+ * The client holds what it was told when a screen loaded, and a suspension is
+ * written while they are looking at it. This is the question that page can ask
+ * again without reloading itself: it is small, it is the same answer for every
+ * screen, and it is the only request a student who is doing nothing makes.
+ *
+ * The account's own standing is not in the body, because it cannot be. A
+ * suspended account never reaches this handler — the guard in front of every
+ * route in this API refuses it first, with the reason on the refusal (see
+ * lib/suspension.js), and that refusal is what the client watches for. Getting
+ * an answer at all is the good news.
+ *
+ * So what is left is the other suspension: this student's place in particular
+ * courses, closed by their assessor or by an administrator switching a class
+ * off. Both arrive with the `by` that says which, because they are undone by
+ * different people and the student is told to go to the right one.
+ *
+ * A database that cannot be read answers 503 rather than an empty list. The
+ * client takes this as the state of things and would otherwise reopen, on
+ * screen, a course it had already been told was shut.
+ */
+export async function getStanding(request, response) {
+  // Staff have courses they teach, not a place in one that can be closed.
+  if (request.session?.role !== "student") return response.json({ courses: [] });
+
+  if (!ensureDatabaseReady(response)) return null;
+
+  const byCourse = await loadStudentSuspensions(request.session.id);
+
+  return response.json({
+    courses: [...byCourse].map(([courseId, suspension]) => ({
+      courseId,
+      suspended: true,
+      by: suspension.by,
+      reason: suspension.reason
+    }))
   });
 }
 

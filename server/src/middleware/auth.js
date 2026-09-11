@@ -1,4 +1,5 @@
 import { readBearerToken, readRequestToken, verifyAuthToken } from "../auth/tokens.js";
+import { loadAccountSuspension, refuseSuspendedAccount } from "../lib/suspension.js";
 
 /**
  * Route guards.
@@ -15,16 +16,42 @@ function deny(response, status, message) {
   return response.status(status).json({ message });
 }
 
-/** Verifies the bearer token and hangs the session off the request. */
-export function requireAuth(request, response, next) {
-  const session = verifyAuthToken(readBearerToken(request));
+/**
+ * Who is calling, and whether they are still allowed to.
+ *
+ * The token says who, and says it without asking anybody: that is what a
+ * signed token is for, and it is why a token stays good for the twelve hours
+ * it was minted for however the account behind it has changed since. So the
+ * account's own standing is read here, on the way in, once per request.
+ *
+ * It is the only place that can hold. Every route in this API is reached
+ * through one of these two guards, and hanging the check off any one screen or
+ * controller would leave the others open — a suspended student who can still
+ * GET a lesson and POST a finished paper is not suspended.
+ *
+ * The read is an indexed lookup by `_id` with one field projected, and it is
+ * skipped entirely while the database is down (see `loadAccountSuspension`),
+ * so the routes that answer without one still do.
+ */
+async function establish(request, response, next, token) {
+  const session = verifyAuthToken(token);
 
   if (!session) {
     return deny(response, 401, "Sign in to continue.");
   }
 
+  const suspension = await loadAccountSuspension(session);
+  if (suspension) {
+    return refuseSuspendedAccount(response, suspension);
+  }
+
   request.session = session;
   return next();
+}
+
+/** Verifies the bearer token and hangs the session off the request. */
+export function requireAuth(request, response, next) {
+  return establish(request, response, next, readBearerToken(request));
 }
 
 /**
@@ -32,14 +59,7 @@ export function requireAuth(request, response, next) {
  * fetches on its own, where no header can be attached. See `readRequestToken`.
  */
 export function requireDownloadAuth(request, response, next) {
-  const session = verifyAuthToken(readRequestToken(request));
-
-  if (!session) {
-    return deny(response, 401, "Sign in to continue.");
-  }
-
-  request.session = session;
-  return next();
+  return establish(request, response, next, readRequestToken(request));
 }
 
 /** Restricts a route to the listed roles. */

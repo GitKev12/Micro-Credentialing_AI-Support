@@ -195,7 +195,12 @@ export function toCourseAccess(course, at = new Date(), suspension = null) {
     // Not a property of the course — of this student's place in it. A course
     // suspended for one student is open to the class next door.
     suspended: Boolean(suspension),
-    suspendedReason: suspension?.reason ?? null
+    suspendedReason: suspension?.reason ?? null,
+    // Which of the two closed it: "assessor" stood this one student down,
+    // "class" is an administrator switching the whole class off. The reason
+    // already reads differently; this is the same fact in a form a screen can
+    // branch on without matching on a sentence.
+    suspendedBy: suspension?.by ?? null
   };
 }
 
@@ -424,6 +429,10 @@ export function refuseRestrictedCourse(response, restriction) {
     locked: true,
     ended: Boolean(restriction.ended),
     suspended: Boolean(restriction.suspended),
-    endedOn: restriction.endedOn ?? null
+    endedOn: restriction.endedOn ?? null,
+    // "course", against the account scope lib/suspension.js refuses with: this
+    // one shuts a page, that one shuts the console. `by` is who to go to.
+    scope: "course",
+    by: restriction.by ?? null
   });
 }

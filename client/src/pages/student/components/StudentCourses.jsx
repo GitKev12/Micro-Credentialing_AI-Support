@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getStoredSession } from "../../../auth/services/authService";
 import { courseImageUrl, fetchStudentCourses } from "../../../services/courses";
+import { applySuspension, useStanding } from "../../../lib/useStanding";
 import noCoursesImage from "../../../assets/no-courses-student.png";
 import {
   formatCourseEnded,
@@ -94,8 +95,28 @@ function percentOf(course) {
 
 function StudentCourses() {
   const navigate = useNavigate();
-  const [courses, setCourses] = useState([]);
+  const [fetched, setFetched] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  /**
+   * The cards as they stand now, rather than as they were fetched.
+   *
+   * This list is read once, on arrival, and then left on screen — a student
+   * picks a course out of it and comes back to it. A course closed while they
+   * were looking at it would otherwise still be offered here, and open to a
+   * press, until something made the page load again.
+   *
+   * Only after the server has answered. Until then the cards are as they were
+   * served, which is the freshest thing anybody here knows.
+   */
+  const { courses: closed, known } = useStanding();
+  const courses = useMemo(
+    () =>
+      known
+        ? fetched.map((course) => applySuspension(course, closed[String(course.id)]))
+        : fetched,
+    [fetched, closed, known]
+  );
 
   const openCourse = (course) => {
     // A switched-off class has no lessons to open. The reader turns the same
@@ -113,10 +134,10 @@ function StudentCourses() {
 
     fetchStudentCourses(studentId)
       .then((list) => {
-        if (active) setCourses(list);
+        if (active) setFetched(list);
       })
       .catch(() => {
-        if (active) setCourses([]);
+        if (active) setFetched([]);
       })
       .finally(() => {
         if (active) setIsLoading(false);

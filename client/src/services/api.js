@@ -1,5 +1,6 @@
 import axios from "axios";
 import { clearAuthSession, getAuthToken } from "../auth/services/session";
+import { reportAccountSuspension } from "../auth/services/standing";
 
 /**
  * In development this stays "/api" and Vite proxies it to the server (see
@@ -21,14 +22,26 @@ api.interceptors.request.use((config) => {
 });
 
 /**
+ * The two refusals that are about the caller rather than about what they asked
+ * for, and so cannot be left to the screen that happened to make the request.
+ *
  * A 401 means the token is missing, expired or no longer trusted. Drop the
  * dead session and send them back to sign in — otherwise the app sits on a
  * stale token and every screen fails on its own.
+ *
+ * A 423 scoped to the account means they are suspended: the token is sound and
+ * the server will not act on it (see server lib/suspension.js). It is recorded
+ * rather than acted on here, because what happens next is a sentence on screen
+ * and this layer has no business drawing one — see SessionStanding, which is
+ * watching. The error still rejects, so the screen that asked handles its own
+ * failure as it always did.
  */
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const { status, data } = error.response ?? {};
+
+    if (status === 401) {
       clearAuthSession();
       const loginPath = window.location.pathname.startsWith("/admin")
         ? "/admin-login"
@@ -37,6 +50,11 @@ api.interceptors.response.use(
         window.location.assign(loginPath);
       }
     }
+
+    if (status === 423 && data?.scope === "account") {
+      reportAccountSuspension(data);
+    }
+
     return Promise.reject(error);
   }
 );

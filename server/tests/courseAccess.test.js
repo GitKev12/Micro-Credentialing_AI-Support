@@ -83,7 +83,8 @@ describe("toCourseAccess", () => {
       ended: false,
       endedReason: null,
       suspended: false,
-      suspendedReason: null
+      suspendedReason: null,
+      suspendedBy: null
     });
   });
 
@@ -100,7 +101,8 @@ describe("toCourseAccess", () => {
       ended: false,
       endedReason: null,
       suspended: false,
-      suspendedReason: null
+      suspendedReason: null,
+      suspendedBy: null
     });
   });
 
@@ -110,6 +112,13 @@ describe("toCourseAccess", () => {
 
     expect(access.suspended).toBe(true);
     expect(access.suspendedReason).toBe(suspension.reason);
+    // Who closed it, in a form a screen can branch on without reading the
+    // sentence: a switched-off class is the administrator's, and the student
+    // stood down from one course is their assessor's.
+    expect(access.suspendedBy).toBe("class");
+    expect(
+      toCourseAccess(running, new Date(iso("2026-09-15")), classSuspensionFrom([{ suspendedStudentIds: ["s1"] }], "s1")).suspendedBy
+    ).toBe("assessor");
     // The run is untouched — it is this student's class that closed.
     expect(access.ended).toBe(false);
   });

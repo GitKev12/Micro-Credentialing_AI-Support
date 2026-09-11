@@ -297,6 +297,93 @@ a {
   line-height: 1.5;
 }
 
+/* ── Suspended account ────────────────────────────────── */
+
+/* Drawn over whichever console the person was in when an administrator shut
+   their account, so it takes the app's own tokens rather than a console's —
+   and stands outside the shell those consoles are drawn in, or a fixed
+   position would be measured against the page instead of the window (see
+   AppLayout). */
+.standing-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  /* Literal rather than tokenised: a scrim must darken in both themes, and
+     --ink inverts to a pale colour on the navy. */
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+}
+
+[data-theme="dark"] .standing-lock {
+  background: rgba(2, 6, 16, 0.55);
+}
+
+.standing-lock__panel {
+  width: min(26rem, 100%);
+  padding: 2rem 1.75rem 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-strong);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  text-align: center;
+}
+
+.standing-lock__icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: rgba(165, 45, 34, 0.1);
+  color: #a52d22;
+}
+
+.standing-lock__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.standing-lock__text {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Literal rather than tokenised, like the scrim above it. This dialog is drawn
+   outside the console it covers — it has to be, or a fixed position would be
+   measured against the page — so it never inherits the red the student and
+   assessor screens are themed in, and --accent under it is the app's blue.
+   Neutral is also the truer colour for what the button does: it is the way
+   out, not the brand's next step. */
+.standing-lock__btn {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: #1f2937;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.standing-lock__btn:hover {
+  background: #111827;
+}
+
+.standing-lock__btn:focus-visible {
+  outline: 2px solid #1f2937;
+  outline-offset: 2px;
+}
+
 /* ── Student ──────────────────────────────────────────── */
 
 .student-page {

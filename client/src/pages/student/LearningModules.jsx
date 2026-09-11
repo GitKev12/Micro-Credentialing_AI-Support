@@ -13,6 +13,7 @@ import {
 // lock state and result only exist relative to who is asking.
 import { fetchCourseAssessments } from "../../services/assessments";
 import { hasCourseEnded } from "../../lib/courseDuration";
+import { useCourseSuspension } from "../../lib/useStanding";
 import {
   lessonPercent,
   lessonShare,
@@ -238,6 +239,10 @@ function LearningModules() {
   const [activeSection, setActiveSection] = useState(null);
   // The badge a quiz was just passed for, shown in the corner for five seconds.
   const [earnedBadge, setEarnedBadge] = useState(null);
+  // Bumped when a closed course opens again under the student, to send the
+  // page back for everything it was refused while it was shut.
+  const [reopened, setReopened] = useState(0);
+  const wasSuspended = useRef(false);
   // The scrollable reader pane — watched to auto-complete lessons.
   const readerRef = useRef(null);
   // How far this student has read, per lesson and per section within it:
@@ -258,11 +263,28 @@ function LearningModules() {
   // the date rule is only the fallback for a response without the field.
   const ended = course?.ended ?? hasCourseEnded(course);
 
-  // The class holding this student in the course has been switched off in the
-  // admin console. Unlike an ended run it is not read-only — the server sends
-  // no lessons and refuses the content routes — so the page says so instead of
-  // drawing an empty curriculum it cannot explain.
-  const suspended = Boolean(course?.suspended);
+  /**
+   * This course has been closed for this student — by their assessor standing
+   * them down from it, or by an administrator switching their class off.
+   *
+   * Unlike an ended run it is not read-only: the server sends no lessons and
+   * refuses the content routes, so the page says so instead of drawing an empty
+   * curriculum it cannot explain.
+   *
+   * Two sources, and the live one wins once it has spoken. This page is opened
+   * and then stayed on — a lesson is read for twenty minutes — so what the
+   * course said when it loaded is the oldest thing on screen. `undefined` is
+   * the watcher not having answered yet, which is not the same as an answer of
+   * "open", and must leave a course that loaded shut shut.
+   */
+  const liveSuspension = useCourseSuspension(course?.id ?? courseId);
+  const suspension =
+    liveSuspension === undefined
+      ? course?.suspended
+        ? { reason: course.suspendedReason, by: course.suspendedBy }
+        : null
+      : liveSuspension;
+  const suspended = Boolean(suspension);
 
   useEffect(() => {
     let active = true;
@@ -301,7 +323,21 @@ function LearningModules() {
     return () => {
       active = false;
     };
-  }, [courseId, studentId]);
+  }, [courseId, studentId, reopened]);
+
+  /**
+   * A course that opens again while the page is on screen is read again.
+   *
+   * Closing one needs no reload — the page has everything it needs to say so,
+   * and hides the curriculum behind the notice. Opening one does: the lessons,
+   * the quizzes and the progress were all refused while it was shut, so what
+   * this page is holding for them is nothing.
+   */
+  useEffect(() => {
+    const was = wasSuspended.current;
+    wasSuspended.current = suspended;
+    if (was && !suspended) setReopened((count) => count + 1);
+  }, [suspended]);
 
   const selectedLessonId = selected?.type === "lesson" ? selected.item.id : null;
   const selectedAssessmentId =
@@ -752,7 +788,7 @@ function LearningModules() {
             <LockIcon size={56} />
           </span>
           <p className="modules-page__closed-text">
-            {course?.suspendedReason ??
+            {suspension?.reason ||
               "Your class for this course is switched off, so its lessons are closed for now."}
           </p>
         </div>
