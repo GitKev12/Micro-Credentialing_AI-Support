@@ -3430,6 +3430,523 @@ body:has(.student-app) {
   }
 }
 
+/* ===========================================================
+   Home — the student's courses
+
+   One course leads: the open one that needs the student first.
+   Everything else is a row, grouped by where it stands, so the
+   group heading says the state and no row needs a chip for it.
+   Words never sit on a picture; covers are pictures only.
+   =========================================================== */
+
+.sd-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-8);
+}
+
+/* ── Cover ──────────────────────────────────────────────────
+   The course code, set large enough to be the picture. It is a
+   size container so the type scales with whichever box it fills —
+   the lead course's tall panel or a row's thumbnail. */
+
+.sd-cover {
+  position: relative;
+  overflow: hidden;
+  container-type: size;
+  background: linear-gradient(150deg, var(--sd-brand) 0%, var(--sd-brand-deep) 100%);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.sd-cover__mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 30cqmin;
+  font-weight: var(--sd-fw-bold);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.sd-cover__img {
+  position: absolute;
+  inset: 0;
+  background-color: var(--sd-surface-2);
+  background-position: center;
+  background-size: cover;
+}
+
+/* ── Lead course ───────────────────────────────────────────── */
+
+.sd-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  overflow: hidden;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-xl);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow);
+}
+
+.sd-feature__cover {
+  min-height: 19rem;
+}
+
+/* On the big panel the code runs off the card's own bottom-left corner, so it
+   reads as type used as an image rather than a label placed in a box — and the
+   crop is at the card's edge, where it looks meant, not at the seam with the
+   text beside it. */
+.sd-feature__cover .sd-cover__mark {
+  inset: auto auto -0.12em -0.06em;
+  align-items: flex-start;
+  font-size: 40cqmin;
+  line-height: 0.8;
+  letter-spacing: -0.055em;
+}
+
+.sd-feature__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sd-8);
+  min-width: 0;
+  padding: var(--sd-8) var(--sd-8) var(--sd-8) var(--sd-10);
+}
+
+.sd-feature__code {
+  margin: 0 0 var(--sd-1);
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-brand-text);
+}
+
+.sd-feature__title {
+  max-width: 26ch;
+  margin: 0;
+  font-size: clamp(1.5rem, calc(1.05rem + 1.35 * var(--vw)), 2.125rem);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--sd-ink);
+  text-wrap: balance;
+}
+
+.sd-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sd-1) var(--sd-4);
+  margin: var(--sd-3) 0 0;
+  font-size: var(--sd-fs-body);
+  color: var(--sd-muted);
+}
+
+/* Time left is the part of the date a student acts on, so it takes the ink;
+   inside the last week it takes the caution colour, and says so in words. */
+.sd-when__left {
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink-2);
+}
+
+.sd-when__left[data-soon] {
+  color: var(--sd-warn-text);
+}
+
+.sd-feature__go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 1.6rem;
+  border: 0;
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand);
+  color: var(--sd-on-brand);
+  font: inherit;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  cursor: pointer;
+  box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--sd-brand) 85%, transparent);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.sd-feature__go:hover {
+  background: var(--sd-brand-deep);
+}
+
+.sd-feature__go:active {
+  transform: translateY(1px);
+}
+
+/* Dark mode's deep brand step is the surface's own navy; lift instead. */
+[data-theme="dark"] .sd-feature__go:hover {
+  background: #395493;
+}
+
+/* ── The course path ────────────────────────────────────────
+   A course here is its lessons, a quiz for each, and one final
+   exam — so that is what the path draws, in that order, rather
+   than one bar that hides which part is left. Fills are the
+   progress green the lesson rail's rings already use. */
+
+.sd-path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  column-gap: var(--sd-5);
+}
+
+.sd-path__stage {
+  display: grid;
+  grid-template-rows: auto 22px auto;
+  align-items: center;
+  row-gap: var(--sd-1);
+  min-width: 0;
+}
+
+.sd-path__label {
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+.sd-path__track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--sd-r-pill);
+  background: color-mix(in srgb, var(--sd-ink) 9%, transparent);
+}
+
+.sd-path__fill {
+  display: block;
+  width: var(--fill);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sd-good);
+  animation: sd-path-fill 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* The page's one moment of motion: the lead course's path runs out to where
+   the student is, lessons first and quizzes after, as it would be walked. */
+.sd-path__stage:nth-child(2) .sd-path__fill {
+  animation-delay: 0.2s;
+}
+
+@keyframes sd-path-fill {
+  from {
+    width: 0;
+  }
+}
+
+.sd-path__count {
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--sd-ink);
+}
+
+.sd-path__node {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--sd-border-strong);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.sd-path__stage--final[data-done="true"] .sd-path__node {
+  border-color: var(--sd-good);
+  background: var(--sd-good);
+}
+
+.sd-path__stage--final[data-done="false"] .sd-path__count {
+  font-weight: var(--sd-fw-medium);
+  color: var(--sd-muted);
+}
+
+/* ── Groups and rows ───────────────────────────────────────── */
+
+.sd-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-3);
+}
+
+.sd-group__title {
+  margin: 0;
+  padding-left: var(--sd-1);
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-rows {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow-sm);
+}
+
+.sd-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: var(--sd-5);
+  padding: var(--sd-3) var(--sd-5) var(--sd-3) var(--sd-3);
+  transition: background 0.15s ease;
+}
+
+.sd-row + .sd-row {
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-row:not([data-status="suspended"]):hover {
+  background: var(--sd-brand-wash);
+}
+
+/* Tinted rather than filled: the lead course is the page's one block of solid
+   brand colour, and a list of them under it would shout it down. */
+.sd-row__cover {
+  width: 84px;
+  height: 64px;
+  border-radius: var(--sd-r-sm);
+  background: color-mix(in srgb, var(--sd-brand) 11%, var(--sd-surface));
+  color: var(--sd-brand-text);
+}
+
+.sd-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sd-row__code {
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-muted);
+}
+
+.sd-row__title {
+  margin: 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.35;
+  color: var(--sd-ink);
+}
+
+/* The title is the button, and its ::after stretches over the whole row, so
+   the row opens from anywhere while its name is the name the button reads. */
+.sd-row__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sd-row__open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.sd-row__open:disabled {
+  cursor: default;
+}
+
+/* The ring goes round the row, not round the few words that hold focus. */
+.student-app .sd-row__open:focus-visible {
+  outline: none;
+}
+
+.sd-row:has(.sd-row__open:focus-visible) {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: -2px;
+}
+
+.sd-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-1) var(--sd-3);
+  margin: var(--sd-1) 0 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+.sd-row__meta--closed {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--sd-2);
+  line-height: 1.45;
+}
+
+.sd-row__meta--closed svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.sd-row__progress {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sd-3);
+}
+
+.sd-row__pct {
+  min-width: 4ch;
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--sd-ink);
+}
+
+.sd-row__none {
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+.sd-row__chevron {
+  display: grid;
+  place-items: center;
+  color: var(--sd-muted);
+  transform: rotate(-90deg);
+}
+
+.sd-minipath {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sd-minipath__track {
+  width: 52px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--sd-r-pill);
+  background: color-mix(in srgb, var(--sd-ink) 9%, transparent);
+}
+
+.sd-minipath__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sd-good);
+}
+
+.sd-minipath__node {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--sd-border-strong);
+  border-radius: 50%;
+}
+
+.sd-minipath__node[data-done="true"] {
+  border-color: var(--sd-good);
+  background: var(--sd-good);
+}
+
+/* An ended course is still the student's to read, so it stays whole — only
+   quieter, with its progress in ink rather than green, since none of it can
+   move any more. */
+.sd-row[data-status="ended"] .sd-cover {
+  filter: grayscale(0.6);
+}
+
+.sd-row[data-status="ended"] :is(.sd-minipath__fill, .sd-minipath__node[data-done="true"]) {
+  border-color: var(--sd-muted);
+  background: var(--sd-muted);
+}
+
+/* Switched off: the one row that cannot be opened, so it drops the hover, the
+   chevron and most of its colour. */
+.sd-row[data-status="suspended"] .sd-cover {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.sd-row[data-status="suspended"] :is(.sd-row__title, .sd-row__pct) {
+  color: var(--sd-ink-2);
+}
+
+.sd-row[data-status="suspended"] :is(.sd-minipath__fill, .sd-minipath__node[data-done="true"]) {
+  border-color: var(--sd-border-strong);
+  background: var(--sd-border-strong);
+}
+
+/* ── Loading ───────────────────────────────────────────────── */
+
+.sd-home__skeleton-feature {
+  height: 19rem;
+  border-radius: var(--sd-r-xl);
+}
+
+.sd-home__skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-2);
+}
+
+.sd-home__skeleton-row {
+  height: 88px;
+}
+
+@media (max-width: 820px) {
+  .sd-feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sd-feature__cover {
+    min-height: 0;
+    aspect-ratio: 16 / 7;
+  }
+
+  .sd-feature__body {
+    gap: var(--sd-6);
+    padding: var(--sd-6);
+  }
+}
+
+@media (max-width: 640px) {
+  .sd-row {
+    grid-template-columns: 64px minmax(0, 1fr) 16px;
+    gap: var(--sd-2) var(--sd-4);
+    padding-right: var(--sd-4);
+  }
+
+  .sd-row__cover {
+    grid-row: span 2;
+    align-self: start;
+    width: 64px;
+    height: 52px;
+  }
+
+  .sd-row__chevron {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .sd-row__progress {
+    grid-column: 2 / 4;
+    justify-content: flex-start;
+  }
+
+  .sd-path {
+    column-gap: var(--sd-4);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .student-app *,
   .student-app *::before,

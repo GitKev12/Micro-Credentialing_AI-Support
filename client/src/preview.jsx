@@ -9,7 +9,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import api from "./services/api";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
+import StudentCourses from "./pages/student/components/StudentCourses";
 import LearningModules from "./pages/student/LearningModules";
+import ccsBackground from "./assets/CCS-Background.jpg";
 import AdminLayout from "./pages/admin/AdminLayout";
 import CourseManagement from "./pages/admin/CourseManagement";
 import StudentsManagement from "./pages/admin/StudentsManagement";
@@ -76,6 +78,107 @@ const ADMIN_COURSES = [
     startsOn: "2026-09-01T00:00:00.000Z",
     moduleCount: 14,
     studentCount: 52
+  }
+];
+
+// The student's home — one course in every state a card can be in: working
+// through, nearly done, untouched, finished, ended, switched off, and empty.
+const HOME_COURSES = [
+  {
+    id: "h1",
+    code: "IT 214",
+    title: "Web Systems and Technologies",
+    description: "Client and server architecture, markup, styling and the request lifecycle.",
+    startsOn: "2026-08-04T00:00:00.000Z",
+    endsOn: "2026-12-12T00:00:00.000Z",
+    imageUrl: ccsBackground,
+    moduleCount: 8,
+    completedModules: 4,
+    itemCount: 17,
+    completedItems: 7,
+    status: "in-progress"
+  },
+  {
+    id: "h2",
+    code: "CS 101",
+    title: "Introduction to Computing",
+    description:
+      "Foundations of computer systems, number representation and the basics of algorithmic thinking.",
+    startsOn: "2026-08-04T00:00:00.000Z",
+    endsOn: "2026-10-10T00:00:00.000Z",
+    imageUrl: new URLSearchParams(window.location.search).get("pic") ? ccsBackground : null,
+    moduleCount: 12,
+    completedModules: 12,
+    itemCount: 25,
+    completedItems: 22,
+    status: "in-progress"
+  },
+  {
+    id: "h3",
+    code: "DB 205",
+    title: "Database Management Systems",
+    description: "Relational modelling, normalisation and query planning.",
+    startsOn: "2026-09-01T00:00:00.000Z",
+    endsOn: "2026-11-28T00:00:00.000Z",
+    moduleCount: 14,
+    completedModules: 0,
+    itemCount: 29,
+    completedItems: 0,
+    status: "not-started"
+  },
+  {
+    id: "h4",
+    code: "HCI 240",
+    title: "Human Computer Interaction",
+    description: "Heuristic evaluation, prototyping and usability testing.",
+    startsOn: "2026-07-01T00:00:00.000Z",
+    endsOn: "2026-12-01T00:00:00.000Z",
+    moduleCount: 5,
+    completedModules: 5,
+    itemCount: 11,
+    completedItems: 11,
+    status: "completed"
+  },
+  {
+    id: "h5",
+    code: "IA 301",
+    title: "Information Assurance and Security Management for Enterprise Systems",
+    description:
+      "Threat modelling, access control and the policy side of keeping an organisation's data intact.",
+    startsOn: "2026-06-01T00:00:00.000Z",
+    endsOn: "2026-08-30T00:00:00.000Z",
+    ended: true,
+    moduleCount: 6,
+    completedModules: 5,
+    itemCount: 13,
+    completedItems: 9,
+    status: "in-progress"
+  },
+  {
+    id: "h6",
+    code: "CS 226",
+    title: "Data Structures and Algorithms",
+    description: "",
+    startsOn: "2026-08-18T00:00:00.000Z",
+    endsOn: "2026-12-05T00:00:00.000Z",
+    suspended: true,
+    suspendedReason: "Your class for this course is switched off, so its lessons are closed for now.",
+    moduleCount: 10,
+    completedModules: 2,
+    itemCount: 21,
+    completedItems: 3,
+    status: "in-progress"
+  },
+  {
+    id: "h7",
+    code: "SE 310",
+    title: "Software Engineering",
+    description: "Requirements, design, testing and the work of shipping software as a team.",
+    moduleCount: 0,
+    completedModules: 0,
+    itemCount: 0,
+    completedItems: 0,
+    status: "not-started"
   }
 ];
 
@@ -322,6 +425,7 @@ const ROUTES = [
   ],
   [/\/admin\/students\/([^/]+)$/, (m) => ({ student: withProgress(ADMIN_STUDENTS.find((s) => s.id === m[1])) })],
   [/\/skill-gap$/, () => ({ courses: COURSES })],
+  [/\/students\/[^/]+\/courses$/, () => ({ courses: HOME_COURSES })],
   [/\/courses\/[^/]+\/modules$/, () => ({ modules: MODULES })],
   [/\/courses\/[^/]+\/assessments$/, () => ({ assessments: ASSESSMENTS })],
   [/\/progress$/, () => ({ completedModuleIds: ["m1", "m2"] })],
@@ -369,6 +473,7 @@ applyStoredTheme();
 
 function previewRoute() {
   const params = new URLSearchParams(window.location.search);
+  if (params.get("home")) return 4;
   if (params.get("students")) return 3;
   if (params.get("admin")) return 2;
   if (params.get("modules")) return 1;
@@ -377,19 +482,21 @@ function previewRoute() {
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    {/* ?modules=1 lesson rail · ?admin=1 course grid · ?students=1 students */}
+    {/* ?modules=1 lesson rail · ?admin=1 course grid · ?students=1 students · ?home=1 student home (add &pic=1 to give the lead course a picture) */}
     <MemoryRouter
       initialEntries={[
         "/student/dashboard",
         "/student/courses/c1/modules",
         "/admin/courses",
-        "/admin/students"
+        "/admin/students",
+        "/student"
       ]}
       initialIndex={previewRoute()}
     >
       <div className="app-shell">
         <Routes>
           <Route path="/student" element={<StudentLayout />}>
+            <Route index element={<StudentCourses />} />
             <Route path="dashboard" element={<StudentDashboard />} />
             <Route path="courses/:courseId/modules" element={<LearningModules />} />
           </Route>

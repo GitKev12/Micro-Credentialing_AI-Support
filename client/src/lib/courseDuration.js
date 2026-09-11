@@ -29,6 +29,8 @@ const day = (date, withYear) =>
     ...(withYear ? { year: "numeric" } : {})
   });
 
+const utcDay = (date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+
 /**
  * "Aug 4 – Oct 10, 2026", or the half that is known.
  *
@@ -108,9 +110,19 @@ export function hasCourseEnded(course, at = new Date()) {
   const endsOn = asDate(course?.endsOn);
   if (!endsOn) return false;
 
-  const dayOf = (date) =>
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return dayOf(at) > dayOf(endsOn);
+  return utcDay(at) > utcDay(endsOn);
+}
+
+/**
+ * Whole days from today to the run's last day: 0 on that day itself, negative
+ * once the run is over, null for a course with no end date. Read in UTC for the
+ * same reason hasCourseEnded is, so the two can never disagree about a course.
+ */
+export function daysLeftInRun(course, at = new Date()) {
+  const endsOn = asDate(course?.endsOn);
+  if (!endsOn) return null;
+
+  return Math.round((utcDay(endsOn) - utcDay(at)) / DAY_MS);
 }
 
 /** "Ended Oct 10, 2026" — what the card says once the run is over. */

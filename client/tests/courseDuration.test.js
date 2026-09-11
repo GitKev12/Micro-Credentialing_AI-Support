@@ -1,5 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import {
+  daysLeftInRun,
   formatCourseEnded,
   formatCourseLength,
   formatCourseRange,
@@ -117,6 +118,29 @@ describe("hasCourseEnded", () => {
     );
     expect(hasCourseEnded({}, new Date(iso("2030-01-01")))).toBe(false);
     expect(hasCourseEnded(null)).toBe(false);
+  });
+});
+
+describe("daysLeftInRun", () => {
+  const run = { startsOn: iso("2026-08-04"), endsOn: iso("2026-10-10") };
+
+  it("counts whole days to the last day of the run", () => {
+    expect(daysLeftInRun(run, new Date(iso("2026-09-11")))).toBe(29);
+    expect(daysLeftInRun(run, new Date(iso("2026-10-09")))).toBe(1);
+  });
+
+  // Zero on the last day and negative after it, so it reads the same calendar
+  // as hasCourseEnded — never "0 days left" on a course already closed.
+  it("is zero on the last day and negative once the run is over", () => {
+    expect(daysLeftInRun(run, new Date("2026-10-10T22:00:00.000Z"))).toBe(0);
+    expect(hasCourseEnded(run, new Date("2026-10-10T22:00:00.000Z"))).toBe(false);
+    expect(daysLeftInRun(run, new Date(iso("2026-10-11")))).toBe(-1);
+    expect(hasCourseEnded(run, new Date(iso("2026-10-11")))).toBe(true);
+  });
+
+  it("has no count for a course with no end date", () => {
+    expect(daysLeftInRun({ startsOn: iso("2026-08-04") })).toBeNull();
+    expect(daysLeftInRun(null)).toBeNull();
   });
 });
 
