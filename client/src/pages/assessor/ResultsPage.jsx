@@ -37,9 +37,9 @@ import { Skeleton, SkeletonText } from "../../components/Skeleton";
 
 /** The words a status is written in, and how it is drawn. */
 const STATUS = {
-  "not-started": { label: "Not started", tone: "outline" },
-  "in-progress": { label: "In progress", tone: "brand-soft" },
-  submitted: { label: "Submitted", tone: "success" }
+  "not-started": { label: "Not started", tone: "outline", tally: "notStarted" },
+  "in-progress": { label: "In progress", tone: "brand-soft", tally: "inProgress" },
+  submitted: { label: "Submitted", tone: "success", tally: "submitted" }
 };
 
 /* The same three states the chips carry, off the same map, so a filter and the
@@ -48,11 +48,23 @@ const STATUS = {
    Off, the control says what it does rather than what it is not doing: a
    funnel and the word Filter. The row that turns it back off is named for the
    count tile it corresponds to — All students — so the four rows of the list
-   are the four tiles standing above the table, in their order. */
-const STATUS_OPTIONS = [
-  { value: "", label: "All students", triggerLabel: "Filter" },
-  ...Object.entries(STATUS).map(([value, { label }]) => ({ value, label }))
-];
+   are the four tiles standing above the table, in their order, each carrying
+   the same number as the tile it stands for. A state is picked to find out who
+   is in it, and how many there are is the first half of that answer; on a list
+   without it, an assessor finds out a state is empty by narrowing to it.
+
+   They are the class's counts, off `takers`, like the tiles': they hold still
+   while a name is typed into the search. */
+function statusOptions(takers) {
+  return [
+    { value: "", label: "All students", triggerLabel: "Filter", count: takers?.all },
+    ...Object.entries(STATUS).map(([value, { label, tally }]) => ({
+      value,
+      label,
+      count: takers?.[tally]
+    }))
+  ];
+}
 
 /**
  * Why the table is empty, which is never only one answer.
@@ -268,6 +280,7 @@ function ResultsPage() {
 
   const takers = board?.assessment?.takers ?? null;
   const rows = board?.rows ?? [];
+  const states = useMemo(() => statusOptions(takers), [takers]);
 
   /**
    * The rows the search leaves standing.
@@ -393,7 +406,7 @@ function ResultsPage() {
                 label="Filter by status"
                 value={status}
                 onChange={setStatus}
-                options={STATUS_OPTIONS}
+                options={states}
                 LeadIcon={FilterIcon}
               />
             </div>

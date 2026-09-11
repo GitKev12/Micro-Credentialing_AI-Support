@@ -335,7 +335,8 @@ describe("narrowing by state", () => {
       fireEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     });
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole("option", { name: label }));
+      // Matched on the front of the row: each one ends in its count.
+      fireEvent.mouseDown(screen.getByRole("option", { name: new RegExp(`^${label}`) }));
     });
   };
 
@@ -350,11 +351,36 @@ describe("narrowing by state", () => {
     });
 
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-      "All students",
-      "Not started",
-      "In progress",
-      "Submitted"
+      "All students3",
+      "Not started1",
+      "In progress1",
+      "Submitted1"
     ]);
+  });
+
+  /**
+   * The list is the four tiles above the table, in their order and with their
+   * numbers — so how many have not started is answered by opening the filter,
+   * not by picking that state and counting the rows left.
+   *
+   * The counts are the class's, like the tiles', which is why a search that
+   * narrows the table to one name leaves them where they were.
+   */
+  it("counts the class in each state, and holds those counts through a search", async () => {
+    await open();
+
+    await act(async () => {
+      fireEvent.change(search(), { target: { value: "ana" } });
+    });
+    expect(names()).toEqual(["Cruz, Ana"]);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    });
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent)
+    ).toEqual(["All students3", "Not started1", "In progress1", "Submitted1"]);
   });
 
   /**

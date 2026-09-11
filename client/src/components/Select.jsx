@@ -19,10 +19,15 @@ import { useEffect, useId, useRef, useState } from "react";
  * and `aria-activedescendant` points at the highlighted row, so screen readers
  * track the highlight without focus ever moving into the list.
  *
- * `options` are { value, label, meta?, disabled?, triggerLabel? }. A disabled
- * option is listed and greyed rather than left out: somebody looking for it
- * should find it and see why it cannot be picked — which is what `meta` is for
- * — instead of hunting for something that appears not to exist.
+ * `options` are { value, label, meta?, count?, disabled?, triggerLabel? }. A
+ * disabled option is listed and greyed rather than left out: somebody looking
+ * for it should find it and see why it cannot be picked — which is what `meta`
+ * is for — instead of hunting for something that appears not to exist.
+ *
+ * `count` is how many things are in that option, set at the end of the row. A
+ * filter's list is also the breakdown of what it filters, so the state worth
+ * narrowing to can be read off it before one is picked rather than by picking
+ * each in turn. Rows without one are unchanged.
  *
  * `triggerLabel` is what the closed control reads once that option is the one
  * chosen, where that differs from how the option is named in the list. An
@@ -263,6 +268,9 @@ export function Select({
                 ) : null}
                 <span className={`${classPrefix}__option-label`}>{option.label}</span>
               </span>
+              {option.count == null ? null : (
+                <span className={`${classPrefix}__option-count`}>{option.count}</span>
+              )}
               {option.value === value ? (
                 <span className={`${classPrefix}__tick`}>
                   <TickIcon size={15} />

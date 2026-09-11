@@ -3276,6 +3276,22 @@
   font-weight: var(--fw-semibold);
 }
 
+/* How many are in this state. Quiet, and in figures of one width so the
+   numbers line up down the list — the row still reads as the state, with the
+   size of it after.
+
+   Ordered past the tick rather than written after it, so every count ends on
+   the same edge: the chosen row carries a tick the others do not, and in
+   source order that row's number was pushed in off the column the rest of
+   them make. */
+.assessor-select__option-count {
+  order: 1;
+  flex-shrink: 0;
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
 .assessor-select__tick {
   display: flex;
   flex-shrink: 0;
