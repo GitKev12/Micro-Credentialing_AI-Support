@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { login, saveAuthSession } from "../services/authService";
+import { login, loginAdmin, saveAuthSession } from "../services/authService";
 
 const PARALLAX_SHIFT = 18;
 const prefersReducedMotion = () =>
@@ -12,6 +12,7 @@ function LoginPage() {
   const backgroundRef = useRef(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("student");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -36,7 +37,10 @@ function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const authSession = await login({ identifier, password });
+      const authSession =
+        role === "admin"
+          ? await loginAdmin({ identifier, password })
+          : await login({ identifier, password });
       saveAuthSession(authSession);
 
       const requestedPath = location.state?.from?.pathname;
@@ -66,6 +70,29 @@ function LoginPage() {
         <h1>Sign in</h1>
 
         <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="gen-toggle" role="group" aria-label="Role">
+            <button
+              type="button"
+              className={`gen-toggle__btn${role === "student" ? " is-active" : ""}`}
+              onClick={() => setRole("student")}
+            >
+              Student
+            </button>
+            <button
+              type="button"
+              className={`gen-toggle__btn${role === "assessor" ? " is-active" : ""}`}
+              onClick={() => setRole("assessor")}
+            >
+              Assessor
+            </button>
+            <button
+              type="button"
+              className={`gen-toggle__btn${role === "admin" ? " is-active" : ""}`}
+              onClick={() => setRole("admin")}
+            >
+              Admin
+            </button>
+          </div>
           <label className="auth-field">
             <span>Email</span>
             <input
