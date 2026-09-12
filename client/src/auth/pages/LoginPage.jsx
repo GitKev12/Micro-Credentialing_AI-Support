@@ -70,24 +70,24 @@ function LoginPage() {
         <h1>Sign in</h1>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="gen-toggle" role="group" aria-label="Role">
+          <div className="login-toggle" role="group" aria-label="Role">
             <button
               type="button"
-              className={`gen-toggle__btn${role === "student" ? " is-active" : ""}`}
+              className={`login-toggle__btn${role === "student" ? " is-active" : ""}`}
               onClick={() => setRole("student")}
             >
               Student
             </button>
             <button
               type="button"
-              className={`gen-toggle__btn${role === "assessor" ? " is-active" : ""}`}
+              className={`login-toggle__btn${role === "assessor" ? " is-active" : ""}`}
               onClick={() => setRole("assessor")}
             >
               Assessor
             </button>
             <button
               type="button"
-              className={`gen-toggle__btn${role === "admin" ? " is-active" : ""}`}
+              className={`login-toggle__btn${role === "admin" ? " is-active" : ""}`}
               onClick={() => setRole("admin")}
             >
               Admin

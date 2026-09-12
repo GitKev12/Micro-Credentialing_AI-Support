@@ -280,11 +280,67 @@ a {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.primary-action:hover:not(:disabled) {
+  background: #6b1a24;
+}
+
+.primary-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.primary-action:focus-visible {
+  outline: 2px solid #9a2838;
+  outline-offset: 2px;
 }
 
 .primary-action:disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+/* The role picker on the login screen: which kind of account is signing in.
+   Drawn on the auth-card's own ground, so it reads as part of the form it
+   decides — a filled pill seat marks the active role, and the group itself
+   sits on the quiet hinge between the heading and the fields. */
+.login-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(125, 31, 43, 0.08);
+}
+
+.login-toggle__btn {
+  padding: 0.55rem 0.5rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.login-toggle__btn:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--accent);
+}
+
+.login-toggle__btn.is-active {
+  background: #7d1f2b;
+  color: #fff8f8;
+  box-shadow: 0 4px 12px rgba(125, 31, 43, 0.28);
+}
+
+.login-toggle__btn:focus-visible {
+  outline: 2px solid #9a2838;
+  outline-offset: 1px;
 }
 
 .auth-error {
