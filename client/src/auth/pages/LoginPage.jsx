@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { login, loginAdmin, saveAuthSession } from "../services/authService";
 
@@ -10,11 +10,27 @@ function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const backgroundRef = useRef(null);
+  const toggleRef = useRef(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("student");
+  const [role, setRole] = useState("client");
+  const [pillStyle, setPillStyle] = useState({});
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (toggleRef.current) {
+      const activeBtn = toggleRef.current.querySelector(
+        `.login-toggle__btn.${role === "client" ? "is-client" : "is-admin"}`
+      );
+      if (activeBtn) {
+        setPillStyle({
+          width: `${activeBtn.offsetWidth}px`,
+          left: `${activeBtn.offsetLeft}px`,
+        });
+      }
+    }
+  }, [role]);
 
   const moveBackground = (offsetX, offsetY) => {
     const background = backgroundRef.current;
@@ -70,24 +86,18 @@ function LoginPage() {
         <h1>Sign in</h1>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="login-toggle" role="group" aria-label="Role">
+          <div className="login-toggle" role="group" aria-label="Role" ref={toggleRef}>
+            <div className="login-toggle__pill" style={pillStyle} />
             <button
               type="button"
-              className={`login-toggle__btn${role === "student" ? " is-active" : ""}`}
-              onClick={() => setRole("student")}
+              className={`login-toggle__btn is-client${role === "client" ? " is-active" : ""}`}
+              onClick={() => setRole("client")}
             >
-              Student
+              Client
             </button>
             <button
               type="button"
-              className={`login-toggle__btn${role === "assessor" ? " is-active" : ""}`}
-              onClick={() => setRole("assessor")}
-            >
-              Assessor
-            </button>
-            <button
-              type="button"
-              className={`login-toggle__btn${role === "admin" ? " is-active" : ""}`}
+              className={`login-toggle__btn is-admin${role === "admin" ? " is-active" : ""}`}
               onClick={() => setRole("admin")}
             >
               Admin

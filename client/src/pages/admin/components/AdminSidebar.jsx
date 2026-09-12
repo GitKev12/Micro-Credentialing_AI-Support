@@ -56,7 +56,7 @@ function AdminSidebar({ name, idNumber }) {
 
   const handleSignOut = () => {
     clearAuthSession();
-    navigate("/admin-login", { replace: true });
+    navigate("/login", { replace: true });
   };
 
   return (

@@ -12,7 +12,6 @@ import AchievementsPage from "./pages/student/AchievementsPage";
 import StudentCourses from "./pages/student/components/StudentCourses";
 import LearningModules from "./pages/student/LearningModules";
 import ProtectedRoute from "./auth/components/ProtectedRoute";
-import AdminLoginPage from "./auth/pages/AdminLoginPage";
 import LoginPage from "./auth/pages/LoginPage";
 import { SkeletonText } from "./components/Skeleton";
 
@@ -59,7 +58,10 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/admin-login" element={<AdminLoginPage />} />
+        {/* One door for every role. /admin-login was its own page before the
+            toggle moved admin onto the shared login; keep the path as a
+            redirect so an old link or bookmark still lands on a sign-in. */}
+        <Route path="/admin-login" element={<Navigate to="/login" replace />} />
         <Route
           path="/student"
           element={
@@ -96,7 +98,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRole="admin" loginPath="/admin-login">
+            <ProtectedRoute allowedRole="admin" loginPath="/login">
               <AdminLayout />
             </ProtectedRoute>
           }

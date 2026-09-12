@@ -145,8 +145,7 @@ a {
 /* ── Auth ─────────────────────────────────────────────── */
 
 /* Login/auth screens always render light, regardless of the app theme. */
-.login-screen,
-.admin-login-screen {
+.login-screen {
   color-scheme: light;
   --surface: rgba(255, 252, 247, 0.84);
   --surface-strong: #fffaf4;
@@ -215,31 +214,6 @@ a {
   line-height: 1;
 }
 
-.admin-login-screen {
-  display: grid;
-  place-items: center;
-  min-height: calc(100 * var(--vh));
-  padding: 1.25rem;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 44%),
-    #7d1f2b;
-}
-
-.admin-login-card {
-  width: min(100%, 28rem);
-  padding: clamp(1.5rem, calc(4 * var(--vw)), 2.5rem);
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 8px;
-  background: #f6f7f5;
-  box-shadow: 0 28px 70px rgba(34, 4, 12, 0.34);
-}
-
-.admin-login-card h1 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 2.25rem;
-  line-height: 1;
-}
 
 .auth-form {
   display: grid;
@@ -306,15 +280,34 @@ a {
    decides — a filled pill seat marks the active role, and the group itself
    sits on the quiet hinge between the heading and the fields. */
 .login-toggle {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 4px;
   border-radius: 12px;
   background: rgba(125, 31, 43, 0.08);
 }
 
+/* The sliding indicator behind the active role. Positioned absolutely so it
+   can glide between the two options with a springy cubic-bezier transition.
+   The left and width are set by JS measuring the active button's offset. */
+.login-toggle__pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 9px;
+  background: #7d1f2b;
+  box-shadow: 0 4px 12px rgba(125, 31, 43, 0.25);
+  transition: left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 0;
+  pointer-events: none;
+}
+
 .login-toggle__btn {
+  position: relative;
+  z-index: 1;
   padding: 0.55rem 0.5rem;
   border: 0;
   border-radius: 9px;
@@ -324,18 +317,11 @@ a {
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease;
-}
-
-.login-toggle__btn:hover:not(.is-active) {
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--accent);
+  transition: color 0.25s ease;
 }
 
 .login-toggle__btn.is-active {
-  background: #7d1f2b;
   color: #fff8f8;
-  box-shadow: 0 4px 12px rgba(125, 31, 43, 0.28);
 }
 
 .login-toggle__btn:focus-visible {

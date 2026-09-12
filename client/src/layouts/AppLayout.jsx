@@ -1,7 +1,7 @@
 import { useLocation } from "react-router-dom";
 import SessionStanding from "../auth/components/SessionStanding";
 
-const authPaths = ["/login", "/admin-login"];
+const authPaths = ["/login"];
 // Full-screen consoles render their own edge-to-edge shell and opt out of
 // the centred, max-width .app-shell (see assessor.css's .assessor-app and
 // admin.css's .admin-app).

@@ -43,9 +43,8 @@ api.interceptors.response.use(
 
     if (status === 401) {
       clearAuthSession();
-      const loginPath = window.location.pathname.startsWith("/admin")
-        ? "/admin-login"
-        : "/login";
+      // One login now serves every role; there is no separate admin door.
+      const loginPath = "/login";
       if (window.location.pathname !== loginPath) {
         window.location.assign(loginPath);
       }
