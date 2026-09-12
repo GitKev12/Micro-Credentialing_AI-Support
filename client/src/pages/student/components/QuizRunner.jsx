@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchAssessment, submitAssessment } from "../../../services/assessments";
 import { CheckIcon, LockIcon, QuizIcon } from "./icons";
 import { SkeletonText } from "../../../components/Skeleton";
+import CodeBlock from "../../../components/CodeBlock";
 
 /**
  * Taking a quiz.
@@ -369,6 +370,10 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
           </div>
 
           <p className="sd-quiz__q">{question.q}</p>
+
+          {/* The question asks about the code, so it is read first; the code
+              sits between it and the answers, where it is traced. */}
+          <CodeBlock code={question.code} className="sd-quiz__code" />
 
           <div className="sd-quiz__choices" role="radiogroup" aria-label={question.q}>
             {question.choices.map((choice) => {

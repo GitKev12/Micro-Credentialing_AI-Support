@@ -175,6 +175,34 @@ export function normalizeMinutes(raw) {
 
 const text = (value) => String(value ?? "").trim();
 
+/**
+ * A question's code sample, with its layout kept.
+ *
+ * Not `text`: a snippet's indentation and line breaks are part of what the
+ * student is reading, and trimming the inside of it would hand them one line of
+ * Java to trace. Only what surrounds the code goes — blank lines above and
+ * trailing space below — plus the markdown fence a model sometimes wraps it in
+ * despite being told not to, which would otherwise be shown as two lines of
+ * backticks.
+ */
+export function normalizeCode(value) {
+  const lines = String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\t/g, "    ")
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""));
+
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+
+  if (lines.length >= 2 && /^```/.test(lines[0].trim()) && /^```$/.test(lines[lines.length - 1].trim())) {
+    lines.shift();
+    lines.pop();
+  }
+
+  return lines.join("\n");
+}
+
 /** True-false keys arrive as booleans, or as the strings a form would send. */
 function normalizeTrueFalseKey(key) {
   if (typeof key === "boolean") return key ? "true" : "false";
@@ -226,8 +254,14 @@ export function normalizeItem(raw, index) {
     n: Number.isFinite(raw.n) ? raw.n : index + 1,
     type,
     q: question,
+    // The snippet the question is about — traced for its output, searched for
+    // its error, or read for what it does. Null on a question that needs none.
+    code: normalizeCode(raw.code) || null,
     choices,
     key,
+    // Why the key is the answer, for whoever checks the paper. Staff only: it
+    // gives the answer away, so toStudentAssessment removes it with the key.
+    explanation: text(raw.explanation) || null,
     level,
     // Where the question came from. Set by the final's assembler; null on a
     // lesson quiz, whose document already says which lesson it tests.
@@ -327,10 +361,13 @@ export function toStudentAssessment(doc, { shuffle = true } = {}) {
     // `moduleId` and `topic` go the same way as the key: they are how the paper
     // is scored, not part of the question. Sitting the exam does not need to
     // know which lesson each item came from, and the mark does not depend on it.
-    items: ordered.map(({ key: _key, moduleId: _moduleId, topic: _topic, ...item }) => ({
-      ...item,
-      choices: shuffle ? shuffled(item.choices) : item.choices
-    }))
+    // The explanation goes because it names the answer.
+    items: ordered.map(
+      ({ key: _key, explanation: _explanation, moduleId: _moduleId, topic: _topic, ...item }) => ({
+        ...item,
+        choices: shuffle ? shuffled(item.choices) : item.choices
+      })
+    )
   };
 }
 
@@ -446,11 +483,13 @@ export function toMarkedPaper(assessmentDoc, result) {
       n: item.n,
       type: item.type,
       q: item.q,
+      code: item.code,
       level: item.level,
       topic: item.topic,
       moduleId: item.moduleId,
       choices: item.choices,
       key: item.key,
+      explanation: item.explanation,
       chosen,
       // Blank is not the same as wrong, even though both score nothing: one
       // says the student did not know, the other that they ran out of time.

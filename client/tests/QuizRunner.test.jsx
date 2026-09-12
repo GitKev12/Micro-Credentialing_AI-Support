@@ -236,3 +236,42 @@ describe("QuizRunner — handing the paper in", () => {
     expect(screen.getByRole("button", { name: "Next question" })).toBeDisabled();
   });
 });
+
+/**
+ * A tracing question is only a question if its code arrives the way it was
+ * written. Folded into the question's paragraph it would be one line of Java,
+ * and "what does line 3 print?" would point at nothing.
+ */
+describe("QuizRunner — a question about code", () => {
+  const withCode = () => {
+    const paper = ready();
+    paper.assessment.items[0] = {
+      ...paper.assessment.items[0],
+      q: "What does this program print?",
+      code: "int total = 0;\nfor (int i = 1; i <= 3; i++) {\n    total += i;\n}\nSystem.out.println(total);"
+    };
+    return paper;
+  };
+
+  it("shows the code between the question and the answers, one numbered line each", async () => {
+    fetchAssessment.mockResolvedValue(withCode());
+
+    const { container } = draw(PAPER);
+    await screen.findByText("What does this program print?");
+
+    const block = container.querySelector("pre.code-block");
+    expect(block).not.toBeNull();
+    expect(block.querySelectorAll(".code-block__line")).toHaveLength(5);
+    // The indentation is the code's, and it survives.
+    expect(block.textContent).toContain("    total += i;");
+  });
+
+  it("draws no code box for a question that has no code", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+
+    const { container } = draw(PAPER);
+    await screen.findByText("What does the compiler read?");
+
+    expect(container.querySelector("pre.code-block")).toBeNull();
+  });
+});

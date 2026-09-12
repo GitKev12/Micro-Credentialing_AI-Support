@@ -1101,6 +1101,43 @@ ol.lesson-reader__list li::marker {
   white-space: pre;
 }
 
+/* A question's code sample (components/CodeBlock.jsx) — the same monospace card
+   as a lesson's, with line numbers, because a question can point at a line.
+   Built on the shared tokens so it sits in the student's quiz and the
+   assessor's review alike; each console only adjusts the spacing around it. */
+.code-block {
+  margin: 0;
+  padding: 0.85rem 1rem 0.85rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow-x: auto;
+  font-family: "Cascadia Code", "Consolas", ui-monospace, SFMono-Regular,
+    Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre;
+  tab-size: 4;
+  counter-reset: code-line;
+}
+
+.code-block code {
+  font: inherit;
+}
+
+.code-block__line::before {
+  counter-increment: code-line;
+  content: counter(code-line);
+  display: inline-block;
+  width: 2.5ch;
+  margin-right: 1.25ch;
+  text-align: right;
+  color: var(--muted);
+  opacity: 0.75;
+  user-select: none;
+}
+
 /* "Term — definition": the tint says it is set apart, and the bar down the
    edge says which way. It matches the bar on a section heading, so the two
    things worth stopping at in a lesson are marked the same way. */

@@ -487,7 +487,7 @@ export async function generateCourseAssessment(request, response) {
 
 /**
  * PUT /api/assessors/:assessorId/classes/:courseId/assessments/:assessmentId
- * Body: { items?: [{ id, q?, choices?, key?, type? }], timeLimitMinutes? }
+ * Body: { items?: [{ id, q?, code?, choices?, key?, explanation?, type? }], timeLimitMinutes? }
  *
  * The correction step: the assessor found a question whose stated answer is
  * wrong, and fixes it.
@@ -536,8 +536,12 @@ export async function updateCourseAssessment(request, response) {
         ...stored,
         type: patch.type ?? stored.type,
         q: patch.q ?? stored.q,
+        // Present-but-empty is a deletion, not "unchanged": an assessor who
+        // clears a snippet the question no longer needs means it gone.
+        code: "code" in patch ? patch.code : stored.code,
         choices: patch.choices ?? stored.choices,
-        key: patch.key ?? stored.key
+        key: patch.key ?? stored.key,
+        explanation: "explanation" in patch ? patch.explanation : stored.explanation
       },
       index
     );

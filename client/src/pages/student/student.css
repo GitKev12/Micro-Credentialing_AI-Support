@@ -2939,6 +2939,25 @@ body:has(.student-app) {
   text-wrap: pretty;
 }
 
+/* The question's paragraph keeps its bottom margin for the choices; with a
+   snippet between them, the snippet takes that same gap below it instead. */
+.sd-quiz__q:has(+ .sd-quiz__code) {
+  margin-bottom: var(--sd-3);
+}
+
+/* Scoped under .sd-quiz so it outranks the shared .code-block rule, which
+   loads after this file in some bundles and would otherwise win on order. */
+.sd-quiz .sd-quiz__code {
+  margin-bottom: var(--sd-5);
+  border-color: var(--sd-border);
+  background: var(--sd-surface-2);
+  color: var(--sd-ink);
+}
+
+.sd-quiz .sd-quiz__code .code-block__line::before {
+  color: var(--sd-muted);
+}
+
 /* Says which kind of item this is without changing how it is answered — both
    types are the same radio group underneath. */
 .sd-quiz__type {

@@ -183,6 +183,26 @@ describe("toMarkedPaper", () => {
     expect(marked.items[0].chosen).toBeNull();
   });
 
+  // The assessor reading a badly-answered tracing question needs the code the
+  // class traced and the reason the key was set, or they cannot tell a hard
+  // question from a wrong one.
+  it("shows the code each question was about and why its key is right", () => {
+    const traced = paper();
+    traced.items[1] = {
+      ...traced.items[1],
+      code: "public static void main(String[] args) {\n    System.out.println(\"Hi\");\n}",
+      explanation: "The JVM starts every application at main()."
+    };
+
+    const marked = toMarkedPaper(traced, submission([{ itemId: "i2", choice: "b" }]));
+
+    expect(marked.items[1].code).toBe(
+      "public static void main(String[] args) {\n    System.out.println(\"Hi\");\n}"
+    );
+    expect(marked.items[1].explanation).toBe("The JVM starts every application at main().");
+    expect(marked.items[0].code).toBeNull();
+  });
+
   it("has nothing to show for a paper that is not there", () => {
     expect(toMarkedPaper(null, submission([]))).toBeNull();
   });

@@ -122,6 +122,20 @@ const PAPER = {
       chosen: null,
       answered: false,
       verdict: "incorrect"
+    },
+    {
+      id: "i3",
+      n: 3,
+      type: "true-false",
+      q: "Java is case sensitive.",
+      choices: [
+        { id: "true", text: "True" },
+        { id: "false", text: "False" }
+      ],
+      key: "true",
+      chosen: "true",
+      answered: true,
+      verdict: "correct"
     }
   ]
 };
@@ -504,6 +518,18 @@ describe("opening one student's paper", () => {
     expect(choices[0]).toHaveTextContent("Correct answer");
     expect(choices[1]).toHaveTextContent("Their answer");
     expect(choices[1]).toHaveClass("is-wrong");
+  });
+
+  // A true-false item's choice ids are "true" and "false", and the disc used to
+  // print them — TRUE beside True, spilling out of a 22px circle.
+  it("letters a true-false item's choices A and B like any other", async () => {
+    const { container } = await open();
+    await openPaper("Dayan, Chris Jerome");
+
+    const trueFalse = container.querySelectorAll(".gen-q")[2];
+    const letters = [...trueFalse.querySelectorAll(".choice__id")].map((disc) => disc.textContent);
+
+    expect(letters).toEqual(["A", "B"]);
   });
 
   // Blank and wrong both score nothing, but only one of them says the student

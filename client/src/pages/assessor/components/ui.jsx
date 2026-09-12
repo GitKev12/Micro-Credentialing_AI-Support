@@ -124,6 +124,21 @@ export function Chip({ tone = "neutral", dot = false, children }) {
   );
 }
 
+/** A, B, C… for the choice at `index`. */
+export const choiceLetter = (index) => String.fromCharCode(65 + index);
+
+/**
+ * The lettered disc in front of a choice.
+ *
+ * Lettered by position, not by the choice's id. A multiple-choice id is already
+ * its letter, but a true-false item's ids are "true" and "false", so the disc
+ * read TRUE beside the word True and ran out of its circle. The id stays what
+ * the key and every answer on record point at; only what is drawn changes.
+ */
+export function ChoiceLetter({ index }) {
+  return <span className="choice__id">{choiceLetter(index)}</span>;
+}
+
 /**
  * Filter field for the list screens — the admin console's, in this one's skin.
  *

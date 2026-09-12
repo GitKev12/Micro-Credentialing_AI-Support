@@ -1,4 +1,5 @@
-import { Chip } from "./ui";
+import { Chip, ChoiceLetter } from "./ui";
+import CodeBlock from "../../../components/CodeBlock";
 
 /**
  * One student's handed-in paper, as the assessor reads it.
@@ -202,8 +203,10 @@ function StudentPaper({ student, assessment, result, items }) {
               <Chip tone={verdict(item).tone}>{verdict(item).label}</Chip>
             </div>
 
+            <CodeBlock code={item.code} className="gen-q__code" />
+
             <ul className="choice-list">
-              {item.choices.map((choice) => {
+              {item.choices.map((choice, index) => {
                 const isKey = choice.id === item.key;
                 const isTheirs = choice.id === item.chosen;
 
@@ -216,7 +219,7 @@ function StudentPaper({ student, assessment, result, items }) {
                       (isTheirs && !isKey ? " is-wrong" : "")
                     }
                   >
-                    <span className="choice__id">{choice.id}</span>
+                    <ChoiceLetter index={index} />
                     <span className="choice__text">{choice.text}</span>
 
                     {isKey || isTheirs ? (
@@ -239,6 +242,13 @@ function StudentPaper({ student, assessment, result, items }) {
                 </li>
               )}
             </ul>
+
+            {item.explanation ? (
+              <p className="gen-q__why">
+                <span className="gen-q__why-label">Why it&apos;s correct</span>
+                {item.explanation}
+              </p>
+            ) : null}
           </li>
         ))}
       </ol>

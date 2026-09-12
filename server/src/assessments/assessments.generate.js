@@ -9,6 +9,7 @@ import {
   TOS_LEVELS,
   defaultPassMark,
   isPosted,
+  normalizeCode,
   normalizeItem,
   normalizeMinutes,
   validateAssessment
@@ -119,12 +120,17 @@ export function mapGeneratedItems(rawItems) {
     if (!question) return;
     if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= choices.length) return;
 
+    const code = normalizeCode(raw?.code);
+    const explanation = String(raw?.explanation ?? "").trim();
+
     const item = {
       id: `g${index + 1}`,
       n: index + 1,
       type,
       q: question,
-      level: TOS_LEVELS.includes(raw?.level) ? raw.level : null
+      level: TOS_LEVELS.includes(raw?.level) ? raw.level : null,
+      ...(code ? { code } : {}),
+      ...(explanation ? { explanation } : {})
     };
 
     if (type === "true-false") {

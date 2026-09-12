@@ -11,6 +11,9 @@ import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentCourses from "./pages/student/components/StudentCourses";
 import LearningModules from "./pages/student/LearningModules";
+import QuizRunner from "./pages/student/components/QuizRunner";
+import StudentPaper from "./pages/assessor/components/StudentPaper";
+import "./pages/assessor/assessor.css";
 import ccsBackground from "./assets/CCS-Background.jpg";
 import AdminLayout from "./pages/admin/AdminLayout";
 import CourseManagement from "./pages/admin/CourseManagement";
@@ -181,6 +184,56 @@ const HOME_COURSES = [
     status: "not-started"
   }
 ];
+
+// The paper any quiz in the rail opens: one question traced for its output, one
+// searched for its error, and one with no code, so the code box can be seen
+// both there and absent.
+const QUIZ_PAPER = {
+  id: "a1",
+  scope: "lesson",
+  title: "Markup basics quiz",
+  itemCount: 3,
+  totalPoints: 3,
+  passMark: 2,
+  items: [
+    {
+      id: "q1",
+      n: 1,
+      type: "multiple-choice",
+      q: "What does this program print?",
+      code: "int total = 0;\nfor (int i = 1; i <= 4; i++) {\n    if (i % 2 == 0) {\n        total += i;\n    }\n}\nSystem.out.println(total);",
+      choices: [
+        { id: "a", text: "6" },
+        { id: "b", text: "10" },
+        { id: "c", text: "4" },
+        { id: "d", text: "2" }
+      ]
+    },
+    {
+      id: "q2",
+      n: 2,
+      type: "multiple-choice",
+      q: "Which line stops this code from compiling?",
+      code: "int score = 85;\nString grade;\nif (score = 90) {\n    grade = \"A\";\n} else {\n    grade = \"B\";\n}",
+      choices: [
+        { id: "a", text: "Line 1" },
+        { id: "b", text: "Line 2" },
+        { id: "c", text: "Line 3" },
+        { id: "d", text: "Line 6" }
+      ]
+    },
+    {
+      id: "q3",
+      n: 3,
+      type: "true-false",
+      q: "A switch statement without break statements runs every case after the one that matches.",
+      choices: [
+        { id: "true", text: "True" },
+        { id: "false", text: "False" }
+      ]
+    }
+  ]
+};
 
 const MODULES = [
   { id: "m1", title: "Introduction to Markup", subject: "WEBSYS" },
@@ -426,6 +479,7 @@ const ROUTES = [
   [/\/admin\/students\/([^/]+)$/, (m) => ({ student: withProgress(ADMIN_STUDENTS.find((s) => s.id === m[1])) })],
   [/\/skill-gap$/, () => ({ courses: COURSES })],
   [/\/students\/[^/]+\/courses$/, () => ({ courses: HOME_COURSES })],
+  [/\/students\/[^/]+\/assessments\/[^/]+$/, () => ({ assessment: QUIZ_PAPER, result: null })],
   [/\/courses\/[^/]+\/modules$/, () => ({ modules: MODULES })],
   [/\/courses\/[^/]+\/assessments$/, () => ({ assessments: ASSESSMENTS })],
   [/\/progress$/, () => ({ completedModuleIds: ["m1", "m2"] })],
@@ -480,9 +534,60 @@ function previewRoute() {
   return 0;
 }
 
+// The same paper as the assessor reads it back, key and explanations included.
+const MARKED_PAPER = QUIZ_PAPER.items.map((item, index) => ({
+  ...item,
+  key: ["a", "c", "true"][index],
+  chosen: ["a", "b", "true"][index],
+  answered: true,
+  verdict: ["correct", "incorrect", "correct"][index],
+  explanation: [
+    "Only the even values 2 and 4 are added, so total ends at 6.",
+    "Line 3 uses = inside the condition. That assigns 90 to score, and an int is not a boolean, so it does not compile.",
+    "Without break, execution falls through into every case below the one that matched."
+  ][index]
+}));
+
+function previewScreen() {
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.get("quiz")) {
+    return (
+      <div className="app-shell">
+        <div className="student-page student-app">
+          <QuizRunner
+            studentId="preview-student"
+            assessment={{ id: "a1", scope: "lesson", title: QUIZ_PAPER.title }}
+            onSubmitted={() => {}}
+            onBadgeEarned={() => {}}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (params.get("paper")) {
+    return (
+      <div className="assessor-app">
+        <div className="assessor-main" style={{ padding: 24 }}>
+          <StudentPaper
+            student={{ name: "Andrea Lim", sid: "2022-TSU-0138" }}
+            assessment={{ itemCount: 3 }}
+            result={{ score: 2, totalPoints: 3, passMark: 2, passed: true, answered: 3 }}
+            items={MARKED_PAPER}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    {/* ?modules=1 lesson rail · ?admin=1 course grid · ?students=1 students · ?home=1 student home (add &pic=1 to give the lead course a picture) */}
+    {/* ?modules=1 lesson rail · ?admin=1 course grid · ?students=1 students · ?home=1 student home (add &pic=1 to give the lead course a picture) · ?quiz=1 a quiz with code · ?paper=1 the assessor's marked copy */}
+    {previewScreen() ?? (
     <MemoryRouter
       initialEntries={[
         "/student/dashboard",
@@ -507,5 +612,6 @@ createRoot(document.getElementById("root")).render(
         </Routes>
       </div>
     </MemoryRouter>
+    )}
   </StrictMode>
 );

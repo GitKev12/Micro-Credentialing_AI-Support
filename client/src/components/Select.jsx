@@ -1,4 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+
+/* How close to the window's side edge a list may come. It keeps a list clear of
+   the scrollbar, which sits inside the window's width. */
+const EDGE = 16;
 
 /**
  * Select built as a listbox rather than a native <select>.
@@ -61,6 +65,8 @@ export function Select({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [placement, setPlacement] = useState("bottom");
+  // Which of the trigger's two side edges the list hangs from.
+  const [align, setAlign] = useState("start");
   const rootRef = useRef(null);
   const listRef = useRef(null);
   const typeahead = useRef({ term: "", at: 0 });
@@ -77,6 +83,35 @@ export function Select({
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  /**
+   * Hang the list from the trigger's right edge when it would run off the
+   * window's right side.
+   *
+   * The list is allowed to grow wider than its trigger, because lesson titles
+   * are longer than the fields they are picked in. Hung from the left edge, a
+   * select standing in a right-hand column then runs past the window: the
+   * generate screen's Lesson list ran off the screen and under the scrollbar,
+   * and pushed a horizontal scrollbar onto the whole page.
+   *
+   * Measured once the list is drawn and before it is painted, because its
+   * width is its content's and nothing knows it sooner. It flips only when the
+   * other side is roomier — the same rule the vertical flip in openList uses —
+   * so a list that fits nowhere keeps to the side where more of it shows.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const root = rootRef.current;
+    const list = listRef.current;
+    if (!root || !list) return;
+
+    const box = root.getBoundingClientRect();
+    const width = list.getBoundingClientRect().width;
+    const roomRight = window.innerWidth - EDGE - box.left;
+    const roomLeft = box.right - EDGE;
+
+    setAlign(width > roomRight && roomLeft > roomRight ? "end" : "start");
   }, [open]);
 
   // Keep the highlighted row in view by scrolling the list itself. Calling
@@ -236,6 +271,7 @@ export function Select({
           id={`${id}-list`}
           role="listbox"
           data-placement={placement}
+          data-align={align}
           ref={listRef}
         >
           {options.map((option, index) => (

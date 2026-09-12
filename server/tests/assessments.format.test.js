@@ -4,6 +4,7 @@ import {
   defaultPassMark,
   gradeSubmission,
   normalizeAssessment,
+  normalizeCode,
   normalizeItem,
   toStudentAssessment,
   validateAssessment
@@ -81,6 +82,41 @@ describe("normalizeItem", () => {
     expect(normalizeItem({ q: "", choices: ["a", "b"], key: "a" }, 0)).toBeNull();
     expect(normalizeItem({ q: "Only one option", choices: ["Just this"], key: "a" }, 0)).toBeNull();
   });
+
+  // A tracing question is only answerable if the snippet arrives as it was
+  // written: trimming the inside of it would hand the student one line of Java.
+  it("keeps a code sample's line breaks and indentation", () => {
+    const code = "int total = 0;\nfor (int i = 1; i <= 3; i++) {\n    total += i;\n}\nSystem.out.println(total);";
+    const item = normalizeItem(mc("1", "a", { code: `\n\n${code}   \n\n` }), 0);
+    expect(item.code).toBe(code);
+  });
+
+  it("drops the markdown fence a model wraps code in", () => {
+    const item = normalizeItem(mc("1", "a", { code: "```java\nint x = 5;\nSystem.out.println(x);\n```" }), 0);
+    expect(item.code).toBe("int x = 5;\nSystem.out.println(x);");
+  });
+
+  it("has no code and no explanation on a question that carries none", () => {
+    const item = normalizeItem(mc("1", "a", { code: "   ", explanation: "" }), 0);
+    expect(item.code).toBeNull();
+    expect(item.explanation).toBeNull();
+  });
+
+  it("keeps the explanation of why the key is right", () => {
+    const item = normalizeItem(mc("1", "b", { explanation: " 7 / 2 is integer division, so it prints 3. " }), 0);
+    expect(item.explanation).toBe("7 / 2 is integer division, so it prints 3.");
+  });
+});
+
+describe("normalizeCode", () => {
+  it("turns Windows line endings and tabs into what the code box draws", () => {
+    expect(normalizeCode("if (x > 0) {\r\n\tx--;\r\n}")).toBe("if (x > 0) {\n    x--;\n}");
+  });
+
+  it("is empty for nothing at all", () => {
+    expect(normalizeCode(undefined)).toBe("");
+    expect(normalizeCode(null)).toBe("");
+  });
 });
 
 describe("normalizeAssessment", () => {
@@ -137,6 +173,17 @@ describe("toStudentAssessment", () => {
     const served = toStudentAssessment(doc(tagged));
     expect(served.items[0]).not.toHaveProperty("moduleId");
     expect(served.items[0]).not.toHaveProperty("topic");
+  });
+
+  // The explanation says why the key is right, which is the key in a sentence.
+  it("serves the code but never the explanation", () => {
+    const traced = [
+      mc("1", "c", { code: "int x = 7 / 2;\nSystem.out.println(x);", explanation: "Integer division gives 3." })
+    ];
+    const served = toStudentAssessment(doc(traced));
+    expect(served.items[0].code).toBe("int x = 7 / 2;\nSystem.out.println(x);");
+    expect(served.items[0]).not.toHaveProperty("explanation");
+    expect(JSON.stringify(served)).not.toContain("Integer division gives 3.");
   });
 });
 
