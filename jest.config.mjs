@@ -1,3 +1,5 @@
+process.env.NODE_ENV = "test";
+
 /**
  * Jest across the two workspaces.
  *

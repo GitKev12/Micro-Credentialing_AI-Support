@@ -756,7 +756,7 @@ export async function getStudentDetail(request, response) {
   });
   if (!student) return response.status(404).json({ message: "Student not found." });
 
-  const [modules, results, progress] = await Promise.all([
+  const [modules, results, progress, classes] = await Promise.all([
     collection(MODULES_COLLECTION).find(moduleFilterForCourse(course)).toArray(),
     collection(RESULTS_COLLECTION)
       .find({
@@ -769,8 +769,17 @@ export async function getStudentDetail(request, response) {
         courseId: { $in: idCandidates(course._id) },
         studentId: { $in: idCandidates(student._id) }
       })
-      .toArray()
+      .toArray(),
+    loadClassesByCourse([course])
   ]);
+
+  // Whose access to this course the assessor has closed, read off the same
+  // class rows as the roster uses — the detail page asks the same question of
+  // the same students (see getRoster).
+  const closedHere = new Set();
+  for (const cls of classes.get(asId(course._id)) ?? []) {
+    for (const studentId of cls.suspendedStudentIds ?? []) closedHere.add(asId(studentId));
+  }
 
   sortLessons(modules);
 
@@ -949,9 +958,13 @@ export async function getStudentDetail(request, response) {
       name: studentName(student),
       sid: student.student_id ?? null,
       email: student.email ?? null,
-      // The admin console's own wording: an account is Suspended or Active,
-      // and a row that never carried the field reads as active.
-      suspended: student.suspended === true
+      // Two ways this student can be closed out of this course. The admin
+      // console's account suspension stops them signing in anywhere, and the
+      // assessor's roster switch closes this one course to them (stored on the
+      // class, read off closedHere above) — either one is worth telling the
+      // person opening this page. A row that never carried either flag reads
+      // as active.
+      suspended: student.suspended === true || closedHere.has(asId(student._id))
     },
     course: {
       id: asId(course._id),

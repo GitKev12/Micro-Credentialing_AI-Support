@@ -1,17 +1,10 @@
-import { describe, it, expect, beforeAll } from "@jest/globals";
+import { describe, it, expect } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "node:util";
 import { render, screen, fireEvent } from "@testing-library/react";
+import RangeCalendar, { nextRange } from "../src/pages/admin/components/RangeCalendar.jsx";
 
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
-
-let RangeCalendar, nextRange;
-
-beforeAll(async () => {
-  const module = await import("../src/pages/admin/components/RangeCalendar.jsx");
-  RangeCalendar = module.default;
-  nextRange = module.nextRange;
-});
 
 // A fixed run, so nothing here depends on the day the suite is run: August 2026
 // starts on a Saturday, which puts the grid's first cell on 26 July.
