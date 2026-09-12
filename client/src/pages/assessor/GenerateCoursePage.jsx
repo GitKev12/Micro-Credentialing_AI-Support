@@ -11,7 +11,7 @@ import {
   updateCourseAssessment
 } from "../../services/assessors";
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
-import { AssessorSelect, Chip, ScreenHeader } from "./components/ui";
+import { AssessorSelect, Chip, ChoiceLetter, ScreenHeader, choiceLetter } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
@@ -87,9 +87,9 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
         </div>
 
         <ul className="choice-list">
-          {item.choices.map((choice) => (
+          {item.choices.map((choice, index) => (
             <li key={choice.id} className={`choice${choice.id === item.key ? " is-key" : ""}`}>
-              <span className="choice__id">{choice.id}</span>
+              <ChoiceLetter index={index} />
               <span className="choice__text">{choice.text}</span>
               {choice.id === item.key ? (
                 <span className="choice__tags">
@@ -120,7 +120,7 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
           reason this form exists — a generated question whose stated answer is
           wrong would otherwise mark a whole class wrong. */}
       <ul className="choice-list">
-        {choices.map((choice) => (
+        {choices.map((choice, index) => (
           <li key={choice.id} className={`choice${choice.id === key ? " is-key" : ""}`}>
             <label className="gen-q__radio">
               <input
@@ -129,14 +129,14 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
                 checked={choice.id === key}
                 onChange={() => setKey(choice.id)}
               />
-              <span className="assessor-sr-only">Mark {choice.id} as the correct answer</span>
+              <span className="assessor-sr-only">Mark {choiceLetter(index)} as the correct answer</span>
             </label>
-            <span className="choice__id">{choice.id}</span>
+            <ChoiceLetter index={index} />
             <input
               type="text"
               className="gen-input"
               value={choice.text}
-              aria-label={`Choice ${choice.id}`}
+              aria-label={`Choice ${choiceLetter(index)}`}
               disabled={item.type === "true-false"}
               onChange={(event) => setChoiceText(choice.id, event.target.value)}
             />
