@@ -3065,6 +3065,98 @@
   white-space: nowrap;
 }
 
+/* The question count is set in the Table of Specification, not on this
+   screen. This reads as an output: a quiet panel with the figure, its
+   cognitive split, and the level bar attached as one object. */
+.q-length {
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+.q-length__top {
+  padding: var(--sp-3) var(--sp-3) 0;
+}
+
+.q-length__count {
+  display: block;
+  color: var(--text-strong);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.q-length__count.is-empty {
+  color: var(--text-muted);
+}
+
+.q-length__mix {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--sp-1) + var(--sp-3) + 1.5rem);
+  padding: var(--sp-1) var(--sp-3) var(--sp-3);
+}
+
+.q-length__mix .gen-hint {
+  margin: 0;
+}
+
+.q-length__mix .tos-mix {
+  flex: 1;
+}
+
+.q-length__floor {
+  display: flex;
+  gap: 2px;
+  height: var(--sp-2);
+}
+
+.q-length.is-unplanned .q-length__floor {
+  background: var(--gray-200);
+}
+
+.tos-mix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-mix__group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.tos-mix__label {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+}
+
+.tos-mix__group[data-group="lots"] .tos-mix__label {
+  color: var(--lv-lots-ink);
+}
+
+.tos-mix__group[data-group="hots"] .tos-mix__label {
+  color: var(--lv-hots-ink);
+}
+
+.tos-mix__n {
+  color: var(--text-strong);
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-medium);
+}
+
+.tos-mix__pct {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
 .gen-input {
   width: 100%;
   padding: 0.625rem 0.75rem;

@@ -15,25 +15,24 @@ import { AssessorSelect, Chip, ScreenHeader } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
-import BlueprintBrief from "./components/tos/BlueprintBrief";
+import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
 import { LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
 
 /**
  * Generating one course's papers.
  *
- * Three things happen on this screen, and they are laid out in the order they
+ * Two things happen on this screen, and they are laid out in the order they
  * happen in. The questions and their answers fill the left, because reading
- * them is the work; the two cards on the right are what produced them and what
- * releases them.
+ * them is the work; the two cards on the right are what produces and releases
+ * them.
  *
- *   Assessment    — quiz or final, which lesson, how many questions, how long
- *                   the attempt runs. Pressing generate reads the lesson's
- *                   extracted text and writes a draft.
- *   Blueprint     — what the Table of Specification asks of this paper, and
- *                   the way in to change it. It opens over this screen rather
- *                   than on one of its own, because the assessor is already
- *                   looking at the lesson and the count it governs.
+ *   Assessment    — quiz or final, which lesson, how long the attempt runs,
+ *                   and what the Table of Specification sets for the paper:
+ *                   how many questions and their mix. Changing the count
+ *                   means changing the plan, which opens over this screen.
+ *                   Generating reads the lesson's extracted text and writes
+ *                   a draft.
  *   Review & post — pick a question by its number to correct it, then post.
  *                   Posting applies to the whole class at once: an Assessment
  *                   holds no student, so there is nothing per-student to set.
@@ -42,17 +41,9 @@ import { LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
  * screen — a wrong answer key found here is found before a class takes it.
  */
 
-const clampCount = (value) => Math.max(1, Math.min(120, Math.floor(Number(value) || 0)));
-
-/** A quiz's default length when the blueprint has not been consulted yet. */
-const DEFAULT_ITEMS = 10;
-
 /* What the Lesson field reads on a final, which is drawn from all of them.
    Never sent anywhere: the field is disabled, and a final carries no lesson. */
 const EVERY_LESSON = "all";
-
-/** A final's, which is the length the imported Tables of Specification set. */
-const DEFAULT_FINAL_ITEMS = 60;
 
 /* ─────────────────────────── One question ─────────────────────────── */
 
@@ -183,7 +174,6 @@ function GenerateCoursePage() {
   // What the right-hand card is aimed at.
   const [scope, setScope] = useState("lesson");
   const [moduleId, setModuleId] = useState("");
-  const [itemCount, setItemCount] = useState(DEFAULT_ITEMS);
   const [timed, setTimed] = useState(false);
   const [minutes, setMinutes] = useState(DEFAULT_MINUTES);
 
@@ -279,7 +269,6 @@ function GenerateCoursePage() {
         if (!active) return;
         setPaper(loaded);
         setEditingId(null);
-        setItemCount(loaded?.itemCount ?? DEFAULT_ITEMS);
         setTimed(Boolean(loaded?.timeLimitMinutes));
         setMinutes(loaded?.timeLimitMinutes ?? DEFAULT_MINUTES);
       })
@@ -299,7 +288,6 @@ function GenerateCoursePage() {
     setPaper(null);
     setTimed(scope === "final");
     setMinutes(DEFAULT_MINUTES);
-    setItemCount(scope === "final" ? DEFAULT_FINAL_ITEMS : DEFAULT_ITEMS);
   }, [scope, moduleId, target?.id]);
 
   const students = course?.students ?? 0;
@@ -348,6 +336,12 @@ function GenerateCoursePage() {
     return { split, items: splitItems(split) };
   }, [tos, scope, moduleId]);
 
+  // One source of truth for a paper's length. The generate screen used to
+  // offer a second number and then tell the assessor when it disagreed with
+  // the blueprint. A count belongs to the Table of Specification, so nothing
+  // here can override it: no plan means there is no paper to write.
+  const length = brief.items;
+
   const requestedMinutes = timeLimitFor({ timed, minutes });
 
   const run = async (label, work) => {
@@ -368,7 +362,7 @@ function GenerateCoursePage() {
       const result = await generateCourseAssessment(assessorId, courseId, {
         scope,
         moduleId: scope === "final" ? null : moduleId,
-        itemCount: clampCount(itemCount),
+        itemCount: length,
         timeLimitMinutes: requestedMinutes
       });
 
@@ -607,17 +601,12 @@ function GenerateCoursePage() {
               )}
             </div>
 
-            <label className="gen-field">
-              <span className="field-label">Number of questions</span>
-              <input
-                type="number"
-                className="gen-input"
-                min={1}
-                max={120}
-                value={itemCount}
-                onChange={(event) => setItemCount(event.target.value)}
-              />
-            </label>
+            <QuestionsField
+              count={length}
+              split={brief.split}
+              paper={scope === "final" ? "final exam" : "quiz"}
+              onModify={() => setTosOpen(true)}
+            />
 
             {/* The assessor's own figure first, and the department's under it.
                 Unticking the box is how the default is given up, so it reads
@@ -670,8 +659,8 @@ function GenerateCoursePage() {
               <>
                 <p className={`gen-hint${paper ? " is-warn" : ""}`}>
                   {paper
-                    ? `Replace all ${paper.itemCount} questions with ${clampCount(itemCount)} new ones written from ${lesson?.title ?? "this lesson"}? The assessment goes back to a draft.`
-                    : `Write ${clampCount(itemCount)} questions from ${lesson?.title ?? "this lesson"}?`}
+                    ? `Replace all ${paper.itemCount} questions with ${length} new ones written from ${lesson?.title ?? "this lesson"}? The assessment goes back to a draft.`
+                    : `Write ${length} questions from ${lesson?.title ?? "this lesson"}?`}
                 </p>
                 <div className="gen-actions">
                   <button
@@ -695,6 +684,7 @@ function GenerateCoursePage() {
                   disabled={
                     Boolean(busy) ||
                     frozen ||
+                    length === 0 ||
                     (scope === "lesson" && (!moduleId || !lesson?.hasText))
                   }
                   onClick={scope === "final" ? generate : () => setConfirming(true)}
@@ -723,14 +713,6 @@ function GenerateCoursePage() {
               </p>
             ) : null}
           </section>
-
-          <BlueprintBrief
-            items={brief.items}
-            split={brief.split}
-            asked={clampCount(itemCount)}
-            paper={scope === "final" ? "final exam" : "quiz"}
-            onModify={() => setTosOpen(true)}
-          />
 
           <section className="assessor-card gen-post">
             <h2 className="assessor-card-title">Review &amp; post</h2>
