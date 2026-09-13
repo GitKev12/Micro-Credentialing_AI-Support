@@ -1180,6 +1180,14 @@ ol.lesson-reader__list li::marker {
   user-select: none;
 }
 
+/* A line number a model wrote into the returned code. The CSS column above
+   already numbers every line, so these would show a second column of digits.
+   Hidden whole — including the whitespace that separated them from the code,
+   so the code it frames is left exactly as the generator wrote it. */
+.code-block__line > .code-block__label {
+  visibility: hidden;
+}
+
 /* "Term — definition": the tint says it is set apart, and the bar down the
    edge says which way. It matches the bar on a section heading, so the two
    things worth stopping at in a lesson are marked the same way. */

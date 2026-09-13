@@ -3032,6 +3032,66 @@
   max-width: 46ch;
 }
 
+/* ── The paper while the model writes it ────
+   The left column's loading state. The sheet itself (the header, the chips)
+   stays still — there is a paper being written, not a place being fetched —
+   and its questions are drawn as the bones of the cards they will become, so
+   the column does not jump up when they land. Reuses the shared skeleton bars;
+   only the placement of the rows is this screen's, and it is set to match the
+   real card's. */
+.gen-paper-skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.gen-skel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The card a question actually stands in: the same padding, radius and slate
+   ground as .gen-q, so the bars sit exactly where the questions will. */
+.gen-skel {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+}
+
+.gen-skel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* A tall block in the shape of a short code snippet, standing where the
+   code block will. */
+.gen-skel__code {
+  margin-top: var(--sp-1);
+}
+
+.gen-skel__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+/* Each bar carries the choice line's underline, so the rows read as the
+   chooseable list they will become rather than as stacked text bars. */
+.gen-skel__choice {
+  width: 100%;
+  box-shadow: inset 0 -1px 0 var(--gray-200);
+}
+
 /* ── Fields ─────────────────────────────────── */
 
 .gen-field {
@@ -3300,6 +3360,16 @@
   top: auto;
   bottom: calc(100% + 6px);
   animation-name: assessor-select-in-up;
+}
+
+/* Liable to run off the window's right edge (set in Select's layout effect),
+   so hang from the trigger's right edge instead when that is the roomier
+   side: the gain comes in on the card's left, past the trigger, rather than
+   off the screen. The generate screen's Lesson list is what first showed it —
+   a title and its meta measured wider than the 380px column it stood in. */
+.assessor-select__list[data-align="end"] {
+  left: auto;
+  right: 0;
 }
 
 @keyframes assessor-select-in {

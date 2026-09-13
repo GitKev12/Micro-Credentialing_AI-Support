@@ -143,9 +143,13 @@ Code:
 - Wrong choices should be the mistakes a student really makes: an off-by-one count, integer
   instead of decimal division, = confused with ==, forgetting that && stops early, a missing
   break in a switch.
-- Choices are one line each. When the choices would need several lines of code, put the
-  candidates in "code" marked // Version A, // Version B and so on, and make the choices
-  "Version A", "Version B" and so on.
+- "code" is the problem to trace. Put one clean snippet there — no labels, no annotations, no
+  "Version A"/"Version B" blocks inside it. The student traces that single code and picks the
+  outcome from the choices.
+- Choices describe the outcome or failure in plain text: "6", "throws NullPointerException",
+  "loops forever", "prints nothing", "returns null". Keep them short — one line each.
+- Wrong choices must name a realistic mistake or failure mode a student could predict: an off-by-one
+  count, wrong return, uncaught exception, lost state, incorrect branch, or wrong trace outcome.
 
 Every item:
 - "explanation": one or two sentences on why the correct choice is correct. Name the answer by
