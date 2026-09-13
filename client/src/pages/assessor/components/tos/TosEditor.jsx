@@ -15,6 +15,7 @@ import {
   autoFill,
   columnTotals,
   emptySplit,
+  setLevelWithinTotal,
   splitItems,
   toCount
 } from "./levels";
@@ -195,7 +196,11 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
     });
   };
 
-  const setFinalLevel = (key, value) => patch({ levels: { ...draft.levels, [key]: value } });
+  const setFinalLevel = (key, value) =>
+    setDraft((current) => ({
+      ...current,
+      levels: setLevelWithinTotal(current.levels, key, value, current.finalItems)
+    }));
 
   const setCell = (index, key, value) =>
     setDraft((current) => ({
@@ -354,7 +359,15 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
                   value={draft.finalItems}
                   max={MAX_ITEMS}
                   label="Questions in the final exam"
-                  onChange={(next) => patch({ finalItems: next })}
+                  onChange={(next) => {
+                    const spread = apportion(next, LEVEL_KEYS.map((key) => draft.levels[key]));
+                    patch({
+                      finalItems: next,
+                      levels: Object.fromEntries(
+                        LEVEL_KEYS.map((key, index) => [key, spread[index]])
+                      )
+                    });
+                  }}
                 />
               </div>
             </div>

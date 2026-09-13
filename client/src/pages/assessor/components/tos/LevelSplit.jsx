@@ -18,11 +18,15 @@ export default function LevelSplit({ split, total, onChange, disabled = false })
   // instead makes it a figure that moves every time another item is set, and
   // reads 100% the moment the first level is given anything.
   const whole = total || splitItems(split);
+  const assigned = splitItems(split);
+  const full = whole > 0 && assigned === whole;
+  const lotsShare = share(groupItems(split, GROUPS[0]?.key), whole);
 
   return (
     <div className="tos-groups">
-      {GROUPS.map((group) => {
+      {GROUPS.map((group, index) => {
         const items = groupItems(split, group.key);
+        const pct = full ? (index === 0 ? lotsShare : 100 - lotsShare) : share(items, whole);
 
         return (
           <section className="tos-group" key={group.key} data-group={group.key}>
@@ -33,7 +37,7 @@ export default function LevelSplit({ split, total, onChange, disabled = false })
               </h3>
               <p className="tos-group__tally">
                 <strong>{items}</strong>
-                <span>{share(items, whole)}%</span>
+                <span>{pct}%</span>
               </p>
             </header>
 

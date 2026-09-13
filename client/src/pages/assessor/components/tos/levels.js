@@ -128,6 +128,30 @@ export function apportion(total, weights) {
 }
 
 /**
+ * Set one level without spending more than the stated length of a paper.
+ *
+ * The changed level is kept where possible. When it would push the split past
+ * the paper length, the other levels share the remaining space in the same
+ * proportions they already had. `apportion` makes that redistribution exact.
+ */
+export function setLevelWithinTotal(split, key, value, total) {
+  const target = toCount(total);
+  const selected = Math.min(toCount(value), target);
+  const others = LEVEL_KEYS.filter((entry) => entry !== key);
+  const weights = others.map((entry) => toCount(split?.[entry]));
+  const room = target - selected;
+  const existing = weights.reduce((sum, weight) => sum + weight, 0);
+  const values = existing > room ? apportion(room, weights) : weights;
+
+  return Object.fromEntries(
+    LEVEL_KEYS.map((entry) => [
+      entry,
+      entry === key ? selected : values[others.indexOf(entry)]
+    ])
+  );
+}
+
+/**
  * A first draft of the matrix, from the two distributions that define it.
  *
  * The assessor has already said how many items each lesson gets and how many

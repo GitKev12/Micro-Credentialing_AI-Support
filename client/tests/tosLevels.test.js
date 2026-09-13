@@ -5,6 +5,7 @@ import {
   autoFill,
   columnTotals,
   groupItems,
+  setLevelWithinTotal,
   share,
   splitItems,
   toCount
@@ -119,5 +120,56 @@ describe("autoFill", () => {
   it("assigns nothing when no level has been given a share", () => {
     const grid = autoFill([5, 5], split([0, 0, 0, 0, 0, 0]));
     expect(grid.reduce((sum, row) => sum + splitItems(row), 0)).toBe(0);
+  });
+});
+
+describe("setLevelWithinTotal", () => {
+  it("holds the existing split when the edit does not overflow the paper", () => {
+    const paper = split([5, 5, 5, 10, 10, 10]);
+    const next = setLevelWithinTotal(paper, "remember", 8, 60);
+    expect(splitItems(next)).toBe(48);
+  });
+
+  it("keeps the requested level exact and scales the others back", () => {
+    const paper = split([10, 10, 10, 10, 10, 10]);
+    const next = setLevelWithinTotal(paper, "remember", 30, 60);
+
+    expect(next.remember).toBe(30);
+    expect(splitItems(next)).toBe(60);
+  });
+
+  it("never hands out more than the stated total", () => {
+    const paper = split([15, 15, 15, 5, 5, 5]);
+    const next = setLevelWithinTotal(paper, "analyze", 60, 60);
+
+    expect(next.analyze).toBe(60);
+    expect(splitItems(next)).toBe(60);
+  });
+
+  it("preserves the proportions of the remaining levels while scaling", () => {
+    const paper = split([10, 5, 5, 20, 10, 10]);
+    const next = setLevelWithinTotal(paper, "create", 30, 60);
+
+    // The remaining levels half from 1 : 1/2 : 1/2 : 2 : 1 to fill 30 items.
+    expect(next).toEqual(split([6, 3, 3, 12, 6, 30]));
+    expect(splitItems(next)).toBe(60);
+  });
+
+  it("works when all other levels start at zero", () => {
+    const paper = split([0, 0, 0, 0, 0, 0]);
+    const next = setLevelWithinTotal(paper, "apply", 5, 50);
+
+    expect(next.apply).toBe(5);
+    expect(splitItems(next)).toBe(5);
+  });
+
+  it("keeps complementary percentages when the split is fully assigned", () => {
+    const paper = split([10, 10, 10, 10, 10, 10]);
+    const next = setLevelWithinTotal(paper, "understand", 20, 60);
+    const whole = splitItems(next);
+    const lotsPct = share(groupItems(next, "lots"), whole);
+    const hotsPct = share(groupItems(next, "hots"), whole);
+
+    expect(lotsPct + hotsPct).toBe(100);
   });
 });
