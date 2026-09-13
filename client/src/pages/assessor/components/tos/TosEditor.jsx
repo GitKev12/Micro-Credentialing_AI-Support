@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchCourseTos, saveCourseTos, storedAssessorId } from "../../../../services/assessors";
-import { AssessorSelect, LoadFailed, Segmented } from "../ui";
+import { LoadFailed, Segmented } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
 import { noticeClass, useNotice } from "../../../../lib/useNotice";
 import AllocationBar from "./AllocationBar";
@@ -112,9 +112,9 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
   const [saving, setSaving] = useState(false);
 
   // Opened from the generate screen, so it opens on the paper that screen is
-  // pointed at — the assessor came here about that one.
+  // pointed at — the assessor came here about that one, and we keep it there.
   const [mode, setMode] = useState(defaultMode ?? "lesson");
-  const [lessonId, setLessonId] = useState(defaultLesson ?? "");
+  const [lessonId] = useState(defaultLesson ?? "");
   const [draft, setDraft] = useState(null);
 
   /* ── Loading ──────────────────────────────────────────────────────────── */
@@ -127,7 +127,6 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
       const payload = await fetchCourseTos(assessorId, courseId);
       setData(payload);
       setDraft(readTos(payload.tos, payload.lessons ?? []));
-      setLessonId((current) => current || payload.lessons?.[0]?.id || "");
     } catch (_error) {
       setFailed(true);
     }
@@ -299,14 +298,15 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
         <>
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
-              <h2 className="tos-block__title">The quiz</h2>
+              <div>
+                <h2 className="tos-block__title">The quiz</h2>
+                {lessons.length ? (
+                  <span className="tos-editor__lesson-label">
+                    {lessons.find((entry) => String(entry.id) === String(lessonId))?.title}
+                  </span>
+                ) : null}
+              </div>
               <div className="tos-block__tools">
-                <AssessorSelect
-                  value={lessonId}
-                  onChange={setLessonId}
-                  label="Lesson"
-                  options={lessons.map((entry) => ({ value: entry.id, label: entry.title }))}
-                />
                 <Stepper
                   value={quizItems}
                   max={MAX_ITEMS}
@@ -331,13 +331,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
                 return (
                   <li className={`tos-row${current ? " is-current" : ""}`} key={entry.id}>
                     <span className="tos-row__n">{index + 1}</span>
-                    <button
-                      type="button"
-                      className="tos-row__pick"
-                      onClick={() => setLessonId(entry.id)}
-                    >
-                      {entry.title}
-                    </button>
+                    <span className="tos-row__name">{entry.title}</span>
                     <span className={`tos-row__items${items ? "" : " is-empty"}`}>
                       {items ? `${items} questions` : "Not set"}
                     </span>

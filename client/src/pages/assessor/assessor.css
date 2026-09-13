@@ -4425,6 +4425,14 @@
   font-weight: var(--fw-semibold);
 }
 
+.tos-editor__lesson-label {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--brand-text);
+}
+
 .tos-block__tools {
   display: flex;
   flex-wrap: wrap;
