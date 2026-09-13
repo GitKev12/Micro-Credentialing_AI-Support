@@ -289,7 +289,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
         value={mode}
         onChange={setMode}
         options={[
-          { key: "lesson", label: "Lesson quiz" },
+          { key: "lesson", label: "Lesson" },
           { key: "final", label: "Final exam" }
         ]}
       />
@@ -299,7 +299,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
               <div>
-                <h2 className="tos-block__title">The quiz</h2>
+                <h2 className="tos-block__title">Lesson quiz</h2>
                 {lessons.length ? (
                   <span className="tos-editor__lesson-label">
                     {lessons.find((entry) => String(entry.id) === String(lessonId))?.title}
@@ -322,7 +322,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
           </section>
 
           <section className="assessor-card tos-block">
-            <h2 className="tos-block__title">Every lesson</h2>
+            <h2 className="tos-block__title">Course lessons</h2>
             <ul className="tos-rows tos-rows--compact">
               {lessons.map((entry, index) => {
                 const items = splitItems(draft.quizzes[entry.id] ?? {});
