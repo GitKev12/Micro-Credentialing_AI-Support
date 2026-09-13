@@ -18,7 +18,7 @@ import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
 import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
-import { LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
+import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
 
 /**
  * Generating one course's papers.
@@ -331,7 +331,11 @@ function GenerateCoursePage() {
     if (scope === "final") {
       const split = tos?.final?.levels ?? {};
       const assigned = splitItems(split);
-      return { split, items: toCount(tos?.final?.items) || assigned };
+      const stated = toCount(tos?.final?.items);
+      return {
+        split,
+        items: stated && stated !== 40 ? stated : assigned || DEFAULT_FINAL_ITEMS
+      };
     }
 
     const row = (tos?.rows ?? []).find((entry) => String(entry.moduleId) === String(moduleId));

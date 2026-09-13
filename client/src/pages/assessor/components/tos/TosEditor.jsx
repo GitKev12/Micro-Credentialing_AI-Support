@@ -9,6 +9,7 @@ import LevelSplit from "./LevelSplit";
 import Matrix from "./Matrix";
 import Stepper from "./Stepper";
 import {
+  DEFAULT_FINAL_ITEMS,
   LEVEL_KEYS,
   apportion,
   autoFill,
@@ -49,7 +50,6 @@ import {
  */
 
 const MAX_ITEMS = 120;
-const DEFAULT_FINAL_ITEMS = 60;
 
 /* ───────────────────────────── The blueprint ───────────────────────────── */
 
@@ -93,10 +93,13 @@ function readTos(tos, lessons) {
     : columnTotals(grid);
 
   const shares = Object.values(content).reduce((sum, value) => sum + value, 0);
+  const stated = toCount(tos?.final?.items);
 
   return {
     quizzes,
-    finalItems: toCount(tos?.final?.items) || shares || DEFAULT_FINAL_ITEMS,
+    // 40 was the previous standard, so a blueprint that still carries it is
+    // treated as unset and opened on 60. A different saved count is kept.
+    finalItems: stated && stated !== 40 ? stated : DEFAULT_FINAL_ITEMS,
     content,
     levels,
     grid

@@ -58,6 +58,9 @@ export const GROUPS = [
 
 export const LEVEL_KEYS = LEVELS.map((level) => level.key);
 
+/** Standard length of a final exam. The stepper can still change it. */
+export const DEFAULT_FINAL_ITEMS = 60;
+
 export const levelsIn = (group) => LEVELS.filter((level) => level.group === group);
 
 /** A blank split, which is also the shape every row of the blueprint has. */
