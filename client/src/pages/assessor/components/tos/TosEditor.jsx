@@ -402,7 +402,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
 
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
-              <h2 className="tos-block__title">Lesson against level</h2>
+              <h2 className="tos-block__title">Lessons by level</h2>
               <button type="button" className="btn btn--ghost" onClick={buildMatrix}>
                 Fill from the splits
               </button>
