@@ -49,7 +49,7 @@ import {
  */
 
 const MAX_ITEMS = 120;
-const DEFAULT_FINAL_ITEMS = 40;
+const DEFAULT_FINAL_ITEMS = 60;
 
 /* ───────────────────────────── The blueprint ───────────────────────────── */
 
