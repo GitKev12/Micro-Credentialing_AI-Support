@@ -276,7 +276,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
         </div>
         <div className="tos-editor__actions">
           <button type="button" className="btn btn--primary" disabled={saving} onClick={save}>
-            {saving ? "Saving…" : "Save blueprint"}
+            {saving ? "Saving…" : "Save changes"}
           </button>
           {headerEnd}
         </div>
