@@ -13,6 +13,7 @@ import {
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
 import { AssessorSelect, Chip, ChoiceLetter, ScreenHeader, choiceLetter } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
+import CodeBlock from "../../components/CodeBlock";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
 import QuestionsField from "./components/tos/QuestionsField";
@@ -85,6 +86,8 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
             </button>
           )}
         </div>
+
+        <CodeBlock code={item.code} className="gen-q__code" />
 
         <ul className="choice-list">
           {item.choices.map((choice, index) => (
