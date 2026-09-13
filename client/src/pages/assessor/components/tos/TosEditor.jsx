@@ -396,7 +396,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
           </section>
 
           <section className="assessor-card tos-block">
-            <h2 className="tos-block__title">What thinking they ask for</h2>
+            <h2 className="tos-block__title">Cognitive levels</h2>
             <LevelSplit split={draft.levels} total={draft.finalItems} onChange={setFinalLevel} />
           </section>
 
