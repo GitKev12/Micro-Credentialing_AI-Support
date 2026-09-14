@@ -14,6 +14,7 @@ import {
   apportion,
   autoFill,
   columnTotals,
+  defaultSplit,
   emptySplit,
   setLevelWithinTotal,
   splitItems,
@@ -88,23 +89,26 @@ function readTos(tos, lessons) {
     ])
   );
 
-  const stored = tos?.final?.levels;
-  const levels = stored
-    ? Object.fromEntries(LEVEL_KEYS.map((key) => [key, toCount(stored[key])]))
-    : columnTotals(grid);
-
-  const shares = Object.values(content).reduce((sum, value) => sum + value, 0);
   const stated = toCount(tos?.final?.items);
+  // 40 was the previous standard, so a blueprint that still carries it is
+  // treated as unset and opened on 60. A different saved count is kept.
+  const finalItems = stated && stated !== 40 ? stated : DEFAULT_FINAL_ITEMS;
 
-  return {
-    quizzes,
-    // 40 was the previous standard, so a blueprint that still carries it is
-    // treated as unset and opened on 60. A different saved count is kept.
-    finalItems: stated && stated !== 40 ? stated : DEFAULT_FINAL_ITEMS,
-    content,
-    levels,
-    grid
-  };
+  // The level split, read from what is stored. A document that states its own
+  // levels keeps them; one that only has a matrix falls back to that matrix's
+  // columns; and a fresh blueprint opens on the 30/70 spread the curriculum
+  // draws the paper at, so there is a starting balance to adjust rather than a
+  // grid of zeros to type into.
+  const stored = tos?.final?.levels;
+  const storedValues = stored ? LEVEL_KEYS.map((key) => toCount(stored[key])) : [];
+  const columns = columnTotals(grid);
+  const levels = storedValues.some((value) => value > 0)
+    ? Object.fromEntries(LEVEL_KEYS.map((key, index) => [key, storedValues[index]]))
+    : LEVEL_KEYS.some((key) => toCount(columns[key]) > 0)
+      ? columns
+      : defaultSplit(finalItems);
+
+  return { quizzes, finalItems, content, levels, grid };
 }
 
 function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved }) {
@@ -170,13 +174,16 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
    * Changing 10 items to 20 and being handed a blank split would throw away
    * the decision the assessor came here to make, so the existing proportions
    * are re-apportioned instead: a 1/2/3/4 paper doubles to 2/4/6/8 rather than
-   * emptying. With nothing set yet there is nothing to keep, and the levels
-   * stay at zero for the assessor to place.
+   * emptying. With nothing set yet there is nothing to keep, so the first count
+   * opens on the curriculum's 30/70 spread rather than on six zeros.
    */
   const setQuizItems = (next) =>
     setDraft((current) => {
       const split = current.quizzes[lessonId] ?? emptySplit();
-      const spread = apportion(next, LEVEL_KEYS.map((key) => split[key]));
+      const spread =
+        splitItems(split) > 0
+          ? apportion(next, LEVEL_KEYS.map((key) => split[key]))
+          : defaultSplit(next);
 
       return {
         ...current,

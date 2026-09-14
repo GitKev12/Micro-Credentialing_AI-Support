@@ -66,6 +66,23 @@ export const levelsIn = (group) => LEVELS.filter((level) => level.group === grou
 /** A blank split, which is also the shape every row of the blueprint has. */
 export const emptySplit = () => Object.fromEntries(LEVEL_KEYS.map((key) => [key, 0]));
 
+/**
+ * The opening split the blueprint is built on: 30% lower-order, 70% higher —
+ * the balance the curriculum draws the paper at. Spread evenly within each
+ * group so the editor opens already filled rather than as a grid of zeros;
+ * every figure stays editable like any other.
+ */
+export function defaultSplit(total) {
+  const whole = toCount(total);
+  if (whole <= 0) return emptySplit();
+  const lots = Math.round(whole * 0.3);
+  const spreadIn = (group, count) => {
+    const parts = apportion(count, levelsIn(group).map(() => 1));
+    return Object.fromEntries(levelsIn(group).map((level, i) => [level.key, parts[i]]));
+  };
+  return { ...spreadIn("lots", lots), ...spreadIn("hots", whole - lots) };
+}
+
 /** Whole, non-negative, and never NaN — every figure on this screen is a count. */
 export function toCount(value) {
   const parsed = Number.parseInt(value, 10);
