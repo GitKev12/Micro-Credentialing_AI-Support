@@ -12,6 +12,7 @@ import {
 } from "../../services/assessors";
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
 import { AssessorSelect, Chip, ChoiceLetter, ScreenHeader, choiceLetter } from "./components/ui";
+import { useGlidingPill } from "../../hooks/useGlidingPill";
 import { Skeleton, SkeletonText } from "../../components/Skeleton";
 import CodeBlock from "../../components/CodeBlock";
 import { noticeClass, useNotice } from "../../lib/useNotice";
@@ -176,6 +177,7 @@ function GenerateCoursePage() {
 
   // What the right-hand card is aimed at.
   const [scope, setScope] = useState("lesson");
+  const { pillRef: typePillRef, pillStyle: typePillStyle } = useGlidingPill(".gen-toggle__btn.is-active", [scope]);
   const [moduleId, setModuleId] = useState("");
   const [timed, setTimed] = useState(false);
   const [minutes, setMinutes] = useState(DEFAULT_MINUTES);
@@ -578,7 +580,8 @@ function GenerateCoursePage() {
 
             <div className="gen-field">
               <span className="field-label">Type</span>
-              <div className="gen-toggle" role="group" aria-label="Assessment type">
+              <div className="gen-toggle" role="group" aria-label="Assessment type" ref={typePillRef}>
+                <span className="gen-toggle__pill" style={typePillStyle} aria-hidden="true" />
                 <button
                   type="button"
                   className={`gen-toggle__btn${scope === "lesson" ? " is-active" : ""}`}

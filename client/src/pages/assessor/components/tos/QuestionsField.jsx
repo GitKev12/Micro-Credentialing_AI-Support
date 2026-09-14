@@ -19,7 +19,7 @@ export default function QuestionsField({ count, split, paper, onModify }) {
         <label className="field-label" htmlFor={id}>
           Number of questions
         </label>
-        <button type="button" className="link-btn" onClick={onModify}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onModify}>
           Modify TOS
         </button>
       </div>

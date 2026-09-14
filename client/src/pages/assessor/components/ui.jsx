@@ -1,5 +1,6 @@
 import { Select } from "../../../components/Select";
 import { Skeleton } from "../../../components/Skeleton";
+import { useGlidingPill } from "../../../hooks/useGlidingPill";
 import { noticeClass } from "../../../lib/useNotice";
 import {
   AlertIcon,
@@ -183,8 +184,11 @@ export function SearchField({ value, onChange, placeholder, label }) {
 }
 
 export function Segmented({ options, value, onChange, label }) {
+  const { pillRef, pillStyle } = useGlidingPill(".segmented__btn.is-active", [value]);
+
   return (
-    <div className="segmented" role="tablist" aria-label={label}>
+    <div className="segmented" role="tablist" aria-label={label} ref={pillRef}>
+      <span className="segmented__pill" style={pillStyle} aria-hidden="true" />
       {options.map((option) => (
         <button
           key={option.key}

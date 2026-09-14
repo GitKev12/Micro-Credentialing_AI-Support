@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useGlidingPill } from "../../../hooks/useGlidingPill";
 import { clearAuthSession, getStoredSession } from "../../../auth/services/authService";
 import { getInitials, resolveAvatarUrl } from "../../../services/avatar";
 import { BadgeIcon, CertificateIcon, DashboardIcon, LogoutIcon } from "./icons";
@@ -46,6 +47,8 @@ function StudentSidebar({ summary = [] }) {
     student?.studentNumber || student?.studentNo || student?.identifier || "—";
   const avatarUrl = resolveAvatarUrl(student) || initialsAvatar(studentName);
 
+  const { pillRef, pillStyle } = useGlidingPill(".sd-rail__link[aria-current='page']", [location.pathname]);
+
   const handleLogout = () => {
     clearAuthSession();
     navigate("/login", { replace: true });
@@ -64,7 +67,8 @@ function StudentSidebar({ summary = [] }) {
         <span className="sd-rail__role">Student</span>
       </div>
 
-      <nav className="sd-rail__nav" aria-label="Student sections">
+      <nav className="sd-rail__nav" aria-label="Student sections" ref={pillRef}>
+        <span className="sd-rail__nav-pill" style={pillStyle} aria-hidden="true" />
         {NAV_ITEMS.map((item) => {
           // Each tab is a leaf route, so an exact match is the whole story.
           const current = location.pathname === item.to;

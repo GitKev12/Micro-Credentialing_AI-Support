@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useGlidingPill } from "../../../hooks/useGlidingPill";
 import { clearAuthSession, getStoredSession } from "../../../auth/services/authService";
 import { resolveAvatarUrl } from "../../../services/avatar";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
@@ -71,6 +72,8 @@ function StudentNavBar() {
   const isCurrent = (item) =>
     item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
 
+  const { pillRef, pillStyle } = useGlidingPill(".sd-topbar__link[aria-current='page']", [location.pathname]);
+
   const go = (to) => {
     setIsOpen(false);
     navigate(to);
@@ -97,7 +100,8 @@ function StudentNavBar() {
         </p>
       </div>
 
-      <nav className="sd-topbar__nav" aria-label="Student sections">
+      <nav className="sd-topbar__nav" aria-label="Student sections" ref={pillRef}>
+        <span className="sd-topbar__nav-pill" style={pillStyle} aria-hidden="true" />
         {NAV_ITEMS.map((item) => (
           <button
             key={item.to}

@@ -269,12 +269,28 @@ body:has(.student-app) {
 }
 
 .sd-topbar__nav {
+  position: relative;
   display: flex;
   gap: var(--sd-1);
   margin-left: auto;
 }
 
+/* The sliding indicator behind the active link, login-toggle style: JS
+   measures the active link's box and the pill glides between links on a spring. */
+.sd-topbar__nav-pill {
+  position: absolute;
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand-wash);
+  pointer-events: none;
+  transition: left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              top 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .sd-topbar__link {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: var(--sd-2);
@@ -296,7 +312,6 @@ body:has(.student-app) {
 }
 
 .sd-topbar__link[aria-current="page"] {
-  background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
   font-weight: var(--sd-fw-semibold);
 }
@@ -523,13 +538,30 @@ body:has(.student-app) {
 }
 
 .sd-rail__nav {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin: var(--sd-4) 0;
 }
 
+/* Sliding indicator behind the active link — the pill is measured by JS and
+   glides between links on a spring, login-toggle style. */
+.sd-rail__nav-pill {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-brand-wash);
+  pointer-events: none;
+  transition: left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              top 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .sd-rail__link {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--sd-3);
@@ -552,7 +584,6 @@ body:has(.student-app) {
 }
 
 .sd-rail__link[aria-current="page"] {
-  background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
   font-weight: var(--sd-fw-semibold);
 }
@@ -1677,6 +1708,13 @@ body:has(.student-app) {
   .sd-badge-toast,
   .sd-badge-toast.is-leaving {
     animation: none;
+  }
+
+  .sd-topbar__nav-pill,
+  .sd-rail__nav-pill {
+    transition: none;
+    left: 0;
+    top: 0;
   }
 }
 

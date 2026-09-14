@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { clearAuthSession } from "../../../auth/services/authService";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
+import { useGlidingPill } from "../../../hooks/useGlidingPill";
 import {
   AssessorsIcon,
   ChevronLeftIcon,
@@ -39,8 +40,15 @@ const COLLAPSED_KEY = "adminSidebarCollapsed";
 
 function AdminSidebar({ name, idNumber }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem(COLLAPSED_KEY) === "1"
+  );
+  // The active pill glides between nav items, login-toggle style. It re-measures
+  // when the route changes or the rail folds, since either moves the active item.
+  const { pillRef, pillStyle } = useGlidingPill(
+    ".admin-nav-item.is-active",
+    [location.pathname, collapsed]
   );
   // Shares the app-wide theme switch with the student and assessor interfaces.
   const [theme, setTheme] = useState(getStoredTheme);
@@ -83,7 +91,8 @@ function AdminSidebar({ name, idNumber }) {
           </div>
         </div>
 
-        <nav className="admin-sidebar__nav" aria-label="Admin sections">
+        <nav className="admin-sidebar__nav" aria-label="Admin sections" ref={pillRef}>
+          <span className="admin-nav-item__pill" style={pillStyle} aria-hidden="true" />
           {NAV_ITEMS.map(({ to, label, Icon }) => (
             <NavLink
               key={to}

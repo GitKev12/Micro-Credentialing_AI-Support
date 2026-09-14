@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { clearAuthSession } from "../../../auth/services/authService";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
+import { useGlidingPill } from "../../../hooks/useGlidingPill";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -38,8 +39,15 @@ const COLLAPSED_KEY = "assessorSidebarCollapsed";
 
 function AssessorSidebar({ name, idNumber, counts }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem(COLLAPSED_KEY) === "1"
+  );
+  // The active pill glides between nav items, login-style. It re-measures when
+  // the route changes or the rail folds, since either moves the active item.
+  const { pillRef, pillStyle } = useGlidingPill(
+    ".assessor-nav-item.is-active",
+    [location.pathname, collapsed]
   );
   // Shares the app-wide theme switch with the student interface.
   const [theme, setTheme] = useState(getStoredTheme);
@@ -81,7 +89,8 @@ function AssessorSidebar({ name, idNumber, counts }) {
         </span>
       </div>
 
-      <nav className="assessor-rail__nav" aria-label="Assessor sections">
+      <nav className="assessor-rail__nav" aria-label="Assessor sections" ref={pillRef}>
+        <span className="assessor-nav-item__pill" style={pillStyle} aria-hidden="true" />
         {NAV_ITEMS.map(({ to, label, Icon, countKey }) => {
           const count = countKey ? counts?.[countKey] : null;
 
