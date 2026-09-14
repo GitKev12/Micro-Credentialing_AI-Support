@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 /**
  * The shared "login toggle" gesture: a highlight that glides between the items
@@ -13,13 +13,19 @@ import { useLayoutEffect, useRef, useState } from "react";
  *
  * Reading the active box during layout (not after paint) is what keeps the pill
  * from ever flashing in the wrong place.
+ *
+ * The container is taken as a callback ref rather than a plain ref so it is
+ * real reactive state: callers often mount it only after their own async data
+ * arrives — the gen-toggle mounts after a course fetch, when the `deps` the
+ * caller keyed this to may have already settled. State re-measures the moment
+ * the container appears, so a pill is never stuck at zero size until the user
+ * interacts.
  */
 export function useGlidingPill(activeSelector, deps = []) {
-  const pillRef = useRef(null);
+  const [container, setContainer] = useState(null);
   const [pillStyle, setPillStyle] = useState({});
 
   useLayoutEffect(() => {
-    const container = pillRef.current;
     const active = container?.querySelector(activeSelector);
     if (!container || !active) return;
     setPillStyle({
@@ -28,7 +34,7 @@ export function useGlidingPill(activeSelector, deps = []) {
       width: `${active.offsetWidth}px`,
       height: `${active.offsetHeight}px`
     });
-  }, deps);
+  }, [container, ...deps]);
 
-  return { pillRef, pillStyle };
+  return { pillRef: setContainer, pillStyle };
 }
