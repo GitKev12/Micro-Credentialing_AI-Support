@@ -20,7 +20,7 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
 
   const longEnough = password.length >= MIN_PASSWORD_LENGTH;
   const passwordOk = creating ? longEnough : password === "" || longEnough;
-  const ready = name.trim() && email.trim() && passwordOk;
+  const ready = name.trim() && email.trim() && assessorNumber.trim() && passwordOk;
 
   return (
     <AdminModal
@@ -68,11 +68,13 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
         onChange={setEmail}
         required
       />
+      {/* Required, so the assessor can sign in with it as well as their email. */}
       <AdminField
-        label="Assessor number"
+        label="ID number"
         value={assessorNumber}
         onChange={setAssessorNumber}
         placeholder="e.g. ASS007"
+        required
       />
       <AdminField
         label={creating ? "Password" : "New password"}

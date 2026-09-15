@@ -27,7 +27,8 @@ function StudentForm({ student, busy, error, onCancel, onSave }) {
 
   const longEnough = password.length >= MIN_PASSWORD_LENGTH;
   const passwordOk = creating ? longEnough : password === "" || longEnough;
-  const ready = firstName.trim() && lastName.trim() && email.trim() && passwordOk;
+  const ready =
+    firstName.trim() && lastName.trim() && email.trim() && studentNumber.trim() && passwordOk;
 
   return (
     <AdminModal
@@ -71,11 +72,13 @@ function StudentForm({ student, busy, error, onCancel, onSave }) {
       <AdminField label="First name" value={firstName} onChange={setFirstName} required />
       <AdminField label="Last name" value={lastName} onChange={setLastName} required />
       <AdminField label="Email" type="email" value={email} onChange={setEmail} required />
+      {/* Required, so the student can sign in with it as well as their email. */}
       <AdminField
-        label="Student number"
+        label="ID number"
         value={studentNumber}
         onChange={setStudentNumber}
         placeholder="e.g. 202300007"
+        required
       />
       {/* No program or year. A degree batch is not what a micro-credential is
           awarded against, so the form does not collect one. */}

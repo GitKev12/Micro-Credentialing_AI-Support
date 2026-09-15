@@ -140,22 +140,25 @@ These are the endpoints currently mounted in `server/src/app.js`.
 
 ### Login
 
-Both login endpoints accept:
+Students and assessors sign in at `POST /api/auth/login` with their **ID number or email**:
 
 ```json
 {
-  "identifier": "student@example.com",
+  "identifier": "202300001",
   "password": "your-password"
 }
 ```
 
-On success they return a token, a public user object, and a `redirectTo` path for the role.
+An `identifier` containing `@` is matched as an email; anything else as an ID number. Either is
+looked up in `Student` first, then `Assessor`, ignoring case (`ass001` finds `ASS001`). Admins sign in
+at `POST /api/auth/admin/login` with an email, matched against `email`, `admin_id`,
+`employeeNumber`, `adminNumber`, `username`.
 
-The `identifier` is matched against several fields so that records can be migrated gradually:
+On success both return a token, a public user object, and a `redirectTo` path for the role.
 
-- **Student:** `email`, `student_id`, `studentNumber`, `username`
-- **Assessor:** `email`, `assessor_id`, `assessorNumber`, `username`
-- **Admin:** `email`, `admin_id`, `employeeNumber`, `adminNumber`, `username`
+Every student and assessor account needs an ID number. The admin console stores it in capitals and
+refuses an ID number or email already used by another account, since login could only ever reach
+one of them.
 
 Passwords are read from whichever of `password`, `passwordHash`, or `hashedPassword` is present.
 

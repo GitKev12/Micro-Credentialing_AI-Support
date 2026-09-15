@@ -5,6 +5,7 @@ import { getAssessor, getStudent } from "./admin.controller.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { removeIssuedCertificatesFor } from "../certificates/certificates.service.js";
 import { readSuspendedFlag, setAccountSuspension } from "../lib/suspension.js";
+import { idNumberMatch, readIdNumber } from "../auth/identifier.js";
 
 /**
  * The student and assessor accounts this console manages.
@@ -22,11 +23,12 @@ import { readSuspendedFlag, setAccountSuspension } from "../lib/suspension.js";
  * hash is all that is stored. An empty password field means "leave it alone"
  * rather than "clear it", so an edit to a name cannot silently lock someone out.
  *
- * An email may be claimed once across every account collection. Login searches
- * Student then Assessor for one identifier, so two accounts sharing an address
- * do not compete — the first one found simply wins, and the other can never
- * sign in at all. Refusing the duplicate is the only version of this that has
- * an answer.
+ * An ID number may be claimed once across students and assessors, because it is
+ * what both sign in with. Login searches Student then Assessor for it, so two
+ * accounts sharing one do not compete — the first one found simply wins, and
+ * the other can never sign in at all. Refusing the duplicate is the only
+ * version of this that has an answer. Emails are held to the same rule across
+ * every account collection.
  */
 
 const ADMINS_COLLECTION = "Admin";
@@ -100,11 +102,29 @@ async function emailTaken(email, exceptId = null) {
   return null;
 }
 
-/** Whether this ID number is already used inside its own collection. */
-async function numberTaken(name, field, value, exceptId = null) {
-  const existing = await collection(name).findOne({ [field]: value });
-  if (!existing) return false;
-  return !exceptId || asId(existing._id) !== asId(exceptId);
+/**
+ * Which collection, if any, already holds this ID number.
+ *
+ * Both, not just the one being written: an assessor sharing a student's number
+ * could never sign in with it. `exceptId` is the account being edited.
+ */
+async function idNumberTaken(idNumber, exceptId = null) {
+  for (const [name, field] of [
+    [STUDENTS_COLLECTION, "student_id"],
+    [ASSESSORS_COLLECTION, "assessor_id"]
+  ]) {
+    if (!(await collectionExists(name))) continue;
+
+    const existing = await collection(name).findOne({ [field]: idNumberMatch(idNumber) });
+    if (existing && (!exceptId || asId(existing._id) !== asId(exceptId))) return name;
+  }
+
+  return null;
+}
+
+function idNumberTakenMessage(collectionName) {
+  const role = collectionName.toLowerCase();
+  return `That ID number already belongs to ${article(role)} ${role} account.`;
 }
 
 /**
@@ -198,11 +218,13 @@ export async function updateStudent(request, response) {
     if (takenBy) return badRequest(response, emailTakenMessage(takenBy));
   }
 
-  if (
-    updates.student_id &&
-    (await numberTaken(STUDENTS_COLLECTION, "student_id", updates.student_id, student._id))
-  ) {
-    return badRequest(response, "That ID number is already in use.");
+  if ("student_id" in updates) {
+    // Blank is refused rather than stored: it is what they sign in with.
+    updates.student_id = readIdNumber(updates.student_id);
+    if (!updates.student_id) return badRequest(response, "An ID number is required.");
+
+    const takenBy = await idNumberTaken(updates.student_id, student._id);
+    if (takenBy) return badRequest(response, idNumberTakenMessage(takenBy));
   }
 
   await collection(STUDENTS_COLLECTION).updateOne({ _id: student._id }, { $set: updates });
@@ -267,11 +289,12 @@ export async function updateAssessor(request, response) {
     if (takenBy) return badRequest(response, emailTakenMessage(takenBy));
   }
 
-  if (
-    updates.assessor_id &&
-    (await numberTaken(ASSESSORS_COLLECTION, "assessor_id", updates.assessor_id, assessor._id))
-  ) {
-    return badRequest(response, "That ID number is already in use.");
+  if ("assessor_id" in updates) {
+    updates.assessor_id = readIdNumber(updates.assessor_id);
+    if (!updates.assessor_id) return badRequest(response, "An ID number is required.");
+
+    const takenBy = await idNumberTaken(updates.assessor_id, assessor._id);
+    if (takenBy) return badRequest(response, idNumberTakenMessage(takenBy));
   }
 
   await collection(ASSESSORS_COLLECTION).updateOne({ _id: assessor._id }, { $set: updates });
@@ -345,7 +368,7 @@ async function removeFrom(name, filter) {
  * existing one to leave alone, and an account without one is an account
  * nobody can sign into.
  */
-async function newAccountFields(body, { collectionName, numberField, numberKey, nameFields }) {
+async function newAccountFields(body, { numberField, numberKey, nameFields }) {
   const email = text(body?.email).toLowerCase();
   if (!email) return { error: "An email address is required." };
   if (!looksLikeEmail(email)) return { error: "Enter a valid email address." };
@@ -359,10 +382,12 @@ async function newAccountFields(body, { collectionName, numberField, numberKey, 
     return { error: `The password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
   }
 
-  const number = text(body?.[numberKey]);
-  if (number && (await numberTaken(collectionName, numberField, number))) {
-    return { error: "That ID number is already in use." };
-  }
+  // Required, so the account can sign in with either its ID number or its email.
+  const number = readIdNumber(body?.[numberKey]);
+  if (!number) return { error: "An ID number is required." };
+
+  const numberTakenBy = await idNumberTaken(number);
+  if (numberTakenBy) return { error: idNumberTakenMessage(numberTakenBy) };
 
   const names = {};
   for (const [field, key] of Object.entries(nameFields)) {
@@ -375,7 +400,7 @@ async function newAccountFields(body, { collectionName, numberField, numberKey, 
     document: {
       ...names,
       email,
-      [numberField]: number || null,
+      [numberField]: number,
       password: await bcrypt.hash(password, BCRYPT_ROUNDS),
       suspended: false,
       createdAt: new Date()
@@ -383,14 +408,13 @@ async function newAccountFields(body, { collectionName, numberField, numberKey, 
   };
 }
 
-/** POST /api/admin/students — { firstName, lastName, email, studentNumber?, password } */
+/** POST /api/admin/students — { firstName, lastName, email, studentNumber, password } */
 export async function createStudent(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   await ensureAccountIndexes(STUDENTS_COLLECTION, "student_id");
 
   const { document, error } = await newAccountFields(request.body, {
-    collectionName: STUDENTS_COLLECTION,
     numberField: "student_id",
     numberKey: "studentNumber",
     nameFields: { first_name: "firstName", last_name: "lastName" }
@@ -407,14 +431,13 @@ export async function createStudent(request, response) {
   return getStudent(request, response);
 }
 
-/** POST /api/admin/assessors — { name, email, assessorNumber?, password } */
+/** POST /api/admin/assessors — { name, email, assessorNumber, password } */
 export async function createAssessor(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   await ensureAccountIndexes(ASSESSORS_COLLECTION, "assessor_id");
 
   const { document, error } = await newAccountFields(request.body, {
-    collectionName: ASSESSORS_COLLECTION,
     numberField: "assessor_id",
     numberKey: "assessorNumber",
     nameFields: { full_name: "name" }

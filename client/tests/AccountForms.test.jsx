@@ -49,6 +49,7 @@ describe("StudentForm — one form for new and existing", () => {
     fireEvent.change(screen.getByLabelText(/First name/), { target: { value: "Ana" } });
     fireEvent.change(screen.getByLabelText(/Last name/), { target: { value: "Cruz" } });
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ana@tsu.edu.ph" } });
+    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "202300007" } });
 
     expect(screen.getByRole("button", { name: "Create student" }).disabled).toBe(true);
 
@@ -66,6 +67,21 @@ describe("StudentForm — one form for new and existing", () => {
 
     expect(screen.getByRole("button", { name: "Create student" }).disabled).toBe(true);
     expect(screen.getByText(/at least 8 characters/)).toBeTruthy();
+  });
+
+  // Required, so the student can sign in with it as well as their email.
+  it("will not create without an ID number", () => {
+    draw(StudentForm, { student: null });
+
+    fireEvent.change(screen.getByLabelText(/First name/), { target: { value: "Ana" } });
+    fireEvent.change(screen.getByLabelText(/Last name/), { target: { value: "Cruz" } });
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ana@tsu.edu.ph" } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
+
+    expect(screen.getByRole("button", { name: "Create student" }).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "202300007" } });
+    expect(screen.getByRole("button", { name: "Create student" }).disabled).toBe(false);
   });
 
   // An edit that leaves the box alone must not be read as "clear the password",
@@ -113,5 +129,18 @@ describe("AssessorForm — the same two modes", () => {
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ana@tsu.edu.ph" } });
 
     expect(screen.getByRole("button", { name: "Create assessor" }).disabled).toBe(true);
+  });
+
+  it("will not create without an ID number", () => {
+    draw(AssessorForm, { assessor: null });
+
+    fireEvent.change(screen.getByLabelText(/Full name|Name/), { target: { value: "Ana Cruz" } });
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ana@tsu.edu.ph" } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
+
+    expect(screen.getByRole("button", { name: "Create assessor" }).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "ASS007" } });
+    expect(screen.getByRole("button", { name: "Create assessor" }).disabled).toBe(false);
   });
 });

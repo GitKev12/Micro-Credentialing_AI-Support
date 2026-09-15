@@ -425,6 +425,7 @@ describe("AssessorsManagement — a new account lands in order", () => {
       target: { value: "Aaron Bautista" }
     });
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ab@example.com" } });
+    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "ASS007" } });
     fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
     fireEvent.click(screen.getByRole("button", { name: "Create assessor" }));
     await flush();
@@ -449,6 +450,7 @@ describe("AssessorsManagement — a new account lands in order", () => {
       target: { value: "Aaron Bautista" }
     });
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ab@example.com" } });
+    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "ASS007" } });
     fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
     fireEvent.click(screen.getByRole("button", { name: "Create assessor" }));
     await flush();

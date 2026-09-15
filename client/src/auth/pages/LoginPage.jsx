@@ -47,6 +47,16 @@ function LoginPage() {
 
   const resetBackground = () => moveBackground(0, 0);
 
+  const isAdmin = role === "admin";
+
+  const switchRole = (nextRole) => {
+    if (nextRole === role) return;
+    // Different accounts sit behind each tab, so what was typed does not carry over.
+    setIdentifier("");
+    setError("");
+    setRole(nextRole);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -54,7 +64,7 @@ function LoginPage() {
 
     try {
       const authSession =
-        role === "admin"
+        isAdmin
           ? await loginAdmin({ identifier, password })
           : await login({ identifier, password });
       saveAuthSession(authSession);
@@ -91,24 +101,26 @@ function LoginPage() {
             <button
               type="button"
               className={`login-toggle__btn is-client${role === "client" ? " is-active" : ""}`}
-              onClick={() => setRole("client")}
+              onClick={() => switchRole("client")}
             >
               Client
             </button>
             <button
               type="button"
               className={`login-toggle__btn is-admin${role === "admin" ? " is-active" : ""}`}
-              onClick={() => setRole("admin")}
+              onClick={() => switchRole("admin")}
             >
               Admin
             </button>
           </div>
           <label className="auth-field">
-            <span>Email</span>
+            <span>{isAdmin ? "Email" : "ID Number or Email"}</span>
             <input
               value={identifier}
-              type="email"
-              autoComplete="email"
+              type={isAdmin ? "email" : "text"}
+              autoComplete={isAdmin ? "email" : "username"}
+              autoCapitalize="none"
+              spellCheck={false}
               onChange={(event) => setIdentifier(event.target.value)}
             />
           </label>

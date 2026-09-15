@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { signAuthToken } from "./tokens.js";
 import { loadStudentSuspensions } from "../lib/courseAccess.js";
+import { loginFilter, readIdentifier } from "./identifier.js";
 
 const roleCollections = {
   student: "Student",
@@ -15,10 +16,15 @@ const roleRoutes = {
   admin: "/admin"
 };
 
+// Admin signs in with an email. Students and assessors use their ID number or
+// their email — see findLoginAccount.
 const identifierFieldsByRole = {
-  student: ["email", "student_id", "studentNumber", "username"],
-  assessor: ["email", "assessor_id", "assessorNumber", "username"],
   admin: ["email", "admin_id", "employeeNumber", "adminNumber", "username"]
+};
+
+const idNumberFields = {
+  student: "student_id",
+  assessor: "assessor_id"
 };
 
 const passwordFields = ["password", "passwordHash", "hashedPassword"];
@@ -107,28 +113,40 @@ async function findAccountByRole(identifier, role) {
   return mongoose.connection.collection(collectionName).findOne(buildIdentifierQuery(identifier, role));
 }
 
-async function findFirstAccountByRoles(identifier, roles) {
-  for (const role of roles) {
-    const account = await findAccountByRole(identifier, role);
+/**
+ * The student or assessor holding this ID number or email.
+ *
+ * Student is searched first. The account console refuses an ID number or email
+ * already used in either collection (see accounts.controller.js), so the order
+ * never has to choose between two accounts.
+ */
+export async function findLoginAccount(identifier) {
+  for (const [role, field] of Object.entries(idNumberFields)) {
+    const account = await mongoose.connection
+      .collection(roleCollections[role])
+      .findOne(loginFilter(identifier, field));
     if (account) return { account, role };
   }
   return null;
 }
 
 export async function loginUser(request, response) {
-  const { identifier, password } = request.body ?? {};
+  const identifier = readIdentifier(request.body?.identifier);
+  const password = request.body?.password;
 
   if (!identifier || !password) {
-    return response.status(400).json({ message: "Email and password are required." });
+    return response
+      .status(400)
+      .json({ message: "Enter your ID number or email, and your password." });
   }
 
   if (!ensureDatabaseReady(response)) return null;
 
-  const result = await findFirstAccountByRoles(identifier, ["student", "assessor"]);
+  const result = await findLoginAccount(identifier);
   const storedPassword = getStoredPassword(result?.account);
 
   if (!result || !(await isPasswordValid(password, storedPassword))) {
-    return response.status(401).json({ message: "Invalid student or assessor login credentials." });
+    return response.status(401).json({ message: "Invalid ID number, email, or password." });
   }
 
   // Checked after the password, not before: answering "suspended" to a wrong
