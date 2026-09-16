@@ -4,7 +4,8 @@ import {
   fetchAssessorClasses,
   fetchCourseAssessments,
   fetchStudentPaper,
-  storedAssessorId
+  storedAssessorId,
+  streamAssessmentResultsUrl
 } from "../../services/assessors";
 import {
   AssessorSelect,
@@ -247,6 +248,40 @@ function ResultsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // The board again, pushed the moment a student on this paper opens or hands
+  // it in — a row moving under the assessor rather than them re-pressing a
+  // paper they are already looking at. The register `load` fetched still
+  // drives the skeleton and the retry-on-failure; this only ever replaces it
+  // once there is something to replace it with.
+  useEffect(() => {
+    if (!assessorId || !courseId || !assessmentId) return undefined;
+
+    let active = true;
+    const source = new EventSource(streamAssessmentResultsUrl(assessorId, courseId, assessmentId));
+
+    source.onmessage = (event) => {
+      if (!active) return;
+
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+
+      setBoard({
+        course: data?.course ?? null,
+        assessment: data?.assessment ?? null,
+        rows: Array.isArray(data?.rows) ? data.rows : []
+      });
+    };
+
+    return () => {
+      active = false;
+      source.close();
+    };
+  }, [assessorId, courseId, assessmentId]);
 
   // The open student's paper. Fetched rather than held back from the register,
   // which carries a row's score but never its questions.

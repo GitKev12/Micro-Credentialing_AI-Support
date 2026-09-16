@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { getStanding, loginAdmin, loginUser } from "./auth.controller.js";
-import { requireAuth } from "../middleware/auth.js";
+import { getStanding, loginAdmin, loginUser, streamStanding } from "./auth.controller.js";
+import { requireAuth, requireDownloadAuth } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -12,5 +12,9 @@ router.post("/admin/login", loginAdmin);
 // is refused here too, and that refusal is the answer the client is watching
 // for. See getStanding.
 router.get("/standing", requireAuth, getStanding);
+
+// The same question, pushed instead of polled. `?token=` because EventSource
+// cannot send a header — see streamStanding.
+router.get("/standing/stream", requireDownloadAuth, streamStanding);
 
 export default router;

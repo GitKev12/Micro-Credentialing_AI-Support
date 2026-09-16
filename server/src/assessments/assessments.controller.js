@@ -11,6 +11,7 @@ import { closeAttempt, openAttempt } from "./attempts.js";
 import { scoreOf } from "../assessors/grading.js";
 import { lessonBadgeFor } from "../badges/badges.service.js";
 import { loadStudentRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
+import { publishResults } from "../lib/resultsEvents.js";
 
 /**
  * Taking a quiz: what is unlocked, what the questions are, and what a
@@ -522,6 +523,7 @@ export async function getAssessmentForStudent(request, response) {
   const retaking = String(request.query?.retake ?? "") === "1";
   if (isTheStudent && (!live || retaking)) {
     await openAttempt({ studentId, assessment: doc });
+    publishResults(doc._id);
   }
 
   return response.json({
@@ -649,6 +651,7 @@ export async function submitAssessment(request, response) {
   // left behind by a failed write says "still working", which is true, and
   // one cleared before a failed write would say the opposite.
   await closeAttempt({ studentId, assessmentId: doc._id });
+  publishResults(doc._id);
 
   /**
    * The badge this pass just earned, so the client can say so by name.

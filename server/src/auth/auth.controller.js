@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { signAuthToken } from "./tokens.js";
 import { loadStudentSuspensions } from "../lib/courseAccess.js";
+import { loadAccountSuspension } from "../lib/suspension.js";
+import { onStandingChange } from "../lib/standingEvents.js";
 import { loginFilter, readIdentifier } from "./identifier.js";
 
 const roleCollections = {
@@ -204,6 +206,92 @@ export async function getStanding(request, response) {
       reason: suspension.reason
     }))
   });
+}
+
+/**
+ * The full answer `streamStanding` pushes, unlike `getStanding`'s: this one
+ * names the account's own suspension too, because nothing refuses a request
+ * that was never made. A REST call learns "suspended" by being turned away by
+ * `requireAuth`; a connection that was already open when the admin flips the
+ * switch is never turned away, so the stream has to go check for itself.
+ */
+async function loadStandingState(session) {
+  const [account, byCourse] = await Promise.all([
+    loadAccountSuspension(session),
+    session.role === "student" ? loadStudentSuspensions(session.id) : Promise.resolve(new Map())
+  ]);
+
+  return {
+    account: account ? { message: account.reason, by: account.by } : null,
+    courses: [...byCourse].map(([courseId, suspension]) => ({
+      courseId,
+      suspended: true,
+      by: suspension.by,
+      reason: suspension.reason
+    }))
+  };
+}
+
+/**
+ * GET /api/auth/standing/stream — the same answer as `getStanding`, pushed
+ * the moment it changes instead of asked for on a timer.
+ *
+ * Server-Sent Events rather than WebSockets: the traffic only ever runs one
+ * way (server tells the browser something changed), so there is nothing a
+ * socket would carry that a kept-open response does not, for a fraction of
+ * the bookkeeping. Fetched with `?token=` (`requireDownloadAuth`), because
+ * `EventSource` cannot attach an Authorization header.
+ *
+ * The account row is watched by id — `standingEvents.js` — so a write on the
+ * admin console or an assessor's roster wakes exactly the connections that
+ * might care and nobody else. Ended once the account shows suspended, since
+ * nothing else this stream reports can still change after that.
+ */
+export async function streamStanding(request, response) {
+  const session = request.session;
+
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+  response.flushHeaders?.();
+
+  let closed = false;
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe();
+    response.end();
+  };
+
+  const push = async () => {
+    if (closed) return;
+    const state = await loadStandingState(session);
+    if (closed) return;
+    response.write(`data: ${JSON.stringify(state)}\n\n`);
+    // Nothing left for a suspended account to be told — sign-in is refused
+    // and every other request already is too.
+    if (state.account) close();
+  };
+
+  // A dropped middlebox otherwise never notices this connection is dead until
+  // the OS times it out. A comment line is invisible to EventSource's message
+  // handler and costs the far end nothing to ignore.
+  const heartbeat = setInterval(() => {
+    if (!closed) response.write(":\n\n");
+  }, 20000);
+
+  const unsubscribe = onStandingChange(session.id, () => {
+    push().catch(() => close());
+  });
+
+  request.on("close", close);
+
+  await push().catch(() => close());
 }
 
 export async function loginAdmin(request, response) {
