@@ -15,6 +15,7 @@ import { progressSummary } from "../courses/courses.controller.js";
 import { finalPassedFrom, scoreOf } from "./grading.js";
 import { loadAuthoringRestrictions, loadClassesByCourse } from "../lib/courseAccess.js";
 import { readSuspendedFlag } from "../lib/suspension.js";
+import { publishStanding } from "../lib/standingEvents.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -589,6 +590,7 @@ export async function setRosterStudentSuspension(request, response) {
       ? { $addToSet: { suspendedStudentIds: student._id } }
       : { $pull: { suspendedStudentIds: { $in: idCandidates(student._id) } } }
   );
+  publishStanding(student._id);
 
   return response.json({
     student: { id: asId(student._id), name: studentName(student), suspended }

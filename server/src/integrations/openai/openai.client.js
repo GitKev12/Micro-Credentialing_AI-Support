@@ -65,6 +65,14 @@ export const ITEM_SCHEMA = {
   }
 };
 
+// Hard-pinned rather than left to the SDK's own default. The SDK falls back
+// to `process.env.OPENAI_BASE_URL` when no baseURL is passed, and this
+// machine has that set system-wide to a local proxy (`omniroute`, on
+// 127.0.0.1) that pools something else entirely — this project's key was
+// silently never reaching OpenAI at all. Naming the real endpoint here keeps
+// this client correct no matter what any other tool sets machine-wide.
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
+
 function createOpenAiClient() {
   const { openAiApiKey } = getEnvironmentConfig();
 
@@ -72,7 +80,7 @@ function createOpenAiClient() {
     throw new Error("OPENAI_API_KEY is not configured.");
   }
 
-  return new OpenAI({ apiKey: openAiApiKey });
+  return new OpenAI({ apiKey: openAiApiKey, baseURL: OPENAI_BASE_URL });
 }
 
 /**

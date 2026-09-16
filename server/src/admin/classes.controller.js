@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
+import { publishStanding } from "../lib/standingEvents.js";
 
 /**
  * Classes — one row tying a course to the assessors and students in it, plus a
@@ -443,6 +444,12 @@ export async function updateClass(request, response) {
   // Written before reconciling so the "in another class?" guard reads the new
   // membership, not the version this edit is replacing.
   await collection(CLASSES_COLLECTION).updateOne({ _id: cls._id }, { $set: updates });
+
+  // Switching a class on or off can open or shut it for everyone in it —
+  // see classSuspensionFrom, which any open standing stream is about to re-run.
+  if ("active" in updates) {
+    for (const studentId of newStudents) publishStanding(studentId);
+  }
 
   if (movingCourse) {
     // The whole class leaves the old course and joins the new one.

@@ -5,6 +5,7 @@ import { getAssessor, getStudent } from "./admin.controller.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { removeIssuedCertificatesFor } from "../certificates/certificates.service.js";
 import { readSuspendedFlag, setAccountSuspension } from "../lib/suspension.js";
+import { publishStanding } from "../lib/standingEvents.js";
 import { idNumberMatch, readIdNumber } from "../auth/identifier.js";
 
 /**
@@ -255,6 +256,7 @@ export async function setStudentSuspension(request, response) {
   if (!student) return response.status(404).json({ message: "Student not found." });
 
   await setAccountSuspension(STUDENTS_COLLECTION, student, suspended);
+  publishStanding(student._id);
 
   return getStudent(request, response);
 }
@@ -324,6 +326,7 @@ export async function setAssessorSuspension(request, response) {
   if (!assessor) return response.status(404).json({ message: "Assessor not found." });
 
   await setAccountSuspension(ASSESSORS_COLLECTION, assessor, suspended);
+  publishStanding(assessor._id);
 
   return getAssessor(request, response);
 }
