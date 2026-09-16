@@ -45,3 +45,7 @@ assessment-bank-backup-*.json
 # JetBrains data sources: local IDE config, and it carries the cluster host.
 .idea/dataSources.xml
 .idea/dataSources.local.xml
+
+# AI scratch workspace - local only, never commit
+.ai-workspace/
+.gpt-output/
