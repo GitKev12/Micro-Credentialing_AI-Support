@@ -1,4 +1,4 @@
-import api from "./api";
+import api, { withAuthToken } from "./api";
 import { getStoredSession } from "../auth/services/authService";
 
 /**
@@ -210,6 +210,18 @@ export async function fetchAssessmentResults(assessorId, courseId, assessmentId)
     assessment: data?.assessment ?? null,
     rows: Array.isArray(data?.rows) ? data.rows : []
   };
+}
+
+/**
+ * The same board as `fetchAssessmentResults`, pushed live: a student opening
+ * or handing in this paper moves a row on the Results screen without the
+ * assessor pressing anything. `?token=` because `EventSource` cannot attach
+ * an Authorization header — see withAuthToken.
+ */
+export function streamAssessmentResultsUrl(assessorId, courseId, assessmentId) {
+  return withAuthToken(
+    `${api.defaults.baseURL}/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results/stream`
+  );
 }
 
 /**

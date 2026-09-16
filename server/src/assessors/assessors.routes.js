@@ -15,11 +15,12 @@ import {
   getCourseAssessments,
   getStudentPaper,
   postCourseAssessment,
+  streamAssessmentResults,
   unpostCourseAssessment,
   updateCourseAssessment
 } from "./assessments.controller.js";
 import { getCourseTos, saveCourseTos } from "./tos.controller.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireDownloadAuth, requireRole } from "../middleware/auth.js";
 import { requireOwnAssessor } from "./assessors.guard.js";
 
 // Mounted at /api/assessors. :assessorId accepts the Mongo id or the ASS###
@@ -46,12 +47,27 @@ import { requireOwnAssessor } from "./assessors.guard.js";
 //
 //   The Results screen — one posted paper, student by student:
 //   GET  /:assessorId/classes/:courseId/assessments/:id/results
+//   GET  /:assessorId/classes/:courseId/assessments/:id/results/stream
+//                                                           — the same, pushed live
 //   GET  /:assessorId/classes/:courseId/assessments/:id/results/:studentId
 //                                                           — their marked paper
 //
 //   GET  /:assessorId/credentials                           — passes awaiting issue
 //   POST /:assessorId/credentials/:submissionId/issue       — issue the micro-credential
 const router = Router();
+
+// Ahead of the blanket guard below, and with its own copy of the same two
+// checks: `EventSource` cannot attach an Authorization header, so this one
+// route accepts `?token=` (requireDownloadAuth) instead of only a bearer
+// header. Registered first so it is matched before `/results/:studentId`
+// would otherwise read "stream" as a student id.
+router.get(
+  "/:assessorId/classes/:courseId/assessments/:assessmentId/results/stream",
+  requireDownloadAuth,
+  requireRole("assessor", "admin"),
+  requireOwnAssessor,
+  streamAssessmentResults
+);
 
 // Writing papers and issuing credentials are staff work, and each assessor's
 // work is their own. The role guard says you are staff; `requireOwnAssessor`

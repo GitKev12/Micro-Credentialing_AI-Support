@@ -13,6 +13,7 @@ import {
   toMarkedPaper
 } from "../assessments/assessments.format.js";
 import { openAttemptsByAssessment, takerCounts } from "../assessments/attempts.js";
+import { onResultsChange } from "../lib/resultsEvents.js";
 import {
   assembleFinalAssessment,
   ensureAssessmentIndexes,
@@ -671,15 +672,13 @@ export async function unpostCourseAssessment(request, response) {
  *
  * The list is the class register: surname first, in alphabetical order, so a
  * name can be found by running down the column the way a register is read.
+ *
+ * Built by `buildResultsBoard`, the exact body `getAssessmentResults` answers
+ * with — and what `streamAssessmentResults` below re-runs on every push, so
+ * the polled and the pushed answer never drift into two different ideas of a
+ * row.
  */
-export async function getAssessmentResults(request, response) {
-  const scope = await resolveScope(request, response);
-  if (!scope) return undefined;
-
-  const { course } = scope;
-  const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
-
+async function buildResultsBoard(course, doc) {
   const paper = normalizeAssessment(doc);
 
   const [students, results, opens] = await Promise.all([
@@ -746,7 +745,7 @@ export async function getAssessmentResults(request, response) {
     // Surname first, so this sorts the register the way a register is ordered.
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return response.json({
+  return {
     course: { id: asId(course._id), code: courseCode(course), name: courseTitle(course) },
     assessment: assessmentRow(
       doc,
@@ -760,7 +759,76 @@ export async function getAssessmentResults(request, response) {
       })
     ),
     rows
+  };
+}
+
+export async function getAssessmentResults(request, response) {
+  const scope = await resolveScope(request, response);
+  if (!scope) return undefined;
+
+  const { course } = scope;
+  const doc = await findCourseAssessment(course, request.params.assessmentId);
+  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+
+  return response.json(await buildResultsBoard(course, doc));
+}
+
+/**
+ * GET .../assessments/:assessmentId/results/stream — the same register,
+ * pushed the moment a student opens or hands in this paper instead of asked
+ * for on a timer.
+ *
+ * Guarded here rather than by the router-wide `requireAuth` this file's other
+ * routes share, because `EventSource` cannot attach an Authorization header —
+ * see auth.controller.js's streamStanding for the same trade. Mounted before
+ * that blanket middleware in assessors.routes.js so it runs its own chain
+ * instead of being turned away first.
+ */
+export async function streamAssessmentResults(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await findAssignedCourse(request.assessor, request.params.courseId);
+  if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
+
+  const doc = await findCourseAssessment(course, request.params.assessmentId);
+  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no"
   });
+  response.flushHeaders?.();
+
+  let closed = false;
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe();
+    response.end();
+  };
+
+  const push = async () => {
+    if (closed) return;
+    const board = await buildResultsBoard(course, doc);
+    if (closed) return;
+    response.write(`data: ${JSON.stringify(board)}\n\n`);
+  };
+
+  const heartbeat = setInterval(() => {
+    if (!closed) response.write(":\n\n");
+  }, 20000);
+
+  const unsubscribe = onResultsChange(doc._id, () => {
+    push().catch(() => close());
+  });
+
+  request.on("close", close);
+
+  await push().catch(() => close());
 }
 
 /**
