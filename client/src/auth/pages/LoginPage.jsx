@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { login, loginAdmin, saveAuthSession } from "../services/authService";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { getStoredSession, login, loginAdmin, saveAuthSession } from "../services/authService";
 
 const PARALLAX_SHIFT = 18;
 const prefersReducedMotion = () =>
@@ -83,6 +83,13 @@ function LoginPage() {
       setIsSubmitting(false);
     }
   };
+
+  // The session is in localStorage, so every tab shares it: a second tab
+  // opened on /login goes straight to the console the first one signed into.
+  const session = getStoredSession();
+  if (session?.user) {
+    return <Navigate to={session.redirectTo || `/${session.user.role}`} replace />;
+  }
 
   return (
     <section

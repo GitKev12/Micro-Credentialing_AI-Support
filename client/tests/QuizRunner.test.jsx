@@ -31,6 +31,9 @@ beforeAll(async () => {
 beforeEach(() => {
   fetchAssessment.mockReset();
   submitAssessment.mockReset();
+  // Every test here is the same student on the same paper, so a draft one test
+  // leaves behind would be picked up by the next.
+  window.localStorage.clear();
 });
 
 const draw = (assessment, onOpenLesson = null) =>
@@ -273,5 +276,115 @@ describe("QuizRunner — a question about code", () => {
     await screen.findByText("What does the compiler read?");
 
     expect(container.querySelector("pre.code-block")).toBeNull();
+  });
+});
+
+/**
+ * A paper left mid-way.
+ *
+ * The answers used to live only on the screen, so a reload or a dropped
+ * connection put the student back at a blank paper. Unmounting and drawing the
+ * runner again is the reload: nothing survives it but what the browser kept.
+ */
+describe("QuizRunner — picking up where the student left off", () => {
+  const DRAFT_KEY = "capstoneQuizDraft.stu-1.a2";
+
+  // The server re-draws the order on every fetch; this is the paper as a second
+  // fetch would send it, questions and choices both the other way round.
+  const reshuffled = () => {
+    const paper = ready();
+    paper.assessment.items = paper.assessment.items
+      .map((item) => ({ ...item, choices: [...item.choices].reverse() }))
+      .reverse();
+    return paper;
+  };
+
+  const answerFirst = async () => {
+    const view = draw(PAPER);
+    await screen.findByText("What does the compiler read?");
+    fireEvent.click(screen.getByRole("radio", { name: "Source" }));
+    return view;
+  };
+
+  it("keeps the answers through a reload", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+    const first = await answerFirst();
+    first.unmount();
+
+    draw(PAPER);
+    await screen.findByText("What does the compiler read?");
+
+    expect(screen.getByRole("radio", { name: "Source" })).toBeChecked();
+    expect(screen.getByText(/1 answered/)).toBeInTheDocument();
+  });
+
+  it("puts the questions back in the order they were in, on the one they were on", async () => {
+    fetchAssessment.mockResolvedValueOnce(ready()).mockResolvedValueOnce(reshuffled());
+    const first = await answerFirst();
+    fireEvent.click(screen.getByRole("button", { name: "Next question" }));
+    first.unmount();
+
+    draw(PAPER);
+    await screen.findByText("Java is compiled.");
+
+    expect(screen.getByText("Question 2 of 2", { selector: ".sd-quiz__qcount" })).toBeInTheDocument();
+    expect(screen.getAllByRole("radio").map((radio) => radio.value)).toEqual(["t", "f"]);
+  });
+
+  it("forgets the draft once the paper is handed in", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+    submitAssessment.mockResolvedValue({
+      result: { score: 2, total: 2, passMark: 1, passed: true, attempt: 1, items: [] }
+    });
+
+    await answerFirst();
+    expect(window.localStorage.getItem(DRAFT_KEY)).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next question" }));
+    fireEvent.click(screen.getByRole("radio", { name: "True" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit quiz" }));
+
+    await waitFor(() => expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull());
+  });
+
+  /**
+   * The submission landed and the reply was lost to the connection. The mark
+   * on the server is the truth, and the draft it outlived is thrown away.
+   */
+  it("gives way to a mark the server already has", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+    const first = await answerFirst();
+    first.unmount();
+
+    fetchAssessment.mockResolvedValue({
+      ...ready(),
+      result: { score: 1, total: 2, passMark: 1, passed: true, attempt: 1, canRetake: true, items: [] }
+    });
+    draw(PAPER);
+
+    expect(await screen.findByText(/Passed/)).toBeInTheDocument();
+    expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  /** A reload mid-retake used to reopen the old mark and lose the retake. */
+  it("reopens a retake in progress rather than the mark before it", async () => {
+    const marked = {
+      ...ready(),
+      result: { score: 0, total: 2, passMark: 1, passed: false, attempt: 1, canRetake: true, items: [] }
+    };
+    fetchAssessment.mockResolvedValueOnce(marked).mockResolvedValueOnce(ready());
+
+    const first = draw(PAPER);
+    fireEvent.click(await screen.findByRole("button", { name: "Retake" }));
+    await waitFor(() => expect(screen.queryByText(/Not passed/)).toBeNull());
+    fireEvent.click(screen.getByRole("radio", { name: "Source" }));
+    first.unmount();
+
+    fetchAssessment.mockResolvedValue(marked);
+    draw(PAPER);
+    await screen.findByText("What does the compiler read?");
+
+    expect(screen.queryByText(/Not passed/)).toBeNull();
+    expect(screen.getByRole("radio", { name: "Source" })).toBeChecked();
   });
 });

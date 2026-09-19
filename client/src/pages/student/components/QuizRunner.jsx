@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchAssessment, submitAssessment } from "../../../services/assessments";
+import {
+  clearQuizDraft,
+  draftIsOpen,
+  draftOf,
+  readQuizDraft,
+  restoreQuizDraft,
+  writeQuizDraft
+} from "../quizDraft";
 import { CheckIcon, LockIcon, QuizIcon } from "./icons";
 import { SkeletonText } from "../../../components/Skeleton";
 import CodeBlock from "../../../components/CodeBlock";
@@ -42,6 +50,10 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   // The server never sees the paper being worked on, only fetched and handed
   // in, so this is the only place the length of a sitting can be observed.
   const startedAt = useRef(null);
+  // The attempt whose mark was on screen when a retake began, or null on a
+  // first attempt. Kept with the draft so a reload mid-retake reopens the
+  // retake, not the old mark (see quizDraft.js).
+  const retakeOf = useRef(null);
 
   // Opening a different quiz starts it over.
   useEffect(() => {
@@ -51,6 +63,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
     setResult(null);
     setError("");
     startedAt.current = null;
+    retakeOf.current = null;
   }, [assessmentId]);
 
   useEffect(() => {
@@ -75,6 +88,21 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
           setState({ status: "locked", message: data.message });
           return;
         }
+
+        // A paper left mid-way — a reload, a closed tab, a dropped connection —
+        // comes back as it was left, timed from when it was first opened.
+        const draft = readQuizDraft(studentId, assessmentId);
+        if (draftIsOpen(draft, data.result)) {
+          const restored = restoreQuizDraft(data.assessment, draft);
+          setState({ status: "ready", assessment: restored.assessment });
+          setAnswers(restored.answers);
+          setCurrent(restored.current);
+          startedAt.current = draft.startedAt ?? Date.now();
+          retakeOf.current = draft.retakeOf ?? null;
+          return;
+        }
+        if (draft) clearQuizDraft(studentId, assessmentId);
+
         setState({ status: "ready", assessment: data.assessment });
         startedAt.current = Date.now();
 
@@ -101,6 +129,19 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
       active = false;
     };
   }, [studentId, assessmentId, placeholder, lockedReason]);
+
+  // Every change to an unmarked paper is kept in the browser as it happens.
+  // Keyed by the paper in state rather than the prop, so the render between
+  // switching quizzes and the new one loading cannot file one under the other.
+  useEffect(() => {
+    const paper = state.assessment;
+    if (state.status !== "ready" || !paper || result) return;
+    writeQuizDraft(
+      studentId,
+      paper.id,
+      draftOf(paper, answers, current, startedAt.current, retakeOf.current)
+    );
+  }, [studentId, state, answers, current, result]);
 
   const items = state.assessment?.items ?? [];
   const answeredCount = useMemo(
@@ -169,10 +210,12 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
       const response = await submitAssessment(studentId, assessmentId, payload, took);
 
       if (response.locked) {
+        // Kept: the answers are still theirs if the quiz opens again.
         setState({ status: "locked", message: response.message });
         return;
       }
 
+      clearQuizDraft(studentId, assessmentId);
       setResult(response.result);
       if (response.alreadySubmitted) setError(response.message);
       onSubmitted?.(assessmentId, response.result);
@@ -213,6 +256,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
         return;
       }
 
+      retakeOf.current = result?.attempt ?? null;
       setState({ status: "ready", assessment: data.assessment });
       setResult(null);
       setAnswers({});
