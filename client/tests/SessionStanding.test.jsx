@@ -9,8 +9,10 @@ import { act, render, screen, fireEvent } from "@testing-library/react";
  * nothing told them: they carried on until something made the page reload.
  *
  * Two halves, and both are here because they are the same job from either end.
- * It asks the server every few seconds what is closed — which is also how a
- * suspended account finds out, since that request is refused like every other
+ * It holds a stream open to the server, which pushes down whatever changes the
+ * moment it is written, and asks once on mounting for what was already shut
+ * before the stream connected — which is also how an account suspended before
+ * the tab opened finds out, since that request is refused like every other
  * (the axios layer reports the refusal; see services/api.js). And when the
  * answer is that the account itself is shut, it says so over the top of
  * whatever console they were in, because that is not one page's news.
@@ -37,6 +39,13 @@ jest.unstable_mockModule("../src/auth/services/session.js", () => ({
   getAuthToken: () => "t0ken"
 }));
 
+// The real module reads a build-time setting jsdom does not have, and only its
+// base URL and the token helper are used here.
+jest.unstable_mockModule("../src/services/api.js", () => ({
+  default: { defaults: { baseURL: "/api" } },
+  withAuthToken: (url) => `${url}?token=t0ken`
+}));
+
 let SessionStanding, reportAccountSuspension, clearStanding, currentStanding;
 
 // jsdom cannot navigate, and signing out asks it to. Stubbed so the test can
@@ -61,7 +70,10 @@ beforeEach(() => {
   clearAuthSession.mockClear();
   assign.mockClear();
   clearStanding();
+  globalThis.EventSource.reset();
 });
+
+const stream = () => globalThis.EventSource.latest();
 
 const draw = async () => {
   const view = render(<SessionStanding />);
@@ -78,7 +90,11 @@ const suspend = async (message = "Your account has been suspended by the adminis
 };
 
 describe("watching where the session stands", () => {
-  it("asks as soon as it is on screen, rather than at the first tick", async () => {
+  /**
+   * The stream only carries what changes after it connects, so what was shut
+   * before then has to be asked for.
+   */
+  it("asks once as soon as it is on screen, for what was shut before it listened", async () => {
     await draw();
     expect(asked).toBe(1);
   });
@@ -103,12 +119,63 @@ describe("watching where the session stands", () => {
     expect(currentStanding().known).toBe(false);
   });
 
+  // EventSource cannot send an Authorization header, so the token rides along.
+  it("listens on the standing stream, carrying the token", async () => {
+    await draw();
+
+    expect(stream().url).toBe("/api/auth/standing/stream?token=t0ken");
+  });
+
+  it("follows what the stream pushes, without being asked again", async () => {
+    await draw();
+
+    await act(async () => {
+      stream().push({ courses: [{ courseId: "c2", by: "admin", reason: "Class switched off." }] });
+    });
+
+    expect(currentStanding().courses.c2).toEqual({ reason: "Class switched off.", by: "admin" });
+    expect(asked).toBe(1);
+  });
+
+  // A garbled message is not an answer, least of all "nothing is closed".
+  it("ignores a message it cannot read", async () => {
+    answer = { courses: [{ courseId: "c1", by: "assessor", reason: "Shut for you." }] };
+    await draw();
+
+    await act(async () => {
+      stream().push("not json");
+    });
+
+    expect(currentStanding().courses.c1).toEqual({ reason: "Shut for you.", by: "assessor" });
+  });
+
+  // The browser reconnects a dropped stream by itself; closing it would stop that.
+  it("keeps listening through a dropped connection", async () => {
+    await draw();
+
+    await act(async () => {
+      stream().fail();
+    });
+
+    expect(stream().closed).toBe(false);
+  });
+
+  it("stops listening when it is taken off screen", async () => {
+    const view = await draw();
+    const opened = stream();
+
+    view.unmount();
+
+    expect(opened.closed).toBe(true);
+  });
+
   // Nobody can suspend an administrator, so there is nothing to watch for.
   it("leaves the admin console alone", async () => {
     user = { id: "adm-1", role: "admin" };
     await draw();
 
     expect(asked).toBe(0);
+    expect(stream()).toBeNull();
   });
 
   // The assessor console is watched too: an account suspension is the admin's,
@@ -118,6 +185,7 @@ describe("watching where the session stands", () => {
     await draw();
 
     expect(asked).toBe(1);
+    expect(stream()).not.toBeNull();
   });
 });
 
@@ -176,17 +244,33 @@ describe("an account that has been suspended", () => {
     expect(assign).toHaveBeenCalledWith("/login");
   });
 
-  it("stops asking once it knows", async () => {
+  // The server ends its side after saying so; there is nothing left to hear.
+  it("takes the screen when the stream says so, and stops listening", async () => {
     await draw();
-    await suspend();
-    const before = asked;
 
-    // Whatever the timer does next, there is nothing left to find out.
     await act(async () => {
-      document.dispatchEvent(new Event("visibilitychange"));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      stream().push({
+        courses: [],
+        account: { message: "Your account has been suspended by the administrator.", by: "admin" }
+      });
     });
 
-    expect(asked).toBe(before);
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(stream().closed).toBe(true);
+  });
+
+  /**
+   * A suspended account is refused the stream's handshake forever, so letting
+   * the browser retry would hammer the server for an answer the tab already has.
+   */
+  it("does not retry a stream it has been refused for good", async () => {
+    await draw();
+    await suspend();
+
+    await act(async () => {
+      stream().fail();
+    });
+
+    expect(stream().closed).toBe(true);
   });
 });

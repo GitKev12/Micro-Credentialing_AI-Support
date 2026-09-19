@@ -156,11 +156,14 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
       takers: { all: 3, notStarted: 1, inProgress: 1, submitted: 1 }
     },
     rows: register
-  })
+  }),
+  streamAssessmentResultsUrl: (assessorId, courseId, assessmentId) =>
+    `/stream/${assessorId}/${courseId}/${assessmentId}`
 }));
 
 beforeEach(() => {
   register = ROWS;
+  globalThis.EventSource.reset();
 });
 
 let ResultsPage, MemoryRouter;
@@ -632,5 +635,59 @@ describe("choosing the paper", () => {
       "Not written3. Using Methods",
       "Not writtenFinal exam"
     ]);
+  });
+});
+
+/**
+ * The register, kept current. A student opening or handing in the paper is
+ * pushed down a stream and moves a row under the assessor, rather than them
+ * re-pressing a paper they are already looking at.
+ */
+describe("the register, live", () => {
+  const stream = () => globalThis.EventSource.latest();
+
+  it("listens on the paper that is on screen", async () => {
+    await open();
+
+    expect(stream().url).toBe("/stream/ASS001/c1/a1");
+  });
+
+  it("redraws the rows from what the server pushes", async () => {
+    await open();
+
+    await act(async () => {
+      stream().push({
+        course: { id: "c1", code: "CC2", name: "Computer Programming 2" },
+        assessment: {
+          id: "a1",
+          status: "posted",
+          takers: { all: 3, notStarted: 0, inProgress: 0, submitted: 1 }
+        },
+        rows: ROWS.filter((row) => row.name === "Dayan, Chris Jerome")
+      });
+    });
+
+    expect(screen.getByText("Dayan, Chris Jerome")).toBeInTheDocument();
+    expect(screen.queryByText("Cruz, Ana")).toBeNull();
+  });
+
+  // A garbled message is not a register with nobody in it.
+  it("keeps the rows it has when a message cannot be read", async () => {
+    await open();
+
+    await act(async () => {
+      stream().push("not json");
+    });
+
+    expect(screen.getByText("Cruz, Ana")).toBeInTheDocument();
+  });
+
+  it("stops listening when the screen is left", async () => {
+    const view = await open();
+    const opened = stream();
+
+    view.unmount();
+
+    expect(opened.closed).toBe(true);
   });
 });

@@ -17,11 +17,14 @@ globalThis.TextDecoder ??= TextDecoder;
 const login = jest.fn();
 const loginAdmin = jest.fn();
 const saveAuthSession = jest.fn();
+// Who this browser already has signed in, as localStorage would hand it back.
+let storedSession = null;
 
 jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
   login,
   loginAdmin,
-  saveAuthSession
+  saveAuthSession,
+  getStoredSession: () => storedSession
 }));
 
 let LoginPage, MemoryRouter, Routes, Route;
@@ -35,6 +38,7 @@ beforeEach(() => {
   login.mockReset();
   loginAdmin.mockReset();
   saveAuthSession.mockReset();
+  storedSession = null;
 });
 
 const draw = () =>
@@ -120,5 +124,26 @@ describe("LoginPage", () => {
     submit();
 
     expect((await screen.findByRole("alert")).textContent).toBe("Invalid ID number, email, or password.");
+  });
+});
+
+/**
+ * The session is kept in localStorage, which every tab shares. A second tab
+ * opened on /login used to show the sign-in form to somebody already signed in.
+ */
+describe("LoginPage — somebody already signed in", () => {
+  it("sends them to the console they signed into", async () => {
+    storedSession = { token: "t", user: { role: "assessor" }, redirectTo: "/assessor" };
+    draw();
+
+    expect(await screen.findByText("Assessor console")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+  });
+
+  it("falls back to the role's own console when the session names no path", async () => {
+    storedSession = { token: "t", user: { role: "admin" } };
+    draw();
+
+    expect(await screen.findByText("Admin console")).toBeTruthy();
   });
 });
