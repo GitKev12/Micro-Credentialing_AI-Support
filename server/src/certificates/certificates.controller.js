@@ -1,11 +1,10 @@
 import mongoose from "mongoose";
 import { idCandidates } from "../lib/mongo.js";
+import { CERTIFICATE_FIELDS, fillCertificate } from "./certificates.fill.js";
 import {
   certificateValues,
-  fillCertificate,
   findCertificateTemplate,
   findIssuedCertificate,
-  getCertificateLayout,
   listIssuedCertificates,
   readGridFsFile
 } from "./certificates.service.js";
@@ -19,9 +18,9 @@ import {
  *                                                   sample values
  *
  * The preview exists so a template can be checked before anyone relies on it:
- * upload a redesigned blank, open the preview, and see exactly where the OCR
- * decided each value belongs. Without it the first proof that a new template
- * works would be a student's real certificate.
+ * open it and see exactly where the fixed coordinates in certificates.fill.js
+ * put each value. Without it the first proof that the positions are right
+ * would be a student's real certificate.
  */
 const STUDENTS_COLLECTION = "Student";
 
@@ -70,7 +69,7 @@ export async function getStudentCertificateFile(request, response) {
 }
 
 /**
- * Renders the blank with stand-in values so the detected layout can be seen.
+ * Renders the blank with stand-in values so the positions can be checked.
  * Pass ?studentId= to preview a real student's details instead.
  */
 export async function previewCertificateTemplate(request, response) {
@@ -81,7 +80,6 @@ export async function previewCertificateTemplate(request, response) {
   }
 
   const templateBuffer = await readGridFsFile(template.bucket, template.fileId);
-  const layout = await getCertificateLayout(template, templateBuffer);
 
   const student = request.query.studentId
     ? await mongoose.connection
@@ -101,7 +99,7 @@ export async function previewCertificateTemplate(request, response) {
     issuedAt: new Date()
   });
 
-  const { bytes } = await fillCertificate({ templateBuffer, layout, values });
+  const { bytes } = await fillCertificate(templateBuffer, values);
 
   response.set({
     "Content-Type": "application/pdf",
@@ -112,7 +110,7 @@ export async function previewCertificateTemplate(request, response) {
   return response.send(bytes);
 }
 
-/** The detected field map, for checking a template without opening a PDF. */
+/** Where each value is written, for checking a template without opening a PDF. */
 export async function getCertificateTemplateLayout(request, response) {
   const template = await findCertificateTemplate(request.query.courseId);
 
@@ -120,10 +118,8 @@ export async function getCertificateTemplateLayout(request, response) {
     return response.status(404).json({ message: "No certificate template is stored." });
   }
 
-  const layout = await getCertificateLayout(template);
-
   return response.json({
     template: { id: String(template._id), title: template.title, filename: template.filename },
-    layout
+    fields: CERTIFICATE_FIELDS
   });
 }

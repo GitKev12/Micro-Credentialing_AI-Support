@@ -12,7 +12,7 @@ import { requireOwnStudent } from "../middleware/student.guard.js";
 //   GET /api/students/:id/certificates                  — issued certificates
 //   GET /api/students/:id/certificates/:certificateId/file — the stamped PDF
 //   GET /api/certificates/template/preview              — blank + sample values
-//   GET /api/certificates/template/layout               — the detected fields
+//   GET /api/certificates/template/layout               — the fixed positions
 const router = Router();
 
 router.get(

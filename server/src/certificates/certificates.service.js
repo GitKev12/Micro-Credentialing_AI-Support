@@ -1,16 +1,13 @@
 import mongoose from "mongoose";
-import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
-import { LAYOUT_VERSION, analyzeCertificateTemplate } from "./certificates.ocr.js";
+import { fillCertificate } from "./certificates.fill.js";
 
 /**
  * Issuing a certificate: take the blank template, stamp the student's details
  * into it, and keep the result.
  *
- * The template is a design export with no text layer (see certificates.ocr.js
- * for how its blanks are located). That analysis is the expensive half, so a
- * layout is held in memory for the life of the process and worked out again
- * after a restart, or when the detection logic is versioned up.
+ * The stamping itself is certificates.fill.js — fixed coordinates on the
+ * template's one page, written with pdf-lib and nothing else.
  *
  * A filled certificate is stored, not generated on demand, because it is a
  * record: it states what was true when the assessor released it. Re-running
@@ -81,120 +78,6 @@ export async function findCertificateTemplate(courseId) {
   )[0];
 }
 
-/**
- * Analysed layouts, held for the life of the process and keyed on the template
- * file and the version of the detection logic. Nothing is written down: the
- * layout is derived from the template's own bytes, so a stored copy would be a
- * second source of truth needing its own invalidation, and re-analysing after
- * a restart costs one pass over one PDF.
- */
-const layouts = new Map();
-
-/** The template's field map — analysed once per template, then held. */
-export async function getCertificateLayout(template, templateBuffer) {
-  const key = `${String(template.fileId)}:${LAYOUT_VERSION}`;
-
-  const held = layouts.get(key);
-  if (held) return held;
-
-  // The promise is what is held, not the result, so a request arriving while
-  // the analysis is still running waits on it instead of starting a second
-  // pass over the same PDF — which is exactly what the boot warm-up would
-  // otherwise race against.
-  const analysis = (async () => {
-    const buffer = templateBuffer ?? (await readGridFsFile(template.bucket, template.fileId));
-    return analyzeCertificateTemplate(buffer);
-  })();
-
-  layouts.set(key, analysis);
-
-  try {
-    return await analysis;
-  } catch (error) {
-    // A failure must not be remembered as the answer; the next caller retries.
-    layouts.delete(key);
-    throw error;
-  }
-}
-
-/**
- * Analyses the stored template at boot.
- *
- * The analysis takes about ten seconds on the current template, and without
- * this the bill lands on the first assessor to release a certificate. Nothing
- * here is fatal: with no template stored, or none that can be read, every
- * other screen carries on and the failure surfaces at issue time as before.
- */
-export async function warmCertificateLayout() {
-  if (mongoose.connection.readyState !== 1) {
-    return { ran: false, reason: "database-not-connected" };
-  }
-
-  const template = await findCertificateTemplate(null);
-  if (!template) return { ran: false, reason: "no-template-stored" };
-
-  const startedAt = Date.now();
-  const layout = await getCertificateLayout(template);
-
-  return { ran: true, fields: layout.fields.length, ms: Date.now() - startedAt };
-}
-
-function toRgb(color) {
-  return rgb(color?.r ?? 0.15, color?.g ?? 0.15, color?.b ?? 0.16);
-}
-
-/**
- * Stamps values onto the template.
- *
- * Each field arrives as a midpoint plus the unit vector the text runs along,
- * so centring is the same arithmetic whichever way the page is turned — this
- * template's artwork is rotated a quarter turn inside a portrait page, and
- * nothing here needs to special-case that.
- *
- * Long values shrink to fit their blank rather than run past it: a name that
- * overflows the ruled line looks like a bug, a slightly smaller name does not.
- */
-export async function fillCertificate({ templateBuffer, layout, values }) {
-  const pdf = await PDFDocument.load(templateBuffer);
-  const page = pdf.getPages()[0];
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-
-  const applied = [];
-
-  for (const field of layout.fields) {
-    const value = String(values?.[field.id] ?? "").trim();
-    if (!value) continue;
-
-    let size = field.fontSize;
-    let width = font.widthOfTextAtSize(value, size);
-
-    if (field.maxWidth && width > field.maxWidth) {
-      size = Math.max(6, (size * field.maxWidth) / width);
-      width = font.widthOfTextAtSize(value, size);
-    }
-
-    const advance = field.advance ?? { x: 1, y: 0 };
-    const angle = (Math.atan2(advance.y, advance.x) * 180) / Math.PI;
-    // Centred values back up by half their width; left-aligned ones start
-    // where the anchor says, which is how the course code lands beside its
-    // caption instead of straddling it.
-    const lead = field.align === "left" ? 0 : width / 2;
-
-    page.drawText(value, {
-      x: field.anchor.x - advance.x * lead,
-      y: field.anchor.y - advance.y * lead,
-      size,
-      font,
-      color: toRgb(field.color),
-      rotate: degrees(angle)
-    });
-
-    applied.push({ id: field.id, value, fontSize: Number(size.toFixed(2)) });
-  }
-
-  return { bytes: Buffer.from(await pdf.save()), applied };
-}
-
 function studentName(student) {
   const full = [student?.first_name, student?.last_name].filter(Boolean).join(" ").trim();
   return full || student?.full_name || student?.name || student?.email || "";
@@ -253,9 +136,8 @@ export async function issueCertificate({
   if (!template) return null;
 
   const templateBuffer = await readGridFsFile(template.bucket, template.fileId);
-  const layout = await getCertificateLayout(template, templateBuffer);
   const values = certificateValues({ student, course, assessor, issuedAt });
-  const { bytes, applied } = await fillCertificate({ templateBuffer, layout, values });
+  const { bytes, applied } = await fillCertificate(templateBuffer, values);
 
   const filename = `Certificate_${courseCode(course) || "Course"}_${
     student?.student_id ?? String(student?._id ?? "student")
