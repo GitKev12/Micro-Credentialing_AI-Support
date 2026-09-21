@@ -136,6 +136,81 @@ describe("papersByCourse", () => {
   });
 });
 
+describe("papersByCourse, per class", () => {
+  // CC3 is taught through two sections, an assessor each.
+  const A = "class-a";
+  const B = "class-b";
+  const twoClasses = new Map([[CC3, [A, B]]]);
+
+  it("owes each class a paper per lesson and a final", () => {
+    const papers = papersByCourse([], new Map([[CC3, 3]]), twoClasses);
+
+    expect(papers.get(CC3).expected).toBe(8);
+    expect(papers.get(CC3).classes).toBe(2);
+    expect(papers.get(CC3).toPost).toBe(8);
+  });
+
+  it("does not let one section cover the other", () => {
+    // The bug this counts for. Section A has its quiz for every lesson and its
+    // final; Section B has nothing, and the register used to read the course
+    // as fully covered because a lesson was counted once for all of it.
+    const written = [
+      lessonPaper(CC3, "m1", { classId: A }),
+      lessonPaper(CC3, "m2", { classId: A }),
+      lessonPaper(CC3, "m3", { classId: A }),
+      finalPaper(CC3, { classId: A })
+    ];
+
+    const papers = papersByCourse(written, new Map([[CC3, 3]]), twoClasses);
+
+    expect(papers.get(CC3).posted).toBe(4);
+    expect(papers.get(CC3).toPost).toBe(4);
+    // Section B has no final, so the course does not have one out.
+    expect(papers.get(CC3).finalPosted).toBe(false);
+  });
+
+  it("counts a course-wide paper for every class that falls back to it", () => {
+    // Written before papers carried a class: both sections sit it, so it
+    // covers that lesson for both.
+    const papers = papersByCourse([lessonPaper(CC3, "m1")], new Map([[CC3, 3]]), twoClasses);
+
+    expect(papers.get(CC3).posted).toBe(2);
+    expect(papers.get(CC3).toPost).toBe(6);
+  });
+
+  it("prefers a class's own paper over the course's, as the student side does", () => {
+    // Section A has written its own for m1 and not posted it yet. Its students
+    // are refused it, so it is owed rather than covered — while Section B
+    // still sits the course-wide one.
+    const papers = papersByCourse(
+      [lessonPaper(CC3, "m1"), lessonPaper(CC3, "m1", { classId: A, status: "draft" })],
+      new Map([[CC3, 3]]),
+      twoClasses
+    );
+
+    expect(papers.get(CC3).posted).toBe(1);
+    expect(papers.get(CC3).draft).toBe(1);
+  });
+
+  it("never counts another class's paper", () => {
+    const papers = papersByCourse(
+      [lessonPaper(CC3, "m1", { classId: "class-elsewhere" })],
+      new Map([[CC3, 3]]),
+      new Map([[CC3, [A]]])
+    );
+
+    expect(papers.get(CC3).expected).toBe(4);
+    expect(papers.get(CC3).posted).toBe(0);
+    expect(papers.get(CC3).draft).toBe(0);
+  });
+
+  it("counts a course nobody has split into classes exactly as before", () => {
+    const written = [lessonPaper(CC2, "m1"), finalPaper(CC2)];
+
+    expect(papersByCourse(written, lessons, new Map())).toEqual(papersByCourse(written, lessons));
+  });
+});
+
 const assessor = (id, courses) => ({ _id: id, assigned_courses: courses });
 
 /** A submission that did not clear the pass mark, so it earned nothing. */
@@ -148,6 +223,65 @@ const failed = (courseId, overrides = {}) => ({
 /** A pass, which writes its own pending credential when it is handed in. */
 const passed = (courseId, overrides = {}) =>
   failed(courseId, { credential: { status: "pending" }, ...overrides });
+
+describe("tallyWorkload, one course two sections", () => {
+  // CC3 is taught by two assessors, a section each, and the admin console
+  // reports on each of them separately.
+  const mine = "class-mine";
+  const theirs = "class-theirs";
+
+  const bySection = (owed) =>
+    new Map([
+      ["a1", papersByCourse([], new Map([[CC3, 3]]), new Map([[CC3, [mine]]]))],
+      ["a2", papersByCourse(owed, new Map([[CC3, 3]]), new Map([[CC3, [theirs]]]))]
+    ]);
+
+  it("gives each assessor their own section's papers", () => {
+    // a2 has posted every paper their section owes. a1 has posted none, and
+    // used to read as covered because the count was the course's.
+    const written = [
+      lessonPaper(CC3, "m1", { classId: theirs }),
+      lessonPaper(CC3, "m2", { classId: theirs }),
+      lessonPaper(CC3, "m3", { classId: theirs }),
+      finalPaper(CC3, { classId: theirs })
+    ];
+
+    const tallies = tallyWorkload([assessor("a1", [CC3]), assessor("a2", [CC3])], {
+      papersByAssessor: bySection(written)
+    });
+
+    expect(tallies.get("a1").papersPosted).toBe(0);
+    expect(tallies.get("a1").papersExpected).toBe(4);
+    expect(tallies.get("a2").papersPosted).toBe(4);
+  });
+
+  it("leaves a colleague's student out of the credential queue", () => {
+    // One pass each. Neither assessor is waiting on the other's.
+    const taught = new Map([
+      ["a1", new Map([[CC3, new Set(["s1"])]])],
+      ["a2", new Map([[CC3, new Set(["s2"])]])]
+    ]);
+
+    const tallies = tallyWorkload([assessor("a1", [CC3]), assessor("a2", [CC3])], {
+      results: [passed(CC3, { studentId: "s1" }), passed(CC3, { studentId: "s2" })],
+      taught
+    });
+
+    expect(tallies.get("a1").credentialsPending).toBe(1);
+    expect(tallies.get("a2").credentialsPending).toBe(1);
+  });
+
+  it("counts the whole course for an assessor with no class on it", () => {
+    // Enrolment without a class behind it: null rather than an empty set, so
+    // nobody's work goes uncounted on a course set up the old way.
+    const tallies = tallyWorkload([assessor("a1", [CC3])], {
+      results: [passed(CC3, { studentId: "s1" }), passed(CC3, { studentId: "s2" })],
+      taught: new Map([["a1", new Map([[CC3, null]])]])
+    });
+
+    expect(tallies.get("a1").credentialsPending).toBe(2);
+  });
+});
 
 describe("tallyWorkload", () => {
   const papers = papersByCourse([lessonPaper(CC2, "m1"), finalPaper(CC2)], lessons);

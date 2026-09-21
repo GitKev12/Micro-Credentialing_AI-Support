@@ -49,3 +49,8 @@ assessment-bank-backup-*.json
 # AI scratch workspace - local only, never commit
 .ai-workspace/
 .gpt-output/
+
+# Written by scripts/assign-papers-to-class.mjs --write before it hands a
+# course's papers to one class. A rollback for one run on one machine's
+# database: set classId back to null on the ids it holds.
+paper-class-backup-*.json

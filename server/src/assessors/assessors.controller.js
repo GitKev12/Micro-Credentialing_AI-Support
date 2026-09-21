@@ -13,7 +13,13 @@ import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.serv
 import { papersByCourse } from "../assessments/papers.js";
 import { progressSummary } from "../courses/courses.controller.js";
 import { finalPassedFrom, scoreOf } from "./grading.js";
-import { loadAuthoringRestrictions, loadClassesByCourse } from "../lib/courseAccess.js";
+import {
+  classesTaughtBy,
+  loadAuthoringRestrictions,
+  loadClassesByCourse,
+  studentsTaughtBy,
+  teaches
+} from "../lib/courseAccess.js";
 import { readSuspendedFlag } from "../lib/suspension.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { toIsoDay } from "../lib/courseDates.js";
@@ -116,6 +122,55 @@ export async function findAssessor(idOrNumber) {
   });
 }
 
+/**
+ * Which students on each of these courses this assessor teaches, as
+ * `Map<courseId, Set<studentId> | null>`.
+ *
+ * A course taught through Section A and Section B is one course and two
+ * classes, and the assessor of one is not teaching the other's students. Every
+ * screen in this console that names a student reads this first. Null against a
+ * course means no class there is theirs, which is the enrolment-only case —
+ * see studentsTaughtBy.
+ */
+export async function taughtByCourse(assessor, courses, classesByCourse = null) {
+  const classes = classesByCourse ?? (await loadClassesByCourse(courses));
+  const taught = new Map();
+
+  for (const course of courses) {
+    const key = asId(course._id);
+    taught.set(key, studentsTaughtBy(classes.get(key) ?? [], assessor._id));
+  }
+
+  return taught;
+}
+
+/**
+ * The ids of this assessor's own classes on each course, as
+ * `Map<courseId, classId[]>`.
+ *
+ * What their paper counts are taken against. Their sections each owe a paper
+ * per lesson and a final; a colleague's section owes its own, and counting the
+ * course instead let one assessor's work cover the other's class — see
+ * assessments/papers.js.
+ */
+export function classIdsTaughtBy(courses, classesByCourse, assessorId) {
+  const owned = new Map();
+
+  for (const course of courses) {
+    const key = asId(course._id);
+    owned.set(
+      key,
+      classesTaughtBy(classesByCourse.get(key) ?? [], assessorId).map((cls) => asId(cls._id))
+    );
+  }
+
+  return owned;
+}
+
+/** Drops the work of students this assessor does not teach. */
+const ownWorkOnly = (results, taught) =>
+  results.filter((result) => teaches(taught.get(asId(result.courseId)) ?? null, result.studentId));
+
 export async function coursesForAssessor(assessor) {
   const assigned = assessor.assigned_courses ?? [];
   if (assigned.length === 0) return [];
@@ -183,17 +238,33 @@ export async function getOverview(request, response) {
   const assessor = request.assessor;
 
   const courses = await coursesForAssessor(assessor);
-  const [results, lessonCounts, assessments] = await Promise.all([
+  const [allResults, lessonCounts, assessments, classesByCourse] = await Promise.all([
     resultsForCourses(courses),
     lessonCountsForCourses(courses),
-    assessmentsForCourses(courses)
+    assessmentsForCourses(courses),
+    loadClassesByCourse(courses)
   ]);
+
+  const taught = await taughtByCourse(assessor, courses, classesByCourse);
+
+  // Their own classes' work. A credential waiting on the other assessor of a
+  // shared course is their colleague's to issue, and counting it here would
+  // send this one looking for a queue that is not theirs.
+  const results = ownWorkOnly(allResults, taught);
 
   // What the rail's "Generate Assessment" badge counts: papers this assessor's
   // classes are still waiting on, added up across them. The same sum the admin
   // console reports about this assessor, because it is the same function —
   // see assessments/papers.js for what happened when it was two.
-  const papers = papersByCourse(assessments, lessonCounts);
+  //
+  // Counted against their own classes and no others: a section of a shared
+  // course owes its own papers, and the colleague teaching the other section
+  // posting theirs leaves this one owing exactly as much as before.
+  const papers = papersByCourse(
+    assessments,
+    lessonCounts,
+    classIdsTaughtBy(courses, classesByCourse, assessor._id)
+  );
   const toPost = [...papers.values()].reduce((sum, row) => sum + row.toPost, 0);
 
   return response.json({
@@ -267,7 +338,9 @@ async function assessmentsForCourses(courses) {
   return collection(ASSESSMENTS_COLLECTION)
     .find(
       { courseId: { $in: manyCandidates(courses.map((course) => course._id)) } },
-      { projection: { courseId: 1, moduleId: 1, scope: 1, status: 1 } }
+      // classId included: a paper is written for a class, and without it
+      // every paper reads as the whole course's — see assessments/classPapers.js.
+      { projection: { courseId: 1, moduleId: 1, classId: 1, scope: 1, status: 1, postedAt: 1 } }
     )
     .toArray();
 }
@@ -298,7 +371,7 @@ export async function getClasses(request, response) {
   const assessor = request.assessor;
 
   const courses = await coursesForAssessor(assessor);
-  const [results, lessonCounts, students, assessments, closedCourses, classesByCourse] =
+  const [allResults, lessonCounts, students, assessments, closedCourses, classesByCourse] =
     await Promise.all([
     resultsForCourses(courses),
     lessonCountsForCourses(courses),
@@ -312,19 +385,34 @@ export async function getClasses(request, response) {
     loadClassesByCourse(courses)
   ]);
 
-  // Enrollment counts per course, derived from Student.enrolledCourses.
+  // Who on each course is this assessor's to teach, and the work that is
+  // theirs to read. A course taught through two classes has two assessors who
+  // share its papers and share none of its students.
+  const taught = await taughtByCourse(assessor, courses, classesByCourse);
+  const results = ownWorkOnly(allResults, taught);
+
+  // How many students each course puts in front of *this* assessor: their own
+  // classes' rolls, or the whole enrolment on a course with no class of theirs
+  // on it. Counted off Student.enrolledCourses in that second case, which is
+  // the only record there is of who is on such a course.
   const studentCounts = new Map();
   students.forEach((student) => {
     (student.enrolledCourses ?? []).forEach((courseId) => {
       const key = asId(courseId);
+      if (!teaches(taught.get(key) ?? null, student._id)) return;
       studentCounts.set(key, (studentCounts.get(key) ?? 0) + 1);
     });
   });
 
   // Papers written and papers released, per course. The register's job is to
   // say what a class is still waiting on, and a draft nobody has posted is
-  // waiting exactly as much as a lesson with no quiz at all.
-  const papers = papersByCourse(assessments, lessonCounts);
+  // waiting exactly as much as a lesson with no quiz at all. Their own classes
+  // decide the sum — two of them on one course owe two papers per lesson.
+  const papers = papersByCourse(
+    assessments,
+    lessonCounts,
+    classIdsTaughtBy(courses, classesByCourse, assessor._id)
+  );
 
   const credentialsPending = countByCourse(
     results,
@@ -363,11 +451,13 @@ export async function getClasses(request, response) {
         endsOn: toIsoDay(course.endsOn),
         // Null while it is open to new papers.
         closed: closedCourses.get(key) ?? null,
-        // The classes this course is taught through. A course can carry more
-        // than one, and the register used to show it as a single row with no
-        // sign of that — an assessor reading "24 students" could not tell it
-        // was two classes of twelve.
-        classes: (classesByCourse.get(key) ?? []).map((cls) => ({
+        // The classes this assessor teaches this course through — theirs, not
+        // every class on the course. One of them can carry more than one, and
+        // the register used to show that as a single row with no sign of it:
+        // an assessor reading "24 students" could not tell it was two classes
+        // of twelve. It also used to name a colleague's class here, on a course
+        // the two of them teach a section each of.
+        classes: classesTaughtBy(classesByCourse.get(key) ?? [], assessor._id).map((cls) => ({
           id: asId(cls._id),
           name: cls.name ?? "Unnamed class",
           active: cls.active !== false,
@@ -403,7 +493,7 @@ export async function getRoster(request, response) {
   const course = await findAssignedCourse(assessor, request.params.courseId);
   if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
 
-  const [students, totalModules, results, progress, classesByCourse] = await Promise.all([
+  const [enrolled, totalModules, allResults, progress, classesByCourse] = await Promise.all([
     collection(STUDENTS_COLLECTION)
       .find({ enrolledCourses: { $in: idCandidates(course._id) } })
       .sort({ last_name: 1 })
@@ -420,11 +510,20 @@ export async function getRoster(request, response) {
     loadClassesByCourse([course])
   ]);
 
+  // The classes here that are this assessor's, and who sits in them. On a
+  // course taught a section each by two assessors, the other section's students
+  // are not this assessor's to read — their names, their numbers or their
+  // marks.
+  const myClasses = classesTaughtBy(classesByCourse.get(asId(course._id)) ?? [], assessor._id);
+  const taught = studentsTaughtBy(classesByCourse.get(asId(course._id)) ?? [], assessor._id);
+  const students = enrolled.filter((student) => teaches(taught, student._id));
+  const results = allResults.filter((result) => teaches(taught, result.studentId));
+
   const classesByStudent = new Map();
   // Whose access to this course the assessor has closed. Read off the same
   // class rows as the names above, so the column costs no extra query.
   const closedHere = new Set();
-  for (const cls of classesByCourse.get(asId(course._id)) ?? []) {
+  for (const cls of myClasses) {
     for (const studentId of cls.studentIds ?? []) {
       const key = asId(studentId);
       if (!classesByStudent.has(key)) classesByStudent.set(key, []);
@@ -490,9 +589,9 @@ export async function getRoster(request, response) {
       section: course.section ?? null
     },
     totalModules,
-    // The classes this course is taught through, so the roster can say which
-    // one it is showing rather than presenting two as one list.
-    classes: (classesByCourse.get(asId(course._id)) ?? []).map((cls) => ({
+    // The classes this assessor teaches the course through, so the roster can
+    // say which one it is showing rather than presenting two as one list.
+    classes: myClasses.map((cls) => ({
       id: asId(cls._id),
       name: cls.name ?? "Unnamed class",
       active: cls.active !== false,
@@ -571,6 +670,14 @@ export async function setRosterStudentSuspension(request, response) {
     return response.status(404).json({ message: "Student not found in this course." });
   }
 
+  // Closing a course is done to one's own class. On a course taught a section
+  // each by two assessors, the other section's students are not this
+  // assessor's to shut out, and answered as though they were not here at all.
+  const taught = (await taughtByCourse(assessor, [course])).get(asId(course._id)) ?? null;
+  if (!teaches(taught, student._id)) {
+    return response.status(404).json({ message: "Student not found in this course." });
+  }
+
   // A student belongs to one class per course, so there is one row to write.
   // An enrolment with no class behind it predates that rule and has nowhere to
   // record this — said plainly rather than answered with a silent success.
@@ -614,7 +721,13 @@ async function findAssignedResult(assessor, submissionId) {
   if (!result) return { result: null, course: null };
 
   const course = await findAssignedCourse(assessor, result.courseId);
-  return { result: course ? result : null, course };
+  if (!course) return { result: null, course: null };
+
+  // Assigned to the course is not the same as teaching this student. A
+  // credential is signed by the assessor who taught them, and on a course
+  // taught a section each that is one of the two.
+  const taught = (await taughtByCourse(assessor, [course])).get(asId(course._id)) ?? null;
+  return { result: teaches(taught, result.studentId) ? result : null, course };
 }
 
 export async function getPendingCredentials(request, response) {
@@ -626,7 +739,14 @@ export async function getPendingCredentials(request, response) {
   const courses = await coursesForAssessor(assessor);
   const courseById = new Map(courses.map((course) => [asId(course._id), course]));
 
-  const results = (await resultsForCourses(courses)).filter(
+  const [allResults, taught] = await Promise.all([
+    resultsForCourses(courses),
+    taughtByCourse(assessor, courses)
+  ]);
+
+  // Their own classes' passes. The queue is a list of certificates to sign, and
+  // signing one for a colleague's student is not this assessor's to do.
+  const results = ownWorkOnly(allResults, taught).filter(
     (result) => result.credential?.status === "pending"
   );
 
@@ -757,6 +877,15 @@ export async function getStudentDetail(request, response) {
     _id: { $in: idCandidates(request.params.studentId) }
   });
   if (!student) return response.status(404).json({ message: "Student not found." });
+
+  // Not every student on the course: the ones in this assessor's own classes.
+  // This screen is a student's whole record on the course — their marks, their
+  // badges, their skill gap — and on a course taught a section each, the other
+  // section is a colleague's to read.
+  const taughtHere = (await taughtByCourse(assessor, [course])).get(asId(course._id)) ?? null;
+  if (!teaches(taughtHere, student._id)) {
+    return response.status(404).json({ message: "Student not found." });
+  }
 
   const [modules, results, progress, classes] = await Promise.all([
     collection(MODULES_COLLECTION).find(moduleFilterForCourse(course)).toArray(),

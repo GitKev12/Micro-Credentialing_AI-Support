@@ -157,6 +157,15 @@ function ResultsPage() {
 
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
+  /**
+   * Whose register this is.
+   *
+   * A paper belongs to a class, so the board under it does too. Empty until
+   * the first read answers with it — the server picks the assessor's own class
+   * — and there is nothing to choose on a course they teach a single class of.
+   */
+  const [classes, setClasses] = useState([]);
+  const [classId, setClassId] = useState("");
   const [papers, setPapers] = useState([]);
   const [assessmentId, setAssessmentId] = useState("");
 
@@ -208,9 +217,13 @@ function ResultsPage() {
     setAssessmentId("");
     setBoard(null);
 
-    fetchCourseAssessments(assessorId, courseId)
+    fetchCourseAssessments(assessorId, courseId, classId || null)
       .then((data) => {
         if (!active) return;
+        setClasses(data.classes ?? []);
+        // The server's answer settles it on the first read, and agrees with
+        // the choice on every one after.
+        if (data.classId) setClassId(String(data.classId));
         const options = paperOptions(data.lessons ?? [], data.final ?? null);
         setPapers(options);
         setAssessmentId(options.find((option) => option.posted)?.value ?? "");
@@ -222,7 +235,14 @@ function ResultsPage() {
     return () => {
       active = false;
     };
-  }, [assessorId, courseId]);
+  }, [assessorId, courseId, classId]);
+
+  // A new course is a new set of classes, so the old one's choice cannot
+  // stand: cleared, and the read above picks this course's up.
+  useEffect(() => {
+    setClasses([]);
+    setClassId("");
+  }, [courseId]);
 
   const load = useMemo(
     () => async () => {
@@ -234,7 +254,7 @@ function ResultsPage() {
       setIsLoading(true);
       setFailed(false);
       try {
-        setBoard(await fetchAssessmentResults(assessorId, courseId, assessmentId));
+        setBoard(await fetchAssessmentResults(assessorId, courseId, assessmentId, classId || null));
       } catch {
         setBoard(null);
         setFailed(true);
@@ -242,7 +262,7 @@ function ResultsPage() {
         setIsLoading(false);
       }
     },
-    [assessorId, courseId, assessmentId]
+    [assessorId, courseId, assessmentId, classId]
   );
 
   useEffect(() => {
@@ -258,7 +278,9 @@ function ResultsPage() {
     if (!assessorId || !courseId || !assessmentId) return undefined;
 
     let active = true;
-    const source = new EventSource(streamAssessmentResultsUrl(assessorId, courseId, assessmentId));
+    const source = new EventSource(
+      streamAssessmentResultsUrl(assessorId, courseId, assessmentId, classId || null)
+    );
 
     source.onmessage = (event) => {
       if (!active) return;
@@ -281,7 +303,7 @@ function ResultsPage() {
       active = false;
       source.close();
     };
-  }, [assessorId, courseId, assessmentId]);
+  }, [assessorId, courseId, assessmentId, classId]);
 
   // The open student's paper. Fetched rather than held back from the register,
   // which carries a row's score but never its questions.
@@ -293,7 +315,7 @@ function ResultsPage() {
     setPaperError("");
     setIsLoadingPaper(true);
 
-    fetchStudentPaper(assessorId, courseId, assessmentId, openStudentId)
+    fetchStudentPaper(assessorId, courseId, assessmentId, openStudentId, classId || null)
       .then((data) => {
         if (!active) return;
         if (data?.error) setPaperError(data.error);
@@ -306,12 +328,13 @@ function ResultsPage() {
     return () => {
       active = false;
     };
-  }, [assessorId, courseId, assessmentId, openStudentId]);
+  }, [assessorId, courseId, assessmentId, openStudentId, classId]);
 
-  // Changing the paper or the course closes whatever was open on the old one.
+  // Changing the paper, the course or the class closes whatever was open on
+  // the old one.
   useEffect(() => {
     setOpenStudentId(null);
-  }, [courseId, assessmentId]);
+  }, [courseId, classId, assessmentId]);
 
   const takers = board?.assessment?.takers ?? null;
   const rows = board?.rows ?? [];
@@ -415,6 +438,25 @@ function ResultsPage() {
               placeholder="No courses assigned"
             />
           </div>
+
+          {/* Only where there is a choice to make: on a course taught through
+              one class the answer is the class, and a field with a single
+              option is furniture. */}
+          {classes.length > 1 ? (
+            <div className="gen-field">
+              <span className="field-label">Class</span>
+              <AssessorSelect
+                label="Class"
+                value={classId}
+                onChange={setClassId}
+                options={classes.map((cls) => ({
+                  value: cls.id,
+                  label: cls.name,
+                  meta: `${cls.students} student${cls.students === 1 ? "" : "s"}`
+                }))}
+              />
+            </div>
+          ) : null}
 
           <div className="gen-field">
             <span className="field-label">Assessment</span>

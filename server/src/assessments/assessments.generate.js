@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { hashSeed, sample, seededRandom } from "../lib/random.js";
 import { loadLessonBlueprint, loadQuizBlueprint } from "./assessments.blueprint.js";
+import { papersForClass } from "./classPapers.js";
 import {
   DEFAULT_FINAL_MINUTES,
   DEFAULT_POINTS_PER_ITEM,
@@ -255,7 +256,8 @@ export function buildAssessmentDocument({
   status = "draft",
   timeLimitMinutes = null,
   model = null,
-  usage = null
+  usage = null,
+  classId = null
 }) {
   const pointsPerItem = DEFAULT_POINTS_PER_ITEM;
   // The paper is its questions, so what it is worth follows from how many
@@ -270,6 +272,9 @@ export function buildAssessmentDocument({
   return {
     courseId: course?._id ?? null,
     moduleId: scope === "final" ? null : (lesson?._id ?? null),
+    // The class this paper was written for. Null is the course's own paper,
+    // which every class falls back to — see classPapers.js.
+    classId: classId ?? null,
     scope,
     status: status === "posted" ? "posted" : "draft",
     postedAt: null,
@@ -305,13 +310,31 @@ export function buildAssessmentDocument({
 
 /* ───────────────────────── Generating one lesson quiz ───────────────────────── */
 
-async function existingAssessment(courseId, moduleId, scope) {
+/**
+ * The paper already written for this slot, for this class.
+ *
+ * Matched on the class as well as the lesson: Section B having no quiz for
+ * lesson three is not answered by Section A's, and writing one for B must not
+ * report the slot as taken. A class-less call (classId null) asks after the
+ * course's own paper, which is what every paper written before classes carried
+ * one is.
+ */
+async function existingAssessment(courseId, moduleId, scope, classId = null) {
   if (!(await collectionExists(ASSESSMENTS_COLLECTION))) return null;
+
+  const forClass =
+    classId == null
+      ? { classId: { $in: [null, ""] } }
+      : { classId: { $in: idCandidates(classId) } };
 
   const query =
     scope === "final"
-      ? { courseId: { $in: idCandidates(courseId) }, scope: "final" }
-      : { courseId: { $in: idCandidates(courseId) }, moduleId: { $in: idCandidates(moduleId) } };
+      ? { courseId: { $in: idCandidates(courseId) }, scope: "final", ...forClass }
+      : {
+          courseId: { $in: idCandidates(courseId) },
+          moduleId: { $in: idCandidates(moduleId) },
+          ...forClass
+        };
 
   return collection(ASSESSMENTS_COLLECTION).findOne(query);
 }
@@ -326,6 +349,9 @@ async function existingAssessment(courseId, moduleId, scope) {
 export async function generateModuleAssessment({
   courseId,
   moduleId,
+  // The class this quiz is for. Null writes the course's own paper, which is
+  // what a course with no classes behind it has.
+  classId = null,
   dryRun = false,
   model = null,
   // The assessor's three decisions, all optional: how long the paper is, how
@@ -338,7 +364,7 @@ export async function generateModuleAssessment({
 }) {
   if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
 
-  const already = await existingAssessment(courseId, moduleId, "lesson");
+  const already = await existingAssessment(courseId, moduleId, "lesson", classId);
   if (already && !replaceExisting) {
     return { status: "skipped", reason: "already-exists", assessmentId: asId(already._id) };
   }
@@ -410,7 +436,8 @@ export async function generateModuleAssessment({
     status,
     timeLimitMinutes,
     model: generated.model,
-    usage: generated.usage
+    usage: generated.usage,
+    classId
   });
 
   const check = validateAssessment(document);
@@ -608,6 +635,7 @@ function drawFromLesson(lessonItems, count, distribution, random) {
  */
 export async function assembleFinalAssessment({
   courseId,
+  classId = null,
   dryRun = false,
   itemCount = null,
   timeLimitMinutes = null,
@@ -616,7 +644,7 @@ export async function assembleFinalAssessment({
 }) {
   if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
 
-  const already = await existingAssessment(courseId, null, "final");
+  const already = await existingAssessment(courseId, null, "final", classId);
   if (already && !replaceExisting) {
     return { status: "skipped", reason: "already-exists", assessmentId: asId(already._id) };
   }
@@ -648,11 +676,17 @@ export async function assembleFinalAssessment({
     return { status: "skipped", reason: "no-blueprint" };
   }
 
-  const lessonQuizzes = (await collectionExists(ASSESSMENTS_COLLECTION))
-    ? await collection(ASSESSMENTS_COLLECTION)
-        .find({ courseId: { $in: idCandidates(courseId) }, scope: { $ne: "final" } })
-        .toArray()
-    : [];
+  // The lesson quizzes this class sits: its own where it has them, the
+  // course's where it does not, and never another class's — a final is drawn
+  // from the questions these students were taught against (see classPapers.js).
+  const lessonQuizzes = papersForClass(
+    (await collectionExists(ASSESSMENTS_COLLECTION))
+      ? await collection(ASSESSMENTS_COLLECTION)
+          .find({ courseId: { $in: idCandidates(courseId) }, scope: { $ne: "final" } })
+          .toArray()
+      : [],
+    classId
+  );
 
   if (lessonQuizzes.length === 0) {
     return { status: "skipped", reason: "no-lesson-quizzes" };
@@ -789,7 +823,8 @@ export async function assembleFinalAssessment({
     scope: "final",
     status,
     timeLimitMinutes,
-    model: "assembled-from-lesson-banks"
+    model: "assembled-from-lesson-banks",
+    classId
   });
 
   const check = validateAssessment(document);
@@ -896,10 +931,22 @@ export async function getGenerationStatus(courseId) {
 export async function ensureAssessmentIndexes() {
   if (!databaseReady()) return { created: false, reason: "database-not-connected" };
 
+  // One paper per lesson per class, rather than per lesson: a course taught
+  // through two classes has a quiz for each of them, and the course's own
+  // paper (classId null) sits alongside as the one they fall back to.
+  const name = "one_assessment_per_lesson_per_class";
+  const indexes = await collection(ASSESSMENTS_COLLECTION).indexes();
+
+  // The old index would refuse the second class's paper. Dropped rather than
+  // left beside the new one, which is why this runs at boot.
+  if (indexes.some((index) => index.name === "one_assessment_per_lesson")) {
+    await collection(ASSESSMENTS_COLLECTION).dropIndex("one_assessment_per_lesson");
+  }
+
   await collection(ASSESSMENTS_COLLECTION).createIndex(
-    { courseId: 1, moduleId: 1, scope: 1 },
-    { unique: true, name: "one_assessment_per_lesson" }
+    { courseId: 1, moduleId: 1, scope: 1, classId: 1 },
+    { unique: true, name }
   );
 
-  return { created: true, index: "one_assessment_per_lesson" };
+  return { created: true, index: name };
 }

@@ -203,12 +203,26 @@ function GenerateCoursePage() {
   const [tos, setTos] = useState(null);
   const [tosOpen, setTosOpen] = useState(false);
 
+  /**
+   * Whose papers these are.
+   *
+   * A paper is written for a class, so this screen is always looking at one.
+   * Empty until the first read answers with it — the server picks the
+   * assessor's own class, and there is nothing to choose on a course they
+   * teach a single class of. Where they teach two, changing this is changing
+   * which class's papers are on screen, so everything reloads with it.
+   */
+  const [classId, setClassId] = useState("");
+
   const reload = useCallback(async () => {
     if (!assessorId || !courseId) return null;
-    const data = await fetchCourseAssessments(assessorId, courseId);
+    const data = await fetchCourseAssessments(assessorId, courseId, classId || null);
     setOverview(data);
+    // The server's answer settles it on the first read, and agrees with the
+    // choice on every one after.
+    if (data?.classId) setClassId(String(data.classId));
     return data;
-  }, [assessorId, courseId]);
+  }, [assessorId, courseId, classId]);
 
   useEffect(() => {
     let active = true;
@@ -274,7 +288,7 @@ function GenerateCoursePage() {
       return undefined;
     }
 
-    fetchCourseAssessment(assessorId, courseId, target.id)
+    fetchCourseAssessment(assessorId, courseId, target.id, classId || null)
       .then((loaded) => {
         if (!active) return;
         setPaper(loaded);
@@ -289,7 +303,7 @@ function GenerateCoursePage() {
     return () => {
       active = false;
     };
-  }, [assessorId, courseId, target?.id]);
+  }, [assessorId, courseId, target?.id, classId]);
 
   // A final runs an hour and a half unless someone says otherwise; a quiz is
   // untimed unless someone says otherwise. Only applied where there is no paper to read it off.
@@ -301,6 +315,11 @@ function GenerateCoursePage() {
   }, [scope, moduleId, target?.id]);
 
   const students = course?.students ?? 0;
+  // The classes this assessor teaches the course through. One of them needs no
+  // choosing; two means every paper on screen belongs to one of them, and the
+  // assessor says which.
+  const classes = overview?.classes ?? [];
+  const className = classes.find((cls) => String(cls.id) === String(classId))?.name ?? "";
   const posted = target?.status === "posted";
   // How the class stands on this paper, which is now read for one number only
   // — how many people have handed it in. Null until the paper is posted: a
@@ -377,7 +396,8 @@ function GenerateCoursePage() {
         scope,
         moduleId: scope === "final" ? null : moduleId,
         itemCount: length,
-        timeLimitMinutes: requestedMinutes
+        timeLimitMinutes: requestedMinutes,
+        classId: classId || null
       });
 
       if (result.assessment) {
@@ -395,7 +415,8 @@ function GenerateCoursePage() {
   const applySettings = () =>
     run("settings", async () => {
       const result = await updateCourseAssessment(assessorId, courseId, paper.id, {
-        timeLimitMinutes: requestedMinutes
+        timeLimitMinutes: requestedMinutes,
+        classId: classId || null
       });
       if (result.assessment) {
         setPaper(result.assessment);
@@ -407,7 +428,8 @@ function GenerateCoursePage() {
   const saveQuestion = (patch) =>
     run("question", async () => {
       const result = await updateCourseAssessment(assessorId, courseId, paper.id, {
-        items: [patch]
+        items: [patch],
+        classId: classId || null
       });
       if (result.assessment) {
         setPaper(result.assessment);
@@ -419,11 +441,11 @@ function GenerateCoursePage() {
 
   const post = () =>
     run("post", async () => {
-      const result = await postCourseAssessment(assessorId, courseId, paper.id);
+      const result = await postCourseAssessment(assessorId, courseId, paper.id, classId || null);
       if (result.assessment) {
         setNotice({
           tone: "ok",
-          text: `Posted to ${students} student${students === 1 ? "" : "s"} in this course.`
+          text: `Posted to ${students} student${students === 1 ? "" : "s"} in ${className || "this course"}.`
         });
         await reload();
       }
@@ -432,7 +454,7 @@ function GenerateCoursePage() {
 
   const unpost = () =>
     run("unpost", async () => {
-      const result = await unpostCourseAssessment(assessorId, courseId, paper.id);
+      const result = await unpostCourseAssessment(assessorId, courseId, paper.id, classId || null);
       if (result.assessment) {
         setNotice({ tone: "ok", text: "Unposted. Students can no longer see this assessment." });
         await reload();
@@ -582,6 +604,25 @@ function GenerateCoursePage() {
         <div className="assessor-stack gen-side">
           <section className="assessor-card">
             <h2 className="assessor-card-title">Assessment</h2>
+
+            {/* Whose papers these are. Only where there is a choice to make:
+                on a course taught through one class the answer is the class,
+                and a field with a single option is furniture. */}
+            {classes.length > 1 ? (
+              <div className="gen-field">
+                <span className="field-label">Class</span>
+                <AssessorSelect
+                  label="Class"
+                  value={classId}
+                  onChange={setClassId}
+                  options={classes.map((cls) => ({
+                    value: cls.id,
+                    label: cls.name,
+                    meta: `${cls.students} student${cls.students === 1 ? "" : "s"}`
+                  }))}
+                />
+              </div>
+            ) : null}
 
             <div className="gen-field">
               <span className="field-label">Type</span>

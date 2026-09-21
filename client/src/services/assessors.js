@@ -80,14 +80,24 @@ const assessmentsPath = (assessorId, courseId) =>
   `/assessors/${assessorId}/classes/${courseId}/assessments`;
 
 /** Every lesson's paper and the course's final, with what state each is in. */
-export async function fetchCourseAssessments(assessorId, courseId) {
-  const { data } = await api.get(assessmentsPath(assessorId, courseId));
+/**
+ * `classId` names the class whose papers these are. A paper is written for a
+ * class now, so every call on this screen carries one; left out, the server
+ * answers with the assessor's own class, which is the whole answer on a course
+ * they teach a single class of.
+ */
+export async function fetchCourseAssessments(assessorId, courseId, classId = null) {
+  const { data } = await api.get(assessmentsPath(assessorId, courseId), {
+    params: classId ? { classId } : undefined
+  });
   return data;
 }
 
 /** One paper in full — questions, choices and the correct answer to each. */
-export async function fetchCourseAssessment(assessorId, courseId, assessmentId) {
-  const { data } = await api.get(`${assessmentsPath(assessorId, courseId)}/${assessmentId}`);
+export async function fetchCourseAssessment(assessorId, courseId, assessmentId, classId = null) {
+  const { data } = await api.get(`${assessmentsPath(assessorId, courseId)}/${assessmentId}`, {
+    params: classId ? { classId } : undefined
+  });
   return data?.assessment ?? null;
 }
 
@@ -100,7 +110,7 @@ export async function fetchCourseAssessment(assessorId, courseId, assessmentId) 
  * server's own sentence, because "no extracted text" and "already sat" need
  * different actions from the assessor and both are ordinary outcomes.
  *
- * body: { scope: "lesson" | "final", moduleId?, itemCount?, timeLimitMinutes? }
+ * body: { scope: "lesson" | "final", moduleId?, itemCount?, timeLimitMinutes?, classId? }
  */
 export async function generateCourseAssessment(assessorId, courseId, body) {
   try {
@@ -131,11 +141,12 @@ export async function updateCourseAssessment(assessorId, courseId, assessmentId,
   }
 }
 
-/** Releases the paper to every student in the course. */
-export async function postCourseAssessment(assessorId, courseId, assessmentId) {
+/** Releases the paper to the class it was written for. */
+export async function postCourseAssessment(assessorId, courseId, assessmentId, classId = null) {
   try {
     const { data } = await api.post(
-      `${assessmentsPath(assessorId, courseId)}/${assessmentId}/post`
+      `${assessmentsPath(assessorId, courseId)}/${assessmentId}/post`,
+      classId ? { classId } : undefined
     );
     return { assessment: data?.assessment ?? null };
   } catch (error) {
@@ -144,10 +155,11 @@ export async function postCourseAssessment(assessorId, courseId, assessmentId) {
 }
 
 /** Takes it back off, while nobody has sat it. */
-export async function unpostCourseAssessment(assessorId, courseId, assessmentId) {
+export async function unpostCourseAssessment(assessorId, courseId, assessmentId, classId = null) {
   try {
     const { data } = await api.post(
-      `${assessmentsPath(assessorId, courseId)}/${assessmentId}/unpost`
+      `${assessmentsPath(assessorId, courseId)}/${assessmentId}/unpost`,
+      classId ? { classId } : undefined
     );
     return { assessment: data?.assessment ?? null };
   } catch (error) {
@@ -201,9 +213,10 @@ export async function issueCredential(assessorId, submissionId) {
  *
  *   GET .../assessments/:id/results → { course, assessment, rows }
  */
-export async function fetchAssessmentResults(assessorId, courseId, assessmentId) {
+export async function fetchAssessmentResults(assessorId, courseId, assessmentId, classId = null) {
   const { data } = await api.get(
-    `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results`
+    `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results`,
+    { params: classId ? { classId } : undefined }
   );
   return {
     course: data?.course ?? null,
@@ -218,10 +231,11 @@ export async function fetchAssessmentResults(assessorId, courseId, assessmentId)
  * assessor pressing anything. `?token=` because `EventSource` cannot attach
  * an Authorization header — see withAuthToken.
  */
-export function streamAssessmentResultsUrl(assessorId, courseId, assessmentId) {
-  return withAuthToken(
+export function streamAssessmentResultsUrl(assessorId, courseId, assessmentId, classId = null) {
+  const url = withAuthToken(
     `${api.defaults.baseURL}/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results/stream`
   );
+  return classId ? `${url}&classId=${encodeURIComponent(classId)}` : url;
 }
 
 /**
@@ -233,10 +247,17 @@ export function streamAssessmentResultsUrl(assessorId, courseId, assessmentId) {
  * not handed the paper in looks like. The message comes back for the screen to
  * print rather than being swallowed into an empty paper.
  */
-export async function fetchStudentPaper(assessorId, courseId, assessmentId, studentId) {
+export async function fetchStudentPaper(
+  assessorId,
+  courseId,
+  assessmentId,
+  studentId,
+  classId = null
+) {
   try {
     const { data } = await api.get(
-      `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results/${studentId}`
+      `/assessors/${assessorId}/classes/${courseId}/assessments/${assessmentId}/results/${studentId}`,
+      { params: classId ? { classId } : undefined }
     );
     return {
       student: data?.student ?? null,

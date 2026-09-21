@@ -2,9 +2,12 @@ import { describe, it, expect } from "@jest/globals";
 import {
   authoringRestrictionFrom,
   classSuspensionFrom,
+  classesTaughtBy,
   courseRestriction,
   formatCourseDay,
   hasCourseEnded,
+  studentsTaughtBy,
+  teaches,
   toCourseAccess
 } from "../src/lib/courseAccess.js";
 
@@ -264,5 +267,69 @@ describe("authoringRestrictionFrom", () => {
   it("never closes a course that has no end date", () => {
     expect(authoringRestrictionFrom({}, [{ active: true }], new Date(iso("2030-01-01")))).toBeNull();
     expect(authoringRestrictionFrom(null, [], new Date(iso("2030-01-01")))).toBeNull();
+  });
+});
+
+/**
+ * Who an assessor is actually teaching.
+ *
+ * A course can be taught a section each by two assessors — one course, two
+ * classes, two rolls that do not overlap. The console works in courses, so
+ * without this every screen on it showed one assessor the other's students.
+ */
+describe("classesTaughtBy and studentsTaughtBy", () => {
+  const sectionA = { _id: "cls-a", name: "Section A", assessorIds: ["ass-1"], studentIds: ["stu-1", "stu-2"] };
+  const sectionB = { _id: "cls-b", name: "Section B", assessorIds: ["ass-3"], studentIds: ["stu-9"] };
+  const shared = { _id: "cls-c", name: "Evening", assessorIds: ["ass-1", "ass-3"], studentIds: ["stu-7"] };
+
+  it("keeps the classes that name this assessor", () => {
+    expect(classesTaughtBy([sectionA, sectionB], "ass-1")).toEqual([sectionA]);
+    expect(classesTaughtBy([sectionA, sectionB], "ass-3")).toEqual([sectionB]);
+  });
+
+  // Two assessors on one class both teach all of it.
+  it("counts a class taught by two as belonging to both", () => {
+    expect(classesTaughtBy([shared], "ass-1")).toEqual([shared]);
+    expect(classesTaughtBy([shared], "ass-3")).toEqual([shared]);
+  });
+
+  it("gathers the students across every class of theirs", () => {
+    expect(studentsTaughtBy([sectionA, sectionB, shared], "ass-1")).toEqual(
+      new Set(["stu-1", "stu-2", "stu-7"])
+    );
+  });
+
+  /**
+   * Null and the empty set are different answers. Null means no class here is
+   * theirs — a course reached by enrolment alone — and the course's own roll
+   * is then the honest thing to show. An empty set means they teach a class
+   * that holds nobody, and a colleague's students must not fill it.
+   */
+  it("says null when no class on the course is theirs", () => {
+    expect(studentsTaughtBy([sectionA, sectionB], "ass-2")).toBeNull();
+    expect(studentsTaughtBy([], "ass-1")).toBeNull();
+  });
+
+  it("says nobody when their own class is empty", () => {
+    expect(studentsTaughtBy([{ assessorIds: ["ass-1"], studentIds: [] }], "ass-1")).toEqual(new Set());
+  });
+
+  it("matches ids whichever form they arrive in", () => {
+    const objectish = { toString: () => "stu-1" };
+    const cls = { assessorIds: [{ toString: () => "ass-1" }], studentIds: [objectish] };
+    expect(studentsTaughtBy([cls], "ass-1")).toEqual(new Set(["stu-1"]));
+  });
+});
+
+describe("teaches", () => {
+  it("lets everybody through when there is nothing to narrow by", () => {
+    expect(teaches(null, "stu-1")).toBe(true);
+  });
+
+  it("admits their own students and nobody else's", () => {
+    const mine = new Set(["stu-1"]);
+    expect(teaches(mine, "stu-1")).toBe(true);
+    expect(teaches(mine, "stu-9")).toBe(false);
+    expect(teaches(new Set(), "stu-1")).toBe(false);
   });
 });

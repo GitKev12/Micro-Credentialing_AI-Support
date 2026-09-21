@@ -10,7 +10,12 @@ import {
 import { closeAttempt, openAttempt } from "./attempts.js";
 import { scoreOf } from "../assessors/grading.js";
 import { lessonBadgeFor } from "../badges/badges.service.js";
-import { loadStudentRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
+import {
+  classIdHolding,
+  loadStudentRestriction,
+  refuseRestrictedCourse
+} from "../lib/courseAccess.js";
+import { paperBelongsToClass, papersForClass } from "./classPapers.js";
 import { publishResults } from "../lib/resultsEvents.js";
 
 /**
@@ -145,9 +150,16 @@ async function loadCourseState(studentId, courseId) {
     collectionExists(RESULTS_COLLECTION)
   ]);
 
-  const assessments = hasAssessments
-    ? await collection(ASSESSMENTS_COLLECTION).find(courseMatch(courseId)).toArray()
-    : [];
+  // The class this student sits the course in decides which papers are theirs.
+  // A course taught through two classes has a paper for each, and the other
+  // section's is not this student's to see or sit — see classPapers.js.
+  const classId = await classIdHolding(studentId, courseId);
+  const assessments = papersForClass(
+    hasAssessments
+      ? await collection(ASSESSMENTS_COLLECTION).find(courseMatch(courseId)).toArray()
+      : [],
+    classId
+  );
   const modules = hasModules
     ? await collection(MODULES_COLLECTION).find(courseMatch(courseId)).toArray()
     : [];
@@ -184,6 +196,7 @@ async function loadCourseState(studentId, courseId) {
 
   return {
     assessments,
+    classId,
     modules,
     restriction,
     completedModuleIds: new Set(progress.map((entry) => asId(entry.moduleId))),
@@ -488,6 +501,13 @@ export async function getAssessmentForStudent(request, response) {
 
   const state = await loadCourseState(studentId, doc.courseId);
 
+  // Another class's paper is not this student's to open, and is answered as
+  // though it were not there: the id was reached by guessing or by a stale
+  // rail, and either way there is nothing here for them.
+  if (!paperBelongsToClass(doc, state.classId)) {
+    return response.status(404).json({ message: "Assessment not found." });
+  }
+
   // An ended course still hands back a paper this student sat — that is their
   // own record — and refuses one they never reached. A switched-off class is
   // not a calendar closing a course but the class being taken off; it hands
@@ -561,6 +581,13 @@ export async function submitAssessment(request, response) {
   if (!doc) return response.status(404).json({ message: "Assessment not found." });
 
   const state = await loadCourseState(studentId, doc.courseId);
+
+  // Nothing is marked against another class's paper, however the id was come
+  // by. Refused before the gates below, which are about this student's own
+  // progress rather than about whose paper this is.
+  if (!paperBelongsToClass(doc, state.classId)) {
+    return response.status(404).json({ message: "Assessment not found." });
+  }
 
   // Nothing is marked for a course whose run is over, whatever the rail said
   // when this paper was opened.

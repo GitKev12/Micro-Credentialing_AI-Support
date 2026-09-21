@@ -1,6 +1,13 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
-import { loadAuthoringRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
+import {
+  classesTaughtBy,
+  loadAuthoringRestriction,
+  loadClassesByCourse,
+  refuseRestrictedCourse,
+  teaches
+} from "../lib/courseAccess.js";
+import { paperBelongsToClass, papersForClass } from "../assessments/classPapers.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 import {
   DEFAULT_FINAL_MINUTES,
@@ -25,7 +32,8 @@ import {
   findAssignedCourse,
   moduleFilterForCourse,
   studentName,
-  surnameFirst
+  surnameFirst,
+  taughtByCourse
 } from "./assessors.controller.js";
 import { scoreOf } from "./grading.js";
 
@@ -97,7 +105,33 @@ async function resolveScope(request, response) {
     return null;
   }
 
-  return { assessor, course };
+  /*
+   * Which class's papers this is about.
+   *
+   * A paper is written for a class, so every screen in here is looking at one.
+   * The client names it once it knows which classes there are; unnamed, the
+   * answer is the assessor's own class, and their first one where they teach
+   * the course through several. An assessor with no class on the course works
+   * on the course's own papers — classId null — which is what a course reached
+   * by enrolment alone has and what every paper written before classes carried
+   * one is.
+   */
+  const classes = classesTaughtBy(
+    (await loadClassesByCourse([course])).get(asId(course._id)) ?? [],
+    assessor._id
+  );
+
+  const asked = request.query?.classId ?? request.body?.classId ?? null;
+  const chosen = asked ? classes.find((cls) => asId(cls._id) === String(asked)) : null;
+
+  if (asked && !chosen) {
+    response.status(404).json({ message: "Class not found for this assessor on this course." });
+    return null;
+  }
+
+  const classId = chosen ? asId(chosen._id) : (classes[0] ? asId(classes[0]._id) : null);
+
+  return { assessor, course, classes, classId };
 }
 
 /**
@@ -139,16 +173,21 @@ async function assessmentsForCourse(course) {
  * The number that decides whether a paper may still be rewritten. Once a class
  * has sat it, its questions are what the marks on record were earned against.
  */
-async function submissionCounts(assessmentIds) {
+async function submissionCounts(assessmentIds, taught = null) {
   const counts = new Map();
   if (assessmentIds.length === 0 || !(await collectionExists(RESULTS_COLLECTION))) return counts;
 
-  const results = await collection(RESULTS_COLLECTION)
+  const rows = await collection(RESULTS_COLLECTION)
     .find(
       { assessmentId: { $in: assessmentIds.flatMap((id) => idCandidates(id)) } },
       { projection: { assessmentId: 1, studentId: 1 } }
     )
     .toArray();
+
+  // A paper the course's other class has sat is not this screen's business,
+  // except where it is: the guard against rewriting a paper somebody has taken
+  // passes no `taught` at all, because that one is about the paper itself.
+  const results = rows.filter((result) => teaches(taught, result.studentId));
 
   results.forEach((result) => {
     const key = asId(result.assessmentId);
@@ -165,7 +204,17 @@ async function submissionCounts(assessmentIds) {
 }
 
 /** How many people are enrolled on this course — the "all students" card. */
-async function enrolledCount(course) {
+/**
+ * How many students are in front of this assessor on this course — the "all
+ * students" card, and the denominator of the three beside it.
+ *
+ * Their own class where they teach one, and the course's enrolment where no
+ * class stands between them and it. Counting the course on a class's screen
+ * would have every card reading against a roll that includes the other
+ * section.
+ */
+async function enrolledCount(course, taught = null) {
+  if (taught) return taught.size;
   if (!(await collectionExists(STUDENTS_COLLECTION))) return 0;
 
   return collection(STUDENTS_COLLECTION).countDocuments({
@@ -180,6 +229,23 @@ async function enrolledCount(course) {
  * Only for a posted paper. A draft has been released to nobody, so "8 not
  * started" would be counting people against a paper they cannot reach.
  */
+/**
+ * The open attempts of this assessor's own students, keyed as they arrived.
+ *
+ * One paper is sat by every class it was posted to, so "has it open right now"
+ * has to be narrowed the same way the roll is, or a card would count the other
+ * section's students working.
+ */
+function narrowOpens(opens, taught) {
+  if (!taught) return opens;
+
+  const narrowed = new Map();
+  for (const [key, studentIds] of opens) {
+    narrowed.set(key, new Set([...studentIds].filter((id) => teaches(taught, id))));
+  }
+  return narrowed;
+}
+
 function takersFor(doc, { counts, opens, students }) {
   if (!doc || !isPosted(doc)) return null;
 
@@ -267,14 +333,17 @@ export async function getCourseAssessments(request, response) {
   const scope = await resolveScope(request, response);
   if (!scope) return undefined;
 
-  const { course } = scope;
+  const { course, classId } = scope;
 
-  const [modules, assessments] = await Promise.all([
+  const [modules, everyPaper] = await Promise.all([
     (await collectionExists(MODULES_COLLECTION))
       ? collection(MODULES_COLLECTION).find(moduleFilterForCourse(course)).toArray()
       : [],
     assessmentsForCourse(course)
   ]);
+
+  // What this class sits: its own papers, and the course's where it has none.
+  const assessments = papersForClass(everyPaper, classId);
 
   const lessons = sortLessons(modules);
 
@@ -295,12 +364,13 @@ export async function getCourseAssessments(request, response) {
   const finalDoc = assessments.find((doc) => doc.scope === "final") ?? null;
 
   const assessmentIds = assessments.map((doc) => doc._id);
+  const taught = (await taughtByCourse(scope.assessor, [course])).get(asId(course._id)) ?? null;
   const [counts, opens, enrolled] = await Promise.all([
-    submissionCounts(assessmentIds),
+    submissionCounts(assessmentIds, taught),
     openAttemptsByAssessment(assessmentIds),
-    enrolledCount(course)
+    enrolledCount(course, taught)
   ]);
-  const tally = { counts, opens, students: enrolled };
+  const tally = { counts, opens: narrowOpens(opens, taught), students: enrolled };
 
   // Why the buttons on this screen are off, before they are pressed. The
   // endpoints refuse a closed course either way; sending the reason here is
@@ -337,6 +407,16 @@ export async function getCourseAssessments(request, response) {
       students: enrolled,
       closed
     },
+    // Whose papers these are. A course taught through one class needs no
+    // choosing and the screen says nothing about it; through two, the assessor
+    // picks, and the id comes back on every call that writes.
+    classes: scope.classes.map((cls) => ({
+      id: asId(cls._id),
+      name: cls.name ?? "Unnamed class",
+      active: cls.active !== false,
+      students: (cls.studentIds ?? []).length
+    })),
+    classId: scope.classId,
     defaultFinalMinutes: DEFAULT_FINAL_MINUTES,
     lessons: rows,
     final: finalDoc
@@ -360,19 +440,23 @@ export async function getCourseAssessment(request, response) {
   if (!scope) return undefined;
 
   const doc = await findCourseAssessment(scope.course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
 
+  const taught =
+    (await taughtByCourse(scope.assessor, [scope.course])).get(asId(scope.course._id)) ?? null;
   const [counts, opens, enrolled] = await Promise.all([
-    submissionCounts([doc._id]),
+    submissionCounts([doc._id], taught),
     openAttemptsByAssessment([doc._id]),
-    enrolledCount(scope.course)
+    enrolledCount(scope.course, taught)
   ]);
 
   return response.json({
     assessment: assessmentDetail(
       doc,
       counts.get(asId(doc._id))?.submissions ?? 0,
-      takersFor(doc, { counts, opens, students: enrolled })
+      takersFor(doc, { counts, opens: narrowOpens(opens, taught), students: enrolled })
     )
   });
 }
@@ -412,7 +496,7 @@ export async function generateCourseAssessment(request, response) {
   const scope = await resolveWritableScope(request, response);
   if (!scope) return undefined;
 
-  const { course } = scope;
+  const { course, classId } = scope;
   const body = request.body ?? {};
   const isFinal = body.scope === "final";
   const moduleId = body.moduleId ?? null;
@@ -423,12 +507,19 @@ export async function generateCourseAssessment(request, response) {
     return response.status(400).json({ message: "moduleId is required for a lesson quiz." });
   }
 
+  // The paper this press would rewrite: this class's own. The course's paper
+  // is what they fall back to while they have none of their own, and
+  // generating is how they stop falling back — it writes theirs and leaves the
+  // shared one alone, for whichever class is still reading it.
+  const written = papersForClass(await assessmentsForCourse(course), classId).filter(
+    (doc) => String(doc.classId ?? "") === String(classId ?? "")
+  );
+
   const existing = isFinal
-    ? ((await assessmentsForCourse(course)).find((doc) => doc.scope === "final") ?? null)
-    : await collection(ASSESSMENTS_COLLECTION).findOne({
-        courseId: { $in: idCandidates(course._id) },
-        moduleId: { $in: idCandidates(moduleId) }
-      });
+    ? (written.find((doc) => doc.scope === "final") ?? null)
+    : (written.find(
+        (doc) => doc.scope !== "final" && asId(doc.moduleId) === asId(moduleId)
+      ) ?? null);
 
   if (existing) {
     const taken = (await submissionCounts([existing._id])).get(asId(existing._id)) ?? 0;
@@ -445,6 +536,7 @@ export async function generateCourseAssessment(request, response) {
   const result = isFinal
     ? await assembleFinalAssessment({
         courseId: course._id,
+        classId,
         itemCount,
         timeLimitMinutes: timeLimitMinutes ?? DEFAULT_FINAL_MINUTES,
         status: "draft",
@@ -453,6 +545,7 @@ export async function generateCourseAssessment(request, response) {
     : await generateModuleAssessment({
         courseId: course._id,
         moduleId,
+        classId,
         itemCount,
         timeLimitMinutes,
         status: "draft",
@@ -511,7 +604,9 @@ export async function updateCourseAssessment(request, response) {
 
   const { course } = scope;
   const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
 
   const taken = (await submissionCounts([doc._id])).get(asId(doc._id)) ?? 0;
   if (taken > 0) {
@@ -601,7 +696,9 @@ export async function postCourseAssessment(request, response) {
 
   const { assessor, course } = scope;
   const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
 
   if ((doc.items ?? []).length === 0) {
     return response.status(422).json({ message: "This assessment has no questions to post." });
@@ -639,7 +736,9 @@ export async function unpostCourseAssessment(request, response) {
 
   const { course } = scope;
   const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
 
   const taken = (await submissionCounts([doc._id])).get(asId(doc._id)) ?? 0;
   if (taken > 0) {
@@ -665,10 +764,17 @@ export async function unpostCourseAssessment(request, response) {
  * The cards on the generate screen say how many; this says who — chase the two
  * who have not started, look at the one who scored three.
  *
- * Every enrolled student has a row whether or not they have touched the paper,
- * because the ones who have not are the point of the screen. A row is built
- * from three reads that each know a different part of it: the roll, what has
- * been handed in, and what is open right now.
+ * Every student this assessor teaches has a row whether or not they have
+ * touched the paper, because the ones who have not are the point of the
+ * screen. A row is built from three reads that each know a different part of
+ * it: the roll, what has been handed in, and what is open right now.
+ *
+ * The roll is their own classes', not the course's. One paper is posted to a
+ * course and sat by every class on it, so on a course taught a section each by
+ * two assessors this register would otherwise hand each of them the other's
+ * students — names, numbers and marks. `taught` is that filter: a set of
+ * student ids, or null on a course with no class of theirs, which is every
+ * course reached by enrolment alone.
  *
  * The list is the class register: surname first, in alphabetical order, so a
  * name can be found by running down the column the way a register is read.
@@ -678,10 +784,10 @@ export async function unpostCourseAssessment(request, response) {
  * the polled and the pushed answer never drift into two different ideas of a
  * row.
  */
-async function buildResultsBoard(course, doc) {
+async function buildResultsBoard(course, doc, taught = null) {
   const paper = normalizeAssessment(doc);
 
-  const [students, results, opens] = await Promise.all([
+  const [enrolled, submitted, opens] = await Promise.all([
     (await collectionExists(STUDENTS_COLLECTION))
       ? collection(STUDENTS_COLLECTION)
           .find({ enrolledCourses: { $in: idCandidates(course._id) } })
@@ -694,6 +800,9 @@ async function buildResultsBoard(course, doc) {
       : [],
     openAttemptsByAssessment([doc._id])
   ]);
+
+  const students = enrolled.filter((student) => teaches(taught, student._id));
+  const results = submitted.filter((result) => teaches(taught, result.studentId));
 
   const openedByStudent = new Map();
   const openRows = await openAttemptRows(doc._id);
@@ -711,7 +820,11 @@ async function buildResultsBoard(course, doc) {
     list.sort((a, b) => new Date(b.submittedAt ?? 0) - new Date(a.submittedAt ?? 0))
   );
 
-  const working = opens.get(asId(doc._id)) ?? new Set();
+  // Open attempts are counted for this assessor's students too, so the cards
+  // over the register add up to the register under them.
+  const working = new Set(
+    [...(opens.get(asId(doc._id)) ?? new Set())].filter((studentId) => teaches(taught, studentId))
+  );
 
   const rows = students
     .map((student) => {
@@ -754,7 +867,7 @@ async function buildResultsBoard(course, doc) {
         counts: new Map([
           [asId(doc._id), { submissions: results.length, students: new Set(results.map((r) => asId(r.studentId))) }]
         ]),
-        opens,
+        opens: new Map([[asId(doc._id), working]]),
         students: students.length
       })
     ),
@@ -768,9 +881,12 @@ export async function getAssessmentResults(request, response) {
 
   const { course } = scope;
   const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
 
-  return response.json(await buildResultsBoard(course, doc));
+  const taught = (await taughtByCourse(scope.assessor, [course])).get(asId(course._id)) ?? null;
+  return response.json(await buildResultsBoard(course, doc, taught));
 }
 
 /**
@@ -785,13 +901,23 @@ export async function getAssessmentResults(request, response) {
  * instead of being turned away first.
  */
 export async function streamAssessmentResults(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
+  const scope = await resolveScope(request, response);
+  if (!scope) return undefined;
 
-  const course = await findAssignedCourse(request.assessor, request.params.courseId);
-  if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
+  const { course } = scope;
 
   const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  // Another class’s paper is not this one’s to watch, the same refusal the
+  // fetched register gives — the stream used to answer where the fetch 404s.
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
+
+  // Read once, for the life of the stream: which students on this course this
+  // assessor teaches. Every push is the register narrowed the same way the
+  // fetched one is, so what a colleague's class does never moves a row here.
+  const taught =
+    (await taughtByCourse(request.assessor, [course])).get(asId(course._id)) ?? null;
 
   response.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -813,7 +939,7 @@ export async function streamAssessmentResults(request, response) {
 
   const push = async () => {
     if (closed) return;
-    const board = await buildResultsBoard(course, doc);
+    const board = await buildResultsBoard(course, doc, taught);
     if (closed) return;
     response.write(`data: ${JSON.stringify(board)}\n\n`);
   };
@@ -853,18 +979,21 @@ export async function getStudentPaper(request, response) {
 
   const { course } = scope;
   const doc = await findCourseAssessment(course, request.params.assessmentId);
-  if (!doc) return response.status(404).json({ message: "Assessment not found in this course." });
+  if (!doc || !paperBelongsToClass(doc, scope.classId)) {
+    return response.status(404).json({ message: "Assessment not found in this course." });
+  }
 
-  // Enrolled on this course, not merely a student somewhere. The assessor's
-  // own courses are all this route will open, and this is the second half of
-  // that: their course, and one of the people on it.
+  // In one of this assessor's own classes on this course, not merely a student
+  // somewhere. Their own courses are all this route will open, and this is the
+  // second half of that: their course, and one of the people they teach on it.
   const student = (await collectionExists(STUDENTS_COLLECTION))
     ? await collection(STUDENTS_COLLECTION).findOne({
         _id: { $in: idCandidates(request.params.studentId) },
         enrolledCourses: { $in: idCandidates(course._id) }
       })
     : null;
-  if (!student) {
+  const taught = (await taughtByCourse(scope.assessor, [course])).get(asId(course._id)) ?? null;
+  if (!student || !teaches(taught, student._id)) {
     return response.status(404).json({ message: "Student not found on this course." });
   }
 

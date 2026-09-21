@@ -183,6 +183,19 @@ async function classesHolding(studentId, courseId) {
     .toArray();
 }
 
+/**
+ * The class this student sits this course in, as an id — or null when their
+ * enrolment stands on its own, with no class behind it.
+ *
+ * One class per student per course is the rule the console is written to, so
+ * the first is the answer. It is what decides which papers are theirs: a paper
+ * is written for a class now, and the other section's is not theirs to sit.
+ */
+export async function classIdHolding(studentId, courseId) {
+  const [held] = await classesHolding(studentId, courseId);
+  return held ? String(held._id) : null;
+}
+
 /** The course fields every screen needs to say whether it is open. */
 export function toCourseAccess(course, at = new Date(), suspension = null) {
   const restriction = courseRestriction(course, at);
@@ -380,6 +393,48 @@ export async function loadClassesByCourse(courses) {
 
   return byCourse;
 }
+
+/**
+ * The classes on a course that this assessor teaches.
+ *
+ * A course can be taught by two assessors through a class each — Section A and
+ * Section B of the same subject — and neither of them is teaching the other's
+ * students. An assessor's own classes are the ones naming them.
+ */
+export function classesTaughtBy(classes, assessorId) {
+  const wanted = String(assessorId ?? "");
+  if (!wanted) return [];
+
+  return (classes ?? []).filter((cls) =>
+    (cls.assessorIds ?? []).some((id) => String(id) === wanted)
+  );
+}
+
+/**
+ * The students an assessor teaches on one course, as a set of ids — or null
+ * when no class on the course is theirs.
+ *
+ * Null and the empty set are different answers, and the difference decides
+ * whole screens. Null means there is nothing to narrow by: the course is
+ * reached by enrolment alone, with no class rows standing between the assessor
+ * and its roll, so the roll is the honest answer. An empty set means they teach
+ * a class here and it holds nobody, and showing them the course's other
+ * students would be showing them somebody else's class.
+ */
+export function studentsTaughtBy(classes, assessorId) {
+  const mine = classesTaughtBy(classes, assessorId);
+  if (mine.length === 0) return null;
+
+  const ids = new Set();
+  for (const cls of mine) {
+    for (const studentId of cls.studentIds ?? []) ids.add(String(studentId));
+  }
+
+  return ids;
+}
+
+/** Whether this student is one of `taught` — where null means "everyone here". */
+export const teaches = (taught, studentId) => taught == null || taught.has(String(studentId));
 
 /** Whether one course is still open to writing and posting papers. */
 export async function loadAuthoringRestriction(courseRef, at = new Date()) {

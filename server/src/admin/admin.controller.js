@@ -10,6 +10,12 @@ import {
   generateModuleAssessment,
   getGenerationStatus
 } from "../assessments/assessments.generate.js";
+import {
+  classesTaughtBy,
+  loadClassesByCourse,
+  studentsTaughtBy,
+  teaches
+} from "../lib/courseAccess.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 
@@ -37,6 +43,7 @@ const ADMIN_COLLECTION = "Admin";
 const ASSESSMENTS_COLLECTION = "Assessment";
 const ASSESSORS_COLLECTION = "Assessor";
 const BADGES_COLLECTION = "Badge";
+const CLASSES_COLLECTION = "Class";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
 const PROGRESS_COLLECTION = "ModuleProgress";
@@ -689,8 +696,15 @@ function courseTally(tally, courseKey) {
  * per course, so both are folded together in one pass rather than queried per
  * row.
  *
- * Papers and submissions both count toward whoever is assigned to the course
- * today.
+ * Both are counted against the classes the assessor teaches, not the whole
+ * course. Two assessors sharing a course teach a section each: the papers one
+ * of them writes are their section's, and the credential behind a submission
+ * is waiting on whoever teaches that student. Counted per course instead, this
+ * screen read a colleague's work as this person's — it called an assessor who
+ * had posted nothing fully covered, and put another's students in their queue.
+ *
+ * An assessor with no class on a course is the enrolment-only case, and is
+ * still counted the whole of it — see studentsTaughtBy.
  *
  * Kept separate from the queries that feed it so the arithmetic can be
  * exercised without a database. StudentResult stays empty until the first paper
@@ -698,7 +712,13 @@ function courseTally(tally, courseKey) {
  * these screens unchecked until the day it first mattered.
  */
 export function tallyWorkload(assessors, sources) {
-  const { results = [], papers = new Map() } = sources ?? {};
+  const { results = [], papers = new Map(), papersByAssessor = null, taught = null } = sources ?? {};
+
+  // Their own classes' figures where the caller worked them out, the course's
+  // where it did not — which is what this was before a paper had a class.
+  const papersFor = (assessorId) => papersByAssessor?.get(assessorId) ?? papers;
+  const studentsOf = (assessorId, courseKey) =>
+    taught ? (taught.get(assessorId)?.get(courseKey) ?? null) : null;
 
   const tallies = new Map(assessors.map((assessor) => [asId(assessor._id), blankTally()]));
 
@@ -714,10 +734,10 @@ export function tallyWorkload(assessors, sources) {
 
   // ── Papers owed and posted ──
   for (const [courseKey, owners] of assessorsByCourse) {
-    const paper = papers.get(courseKey);
-    if (!paper) continue;
-
     for (const assessorId of owners) {
+      const paper = papersFor(assessorId).get(courseKey);
+      if (!paper) continue;
+
       const tally = tallies.get(assessorId);
       if (!tally) continue;
       const perCourse = courseTally(tally, courseKey);
@@ -753,6 +773,10 @@ export function tallyWorkload(assessors, sources) {
     const credential = result.credential?.status;
 
     for (const assessorId of owners) {
+      // Not their student, not their queue: a credential on a colleague's
+      // section is that colleague's to issue.
+      if (!teaches(studentsOf(assessorId, courseKey), result.studentId)) continue;
+
       const tally = tallies.get(assessorId);
       if (!tally) continue;
       const perCourse = courseTally(tally, courseKey);
@@ -789,28 +813,75 @@ async function workloadByAssessor(assessors, courses) {
           .toArray()
       : [];
 
-  const [results, assessments, modules] = await Promise.all([
+  const [results, assessments, modules, classes] = await Promise.all([
     load(RESULTS_COLLECTION, {
       courseId: 1,
+      // Who handed it in decides whose queue it is, now that a course can be
+      // taught through more than one class.
+      studentId: 1,
       superseded: 1,
       credential: 1
     }),
     load(ASSESSMENTS_COLLECTION, {
       courseId: 1,
       moduleId: 1,
+      classId: 1,
       scope: 1,
       status: 1,
       postedAt: 1
     }),
-    load(MODULES_COLLECTION, { courseId: 1, courseCode: 1 })
+    load(MODULES_COLLECTION, { courseId: 1, courseCode: 1 }),
+    load(CLASSES_COLLECTION, { courseId: 1, assessorIds: 1, studentIds: 1 })
   ]);
 
   // Lessons counted the way the student screens count them — a module names its
   // course by id on some rows and by code on others — so one course cannot owe
   // nine papers here and eight somewhere else.
-  const papers = papersByCourse(assessments, modulesPerCourse(courses, modules));
+  // Every class the course is taught through, because a paper is written for
+  // one: a course with two sections owes each of them a paper per lesson, and
+  // counting it once read as covered while a section had nothing posted.
+  const classIds = new Map();
+  for (const cls of classes) {
+    const key = asId(cls.courseId);
+    if (!classIds.has(key)) classIds.set(key, []);
+    classIds.get(key).push(asId(cls._id));
+  }
 
-  return { tallies: tallyWorkload(assessors, { results, papers }), papers };
+  const lessonCounts = modulesPerCourse(courses, modules);
+  const papers = papersByCourse(assessments, lessonCounts, classIds);
+
+  // The same sums again, once per assessor, against their own classes: what
+  // each of them owes rather than what the course does. The course-wide map
+  // above stays for coverage, which is a question about courses.
+  const classesByCourse = new Map();
+  for (const cls of classes) {
+    const key = asId(cls.courseId);
+    if (!classesByCourse.has(key)) classesByCourse.set(key, []);
+    classesByCourse.get(key).push(cls);
+  }
+
+  const papersByAssessor = new Map();
+  const taught = new Map();
+
+  for (const assessor of assessors) {
+    const mine = new Map();
+    const students = new Map();
+
+    for (const course of courses.values()) {
+      const key = asId(course._id);
+      const onCourse = classesByCourse.get(key) ?? [];
+      mine.set(key, classesTaughtBy(onCourse, assessor._id).map((cls) => asId(cls._id)));
+      students.set(key, studentsTaughtBy(onCourse, assessor._id));
+    }
+
+    papersByAssessor.set(asId(assessor._id), papersByCourse(assessments, lessonCounts, mine));
+    taught.set(asId(assessor._id), students);
+  }
+
+  return {
+    tallies: tallyWorkload(assessors, { results, papers, papersByAssessor, taught }),
+    papers
+  };
 }
 
 function publicWorkload(tally) {
@@ -972,13 +1043,11 @@ async function assessorCountByCourse() {
  * assigned-course list verbatim under a different heading, which told an admin
  * nothing the card beside it had not already said.
  *
- * `sharedWith` is how many OTHER assessors are on the course. Every figure in
- * the row is the course's rather than this person's — `tallyWorkload` gives
- * each owner of a course the same posted and credential counts — so on a shared
- * course "6 of 9 posted" is the course's progress, not this assessor's six. The
- * list screen already warns which courses are shared; without this the detail
- * screen is where that fact goes missing, and it is the screen where the
- * numbers get read as one person's output.
+ * `sharedWith` is how many OTHER assessors are on the course — a section each
+ * of one subject. It no longer qualifies the figures: every one of them is this
+ * assessor's own class's now, papers and credentials alike. It stays because a
+ * shared course is worth naming, and because "8 of 14 posted" on one section
+ * reads differently when an admin knows there is another.
  */
 async function classesFor(assessor, courses, tally, sharing = new Map()) {
   const assigned = (assessor.assigned_courses ?? [])
@@ -988,14 +1057,20 @@ async function classesFor(assessor, courses, tally, sharing = new Map()) {
 
   // Enrolment counted from Student.enrolledCourses — the same way the
   // assessor's own Classes screen counts it, so the two cannot disagree.
-  const students = await collection(STUDENTS_COLLECTION)
-    .find({}, { projection: { enrolledCourses: 1 } })
-    .toArray();
+  const [students, classesByCourse] = await Promise.all([
+    collection(STUDENTS_COLLECTION).find({}, { projection: { enrolledCourses: 1 } }).toArray(),
+    loadClassesByCourse(assigned)
+  ]);
 
   const enrolled = new Map();
   students.forEach((student) => {
     (student.enrolledCourses ?? []).forEach((courseId) => {
       const key = asId(courseId);
+      // Their own classes' rolls where they have one, the whole enrolment
+      // where they do not — the rule their own console reads.
+      if (!teaches(studentsTaughtBy(classesByCourse.get(key) ?? [], assessor._id), student._id)) {
+        return;
+      }
       enrolled.set(key, (enrolled.get(key) ?? 0) + 1);
     });
   });
