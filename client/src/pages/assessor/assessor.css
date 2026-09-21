@@ -759,13 +759,17 @@
   box-shadow: inset 0 0 0 1px var(--brand);
 }
 
+/* The only chip that carries its colour in the text rather than behind it:
+   no fill, just blue ink. */
 .chip--info {
-  background: var(--blue-whiter);
+  background: transparent;
   color: var(--blue-ink);
 }
 
+/* The same grey the blueprint's bar is drawn on (.tos-bar__track), so a level
+   read off a question matches the level read off the bar. */
 .chip--neutral {
-  background: var(--gray-050);
+  background: var(--gray-100);
   color: var(--text-muted);
 }
 
@@ -777,6 +781,15 @@
 .chip--success {
   background: rgba(2, 110, 120, 0.12);
   color: var(--teal-700);
+}
+
+/* A level of thinking, written in that level's own colour — the same colour
+   its share of the blueprint's bar is filled with (.tos-bar__seg), carried in
+   the text rather than behind it. The colour comes from the [data-level]
+   palette further down. */
+.chip--level {
+  background: transparent;
+  color: var(--level, var(--text-muted));
 }
 
 .chip__dot {
@@ -2983,6 +2996,9 @@
   display: flex;
   align-items: flex-start;
   gap: var(--sp-3);
+  /* Air under the question before its code or its choices, so the question
+     reads as the thing being asked rather than the first line of the list. */
+  margin-bottom: var(--sp-2);
 }
 
 .gen-q__num {
@@ -3008,6 +3024,15 @@
   line-height: 1.5;
   color: var(--text-strong);
   text-wrap: pretty;
+}
+
+/* The level of thinking, at the end of the question's own line. It holds its
+   place there: a long question wraps around it rather than pushing it onto a
+   line of its own, where it would read as a heading for the choices below.
+   Nudged down to sit on the question's first line, which is padded. */
+.gen-q-list .gen-q__head > .chip {
+  flex-shrink: 0;
+  margin-top: 3px;
 }
 
 .gen-q__edit {

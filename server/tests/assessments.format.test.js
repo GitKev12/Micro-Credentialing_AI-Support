@@ -175,6 +175,18 @@ describe("toStudentAssessment", () => {
     expect(served.items[0]).not.toHaveProperty("topic");
   });
 
+  /**
+   * The level of thinking is the assessor's check on the paper, made before it
+   * is posted. It is not part of the question, and a student told they are on a
+   * "remember" item has been told how hard to think about it.
+   */
+  it("keeps the level of thinking off the student's paper", () => {
+    const levelled = [mc("1", "a", { level: "analyze" })];
+    const served = toStudentAssessment(doc(levelled));
+    expect(served.items[0]).not.toHaveProperty("level");
+    expect(JSON.stringify(served)).not.toContain("analyze");
+  });
+
   // The explanation says why the key is right, which is the key in a sentence.
   it("serves the code but never the explanation", () => {
     const traced = [

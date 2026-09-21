@@ -361,9 +361,19 @@ export function toStudentAssessment(doc, { shuffle = true } = {}) {
     // `moduleId` and `topic` go the same way as the key: they are how the paper
     // is scored, not part of the question. Sitting the exam does not need to
     // know which lesson each item came from, and the mark does not depend on it.
-    // The explanation goes because it names the answer.
+    // The explanation goes because it names the answer. `level` goes because it
+    // is the assessor's check on the question — that the paper asks the mix of
+    // thinking the blueprint ordered — and telling a student they are on a
+    // "remember" question tells them how hard to think about it.
     items: ordered.map(
-      ({ key: _key, explanation: _explanation, moduleId: _moduleId, topic: _topic, ...item }) => ({
+      ({
+        key: _key,
+        explanation: _explanation,
+        moduleId: _moduleId,
+        topic: _topic,
+        level: _level,
+        ...item
+      }) => ({
         ...item,
         choices: shuffle ? shuffled(item.choices) : item.choices
       })

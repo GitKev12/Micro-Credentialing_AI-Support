@@ -58,6 +58,13 @@ export const GROUPS = [
 
 export const LEVEL_KEYS = LEVELS.map((level) => level.key);
 
+/**
+ * One level by the key a question carries, or null when it carries none —
+ * a question written before the generator named levels, or one the model
+ * labelled with a word outside the taxonomy.
+ */
+export const levelByKey = (key) => LEVELS.find((level) => level.key === key) ?? null;
+
 /** Standard length of a final exam. The stepper can still change it. */
 export const DEFAULT_FINAL_ITEMS = 60;
 

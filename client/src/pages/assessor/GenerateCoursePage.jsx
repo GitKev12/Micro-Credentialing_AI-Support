@@ -20,6 +20,7 @@ import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
 import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
 import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
+import LevelChip from "./components/tos/LevelChip";
 
 /**
  * Generating one course's papers.
@@ -80,6 +81,7 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
         <div className="gen-q__head">
           <span className="gen-q__num">{item.n}</span>
           <p className="gen-q__text">{item.q}</p>
+          <LevelChip level={item.level} />
           {readOnly ? null : (
             <button type="button" className="gen-q__edit" onClick={onEdit}>
               <PencilIcon size={14} />
@@ -118,6 +120,9 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
           aria-label={`Question ${item.n}`}
           onChange={(event) => setText(event.target.value)}
         />
+        {/* Stays while the question is being corrected: the level is what the
+            correction is being judged against. */}
+        <LevelChip level={item.level} />
       </div>
 
       {/* The radio is the answer key. Marking the right option is the whole

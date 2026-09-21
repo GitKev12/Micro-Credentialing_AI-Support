@@ -116,9 +116,14 @@ export function StatCard({ value, label, action, onAction, icon }) {
   );
 }
 
-export function Chip({ tone = "neutral", dot = false, children }) {
+/**
+ * `level` names one of the six levels of thinking, for `tone="level"`: the
+ * console's palette hangs each level's colour off that attribute, so the chip
+ * is drawn in the same colour as that level's share of the blueprint's bar.
+ */
+export function Chip({ tone = "neutral", dot = false, level = null, children }) {
   return (
-    <span className={`chip chip--${tone}`}>
+    <span className={`chip chip--${tone}`} data-level={level ?? undefined}>
       {dot ? <span className="chip__dot" aria-hidden="true" /> : null}
       {children}
     </span>
