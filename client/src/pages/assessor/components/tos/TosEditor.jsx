@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchCourseTos, saveCourseTos, storedAssessorId } from "../../../../services/assessors";
+import { readError } from "../../../../services/readError";
 import { LoadFailed, Segmented } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
 import { noticeClass, useNotice } from "../../../../lib/useNotice";
@@ -115,7 +116,9 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
   const assessorId = storedAssessorId();
 
   const [data, setData] = useState(null);
-  const [failed, setFailed] = useState(false);
+  // The whole refusal rather than a flag: the server says why, and a boolean
+  // left the screen to guess — it always guessed the network.
+  const [failure, setFailure] = useState(null);
   const [notice, setNotice] = useNotice();
   const [saving, setSaving] = useState(false);
 
@@ -129,14 +132,14 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
 
   const load = useCallback(async () => {
     if (!courseId || !assessorId) return;
-    setFailed(false);
+    setFailure(null);
 
     try {
       const payload = await fetchCourseTos(assessorId, courseId);
       setData(payload);
       setDraft(readTos(payload.tos, payload.lessons ?? []));
-    } catch (_error) {
-      setFailed(true);
+    } catch (error) {
+      setFailure(readError(error, "This blueprint could not be loaded."));
     }
   }, [assessorId, courseId]);
 
@@ -257,10 +260,15 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
 
   /* ── Views ────────────────────────────────────────────────────────────── */
 
-  if (failed) {
+  if (failure) {
     return (
       <div className="tos-editor">
-        <LoadFailed what="this blueprint" onRetry={load} />
+        <LoadFailed
+          what="this blueprint"
+          reason={failure.message}
+          status={failure.status}
+          onRetry={load}
+        />
       </div>
     );
   }

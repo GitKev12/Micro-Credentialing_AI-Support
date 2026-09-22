@@ -1,4 +1,5 @@
 import api, { withAuthToken } from "./api";
+import { readError } from "./readError";
 import { getStoredSession } from "../auth/services/authService";
 
 /**
@@ -167,15 +168,9 @@ export async function unpostCourseAssessment(assessorId, courseId, assessmentId,
   }
 }
 
-/**
- * The server's own explanation, or a fallback.
- *
- * Every refusal on the generate screen is something the assessor can act on —
- * extract the lesson's text, shorten the paper, stop trying to rewrite a sat
- * one — so the server's sentence is worth far more than a status code.
- */
+/** The sentence alone, for the callers that only ever show one. */
 function errorMessage(error, fallback) {
-  return error?.response?.data?.message ?? fallback;
+  return readError(error, fallback).message;
 }
 
 /**

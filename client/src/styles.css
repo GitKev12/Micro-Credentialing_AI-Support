@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
 :root {
+  /* The one monospace stack, named once: a code sample, and the textarea an
+     assessor corrects it in, have to measure a line the same way. */
+  --font-mono: "Cascadia Code", "Consolas", ui-monospace, SFMono-Regular, Menlo, monospace;
   /* Global UI scale. 1 is normal size; a smaller number renders the whole app
      as if the browser were zoomed out (0.95 looks like 95%) while the browser
      itself stays at 100%. Change this one number to retune the whole interface.
@@ -1135,8 +1138,7 @@ ol.lesson-reader__list li::marker {
      theme — so a sample reads as cut into the page rather than laid on it. */
   background: var(--bg);
   overflow-x: auto;
-  font-family: "Cascadia Code", "Consolas", ui-monospace, SFMono-Regular,
-    Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.6;
   color: var(--ink);
@@ -1154,8 +1156,7 @@ ol.lesson-reader__list li::marker {
   border-radius: 12px;
   background: var(--bg);
   overflow-x: auto;
-  font-family: "Cascadia Code", "Consolas", ui-monospace, SFMono-Regular,
-    Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.6;
   color: var(--ink);

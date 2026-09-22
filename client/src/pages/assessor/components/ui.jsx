@@ -267,6 +267,16 @@ export function CredentialDots({ earned, total }) {
 }
 
 /**
+ * A refusal that retrying cannot change.
+ *
+ * A paper that belongs to another class will still belong to it in ten
+ * seconds, and a course this assessor does not teach will still not be theirs.
+ * Offering Try again for those is a promise the screen cannot keep, and the
+ * assessor presses it twice before believing it.
+ */
+const SETTLED = new Set([403, 404]);
+
+/**
  * A read that did not come back.
  *
  * Every screen here used to answer a failed request by emptying its list,
@@ -274,12 +284,24 @@ export function CredentialDots({ earned, total }) {
  * — the assessor was told something false about their own course and had no
  * reason to doubt it. This says what actually happened, and gives them the one
  * thing that might fix it rather than making them find the page again.
+ *
+ * `reason` is the server's own sentence, which is almost always worth more
+ * than anything this component could invent. Every refusal in this API carries
+ * one: the paper is not in this course, the class is not this assessor's, the
+ * database is not connected. Without it every one of those read as "check your
+ * connection" — a guess, wrong in all but one case, and the one case it fits
+ * is the only one that never reaches the server at all.
+ *
+ * It stays the default for a caller that has no reason to pass, so a screen
+ * that has not been taught to read its own errors says what it always said.
  */
-export function LoadFailed({ what, onRetry }) {
+export function LoadFailed({ what, reason, status = null, onRetry }) {
   return (
     <div className="load-failed" role="alert">
-      <span>{what} could not be loaded. Check your connection and try again.</span>
-      {onRetry ? (
+      <span>
+        {what} could not be loaded. {reason ?? "Check your connection and try again."}
+      </span>
+      {onRetry && !SETTLED.has(status) ? (
         <button type="button" className="btn btn--ghost" onClick={onRetry}>
           Try again
         </button>

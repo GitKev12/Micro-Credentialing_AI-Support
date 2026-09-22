@@ -241,6 +241,94 @@ describe("QuizRunner — handing the paper in", () => {
 });
 
 /**
+ * A final exam is not a quiz, and this screen used to say it was.
+ *
+ * One noun drove every line of it — the button, the skeleton, the pager's
+ * label — so a student handed their final in under "Submit quiz". The mark was
+ * worse than the button: a passed final earns the course credential, which the
+ * assessor releases, and the panel congratulated the student on a badge they
+ * had not been given and would never get for this paper.
+ */
+const FINAL = { id: "a3", scope: "final", title: "Final Exam" };
+
+const finalReady = () => {
+  const paper = ready();
+  paper.assessment.id = "a3";
+  return paper;
+};
+
+describe("QuizRunner — a final exam is not a quiz", () => {
+  it("hands a final in under its own name", async () => {
+    fetchAssessment.mockResolvedValue(finalReady());
+
+    draw(FINAL);
+    await screen.findByText("What does the compiler read?");
+    fireEvent.click(screen.getByRole("button", { name: "Next question" }));
+
+    expect(screen.getByRole("button", { name: "Submit final exam" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit quiz" })).toBeNull();
+  });
+
+  it("still calls a lesson quiz a quiz", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+
+    draw(PAPER);
+    await screen.findByText("What does the compiler read?");
+    fireEvent.click(screen.getByRole("button", { name: "Next question" }));
+
+    expect(screen.getByRole("button", { name: "Submit quiz" })).toBeInTheDocument();
+  });
+
+  /**
+   * "Awaiting release" rather than "earned": the credential exists the moment
+   * the final is passed, but it is the assessor's to issue, and the
+   * Certifications card the student will go looking at calls that same state
+   * by that same name.
+   */
+  it("promises a credential, not a badge, on a passed final", async () => {
+    fetchAssessment.mockResolvedValue({
+      ...finalReady(),
+      result: { score: 2, total: 2, passMark: 1, passed: true, attempt: 1, items: [] }
+    });
+
+    draw(FINAL);
+
+    expect(await screen.findByText(/credential awaiting release/i)).toBeInTheDocument();
+    expect(screen.queryByText(/badge earned/i)).toBeNull();
+  });
+
+  it("names the credential when a final is failed", async () => {
+    fetchAssessment.mockResolvedValue({
+      ...finalReady(),
+      result: { score: 0, total: 2, passMark: 1, passed: false, attempt: 1, items: [] }
+    });
+
+    draw(FINAL);
+
+    expect(await screen.findByText(/needed to earn the credential/i)).toBeInTheDocument();
+  });
+
+  it("still promises a badge on a passed lesson quiz", async () => {
+    fetchAssessment.mockResolvedValue({
+      ...ready(),
+      result: { score: 2, total: 2, passMark: 1, passed: true, attempt: 1, items: [] }
+    });
+
+    draw(PAPER);
+
+    expect(await screen.findByText(/badge earned/i)).toBeInTheDocument();
+  });
+
+  it("names the paper in the sentence that says it is shut", async () => {
+    draw({ ...PLACEHOLDER, scope: "final", reason: undefined });
+
+    expect(
+      await screen.findByText("Your assessor will unlock this final exam.")
+    ).toBeInTheDocument();
+  });
+});
+
+/**
  * A tracing question is only a question if its code arrives the way it was
  * written. Folded into the question's paragraph it would be one line of Java,
  * and "what does line 3 print?" would point at nothing.

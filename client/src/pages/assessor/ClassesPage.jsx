@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchAssessorClasses, storedAssessorId } from "../../services/assessors";
+import { readError } from "../../services/readError";
 import { ChevronRightIcon } from "./components/icons";
 import { Chip, LoadFailed, ScreenHeader } from "./components/ui";
 import { formatCourseLength, formatCourseRange } from "../../lib/courseDuration";
@@ -31,14 +32,6 @@ function lastActivity(iso) {
   return when.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-const EMPTY_TOTALS = {
-  students: 0,
-  lessons: 0,
-  expected: 0,
-  posted: 0,
-  issued: 0
-};
-
 /**
  * The classes behind one course row, named.
  *
@@ -60,12 +53,14 @@ function ClassesPage() {
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   // A read that did not come back, and the counter that asks for it again.
-  const [failed, setFailed] = useState(false);
+  // The whole refusal rather than a flag: the server says why, and a boolean
+  // left the screen to guess — it always guessed the network.
+  const [failure, setFailure] = useState(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setFailed(false);
+    setFailure(null);
     const assessorId = storedAssessorId();
     if (!assessorId) {
       setIsLoading(false);
@@ -76,10 +71,10 @@ function ClassesPage() {
       .then((classList) => {
         if (active) setClasses(classList);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
         setClasses([]);
-        setFailed(true);
+        setFailure(readError(error, "Your classes could not be loaded."));
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -89,23 +84,6 @@ function ClassesPage() {
       active = false;
     };
   }, [reload]);
-
-  // The footer row: the same columns, added up. Against a single class it would
-  // only repeat the row above it, so it appears from two.
-  const totals = useMemo(
-    () =>
-      classes.reduce(
-        (sum, course) => ({
-          students: sum.students + (course.students ?? 0),
-          lessons: sum.lessons + (course.lessons ?? 0),
-          expected: sum.expected + (course.assessmentsExpected ?? 0),
-          posted: sum.posted + (course.assessmentsPosted ?? 0),
-          issued: sum.issued + (course.credentialsIssued ?? 0)
-        }),
-        EMPTY_TOTALS
-      ),
-    [classes]
-  );
 
   const openClass = (courseId) => navigate(`/assessor/classes/${courseId}`);
 
@@ -249,9 +227,11 @@ function ClassesPage() {
               {!isLoading && classes.length === 0 ? (
                 <tr>
                   <td className="assessor-table__empty" colSpan={8}>
-                    {failed ? (
+                    {failure ? (
                       <LoadFailed
                         what="Your classes"
+                        reason={failure.message}
+                        status={failure.status}
                         onRetry={() => setReload((n) => n + 1)}
                       />
                     ) : (
@@ -261,23 +241,6 @@ function ClassesPage() {
                 </tr>
               ) : null}
             </tbody>
-
-            {classes.length > 1 ? (
-              <tfoot>
-                <tr>
-                  <th scope="row">All classes</th>
-                  <td className="assessor-table__num">{totals.students}</td>
-                  <td className="assessor-table__num">{totals.lessons}</td>
-                  <td />
-                  <td className="assessor-table__num">
-                    {totals.posted}/{totals.expected}
-                  </td>
-                  <td>{totals.issued} issued</td>
-                  <td />
-                  <td />
-                </tr>
-              </tfoot>
-            ) : null}
           </table>
         </div>
       </div>

@@ -91,13 +91,12 @@ describe("ClassesPage", () => {
     expect(screen.getByText("Aug 4 – Oct 10, 2026")).toBeInTheDocument();
     expect(screen.getByText("10 weeks")).toBeInTheDocument();
     expect(screen.getByText("No submissions yet")).toBeInTheDocument();
-    // Credentials say what has been released, not what is queued: two rows
-    // and the footer, none of them counting anything still to be issued.
-    expect(screen.getAllByText("2 issued")).toHaveLength(2);
+    // Credentials say what has been released, not what is queued: a row
+    // each, neither counting anything still to be issued.
+    expect(screen.getByText("2 issued")).toBeInTheDocument();
     expect(screen.getByText("0 issued")).toBeInTheDocument();
     expect(screen.queryByText(/to approve/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open" })).toHaveLength(2);
-    expect(screen.getByText("All classes")).toBeInTheDocument();
   });
 
   // The register now reports what has been released to each class rather than
@@ -112,15 +111,15 @@ describe("ClassesPage", () => {
 
     expect(await screen.findByText("3/6")).toBeInTheDocument();
     expect(screen.getByText("0/1")).toBeInTheDocument();
-    // The footer adds the same column up.
-    expect(screen.getByText("3/7")).toBeInTheDocument();
   });
 
-  // The two tiles that used to sit above the register are gone. Both restated
-  // a number already on screen twice over — the rail badges the same papers-to-
-  // post count and links to the same screen, and the footer adds up the same
-  // columns the tiles summarised.
-  it("leaves the totals to the register rather than repeating them above it", async () => {
+  // The two tiles that used to sit above the register are gone, and so is the
+  // totals row that used to sit under it. Every figure on this screen is now
+  // one class's own: the register reports per course, and the rail badges the
+  // papers still to post. Nothing here adds the courses together, because an
+  // assessor's question is which class owes something, not how much the set of
+  // them owes between them.
+  it("carries no summary above the register or under it", async () => {
     const { container } = render(
       <MemoryRouter>
         <ClassesPage />
@@ -131,10 +130,10 @@ describe("ClassesPage", () => {
     expect(screen.queryByText("Assessments to Post")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Approve & Issue/ })).not.toBeInTheDocument();
 
-    // What they said is still said, once, by the footer.
-    const footer = within(container.querySelector("tfoot"));
-    expect(footer.getByText("3/7")).toBeInTheDocument();
-    expect(footer.getByText("2 issued")).toBeInTheDocument();
+    expect(container.querySelector("tfoot")).toBeNull();
+    expect(screen.queryByText("All classes")).not.toBeInTheDocument();
+    // The sum the footer used to print, gone with it.
+    expect(screen.queryByText("3/7")).not.toBeInTheDocument();
   });
 });
 

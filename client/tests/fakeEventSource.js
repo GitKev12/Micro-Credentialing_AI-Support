@@ -13,6 +13,12 @@
 export class FakeEventSource {
   static instances = [];
 
+  /* The browser's own readyState values. A handler checks these to tell a
+     stream that is reconnecting by itself from one the server refused. */
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 2;
+
   static reset() {
     FakeEventSource.instances = [];
   }
@@ -24,6 +30,7 @@ export class FakeEventSource {
 
   constructor(url) {
     this.url = String(url);
+    this.readyState = FakeEventSource.OPEN;
     this.closed = false;
     this.onmessage = null;
     this.onerror = null;
@@ -35,12 +42,20 @@ export class FakeEventSource {
     this.onmessage?.({ data: typeof data === "string" ? data : JSON.stringify(data) });
   }
 
-  /** The connection dropping, as the browser reports it. */
-  fail() {
+  /**
+   * The connection dropping, as the browser reports it.
+   *
+   * `gaveUp` is the distinction the browser draws: a stream it is reconnecting
+   * by itself sits at CONNECTING, while one refused outright — a 404, a 401 —
+   * is CLOSED and never comes back. The event itself says neither.
+   */
+  fail({ gaveUp = false } = {}) {
+    this.readyState = gaveUp ? FakeEventSource.CLOSED : FakeEventSource.CONNECTING;
     this.onerror?.(new Event("error"));
   }
 
   close() {
+    this.readyState = FakeEventSource.CLOSED;
     this.closed = true;
   }
 }

@@ -1,20 +1,28 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchAssessorClasses, storedAssessorId } from "../../services/assessors";
-import { ChevronRightIcon, GenerateIcon } from "./components/icons";
+import { readError } from "../../services/readError";
+import { ChevronRightIcon } from "./components/icons";
 import { Chip, LoadFailed, ScreenHeader } from "./components/ui";
-import { Skeleton } from "../../components/Skeleton";
 
 /**
- * Generate Assessment — one card per class the assessor holds.
+ * Generate Assessment — one row per class the assessor holds.
  *
- * The console's other lists are registers, read one row at a time. This one is
- * a set of cards because it is a set of decisions rather than a set of records:
- * each class is either owed papers or it is not, and that is the whole of what
- * the screen has to say before the assessor picks one and goes in.
+ * A register, like the Classes screen it is read beside. It was a grid of
+ * cards on the reasoning that a class is a decision rather than a record —
+ * but the decision is made by comparing classes, which is the one thing a grid
+ * of cards is bad at. Figures laid out separately, each in its own box, cannot
+ * be read down; the same figures in columns can, and the class that is
+ * furthest behind is the one the eye lands on.
+ *
+ * Which is why every figure here gets a column of its own, down to the two the
+ * work is actually chosen by: what is drafted, and what is not written.
+ *
+ * The columns it shares with the Classes register are in the same order there,
+ * because it is the same set of classes seen with a different question in mind.
  */
 
-/** What a class is still waiting on, as the one line the card is built around. */
+/** What a class is still waiting on. */
 function state(course) {
   const expected = course.assessmentsExpected ?? 0;
   const posted = course.assessmentsPosted ?? 0;
@@ -25,79 +33,19 @@ function state(course) {
   return { expected, posted, written, drafts, missing };
 }
 
-function ClassCard({ course, onOpen }) {
-  const { expected, posted, drafts, missing } = state(course);
-  const pct = expected > 0 ? Math.round((posted / expected) * 100) : 0;
-
-  return (
-    <button type="button" className="gen-card" onClick={onOpen}>
-      <span className="gen-card__head">
-        <span className="gen-card__code">
-          {course.code}
-          {course.section ? ` · ${course.section}` : ""}
-        </span>
-        <span className="gen-card__icon" aria-hidden="true">
-          <GenerateIcon size={22} />
-        </span>
-      </span>
-
-      <span className="gen-card__name">{course.name}</span>
-
-      <span className="gen-card__count">
-        {posted}
-        <span className="gen-card__count-of"> / {expected} posted</span>
-      </span>
-
-      <span
-        className="gen-card__track"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`${posted} of ${expected} assessments posted`}
-      >
-        <span className="gen-card__fill" style={{ width: `${pct}%` }} />
-      </span>
-
-      <span className="gen-card__tags">
-        {drafts > 0 ? (
-          <Chip tone="brand-soft" dot>
-            {drafts} draft{drafts === 1 ? "" : "s"}
-          </Chip>
-        ) : null}
-        {missing > 0 ? (
-          <Chip tone="outline">
-            {missing} not written
-          </Chip>
-        ) : null}
-        {drafts === 0 && missing === 0 ? <Chip tone="info">All assessments posted</Chip> : null}
-      </span>
-
-      <span className="gen-card__foot">
-        <span className="assessor-meta">
-          {course.students} student{course.students === 1 ? "" : "s"} · {course.lessons} lesson
-          {course.lessons === 1 ? "" : "s"}
-        </span>
-        <span className="gen-card__go">
-          Open
-          <ChevronRightIcon size={15} />
-        </span>
-      </span>
-    </button>
-  );
-}
-
 function GeneratePage() {
   const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   // A read that did not come back, and the counter that asks for it again.
-  const [failed, setFailed] = useState(false);
+  // The whole refusal rather than a flag: the server says why, and a boolean
+  // left the screen to guess — it always guessed the network.
+  const [failure, setFailure] = useState(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setFailed(false);
+    setFailure(null);
     const assessorId = storedAssessorId();
     if (!assessorId) {
       setIsLoading(false);
@@ -108,10 +56,10 @@ function GeneratePage() {
       .then((rows) => {
         if (active) setClasses(rows);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
         setClasses([]);
-        setFailed(true);
+        setFailure(readError(error, "Your classes could not be loaded."));
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -122,46 +70,149 @@ function GeneratePage() {
     };
   }, [reload]);
 
+  const openCourse = (courseId) => navigate(`/assessor/generate/${courseId}`);
+
   return (
     <>
       <ScreenHeader title="Generate Assessment" />
 
       <div className="assessor-body assessor-stack">
-        <div className="gen-grid">
-          {classes.map((course) => (
-            <ClassCard
-              key={course.id}
-              course={course}
-              onOpen={() => navigate(`/assessor/generate/${course.id}`)}
-            />
-          ))}
+        <div className="assessor-table-wrap">
+          <table className="assessor-table">
+            <caption className="assessor-sr-only">
+              Your classes, with how many of the papers each one is owed have been
+              posted, how many are drafted and waiting to post, and how many have
+              not been written.
+            </caption>
+
+            <thead>
+              <tr>
+                <th scope="col">Course</th>
+                <th scope="col" className="assessor-table__num">Students</th>
+                <th scope="col" className="assessor-table__num">Lessons</th>
+                <th scope="col" className="assessor-table__num">Assessments</th>
+                <th scope="col" className="assessor-table__num">Drafts</th>
+                <th scope="col" className="assessor-table__num">Not written</th>
+                <th scope="col">
+                  <span className="assessor-sr-only">Open class</span>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {classes.map((course) => {
+                const { expected, posted, drafts, missing } = state(course);
+
+                return (
+                  <tr
+                    key={course.id}
+                    className="assessor-table__row"
+                    onClick={() => openCourse(course.id)}
+                  >
+                    <th scope="row" className="assessor-table__course">
+                      <span className="assessor-table__code">
+                        {course.code}
+                        {course.section ? ` · ${course.section}` : ""}
+                      </span>
+                      <span className="assessor-table__name">{course.name}</span>
+                    </th>
+
+                    <td className="assessor-table__num">{course.students ?? 0}</td>
+
+                    <td className="assessor-table__num">
+                      {course.lessons || <span className="assessor-table__dash">—</span>}
+                    </td>
+
+                    {/* Posted out of owed — one paper per lesson plus the
+                        course's final. The same figure the Classes register
+                        carries, so the two screens cannot disagree about how
+                        far along a class is. */}
+                    <td className="assessor-table__num">
+                      {expected ? (
+                        <Chip tone={posted >= expected ? "info" : "brand"}>
+                          {posted}/{expected}
+                        </Chip>
+                      ) : (
+                        <span className="assessor-table__dash">—</span>
+                      )}
+                    </td>
+
+                    {/* What is left, in a column each, because they are
+                        different jobs: a draft is written and needs posting,
+                        a paper that is not written needs writing. They shared
+                        a cell as two chips, which put the two figures on a
+                        line that re-flowed with whatever the class happened to
+                        be carrying — so neither could be read down the
+                        register, which is the one thing this screen is for.
+
+                        A course with no lessons owes no papers, and neither
+                        figure means anything of it: that is the dash. Nought
+                        of a class that does owe papers is a real nought and is
+                        written out, at the weight of an empty cell. */}
+                    <td className="assessor-table__num">
+                      {expected === 0 ? (
+                        <span className="assessor-table__dash">—</span>
+                      ) : (
+                        <span className={drafts === 0 ? "assessor-table__zero" : undefined}>
+                          {drafts}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="assessor-table__num">
+                      {expected === 0 ? (
+                        <span className="assessor-table__dash">—</span>
+                      ) : (
+                        <span className={missing === 0 ? "assessor-table__zero" : undefined}>
+                          {missing}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="assessor-table__open">
+                      <button
+                        type="button"
+                        className="assessor-table__link"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openCourse(course.id);
+                        }}
+                      >
+                        Open
+                        <ChevronRightIcon size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {isLoading ? (
+                <tr>
+                  <td className="assessor-table__empty" colSpan={7}>
+                    Loading your classes…
+                  </td>
+                </tr>
+              ) : null}
+
+              {!isLoading && classes.length === 0 ? (
+                <tr>
+                  <td className="assessor-table__empty" colSpan={7}>
+                    {failure ? (
+                      <LoadFailed
+                        what="Your classes"
+                        reason={failure.message}
+                        status={failure.status}
+                        onRetry={() => setReload((n) => n + 1)}
+                      />
+                    ) : (
+                      "No classes are assigned to you yet."
+                    )}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
-
-        {/* Cards, not a line of text: what is coming is a grid of them, and a
-            sentence in the middle of the page is replaced by something a
-            different size and in a different place. */}
-        {isLoading ? (
-          <div className="gen-grid" role="status" aria-live="polite">
-            <span className="assessor-sr-only">Loading your classes…</span>
-            {Array.from({ length: 3 }, (_, index) => (
-              <span className="gen-card gen-card--loading" key={index} aria-hidden="true">
-                <Skeleton w="35%" h={11} />
-                <Skeleton w="80%" h={18} />
-                <Skeleton w="55%" h={11} />
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {!isLoading && classes.length === 0 ? (
-          <div className="assessor-meta" style={{ padding: "var(--sp-6)", textAlign: "center" }}>
-            {failed ? (
-              <LoadFailed what="Your classes" onRetry={() => setReload((n) => n + 1)} />
-            ) : (
-              "No classes are assigned to you yet."
-            )}
-          </div>
-        ) : null}
       </div>
     </>
   );

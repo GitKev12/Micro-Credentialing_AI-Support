@@ -6,6 +6,7 @@ import {
   issueCredential,
   storedAssessorId
 } from "../../services/assessors";
+import { readError } from "../../services/readError";
 import { useNotice } from "../../lib/useNotice";
 import { CheckIcon } from "./components/icons";
 import {
@@ -58,12 +59,14 @@ function CredentialsPage() {
   const [notice, setNotice] = useNotice();
   const [isLoading, setIsLoading] = useState(true);
   // A read that did not come back, and the counter that asks for it again.
-  const [failed, setFailed] = useState(false);
+  // The whole refusal rather than a flag: the server says why, and a boolean
+  // left the screen to guess — it always guessed the network.
+  const [failure, setFailure] = useState(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setFailed(false);
+    setFailure(null);
     const assessorId = storedAssessorId();
     if (!assessorId) {
       setIsLoading(false);
@@ -74,10 +77,10 @@ function CredentialsPage() {
       .then((list) => {
         if (active) setRows(list);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
         setRows([]);
-        setFailed(true);
+        setFailure(readError(error, "The credentials queue could not be loaded."));
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -277,9 +280,11 @@ function CredentialsPage() {
               {!isLoading && shown.length === 0 ? (
                 <tr>
                   <td className="assessor-table__empty" colSpan={6}>
-                    {failed ? (
+                    {failure ? (
                       <LoadFailed
                         what="The credentials queue"
+                        reason={failure.message}
+                        status={failure.status}
                         onRetry={() => setReload((n) => n + 1)}
                       />
                     ) : (

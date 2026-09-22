@@ -7,6 +7,7 @@ import {
   storedAssessorId,
   streamAssessmentResultsUrl
 } from "../../services/assessors";
+import { readError } from "../../services/readError";
 import {
   AssessorSelect,
   Chip,
@@ -175,7 +176,20 @@ function ResultsPage() {
   const [isLoading, setIsLoading] = useState(false);
   // A register that did not come back. Emptying the table instead would say
   // this paper had no takers, which is a different and false answer.
-  const [failed, setFailed] = useState(false);
+  //
+  // The whole refusal rather than a flag. The server says why — the paper is
+  // not in this course, the class is not this assessor's, the database is not
+  // connected — and a boolean could only be answered with a guess. The guess
+  // was always "check your connection", which is right for one cause out of
+  // eight and is the only one that never reaches the server at all.
+  const [failure, setFailure] = useState(null);
+
+  // The two reads behind the pickers. A dropped one used to empty them, so the
+  // screen told the assessor they are assigned no courses and that nothing has
+  // been written for this one — both false, and neither distinguishable from
+  // the truth it was standing in for.
+  const [coursesError, setCoursesError] = useState("");
+  const [papersError, setPapersError] = useState("");
 
   // The student whose paper is open, and what came back for them.
   const [openStudentId, setOpenStudentId] = useState(null);
@@ -187,6 +201,7 @@ function ResultsPage() {
     if (!assessorId) return undefined;
 
     let active = true;
+    setCoursesError("");
     fetchAssessorClasses(assessorId)
       .then((list) => {
         if (!active) return;
@@ -195,8 +210,10 @@ function ResultsPage() {
         // one possible answer.
         if (list.length > 0) setCourseId((current) => current || list[0].id);
       })
-      .catch(() => {
-        if (active) setCourses([]);
+      .catch((error) => {
+        if (!active) return;
+        setCourses([]);
+        setCoursesError(readError(error, "Your classes could not be loaded.").message);
       });
 
     return () => {
@@ -216,6 +233,7 @@ function ResultsPage() {
     setPapers([]);
     setAssessmentId("");
     setBoard(null);
+    setPapersError("");
 
     fetchCourseAssessments(assessorId, courseId, classId || null)
       .then((data) => {
@@ -228,8 +246,12 @@ function ResultsPage() {
         setPapers(options);
         setAssessmentId(options.find((option) => option.posted)?.value ?? "");
       })
-      .catch(() => {
-        if (active) setPapers([]);
+      .catch((error) => {
+        if (!active) return;
+        setPapers([]);
+        setPapersError(
+          readError(error, "This course's assessments could not be loaded.").message
+        );
       });
 
     return () => {
@@ -252,12 +274,14 @@ function ResultsPage() {
       }
 
       setIsLoading(true);
-      setFailed(false);
+      setFailure(null);
       try {
         setBoard(await fetchAssessmentResults(assessorId, courseId, assessmentId, classId || null));
-      } catch {
+      } catch (error) {
         setBoard(null);
-        setFailed(true);
+        // Bound, which it was not: the catch took no argument at all, so the
+        // one place the server's reason was still in scope threw it away.
+        setFailure(readError(error, "The server did not say why."));
       } finally {
         setIsLoading(false);
       }
@@ -292,6 +316,12 @@ function ResultsPage() {
         return;
       }
 
+      // A push means the read is live again, so an earlier failure stops being
+      // the state of the screen. It used to stay set: the register recovered,
+      // the rows came back, and the flag sat behind them contradicting what
+      // was on screen until the paper was changed.
+      setFailure(null);
+
       setBoard({
         course: data?.course ?? null,
         assessment: data?.assessment ?? null,
@@ -299,11 +329,30 @@ function ResultsPage() {
       });
     };
 
+    /*
+     * The stream had no error handler at all, so a refused one was silent: the
+     * browser closed it, the board stopped being live, and the assessor went
+     * on reading a register they believed was updating itself.
+     *
+     * EventSource is told almost nothing — a 404, a 401 and an unplugged cable
+     * all arrive here as one bare event with no status and no body. What it
+     * does know is whether the browser has given up. CLOSED means the server
+     * refused with a status it will not show us; CONNECTING means it dropped
+     * and is coming back by itself, which is not worth a word on screen.
+     *
+     * So the stream asks the fetch. `load` makes the same request over plain
+     * HTTP, where the status and the sentence both survive — the refusal gets
+     * read properly by the one path that can read it.
+     */
+    source.onerror = () => {
+      if (active && source.readyState === EventSource.CLOSED) load();
+    };
+
     return () => {
       active = false;
       source.close();
     };
-  }, [assessorId, courseId, assessmentId, classId]);
+  }, [assessorId, courseId, assessmentId, classId, load]);
 
   // The open student's paper. Fetched rather than held back from the register,
   // which carries a row's score but never its questions.
@@ -435,8 +484,12 @@ function ResultsPage() {
                 label: course.name,
                 meta: course.code
               }))}
-              placeholder="No courses assigned"
+              placeholder={coursesError ? "Couldn't load" : "No courses assigned"}
             />
+            {/* "No courses assigned" is a statement about this assessor's
+                record. A read that never came back is not entitled to make
+                it. */}
+            {coursesError ? <span className="gen-hint is-warn">{coursesError}</span> : null}
           </div>
 
           {/* Only where there is a choice to make: on a course taught through
@@ -465,8 +518,17 @@ function ResultsPage() {
               value={assessmentId}
               onChange={setAssessmentId}
               options={papers}
-              placeholder={papers.length === 0 ? "Nothing written yet" : "Choose an assessment"}
+              placeholder={
+                papersError
+                  ? "Couldn't load"
+                  : papers.length === 0
+                    ? "Nothing written yet"
+                    : "Choose an assessment"
+              }
             />
+            {/* Same again: "Nothing written yet" is a fact about the course,
+                and a dropped request does not know it. */}
+            {papersError ? <span className="gen-hint is-warn">{papersError}</span> : null}
           </div>
 
           {/* Beside the search rather than out with the course and the paper:
@@ -617,8 +679,13 @@ function ResultsPage() {
               {!isLoading && shown.length === 0 ? (
                 <tr>
                   <td className="assessor-table__empty" colSpan={8}>
-                    {failed ? (
-                      <LoadFailed what="These results" onRetry={load} />
+                    {failure ? (
+                      <LoadFailed
+                        what="These results"
+                        reason={failure.message}
+                        status={failure.status}
+                        onRetry={load}
+                      />
                     ) : (
                       emptyLine({
                         assessment: Boolean(assessmentId),

@@ -32,10 +32,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   // A row standing in for a paper that was never written, or written and not
   // yet posted. There is no document behind its id.
   const placeholder = Boolean(assessment?.placeholder);
+  /* What the student has actually opened. Every line on this screen said
+     "quiz" whatever it was, so a final exam was handed in under a button
+     marked Submit quiz — and told the student a badge had been earned, which a
+     final does not earn.
+
+     Read off the rail's summary rather than the loaded paper, because the
+     loading and locked states are on screen before the paper arrives and they
+     have to name it too. The two agree: both carry the same scope. */
+  const isFinal = assessment?.scope === "final";
+  const paper = isFinal ? "final exam" : "quiz";
   // Why it is shut, as the rail was told. Only read for a placeholder — a real
   // paper is refused by the server, which sends its own reason with the 423,
   // and that one is authoritative where the rail may be a moment out of date.
-  const lockedReason = assessment?.reason ?? "Your assessor will unlock this quiz.";
+  const lockedReason = assessment?.reason ?? `Your assessor will unlock this ${paper}.`;
   const [state, setState] = useState({ status: "loading" });
   const [answers, setAnswers] = useState({});
   // Which question is on screen. The paper is answered one question at a time,
@@ -272,7 +282,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   };
 
   if (state.status === "loading") {
-    return <SkeletonText lines={4} label="Loading quiz…" />;
+    return <SkeletonText lines={4} label={`Loading ${paper}…`} />;
   }
 
   if (state.status === "locked") {
@@ -297,7 +307,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   }
 
   if (state.status === "error") {
-    return <p className="student-courses__status">This quiz could not be loaded.</p>;
+    return <p className="student-courses__status">This {paper} could not be loaded.</p>;
   }
 
   const quiz = state.assessment;
@@ -322,11 +332,20 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
           <p className="sd-quiz__score">
             {result.score} <span>/ {result.total}</span>
           </p>
+          {/* A passed lesson quiz earns a badge, which is the student's the
+              moment they pass. A passed final earns the course credential,
+              which is the assessor's to release — so it is not earned yet, and
+              saying "badge earned" was wrong twice over: wrong award, and
+              wrong about who has it. "Awaiting release" is the words the
+              Certifications card already uses for the same state. */}
           <p className="sd-quiz__verdict">
             {result.passed ? (
               <>
-                <CheckIcon size={15} /> Passed — badge earned
+                <CheckIcon size={15} />{" "}
+                {isFinal ? "Passed — credential awaiting release" : "Passed — badge earned"}
               </>
+            ) : isFinal ? (
+              `Not passed. ${result.passMark} needed to earn the credential.`
             ) : (
               `Not passed. ${result.passMark} needed to earn the badge.`
             )}
@@ -360,7 +379,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
       {/* The number strip: which question you are on, which are answered, and
           the way to any of them. A quiz is answered in whatever order the
           student likes, so this is navigation rather than a progress read-out. */}
-      <nav className="sd-quiz__pager" aria-label="Questions in this quiz">
+      <nav className="sd-quiz__pager" aria-label={`Questions in this ${paper}`}>
         {items.map((item, index) => {
           const answered = Boolean(answers[item.id]);
           const verdict = verdicts.get(String(item.id)) ?? null;
@@ -489,7 +508,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
               disabled={!allAnswered || submitting}
               onClick={handleSubmit}
             >
-              {submitting ? "Submitting…" : "Submit quiz"}
+              {submitting ? "Submitting…" : `Submit ${paper}`}
             </button>
           ) : (
             <button

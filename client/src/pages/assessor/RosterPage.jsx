@@ -5,6 +5,7 @@ import {
   setRosterStudentSuspended,
   storedAssessorId
 } from "../../services/assessors";
+import { readError } from "../../services/readError";
 import { useNotice } from "../../lib/useNotice";
 import { ChevronRightIcon } from "./components/icons";
 import {
@@ -69,7 +70,9 @@ function RosterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   // A read that did not come back, and the counter that asks for it again.
-  const [failed, setFailed] = useState(false);
+  // The whole refusal rather than a flag: the server says why, and a boolean
+  // left the screen to guess — it always guessed the network.
+  const [failure, setFailure] = useState(null);
   const [reload, setReload] = useState(0);
   // What the last switch did, or why it did nothing. Closing a course on
   // somebody is not a change you should have to go and verify somewhere else
@@ -78,7 +81,7 @@ function RosterPage() {
 
   useEffect(() => {
     let active = true;
-    setFailed(false);
+    setFailure(null);
     const assessorId = storedAssessorId();
     if (!assessorId || !courseId) {
       setIsLoading(false);
@@ -93,10 +96,10 @@ function RosterPage() {
         setTotal(data?.totalModules ?? 0);
         setClasses(data?.classes ?? []);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
         setStudents([]);
-        setFailed(true);
+        setFailure(readError(error, "This class register could not be loaded."));
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -313,9 +316,11 @@ function RosterPage() {
               {!isLoading && roster.length === 0 ? (
                 <tr>
                   <td className="assessor-table__empty" colSpan={6}>
-                    {failed ? (
+                    {failure ? (
                       <LoadFailed
                         what="This class register"
+                        reason={failure.message}
+                        status={failure.status}
                         onRetry={() => setReload((n) => n + 1)}
                       />
                     ) : students.length === 0 ? (

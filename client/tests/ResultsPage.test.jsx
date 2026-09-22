@@ -143,26 +143,50 @@ const PAPER = {
 /** The register the read comes back with. A test may shorten it. */
 let register = ROWS;
 
+/* What each read does. Held in variables rather than written straight into
+   the mock so a test can swap one for a refusal, which is the only way to
+   reach the screen's failure states from out here. */
+const readsCourses = async () => COURSES;
+const readsPapers = async () => PAPERS;
+const readsResults = async () => ({
+  course: { id: "c1", code: "CC2", name: "Computer Programming 2" },
+  assessment: {
+    id: "a1",
+    status: "posted",
+    takers: { all: 3, notStarted: 1, inProgress: 1, submitted: 1 }
+  },
+  rows: register
+});
+
+let courses = readsCourses;
+let papers = readsPapers;
+let results = readsResults;
+
 jest.unstable_mockModule("../src/services/assessors.js", () => ({
   storedAssessorId: () => "ASS001",
-  fetchAssessorClasses: async () => COURSES,
-  fetchCourseAssessments: async () => PAPERS,
+  fetchAssessorClasses: (...args) => courses(...args),
+  fetchCourseAssessments: (...args) => papers(...args),
   fetchStudentPaper: async () => PAPER,
-  fetchAssessmentResults: async () => ({
-    course: { id: "c1", code: "CC2", name: "Computer Programming 2" },
-    assessment: {
-      id: "a1",
-      status: "posted",
-      takers: { all: 3, notStarted: 1, inProgress: 1, submitted: 1 }
-    },
-    rows: register
-  }),
+  fetchAssessmentResults: (...args) => results(...args),
   streamAssessmentResultsUrl: (assessorId, courseId, assessmentId) =>
     `/stream/${assessorId}/${courseId}/${assessmentId}`
 }));
 
+/**
+ * A refusal shaped the way axios hands one over: the status and the server's
+ * own sentence, both hanging off `response`.
+ */
+const refusal = (status, message) =>
+  Object.assign(new Error(message), { response: { status, data: { message } } });
+
+/** A request that never arrived. Axios leaves `response` undefined. */
+const unreachable = () => Object.assign(new Error("Network Error"), { code: "ERR_NETWORK" });
+
 beforeEach(() => {
   register = ROWS;
+  courses = readsCourses;
+  papers = readsPapers;
+  results = readsResults;
   globalThis.EventSource.reset();
 });
 
@@ -474,6 +498,89 @@ describe("narrowing by state", () => {
   });
 });
 
+/**
+ * What the screen says when a read is refused.
+ *
+ * All of these used to read "These results could not be loaded. Check your
+ * connection and try again." The board was caught with a bare `catch {`, so
+ * the server's sentence went out of scope at the one moment it was in hand,
+ * and an assessor was told to check a connection that was fine and to retry a
+ * request that could never succeed.
+ */
+describe("a read that was refused", () => {
+  const draw = () =>
+    render(
+      <MemoryRouter>
+        <ResultsPage />
+      </MemoryRouter>
+    );
+
+  it("says what the server said, not what it guessed about the network", async () => {
+    results = async () => {
+      throw refusal(404, "Assessment not found in this course.");
+    };
+    draw();
+
+    expect(await screen.findByText(/Assessment not found in this course/)).toBeInTheDocument();
+    expect(screen.queryByText(/Check your connection/)).toBeNull();
+  });
+
+  /** The one case where blaming the connection is the truth. */
+  it("blames the connection only when nothing came back at all", async () => {
+    results = async () => {
+      throw unreachable();
+    };
+    draw();
+
+    expect(await screen.findByText(/Couldn't reach the server/)).toBeInTheDocument();
+  });
+
+  it("offers no Try again for a refusal that retrying cannot change", async () => {
+    results = async () => {
+      throw refusal(404, "Assessment not found in this course.");
+    };
+    draw();
+
+    await screen.findByText(/Assessment not found in this course/);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("offers Try again when the server is merely down", async () => {
+    results = async () => {
+      throw refusal(503, "The database is not connected.");
+    };
+    draw();
+
+    await screen.findByText(/The database is not connected/);
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  /**
+   * The two reads behind the pickers fell back to empty lists, so a dropped
+   * request was put to the assessor as a fact about their own record: that
+   * they are assigned no courses, and that nothing has been written for one.
+   */
+  it("does not tell an assessor they have no courses when the read failed", async () => {
+    courses = async () => {
+      throw refusal(503, "The database is not connected.");
+    };
+    draw();
+
+    expect(await screen.findByText(/The database is not connected/)).toBeInTheDocument();
+    expect(screen.queryByText("No courses assigned")).toBeNull();
+  });
+
+  it("does not call a course empty when its papers could not be read", async () => {
+    papers = async () => {
+      throw refusal(503, "The database is not connected.");
+    };
+    draw();
+
+    expect(await screen.findByText(/The database is not connected/)).toBeInTheDocument();
+    expect(screen.queryByText("Nothing written yet")).toBeNull();
+  });
+});
+
 describe("opening one student's paper", () => {
   const openPaper = async (name) => {
     await act(async () => {
@@ -482,11 +589,11 @@ describe("opening one student's paper", () => {
   };
 
   it("opens off the row of a student who has handed the paper in", async () => {
-    await open();
+    const { container } = await open();
     await openPaper("Dayan, Chris Jerome");
 
     expect(screen.getByText("Which keyword declares a class?")).toBeInTheDocument();
-    expect(screen.getByText("2/5")).toBeInTheDocument();
+    expect(container.querySelector(".paper__mark")).toHaveTextContent("2/5");
   });
 
   /**
@@ -544,45 +651,58 @@ describe("opening one student's paper", () => {
     // On the question itself, in place of the answer that is not there.
     expect(container.querySelector(".choice--blank")).toHaveTextContent("Left blank");
 
-    // And counted in the head, under the word for what it is.
-    const facts = within(container.querySelector(".paper__facts"));
-    expect(facts.getByText("Left blank")).toBeInTheDocument();
-    expect(facts.getByText("1")).toBeInTheDocument();
+    // And counted in the head, in the run of the bar that stands for it —
+    // drawn as a hatch rather than a fill, so a paper the student ran out of
+    // time on and a paper they got wrong are different pictures.
+    const runs = [...container.querySelectorAll(".paper__tally li")].map((run) =>
+      run.textContent.replace(/\s+/g, " ").trim()
+    );
+    expect(runs).toContain("1 left blank");
+    expect(container.querySelector(".paper__seg--blank")).toBeInTheDocument();
   });
 
   /**
-   * The mark leads, and the rest is a list. One figure at the size the console
-   * gives figures, measured against the pass mark on the meter under it, then
-   * four facts of four kinds reading down a straight edge — rather than five
-   * columns of equal width where a timestamp stands as tall as the mark.
+   * The mark leads from the top corner, where a mark is written on a paper
+   * that is handed back, and what it is made of is drawn underneath: every
+   * question on this paper in one length — earned, missed, or never reached —
+   * with the pass mark standing across it.
+   *
+   * It used to be five figures of equal weight in a tinted panel as wide as
+   * whatever it held, so a timestamp stood as tall as the mark and a paper
+   * with nothing left blank drew a narrower box than the one before it.
    */
-  it("leads on the mark, and lists the rest under it", async () => {
+  it("leads on the mark, and draws what it is made of", async () => {
     const { container } = await open();
     await openPaper("Dayan, Chris Jerome");
 
-    const facts = within(container.querySelector(".paper__facts"));
+    const head = within(container.querySelector(".paper__head"));
 
     // The mark, what it did, and the line it was measured against — 2/5 means
     // nothing without the 3.
-    expect(facts.getByText("2/5")).toBeInTheDocument();
-    expect(facts.getByText("Not passed")).toBeInTheDocument();
-    expect(facts.getByText("3 to pass")).toBeInTheDocument();
+    expect(container.querySelector(".paper__mark")).toHaveTextContent("2/5");
+    expect(head.getByText("Not passed")).toBeInTheDocument();
+    expect(container.querySelector(".paper__pass-name")).toHaveTextContent("3 to pass");
 
-    // The tone is the block's, so the numeral and the fill under it can never
-    // disagree about whether the paper cleared.
-    expect(container.querySelector(".paper__score")).toHaveClass("is-under");
+    // The tone is the head's, so the numeral and the run of the bar that
+    // earned it can never disagree about whether the paper cleared.
+    expect(container.querySelector(".paper__head")).toHaveClass("is-under");
 
-    // Where the two stand on the paper: 2 of 5 earned, the pass mark at 3 of 5.
-    expect(container.querySelector(".paper__meter-fill").style.width).toBe("40%");
-    expect(container.querySelector(".paper__meter-tick").style.left).toBe("60%");
+    // Where the pass mark falls along the paper: 3 of 5.
+    expect(container.querySelector(".paper__pass").style.left).toBe("60%");
 
-    const names = [...container.querySelectorAll(".paper__rows dt")].map((el) => el.textContent);
-    expect(names).toEqual(["Correct", "Left blank", "Time taken", "Submitted"]);
+    // Every question accounted for. One was earned and one was never reached,
+    // and nothing was answered and missed — so there is no run for wrong on
+    // the bar and no line for it underneath.
+    const runs = [...container.querySelectorAll(".paper__tally li")].map((run) =>
+      run.textContent.replace(/\s+/g, " ").trim()
+    );
+    expect(runs).toEqual(["1 of 2 correct", "1 left blank"]);
+    expect(container.querySelector(".paper__seg--wrong")).toBeNull();
 
     // On the clock, not rounded to the minute: time taken is read against time
     // allowed, and 1m throws away the half of the figure that says how close
     // to the buzzer the paper ran.
-    expect(facts.getByText("1:00")).toBeInTheDocument();
+    expect(within(container.querySelector(".paper__when")).getByText("1:00")).toBeInTheDocument();
   });
 
   /**
@@ -680,6 +800,40 @@ describe("the register, live", () => {
     });
 
     expect(screen.getByText("Cruz, Ana")).toBeInTheDocument();
+  });
+
+  /*
+   * EventSource is handed no status and no body, so a refused stream used to
+   * be silent: the browser gave up, the board stopped being live, and the
+   * assessor read on believing it was updating itself. It now asks the fetch,
+   * which can read both.
+   */
+  it("says so when the browser gives up on the stream", async () => {
+    await open();
+
+    results = async () => {
+      throw refusal(403, "You do not have access to this resource.");
+    };
+
+    await act(async () => {
+      stream().fail({ gaveUp: true });
+    });
+
+    expect(
+      await screen.findByText(/You do not have access to this resource/)
+    ).toBeInTheDocument();
+  });
+
+  // A stream the browser is bringing back by itself is not worth a word.
+  it("stays quiet while a dropped stream reconnects", async () => {
+    await open();
+
+    await act(async () => {
+      stream().fail();
+    });
+
+    expect(screen.getByText("Cruz, Ana")).toBeInTheDocument();
+    expect(screen.queryByText(/could not be loaded/)).toBeNull();
   });
 
   it("stops listening when the screen is left", async () => {

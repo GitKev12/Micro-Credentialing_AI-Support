@@ -502,6 +502,11 @@ export async function generateCourseAssessment(request, response) {
   const moduleId = body.moduleId ?? null;
   const itemCount = body.itemCount ?? null;
   const timeLimitMinutes = normalizeMinutes(body.timeLimitMinutes);
+  // Said and not said are different answers now that the screen offers "No
+  // time limit" as a choice of its own. An absent field still falls back to
+  // the standing length of a final; a field that arrived saying null means the
+  // assessor picked no clock, and used to be overruled by that fallback.
+  const lengthGiven = "timeLimitMinutes" in body;
 
   if (!isFinal && !moduleId) {
     return response.status(400).json({ message: "moduleId is required for a lesson quiz." });
@@ -538,7 +543,7 @@ export async function generateCourseAssessment(request, response) {
         courseId: course._id,
         classId,
         itemCount,
-        timeLimitMinutes: timeLimitMinutes ?? DEFAULT_FINAL_MINUTES,
+        timeLimitMinutes: lengthGiven ? timeLimitMinutes : DEFAULT_FINAL_MINUTES,
         status: "draft",
         replaceExisting: true
       })

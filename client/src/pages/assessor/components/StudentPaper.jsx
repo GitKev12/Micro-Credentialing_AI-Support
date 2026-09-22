@@ -69,113 +69,167 @@ const formatLimit = (minutes) =>
   Number.isFinite(minutes) && minutes > 0 ? formatClock(minutes * 60) : null;
 
 /**
- * Where the mark stands, as a fraction of the paper and of the pass mark.
+ * Every question on the paper, sorted into what became of it.
  *
- * The pass mark used to be a footnote under the score — "Pass mark 6" — which
- * left the reader to work out that 3 was under 6 out of 10. It is a threshold,
- * and this console already draws thresholds as lines: the skill-gap chart puts
- * a column against a pass line, and a column standing under it is the thing an
- * assessor is looking for. Same idea at the size of one paper.
+ * The three add up to the paper, always: a question was earned, missed, or
+ * never reached. That is what lets the head draw the attempt as one length
+ * instead of listing three figures that the reader has to add up themselves.
+ *
+ * Counted over the questions still on the paper, which is what `correct` and
+ * `answered` are counted over too — a regenerated paper says so underneath
+ * rather than quietly drawing a length it cannot account for.
  */
-function meterFor(result) {
-  const total = Number(result?.totalPoints);
-  if (!Number.isFinite(total) || total <= 0) return null;
+function tallyFor(assessment, result) {
+  const itemCount = Number(assessment?.itemCount);
+  if (!Number.isFinite(itemCount) || itemCount <= 0) return null;
 
-  const within = (value) => Math.max(0, Math.min(100, (value / total) * 100));
-  const passMark = Number(result?.passMark);
+  const answered = Math.max(0, Math.min(itemCount, Number(result?.answered) || 0));
+  const correct = Math.max(0, Math.min(answered, Number(result?.correct) || 0));
 
-  return {
-    fill: within(Number(result?.score) || 0),
-    // No pass mark on record, no tick: a line drawn at nought would say the
-    // paper could not be failed.
-    tick: Number.isFinite(passMark) && passMark > 0 ? within(passMark) : null
-  };
+  return { itemCount, correct, wrong: answered - correct, blank: itemCount - answered };
 }
+
+/**
+ * Where the pass mark falls along the paper, as a percentage of its length.
+ *
+ * A paper's points are its questions times a per-item figure that does not
+ * vary (assessments.controller sets totalPoints from items × pointsPerItem),
+ * so a fraction of the points is the same length as a fraction of the
+ * questions and the line can be drawn across the run of questions beneath it.
+ *
+ * No pass mark on record, no line: one drawn at nought would say the paper
+ * could not be failed.
+ */
+function passAt(result) {
+  const total = Number(result?.totalPoints);
+  const passMark = Number(result?.passMark);
+  if (!Number.isFinite(total) || total <= 0) return null;
+  if (!Number.isFinite(passMark) || passMark <= 0) return null;
+
+  return Math.max(0, Math.min(100, (passMark / total) * 100));
+}
+
+/** Which way the pass mark's name hangs off its line, so a mark set near
+ *  either end of the paper stays clear of the sheet's edge. */
+const anchorFor = (at) => (at > 80 ? "end" : at < 20 ? "start" : "mid");
 
 function StudentPaper({ student, assessment, result, items }) {
   const verdict = (item) => VERDICT[item.verdict] ?? VERDICT.incorrect;
   const took = formatDuration(Number(result?.durationMs));
   const limit = formatLimit(Number(result?.timeLimitMinutes));
   const handedIn = formatWhen(result?.submittedAt);
-  const meter = meterFor(result);
-  const blank = Math.max(0, (assessment?.itemCount ?? 0) - (result?.answered ?? 0));
+  const tally = tallyFor(assessment, result);
+  const pass = passAt(result);
 
   return (
     <div className="paper">
-      <div className="paper__head">
+      <div className={`paper__head${result?.passed ? "" : " is-under"}`}>
         <div className="paper__who">
           <span className="paper__name">{student?.name}</span>
           {student?.sid ? <span className="paper__id">{student.sid}</span> : null}
         </div>
 
-        {/* The mark, and then everything else.
+        {/* The mark, where a mark goes: the top corner, across from the name.
+            The figure needs no label above it — the word underneath says what
+            it did, and the bar says what it is made of. */}
+        <div className="paper__score">
+          <span className="assessor-sr-only">Score</span>
+          <p className="paper__mark">
+            {result?.score}
+            <span className="paper__mark-total">/{result?.totalPoints}</span>
+          </p>
+          <p className="paper__verdict">{result?.passed ? "Passed" : "Not passed"}</p>
+        </div>
 
-            Five equal columns gave a timestamp the same voice as the mark, and
-            each carried its own footnote, so the block was five columns of
-            three lines with a ragged bottom — and it re-spaced itself whenever
-            a paper had nothing left blank. The mark leads now, measured
-            against the pass mark on the meter under it; the rest is a list,
-            where a fact that is missing takes a line out rather than moving
-            the ones that are left. */}
         <div className="paper__facts">
-          <div className={`paper__score${result?.passed ? "" : " is-under"}`}>
-            <span className="paper__score-name">Score</span>
-            <span className="paper__mark">
-              {result?.score}/{result?.totalPoints}
-            </span>
+          {/* Drawn, not described: the runs are named and counted underneath,
+              so to a screen reader this is the same facts a second time. */}
+          {tally ? (
+            <div className="paper__bar">
+              <div className="paper__bar-track" aria-hidden="true">
+                {tally.correct > 0 ? (
+                  <div
+                    className="paper__seg paper__seg--right"
+                    style={{ flexGrow: tally.correct }}
+                  />
+                ) : null}
+                {tally.wrong > 0 ? (
+                  <div
+                    className="paper__seg paper__seg--wrong"
+                    style={{ flexGrow: tally.wrong }}
+                  />
+                ) : null}
+                {tally.blank > 0 ? (
+                  <div
+                    className="paper__seg paper__seg--blank"
+                    style={{ flexGrow: tally.blank }}
+                  />
+                ) : null}
+              </div>
 
-            {/* Drawn, not described: the words underneath carry the same two
-                facts, so this is decoration to a screen reader. */}
-            {meter ? (
-              <div className="paper__meter" aria-hidden="true">
-                <div className="paper__meter-fill" style={{ width: `${meter.fill}%` }} />
-                {meter.tick === null ? null : (
-                  <div className="paper__meter-tick" style={{ left: `${meter.tick}%` }} />
-                )}
+              {pass === null ? null : (
+                <div className="paper__pass" data-anchor={anchorFor(pass)} style={{ left: `${pass}%` }}>
+                  <span className="paper__pass-line" aria-hidden="true" />
+                  <span className="paper__pass-name">{result.passMark} to pass</span>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {tally ? (
+            <ul className="paper__tally">
+              <li>
+                <span className="paper__swatch paper__swatch--right" aria-hidden="true" />
+                <span>
+                  <span className="paper__count">{tally.correct}</span> of {tally.itemCount} correct
+                </span>
+              </li>
+
+              {/* A run that is not on this paper is not in the list either.
+                  Blank is not wrong: both score nothing, but one says the
+                  student did not know and the other that they ran out of
+                  time. */}
+              {tally.wrong > 0 ? (
+                <li>
+                  <span className="paper__swatch paper__swatch--wrong" aria-hidden="true" />
+                  <span>
+                    <span className="paper__count">{tally.wrong}</span> wrong
+                  </span>
+                </li>
+              ) : null}
+
+              {tally.blank > 0 ? (
+                <li>
+                  <span className="paper__swatch paper__swatch--blank" aria-hidden="true" />
+                  <span>
+                    <span className="paper__count">{tally.blank}</span> left blank
+                  </span>
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+
+          <dl className="paper__when">
+            {/* The limit rides with the figure it is read against rather than
+                sitting under it as a footnote: a paper that ran to the buzzer
+                and one that was handed in early are the same number
+                otherwise. */}
+            {took ? (
+              <div>
+                <dt>Time taken</dt>
+                <dd>{limit ? `${took} of ${limit}` : took}</dd>
               </div>
             ) : null}
 
-            <div className="paper__verdict">
-              <span>{result?.passed ? "Passed" : "Not passed"}</span>
-              {meter?.tick === null ? null : <span>{result.passMark} to pass</span>}
-            </div>
-          </div>
-
-          <dl className="paper__rows">
-            <dt>Correct</dt>
-            <dd>
-              {result?.correct} of {assessment?.itemCount}
-            </dd>
-
-            {/* Blank is not wrong. Both score nothing, but one says the student
-                did not know and the other that they ran out of time — and a
-                paper with none of them should not carry the row at all. */}
-            {blank > 0 ? (
-              <>
-                <dt>Left blank</dt>
-                <dd>{blank}</dd>
-              </>
-            ) : null}
-
-            {/* The limit rides with the figure it is read against rather than
-                sitting under it as a footnote: a paper that ran to the buzzer
-                and one that was handed in early are the same number otherwise. */}
-            {took ? (
-              <>
-                <dt>Time taken</dt>
-                <dd>{limit ? `${took} of ${limit}` : took}</dd>
-              </>
-            ) : null}
-
-            {/* "Submitted", the word the register uses for the same event — the
-                column it is read from on the way in here says Submitted, and a
-                paper that renamed it on arrival made the reader check they were
-                looking at the same thing. */}
+            {/* "Submitted", the word the register uses for the same event —
+                the column it is read from on the way in here says Submitted,
+                and a paper that renamed it on arrival made the reader check
+                they were looking at the same thing. */}
             {handedIn ? (
-              <>
+              <div>
                 <dt>Submitted</dt>
                 <dd>{`${handedIn.day} at ${handedIn.time}`}</dd>
-              </>
+              </div>
             ) : null}
           </dl>
         </div>

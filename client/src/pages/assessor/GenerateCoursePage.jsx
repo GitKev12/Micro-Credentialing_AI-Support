@@ -16,7 +16,7 @@ import { useGlidingPill } from "../../hooks/useGlidingPill";
 import { Skeleton, SkeletonText } from "../../components/Skeleton";
 import CodeBlock from "../../components/CodeBlock";
 import { noticeClass, useNotice } from "../../lib/useNotice";
-import { DEFAULT_MINUTES, timeLimitFor } from "./timeLimit";
+import { DEFAULT_MINUTES, TIMED, UNTIMED, limitModeFor, limitReady, timeLimitFor } from "./timeLimit";
 import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
 import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
@@ -59,15 +59,21 @@ const EVERY_LESSON = "all";
  */
 function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnly }) {
   const [text, setText] = useState(item.q);
+  const [code, setCode] = useState(item.code ?? "");
   const [choices, setChoices] = useState(item.choices);
   const [key, setKey] = useState(item.key);
+  // A question written without a snippet is most of them, so the box is not
+  // stood in every form waiting to be ignored — it is offered.
+  const [codeOpen, setCodeOpen] = useState(Boolean(item.code));
 
   // Reopening a question, or a fresh generation landing under it, starts the
   // form from what is actually stored rather than from the last edit.
   useEffect(() => {
     setText(item.q);
+    setCode(item.code ?? "");
     setChoices(item.choices);
     setKey(item.key);
+    setCodeOpen(Boolean(item.code));
   }, [item, editing]);
 
   const setChoiceText = (id, value) =>
@@ -125,6 +131,35 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
         <LevelChip level={item.level} />
       </div>
 
+      {/* The snippet, editable — and, more to the point, on screen at all. The
+          form used to leave it out altogether, so a question reading "what
+          does line 4 print?" was corrected with line 4 nowhere in front of the
+          assessor, and a snippet with the bug in it could only be fixed by
+          regenerating the whole paper.
+
+          Clearing the box removes the snippet. That is what the server reads a
+          present-but-empty code as, and it is the only way a question that no
+          longer needs one gets rid of it. */}
+      {codeOpen ? (
+        <textarea
+          className="gen-input gen-input--code"
+          value={code}
+          rows={Math.min(20, Math.max(4, code.split("\n").length))}
+          wrap="off"
+          spellCheck={false}
+          aria-label={`Code for question ${item.n}`}
+          onChange={(event) => setCode(event.target.value)}
+        />
+      ) : (
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm gen-q__add-code"
+          onClick={() => setCodeOpen(true)}
+        >
+          Add code
+        </button>
+      )}
+
       {/* The radio is the answer key. Marking the right option is the whole
           reason this form exists — a generated question whose stated answer is
           wrong would otherwise mark a whole class wrong. */}
@@ -161,7 +196,7 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
           type="button"
           className="btn btn--primary"
           disabled={saving || !text.trim()}
-          onClick={() => onSave({ id: item.id, q: text.trim(), choices, key })}
+          onClick={() => onSave({ id: item.id, q: text.trim(), code, choices, key })}
         >
           {saving ? "Saving…" : "Save question"}
         </button>
@@ -184,7 +219,7 @@ function GenerateCoursePage() {
   const [scope, setScope] = useState("lesson");
   const { pillRef: typePillRef, pillStyle: typePillStyle } = useGlidingPill(".gen-toggle__btn.is-active", [scope]);
   const [moduleId, setModuleId] = useState("");
-  const [timed, setTimed] = useState(false);
+  const [limit, setLimit] = useState(UNTIMED);
   const [minutes, setMinutes] = useState(DEFAULT_MINUTES);
 
   const [paper, setPaper] = useState(null);
@@ -293,7 +328,7 @@ function GenerateCoursePage() {
         if (!active) return;
         setPaper(loaded);
         setEditingId(null);
-        setTimed(Boolean(loaded?.timeLimitMinutes));
+        setLimit(limitModeFor(loaded?.timeLimitMinutes));
         setMinutes(loaded?.timeLimitMinutes ?? DEFAULT_MINUTES);
       })
       .catch(() => {
@@ -310,7 +345,7 @@ function GenerateCoursePage() {
   useEffect(() => {
     if (target?.id) return;
     setPaper(null);
-    setTimed(scope === "final");
+    setLimit(scope === "final" ? TIMED : UNTIMED);
     setMinutes(DEFAULT_MINUTES);
   }, [scope, moduleId, target?.id]);
 
@@ -375,7 +410,9 @@ function GenerateCoursePage() {
   // here can override it: no plan means there is no paper to write.
   const length = brief.items;
 
-  const requestedMinutes = timeLimitFor({ timed, minutes });
+  const requestedMinutes = timeLimitFor({ mode: limit, minutes });
+  // Timed with an empty field is the one answer that is not yet an answer.
+  const limitSet = limitReady({ mode: limit, minutes });
 
   const run = async (label, work) => {
     setBusy(label);
@@ -512,10 +549,20 @@ function GenerateCoursePage() {
                   {posted ? "Posted" : "Draft"}
                 </Chip>
               ) : null}
-              {paper?.timeLimitMinutes ? (
+              {/* An untimed paper says so. With no chip at all it read the
+                  same as a paper whose length had not loaded yet, and now
+                  that no limit is an answer somebody chooses it is worth
+                  seeing chosen. */}
+              {paper ? (
                 <Chip tone="neutral">
-                  <ClockIcon size={13} />
-                  {paper.timeLimitMinutes} min
+                  {paper.timeLimitMinutes ? (
+                    <>
+                      <ClockIcon size={13} />
+                      {paper.timeLimitMinutes} min
+                    </>
+                  ) : (
+                    "Untimed"
+                  )}
                 </Chip>
               ) : null}
               {closed ? (
@@ -699,41 +746,65 @@ function GenerateCoursePage() {
               onModify={() => setTosOpen(true)}
             />
 
-            {/* The assessor's own figure first, and the department's under it.
-                Unticking the box is how the default is given up, so it reads
-                as a note on the field above rather than as the field itself. */}
+            {/* Whether a paper runs to a clock is on or off, so it is a switch.
+                It used to be a tickbox carrying the department's ninety
+                minutes beside a Minutes field carrying the assessor's own, and
+                a paper with no clock at all had no control of its own — you
+                reached it by unticking the box and typing nought. The most
+                permissive setting a paper has was the one nobody could find.
+                Here it is the word the switch shows when it is off.
+
+                Ninety is what the Minutes field opens on for a final. A
+                starting figure, not a second answer competing with the
+                assessor's own. */}
             <div className="gen-field">
-              {/* Shown either way, so the pair does not jump about as the box
-                  is ticked. While the default is in force it is the default
-                  being displayed, not a field waiting to be filled in — which
-                  is what the disabled state says. */}
-              <label className={`gen-field gen-field--inline${timed ? " is-off" : ""}`}>
-                <span className="field-label">Minutes</span>
+              <span className="field-label" id="gen-limit-label">
+                Time limit
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={limit === TIMED}
+                /* Named by the field's own label, so what is read out is
+                   "Time limit, on" rather than the state word twice. */
+                aria-labelledby="gen-limit-label"
+                className={`gen-switch${limit === TIMED ? " is-on" : ""}`}
+                onClick={() => setLimit(limit === TIMED ? UNTIMED : TIMED)}
+              >
+                <span>{limit === TIMED ? "Timed" : "No time limit"}</span>
+                <span className="gen-switch__track">
+                  <span className="gen-switch__thumb" />
+                </span>
+              </button>
+            </div>
+
+            {/* Only while there is a clock to set. A field that cannot apply to
+                the paper is a question the assessor has to work out the answer
+                is "nothing" to. */}
+            {limit === TIMED ? (
+              <div className="gen-field">
+                <label className="field-label" htmlFor="gen-minutes">
+                  Minutes
+                </label>
                 <input
+                  id="gen-minutes"
                   type="number"
                   className="gen-input"
-                  min={0}
+                  min={1}
                   max={600}
                   value={minutes}
-                  disabled={timed}
                   onChange={(event) => setMinutes(event.target.value)}
                 />
-              </label>
-
-              <label className="gen-check">
-                <input
-                  type="checkbox"
-                  checked={timed}
-                  onChange={(event) => {
-                    setTimed(event.target.checked);
-                    if (event.target.checked) setMinutes(DEFAULT_MINUTES);
-                  }}
-                />
-                <span>
-                  <ClockIcon size={13} /> {DEFAULT_MINUTES} minutes (default)
-                </span>
-              </label>
-            </div>
+                {/* An empty field would save an untimed paper, which is not
+                    what the switch above says. Says what to do next rather
+                    than what is wrong. */}
+                {limitSet ? null : (
+                  <span className="gen-hint is-warn">
+                    Enter a length, or turn the time limit off.
+                  </span>
+                )}
+              </div>
+            ) : null}
 
             {/* Only a quiz is asked about. Assembling a final draws on questions
                 that already exist and takes nothing from the outside, so there
@@ -776,6 +847,7 @@ function GenerateCoursePage() {
                     Boolean(busy) ||
                     frozen ||
                     length === 0 ||
+                    !limitSet ||
                     (scope === "lesson" && (!moduleId || !lesson?.hasText))
                   }
                   onClick={scope === "final" ? generate : () => setConfirming(true)}
@@ -788,7 +860,7 @@ function GenerateCoursePage() {
                   <button
                     type="button"
                     className="btn btn--ghost"
-                    disabled={Boolean(busy)}
+                    disabled={Boolean(busy) || !limitSet}
                     onClick={applySettings}
                   >
                     {busy === "settings" ? "Applying…" : "Update time limit"}

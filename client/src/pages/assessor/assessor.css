@@ -221,17 +221,12 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-[data-theme="dark"] .assessor-app .module-row__num.is-locked {
-  color: var(--gray-600);
-}
-
 /* Cards sit on a near-black page, so give them a hairline edge. */
 [data-theme="dark"] .assessor-app .assessor-card,
 [data-theme="dark"] .assessor-app .assessor-table-wrap,
 [data-theme="dark"] .assessor-app .item-card,
 [data-theme="dark"] .assessor-app .student-hero,
 [data-theme="dark"] .assessor-app .grade-panel,
-[data-theme="dark"] .assessor-app .gen-card,
 [data-theme="dark"] .assessor-app .gen-paper,
 [data-theme="dark"] .assessor-app .gen-q,
 [data-theme="dark"] .assessor-app .assessor-select__list {
@@ -1371,16 +1366,6 @@
   outline-offset: 2px;
 }
 
-.assessor-table tfoot th,
-.assessor-table tfoot td {
-  border-bottom: none;
-  background: var(--gray-050);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-semibold);
-  color: var(--text-body);
-  white-space: nowrap;
-}
-
 /* Six columns since the student number took one of its own, and still not the
    register's — inheriting that width would put a scrollbar under a table that
    fits. */
@@ -1485,7 +1470,8 @@
   outline-offset: 2px;
 }
 
-.roster-switch__track {
+.roster-switch__track,
+.gen-switch__track {
   position: relative;
   flex-shrink: 0;
   width: 30px;
@@ -1493,15 +1479,36 @@
   /* Round-ended, not the console's 8px --radius-pill: on a 17px track that
      reads as a rounded box rather than a switch. */
   border-radius: 999px;
-  background: rgba(150, 96, 10, 0.45);
   transition: background 0.18s ease;
+}
+
+/* The two switches share a knob and nothing else. This one reports a status,
+   so its colours are the console's warning and success; the generate screen's
+   records a setting, where red and green would read as a verdict on a choice
+   that has no wrong answer. */
+.roster-switch__track {
+  background: rgba(150, 96, 10, 0.45);
 }
 
 .roster-switch.is-on .roster-switch__track {
   background: var(--teal-700);
 }
 
-.roster-switch__thumb {
+/* --gray-600 rather than the lighter --gray-400 this started on: at
+   #cecece the off track sat around 1.7:1 on the card, under the 3:1 a control
+   boundary needs to be made out at all. The word beside it says the state too,
+   so the track is not carrying it alone — but a switch nobody can see the
+   track of is a switch drawn badly. */
+.gen-switch__track {
+  background: var(--gray-600);
+}
+
+.gen-switch.is-on .gen-switch__track {
+  background: var(--brand);
+}
+
+.roster-switch__thumb,
+.gen-switch__thumb {
   position: absolute;
   top: 2.5px;
   left: 2.5px;
@@ -1512,8 +1519,19 @@
   transition: transform 0.18s ease;
 }
 
-.roster-switch.is-on .roster-switch__thumb {
+.roster-switch.is-on .roster-switch__thumb,
+.gen-switch.is-on .gen-switch__thumb {
   transform: translateX(13px);
+}
+
+/* The knob travels; under reduced motion it arrives. */
+@media (prefers-reduced-motion: reduce) {
+  .roster-switch__track,
+  .gen-switch__track,
+  .roster-switch__thumb,
+  .gen-switch__thumb {
+    transition: none;
+  }
 }
 
 /* What the last thing the assessor pressed did. A floating message rather
@@ -1911,21 +1929,40 @@
   align-items: start;
 }
 
+/**
+ * The lesson's place in the course, set as a number.
+ *
+ * It was a 34px filled disc, which a table row is the wrong place for a circle
+ * to live: the cell is a flex line and the disc shrank with it, so a lesson
+ * with a long title wore its number in an ellipse and a longer one in a slit.
+ * Defending the circle with `flex: none` would have kept the shape and left the
+ * rest — six filled brand discs reading down a column, each louder than the
+ * lesson name it labels, which is the thing in the row actually being read.
+ *
+ * And the same number is already drawn twice on this screen: under the skill
+ * chart above, a column's tick is the lesson it came from, set plain and quiet.
+ * A number that is a number in one place and a badge in the other is two
+ * things to learn for one fact.
+ *
+ * So: right-aligned in a slot wide enough for the longest number a course can
+ * reach, which lines the figures up on their last digit and starts every name
+ * at the same place. Nothing here can deform, because nothing here is a shape.
+ */
 .module-row__num {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--brand);
-  color: var(--white);
-  font-size: var(--fs-label);
+  flex: none;
+  min-width: 1.5rem;
+  text-align: right;
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
+  line-height: 1.35;
+  color: var(--text-body);
+  font-variant-numeric: tabular-nums;
 }
 
+/* A lesson the student cannot open yet, held at the weight the table gives an
+   empty cell — the row is still there to be read, it is just not theirs yet. */
 .module-row__num.is-locked {
-  background: var(--gray-200);
-  color: var(--text-muted);
+  color: var(--gray-400);
 }
 
 /* A table standing on its own in a column, where a card used to hold it: the
@@ -1967,7 +2004,10 @@
    line under it carry their own weights, so the cell starts from regular. */
 .module-cell {
   display: flex;
-  align-items: center;
+  /* On the name's first line, not in the middle of the block: an index belongs
+     beside the word it counts, and a title running to three lines used to leave
+     its number floating at the middle of them. */
+  align-items: baseline;
   gap: var(--sp-3);
   font-weight: var(--fw-regular);
 }
@@ -2696,139 +2736,14 @@
 }
 
 /* ── Generate Assessment ────────────────────────
-   Two screens. The index is a card per class, because each class is a
-   decision — papers owed or not — rather than a record to read across.
+   Two screens. The index is a register, the same columns as the Classes
+   screen because it is the same set of classes with a different question in
+   mind. It was a grid of cards, on the reasoning that a class is a decision
+   rather than a record — but the decision is made by comparing classes, and
+   four figures boxed up four separate times cannot be read down.
    The workspace is the paper on the left and what makes it on the right,
    in the order the work happens in. */
 
-.gen-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--sp-5);
-}
-
-.gen-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-5);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  background: var(--surface);
-  box-shadow: var(--shadow-row);
-  text-align: left;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-}
-
-.gen-card:hover {
-  border-color: var(--brand);
-  box-shadow: var(--shadow-row-hover);
-  transform: translateY(-2px);
-}
-
-/* The same card, before there is a class to put in it. Nothing to press yet,
-   so it neither lifts nor lights up under the pointer. */
-.gen-card--loading {
-  gap: var(--sp-3);
-  cursor: default;
-}
-
-.gen-card--loading:hover {
-  border-color: var(--gray-200);
-  box-shadow: var(--shadow-row);
-  transform: none;
-}
-
-.gen-card:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
-
-.gen-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-}
-
-.gen-card__code {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--brand-text);
-}
-
-.gen-card__icon {
-  display: grid;
-  place-items: center;
-  color: var(--brand-text);
-}
-
-.gen-card__name {
-  font-size: var(--fs-title-sm);
-  font-weight: var(--fw-medium);
-  line-height: 1.35;
-  color: var(--text-strong);
-  text-wrap: pretty;
-}
-
-.gen-card__count {
-  margin-top: var(--sp-1);
-  font-size: var(--fs-stat);
-  font-weight: var(--fw-semibold);
-  line-height: 1;
-  color: var(--text-strong);
-}
-
-.gen-card__count-of {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-regular);
-  color: var(--text-muted);
-}
-
-.gen-card__track {
-  display: block;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--gray-150);
-  overflow: hidden;
-}
-
-.gen-card__fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--brand);
-  transition: width 0.25s ease;
-}
-
-.gen-card__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  min-height: 26px;
-}
-
-.gen-card__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-top: var(--sp-1);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--gray-200);
-}
-
-.gen-card__go {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  color: var(--brand-text);
-}
 
 /* ── The workspace ───────────────────────────── */
 
@@ -3175,11 +3090,6 @@
   margin-bottom: var(--sp-4);
 }
 
-.gen-field--inline {
-  margin-bottom: 0;
-  margin-top: var(--sp-2);
-}
-
 /* A field whose label shares its line with a way out to the screen that
    decides it. The label is micro type; the Modify TOS control is a small
    ghost button that offers the same escape as a visible control rather than a
@@ -3309,6 +3219,32 @@
   line-height: 1.5;
 }
 
+/* A snippet, in the same field shell as the rest of the correction form but
+   set as code: the stack, size and tab width .code-block reads it back in, so
+   a line the assessor lines up by eye is the line the student is shown.
+
+   No wrapping. A folded line is the one thing a snippet being traced cannot
+   survive — "what does line 4 print?" stops meaning anything once line 4 is
+   half of line 3. Long lines scroll sideways instead, which is what the block
+   itself does. */
+.gen-input--code {
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  tab-size: 4;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+/* Sits where the snippet would be, at the size of the thing it adds rather
+   than the width of the card. */
+.gen-q__add-code {
+  align-self: flex-start;
+  margin-bottom: var(--sp-1);
+}
+
 .gen-input:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
@@ -3322,10 +3258,6 @@
   box-shadow: none;
   color: var(--text-muted);
   cursor: not-allowed;
-}
-
-.gen-field.is-off .field-label {
-  color: var(--text-muted);
 }
 
 /* ── Select (the shared listbox — see components/Select) ──
@@ -3599,27 +3531,41 @@
   color: var(--white);
 }
 
-/* Sits under the minutes field as a note on it — the department's figure,
-   offered — so it is set a step below the field's own type rather than
-   competing with it. */
-.gen-check {
+/* ── Time limit ────────────────────────────────────────────────
+   Whether a paper runs to a clock is on or off, and a switch is the control
+   for a setting that is — where a list of named alternatives would be a
+   radiogroup. It was a tickbox before, which is the control for "include
+   this", not for "this is how it is".
+
+   Drawn in the same shell as every other control on the card: the radius,
+   inset hairline and padding of .gen-input, so it sits in the column as a
+   field and not as a new kind of object. The knob is the roster's, which is
+   the switch this console already owns.
+
+   Off is a named state — the row reads "No time limit" — rather than the
+   absence of a tick. That is the whole point: the most permissive setting a
+   paper has used to have no words on screen anywhere. */
+.gen-switch {
   display: flex;
+  width: 100%;
   align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-label);
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 0.625rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  font-family: inherit;
+  font-size: var(--fs-body);
   color: var(--text-strong);
+  text-align: left;
   cursor: pointer;
 }
 
-.gen-check input {
-  accent-color: var(--brand);
-  cursor: pointer;
-}
-
-.gen-check span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
+.gen-switch:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
 }
 
 .gen-actions {
@@ -4007,18 +3953,39 @@
   box-shadow: var(--shadow-card);
 }
 
-/* Whose paper it is, then how it went, ruled off from the questions so the
-   sheet has a head and a body.
+/**
+ * Whose paper it is and how it went, ruled off from the questions so the
+ * sheet has a head and a body.
  *
- * The two sat side by side and fought over the width: the figures had to fold
- * into two rows of unequal length long before the head itself was short of
- * room. Stacked, the figures get the whole sheet and stay on one line. */
+ * The name on the left and the mark across from it at the top corner, which
+ * is where a mark is written on a paper that is handed back. Everything the
+ * mark is made of runs underneath, the full width of the sheet.
+ *
+ * The geometry does not move from one student to the next. It used to: the
+ * figures sat in a tinted panel as wide as what it held, so a paper with
+ * nothing left blank drew a narrower box than the one before it, and reading
+ * three students in a row — which is the whole job of this screen — meant
+ * re-finding the mark each time. Name left, mark right, bar beneath is the
+ * same shape on every paper.
+ */
 .paper__head {
   display: grid;
-  gap: var(--sp-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-5);
   margin-bottom: var(--sp-5);
-  padding-bottom: var(--sp-4);
+  padding-bottom: var(--sp-5);
   border-bottom: 1px solid var(--gray-200);
+
+  /* The mark's colour, set on the head rather than on the numeral, because
+     two things are drawn in it: the figure, and the run of the bar beneath
+     that earned it. Held in one place they cannot disagree about whether the
+     paper cleared. */
+  --mark-tone: var(--teal-700);
+}
+
+.paper__head.is-under {
+  --mark-tone: var(--warning-text);
 }
 
 .paper__who {
@@ -4041,125 +4008,228 @@
   font-variant-numeric: tabular-nums;
 }
 
-/**
- * The attempt in figures: the mark, and then everything else.
- *
- * Five columns of equal width gave five figures the same voice, so a handed-in
- * timestamp stood as tall as the mark; each carried its own footnote, so the
- * block was five columns of three lines with a ragged bottom where only three
- * of them had one; and the whole strip re-spaced itself when a paper had
- * nothing left blank. It also ran the full width of the screen to hold about
- * forty characters.
- *
- * So: one bold thing, and a list. The mark leads at the console's numeral size
- * with the pass mark drawn under it as a tick on its own meter, and the four
- * supporting facts read down a two-column list where their names line up. The
- * panel is as wide as what it holds, and a fact that is missing takes a line
- * out instead of moving the ones that are left.
- */
-.paper__facts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: start;
-  gap: var(--sp-5) var(--sp-8);
-  width: fit-content;
-  max-width: 100%;
-  padding: var(--sp-4) var(--sp-5);
-  border-radius: var(--radius-sm);
-  background: var(--gray-050);
-}
-
-/* The block carries the tone, not the numeral: the meter's fill is drawn in
-   currentColor, so the mark and the bar under it can never disagree about
-   whether the paper cleared. */
+/* The mark, at the top corner across from the name. It carries no label: a
+   figure this size, with the word for what it did underneath, is not going to
+   be read as anything but the mark. The screen reader gets the word. */
 .paper__score {
-  flex: 0 0 auto;
-  width: 15rem;
-  max-width: 100%;
-  color: var(--teal-700);
+  grid-column: 2;
+  text-align: right;
 }
 
-.paper__score.is-under {
-  color: var(--warning-text);
+.paper__mark {
+  margin: 0;
+  color: var(--mark-tone);
+  font-size: var(--fs-stat-lg);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
-/* The words around the figure stay grey — the tone is the figure's. */
-.paper__score-name,
+/* What the paper was out of, set quieter than what was earned on it — the way
+   a mark is written. The figure is the reading; the total is the scale it is
+   read on, and it is the same on every paper in the class. */
+.paper__mark-total {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-regular);
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
 .paper__verdict {
+  margin: var(--sp-1) 0 0;
   font-size: var(--fs-label);
   color: var(--text-muted);
 }
 
-.paper__score-name {
-  display: block;
-  margin-bottom: 2px;
+/**
+ * What the mark is made of, under the two names that own it.
+ *
+ * Four figures used to read down a list here, each the same weight as the
+ * next, and three of them were saying one thing: how the questions went. They
+ * are drawn now, as one length with every question on the paper accounted for
+ * — earned, missed, or never reached — so the shape of the attempt is read
+ * before any of the words under it. What the list keeps is the pair the bar
+ * cannot draw: when the paper was handed in, and how long it took.
+ */
+.paper__facts {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--sp-3);
 }
 
-.paper__mark {
-  display: block;
-  font-size: var(--fs-stat);
-  font-weight: var(--fw-semibold);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: inherit;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The paper as a length, with the mark filling as much of it as was earned. */
-.paper__meter {
+/* The paper as one length. The console draws a total this way already on the
+   blueprint (.tos-bar), down to the 2px gaps between runs and the hatch over
+   what was never filled — the same picture means the same thing here. */
+.paper__bar {
+  --bar-h: 1rem;
   position: relative;
-  height: 6px;
-  margin: var(--sp-3) 0 var(--sp-2);
+  /* Room beneath the track for the pass mark's name. */
+  padding-bottom: 1.5rem;
+}
+
+.paper__bar-track {
+  display: flex;
+  gap: 2px;
+  height: var(--bar-h);
+  overflow: hidden;
   border-radius: var(--radius-pill);
   background: var(--gray-200);
 }
 
-.paper__meter-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: currentColor;
+/* A run of one question is still a run, not a hairline. */
+.paper__seg {
+  min-width: 3px;
 }
 
-/* The pass mark. It stands over the fill rather than beside it, so where the
-   mark falls against the line is the first thing read — and it overhangs the
-   track top and bottom, so it is still visible once the fill has passed it. */
-.paper__meter-tick {
+.paper__seg--right {
+  background: var(--mark-tone);
+}
+
+/* Answered and not earned. Grey, not red: the tone on this sheet belongs to
+   the mark, and a second colour here would start an argument with it about
+   what the reader is being told. */
+.paper__seg--wrong {
+  background: var(--gray-600);
+}
+
+/* Never reached. Drawn rather than left empty, so a paper the student ran out
+   of time on and a paper they got wrong are different pictures. */
+.paper__seg--blank {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 4px,
+    var(--gray-400) 4px 5px
+  );
+}
+
+/* The pass mark, standing across the length at the point it falls.
+ *
+ * The bar is drawn in questions and the pass mark is set in points, which are
+ * the same length: a paper's points are its questions times a per-item figure
+ * that does not vary, so six points of ten is six questions of ten. */
+.paper__pass {
   position: absolute;
-  top: -3px;
-  bottom: -3px;
+  top: -4px;
+  width: 0;
+}
+
+.paper__pass-line {
+  position: absolute;
+  top: 0;
   width: 2px;
+  height: calc(var(--bar-h) + 8px);
+  margin-left: -1px;
   border-radius: 1px;
   background: var(--text-strong);
 }
 
-/* Passed or not at one end, the mark it was measured against at the other —
-   which puts the pass mark at the end of the meter it belongs to. */
-.paper__verdict {
+/* The line says where; this says what it is. Kept clear of both ends, so a
+   pass mark set high or low is still readable against the sheet's edge. */
+.paper__pass-name {
+  position: absolute;
+  top: calc(var(--bar-h) + 12px);
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.paper__pass[data-anchor="mid"] .paper__pass-name {
+  transform: translateX(-50%);
+}
+
+.paper__pass[data-anchor="end"] .paper__pass-name {
+  transform: translateX(-100%);
+}
+
+/* The runs named and counted, in the order they are drawn. A run that is not
+   on the paper is not in the list either. */
+.paper__tally {
   display: flex;
-  justify-content: space-between;
-  gap: var(--sp-3);
-}
-
-/* Names in one column and figures in the next, so four facts of four kinds
-   read down a straight edge instead of across the screen. */
-.paper__rows {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--sp-2) var(--sp-5);
-  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-6);
   margin: 0;
-}
-
-.paper__rows dt {
+  padding: 0;
+  list-style: none;
   font-size: var(--fs-label);
   color: var(--text-muted);
 }
 
-.paper__rows dd {
-  margin: 0;
-  font-size: var(--fs-body-lg);
+.paper__tally li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.paper__count {
   color: var(--text-strong);
+  font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
+}
+
+/* Cut from the bar's own cloth, so the name and the run it names are tied by
+   the fill rather than by their order on the line. */
+.paper__swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.paper__swatch--right {
+  background: var(--mark-tone);
+}
+
+.paper__swatch--wrong {
+  background: var(--gray-600);
+}
+
+.paper__swatch--blank {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 3px,
+    var(--gray-400) 3px 4px
+  );
+}
+
+/* The circumstances of the attempt, which the bar has no way of drawing. */
+.paper__when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-6);
+  margin: 0;
+  font-size: var(--fs-label);
+}
+
+.paper__when > div {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.paper__when dt {
+  color: var(--text-muted);
+}
+
+.paper__when dd {
+  margin: 0;
+  color: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Narrow ───────────────────────────────────────────────── */
+
+/* The mark steps down a size rather than dropping under the name: a name long
+   enough to need two lines needs the mark to stay where it was found. */
+@media (max-width: 560px) {
+  .paper__mark {
+    font-size: var(--fs-stat);
+  }
+
+  .paper__mark-total {
+    font-size: var(--fs-title);
+  }
 }
 
 .paper__note {

@@ -1,42 +1,74 @@
 import { describe, it, expect } from "@jest/globals";
-import { timeLimitFor } from "../src/pages/assessor/timeLimit.js";
+import {
+  DEFAULT_MINUTES,
+  TIMED,
+  UNTIMED,
+  limitModeFor,
+  limitReady,
+  timeLimitFor
+} from "../src/pages/assessor/timeLimit.js";
 
 /**
- * The two controls that decide how long a paper runs: a box carrying the
- * department's figure, and a field carrying the assessor's own.
+ * The one control that decides how long a paper runs: two answers, one of
+ * which takes a number.
  */
 describe("timeLimitFor", () => {
-  it("uses the department's figure while the box is ticked", () => {
-    expect(timeLimitFor({ timed: true, minutes: 90 })).toBe(90);
-    // The field is disabled under the box, so whatever was left in it from
-    // before is not what the paper should be given.
-    expect(timeLimitFor({ timed: true, minutes: 15 })).toBe(90);
+  it("sends the length beside Timed", () => {
+    expect(timeLimitFor({ mode: TIMED, minutes: 45 })).toBe(45);
+    expect(timeLimitFor({ mode: TIMED, minutes: "45" })).toBe(45);
+    expect(timeLimitFor({ mode: TIMED, minutes: DEFAULT_MINUTES })).toBe(90);
   });
 
   /**
-   * This is the one that was broken. Unticking revealed a Minutes field, took
-   * a number, and then sent null regardless — so the only control for setting
-   * a clock was the surest way of not setting one.
+   * This is the one that was broken twice over. A figure left in the field
+   * used to follow the assessor onto the other answer in one direction, and a
+   * number they had just typed used to be thrown away in the other.
    */
-  it("uses the assessor's own number once they have unticked the box", () => {
-    expect(timeLimitFor({ timed: false, minutes: 45 })).toBe(45);
-    expect(timeLimitFor({ timed: false, minutes: "45" })).toBe(45);
-  });
-
-  /**
-   * Nought is how a paper is left with no clock, which is what the field's own
-   * minimum is for — and null is how the server stores that, since "no limit"
-   * and "no time at all" are opposite answers.
-   */
-  it("reads nought as no limit rather than as no time", () => {
-    expect(timeLimitFor({ timed: false, minutes: 0 })).toBeNull();
-    expect(timeLimitFor({ timed: false, minutes: "" })).toBeNull();
-    expect(timeLimitFor({ timed: false, minutes: "soon" })).toBeNull();
-    expect(timeLimitFor({ timed: false, minutes: -5 })).toBeNull();
+  it("ignores the field once the paper is untimed", () => {
+    expect(timeLimitFor({ mode: UNTIMED, minutes: 45 })).toBeNull();
+    expect(timeLimitFor({ mode: UNTIMED })).toBeNull();
   });
 
   // The field's own ceiling, in case a number arrives past it.
   it("holds the clock to the field's ceiling", () => {
-    expect(timeLimitFor({ timed: false, minutes: 900 })).toBe(600);
+    expect(timeLimitFor({ mode: TIMED, minutes: 900 })).toBe(600);
+  });
+});
+
+/** Which row an assessor finds already chosen when they open a paper. */
+describe("limitModeFor", () => {
+  it("reads any length as timed", () => {
+    expect(limitModeFor(DEFAULT_MINUTES)).toBe(TIMED);
+    expect(limitModeFor(45)).toBe(TIMED);
+    expect(limitModeFor(600)).toBe(TIMED);
+  });
+
+  /**
+   * Null is how the server stores a paper with no clock, since "no limit" and
+   * "no time at all" are opposite answers and nought cannot mean both.
+   */
+  it("reads a paper with no clock as untimed", () => {
+    expect(limitModeFor(null)).toBe(UNTIMED);
+    expect(limitModeFor(undefined)).toBe(UNTIMED);
+    expect(limitModeFor(0)).toBe(UNTIMED);
+  });
+});
+
+/**
+ * Timed with an empty field is the one incomplete state: it would clamp to
+ * null and save an untimed paper, which is a different answer from the one
+ * showing on screen. The screen stops on it rather than guessing.
+ */
+describe("limitReady", () => {
+  it("stops on Timed with nothing in the field", () => {
+    expect(limitReady({ mode: TIMED, minutes: "" })).toBe(false);
+    expect(limitReady({ mode: TIMED, minutes: 0 })).toBe(false);
+    expect(limitReady({ mode: TIMED, minutes: "soon" })).toBe(false);
+    expect(limitReady({ mode: TIMED, minutes: -5 })).toBe(false);
+  });
+
+  it("lets a length through, and lets untimed through empty", () => {
+    expect(limitReady({ mode: TIMED, minutes: 45 })).toBe(true);
+    expect(limitReady({ mode: UNTIMED, minutes: "" })).toBe(true);
   });
 });
