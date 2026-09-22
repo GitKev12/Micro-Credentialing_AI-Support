@@ -764,7 +764,13 @@ export async function assembleFinalAssessment({
 
   const lessons = [...poolByModule.keys()];
   const itemsPerModule = allocateAcrossLessons(
-    Object.fromEntries(lessons.map((id) => [id, rowByModule.get(id)?.items || 1])),
+    // The matrix where the assessor filled it in, the target column where they
+    // only typed a share, and an even split when they said neither. Reading
+    // `items` alone treated a table of targets as thirteen lessons worth
+    // nothing each — see planFinalPaper.
+    Object.fromEntries(
+      lessons.map((id) => [id, rowByModule.get(id)?.items || rowByModule.get(id)?.target || 1])
+    ),
     Object.fromEntries(lessons.map((id) => [id, poolByModule.get(id).length])),
     wanted
   );
@@ -850,6 +856,450 @@ export async function assembleFinalAssessment({
       scope: "final",
       itemCount: items.length
     };
+  } catch (error) {
+    if (error?.code === 11000) return { status: "skipped", reason: "already-exists" };
+    throw error;
+  }
+}
+
+/* ───────────────────── Writing the final with the model ───────────────────── */
+
+/**
+ * How many questions each lesson carries on the final, and at which levels.
+ *
+ * ── Why this is its own function ───────────────────────────────────────────
+ * It is the whole disagreement between the two ends of the app. A student's
+ * Skill Score is `correct / items asked of that lesson`, and "items asked" has
+ * to be the number the assessor wrote in the Table of Specification. When the
+ * two drift, the assessor reads 5 on their blueprint and the student reads 4
+ * on their dashboard, and neither screen is lying — the paper in between was
+ * built to a third number nobody chose.
+ *
+ * ── The two ways an assessor states a lesson's share ───────────────────────
+ * The final's table has a `target` column and a matrix of levels, and either
+ * may carry the answer:
+ *
+ *   - The matrix filled in — 2 remember, 3 apply and so on — is the fuller
+ *     statement, and `items` is what those cells add up to. It wins.
+ *   - Only the target typed — "this lesson is worth 5" — is the common case,
+ *     because the target is one box and the matrix is six. The lesson's share
+ *     is then the target, and the level mix comes from the paper's own column
+ *     totals, shared out in proportion.
+ *
+ * Reading only the matrix is what broke: a table with every target filled and
+ * every cell blank came through as thirteen lessons worth nothing each, so the
+ * paper was divided evenly and the leftovers went to whichever lessons the
+ * database happened to return first.
+ *
+ * `lessons` is the lessons that can actually be written from — one with no
+ * extracted text has nothing for the model to read. A row naming any other
+ * lesson drops out here and its share is shared among the rest, so the paper
+ * still comes out the length it was asked to be.
+ */
+export function planFinalPaper({ plan, lessons, wanted = null }) {
+  const writable = new Map(
+    (lessons ?? []).map((lesson) => [asId(lesson.id ?? lesson._id), lesson])
+  );
+
+  const rows = (plan?.rows ?? [])
+    .filter((row) => row.moduleId && writable.has(asId(row.moduleId)))
+    .map((row) => {
+      const moduleId = asId(row.moduleId);
+      const matrix = Number(row.items) > 0;
+
+      return {
+        moduleId,
+        coverage: row.coverage || writable.get(moduleId)?.title || "",
+        // The matrix where it was filled in, the target where it was not.
+        share: matrix ? Number(row.items) : Math.max(0, Math.floor(Number(row.target) || 0)),
+        stated: matrix ? row.distribution : null
+      };
+    });
+
+  if (rows.length === 0) return [];
+
+  // The assessor's typed length answers this outright. Otherwise the table's
+  // own stated length, and failing that whatever the shares add up to.
+  const shares = rows.reduce((sum, row) => sum + row.share, 0);
+  const total =
+    requestedItems(wanted) ??
+    (Number(plan?.items) > 0 ? Math.min(Number(plan.items), MAX_REQUESTED_ITEMS) : shares);
+
+  if (!(total > 0)) return [];
+
+  // Proportional, and never leaving a lesson off the paper entirely: a lesson
+  // with no questions has no Skill Score, and a missing measurement reads on
+  // the dashboard as a topic that was never taught. There is no bank to run
+  // out of here, so the only cap is the paper itself.
+  //
+  // A table with no shares at all — every target blank as well as every cell —
+  // is the one case where an even split is the honest answer, because nothing
+  // was said about how the paper divides.
+  const counts = allocateAcrossLessons(
+    Object.fromEntries(rows.map((row) => [row.moduleId, row.share || 1])),
+    Object.fromEntries(rows.map((row) => [row.moduleId, total])),
+    total
+  );
+
+  const carrying = rows
+    .map((row) => ({ ...row, items: counts[row.moduleId] ?? 0 }))
+    .filter((row) => row.items > 0);
+
+  const paperLevels = plan?.levels ?? {};
+  const paperLevelTotal = TOS_LEVELS.reduce(
+    (sum, level) => sum + (Number(paperLevels[level]) || 0),
+    0
+  );
+
+  // The examination's stated mix, dealt across the lessons that did not state
+  // one of their own. Done for the paper as a whole rather than per lesson,
+  // which is a correction: sharing the mix out inside each lesson separately
+  // rounds every small level away every time. The real OOP table asks for
+  // 6 apply out of 60, which is half a question in a five-item lesson — and
+  // half a question rounded down thirteen times is an examination with no
+  // output-tracing on it at all, against a Table of Specification that asked
+  // for six.
+  const spread = paperLevelTotal > 0
+    ? spreadPaperLevels(paperLevels, carrying.map((row) => row.items))
+    : null;
+
+  return carrying.map((row, index) => ({
+    moduleId: row.moduleId,
+    coverage: row.coverage,
+    items: row.items,
+    // The lesson's own cells where the assessor filled them in, scaled to what
+    // it ended up carrying; otherwise its slice of the paper's mix. Null when
+    // they stated neither, and the model is left to choose.
+    distribution: row.stated ? shareOut(row.stated, row.items) : (spread?.[index] ?? null)
+  }));
+}
+
+/**
+ * The examination's mix of thinking levels, dealt out across its lessons.
+ *
+ * Two things have to come out exactly right and a per-lesson split cannot do
+ * both: every lesson carries the number of questions the table gave it, and
+ * the paper as a whole demands the levels the table asked for.
+ *
+ * So the levels are dealt as a sequence over the whole paper, each slot going
+ * to whichever level is furthest behind its share so far, and each lesson
+ * takes the next `n` slots. That keeps both totals exact — six apply questions
+ * on the paper stay six — and hands each lesson a slice rather than a level of
+ * its own.
+ */
+function spreadPaperLevels(paperLevels, sizes) {
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  const need = shareOut(paperLevels, total);
+  const given = Object.fromEntries(TOS_LEVELS.map((level) => [level, 0]));
+
+  const dealt = [];
+  while (dealt.length < total) {
+    let pick = null;
+    let best = -Infinity;
+
+    for (const level of TOS_LEVELS) {
+      if (given[level] >= (need[level] ?? 0)) continue;
+      // How far ahead this level would still be after taking the slot. The
+      // level with the most left to give takes it.
+      const score = need[level] / (given[level] + 1);
+      if (score > best) {
+        best = score;
+        pick = level;
+      }
+    }
+
+    // Every level has had its full count. The paper is longer than the mix
+    // accounts for, and the rest is the model's to choose.
+    if (!pick) break;
+
+    given[pick] += 1;
+    dealt.push(pick);
+  }
+
+  let cursor = 0;
+  return sizes.map((size) => {
+    const row = Object.fromEntries(TOS_LEVELS.map((level) => [level, 0]));
+    for (let taken = 0; taken < size && cursor < dealt.length; taken += 1, cursor += 1) {
+      row[dealt[cursor]] += 1;
+    }
+    return row;
+  });
+}
+
+/**
+ * At most this many calls to the model at once.
+ *
+ * A final is one call per lesson, and thirteen of them one after another is a
+ * request the browser gives up on long before the paper is written. Run flat
+ * out they would instead arrive as thirteen simultaneous calls on an account
+ * with a rate limit. Four keeps the wait to a few rounds without ever looking
+ * like a burst.
+ */
+const FINAL_CONCURRENCY = 4;
+
+/** Runs `work` over every entry, never more than `limit` of them in the air. */
+async function inFlight(entries, limit, work) {
+  const results = new Array(entries.length);
+  let cursor = 0;
+
+  const runners = Array.from(
+    { length: Math.max(1, Math.min(limit, entries.length)) },
+    async () => {
+      while (cursor < entries.length) {
+        const index = cursor;
+        cursor += 1;
+        results[index] = await work(entries[index], index);
+      }
+    }
+  );
+
+  await Promise.all(runners);
+  return results;
+}
+
+/**
+ * Writes the final exam, lesson by lesson, from the Table of Specification.
+ *
+ * ── Why the model, and not the lesson quizzes ──────────────────────────────
+ * assembleFinalAssessment draws the final out of questions the lesson quizzes
+ * already hold. That is free, and it is why it is still here — but it means
+ * every question on the examination is one some student has already seen on
+ * the quiz for that lesson, and it can only ever ask what those quizzes
+ * happened to ask. A final is the paper the whole course is judged on; it is
+ * worth writing rather than re-using.
+ *
+ * ── Why one call per lesson ────────────────────────────────────────────────
+ * Every item on a final has to carry the lesson it belongs to, because that is
+ * what the whole Skill Gap Analysis is read out of. Sending thirteen lessons'
+ * material in one call and asking the model to label each question with the
+ * right one puts that link in the model's hands; asking one lesson at a time
+ * means the link is ours, and a question cannot be filed under the wrong
+ * topic. It also means a lesson whose text never extracted is one lesson
+ * missing rather than a paper that cannot be written at all — and the standing
+ * instructions, the expensive half of the prompt, are identical across the
+ * calls and cached.
+ *
+ * Nothing is written unless the paper passes validation, and `dryRun` answers
+ * the whole question — how many questions, from which lessons, at roughly what
+ * cost — without spending anything.
+ */
+export async function generateFinalAssessment({
+  courseId,
+  classId = null,
+  dryRun = false,
+  model = null,
+  itemCount = null,
+  timeLimitMinutes = null,
+  status = "draft",
+  replaceExisting = false
+}) {
+  if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
+
+  const already = await existingAssessment(courseId, null, "final", classId);
+  if (already && !replaceExisting) {
+    return { status: "skipped", reason: "already-exists", assessmentId: asId(already._id) };
+  }
+
+  const [course, blueprint] = await Promise.all([
+    collection(COURSES_COLLECTION).findOne({ _id: { $in: idCandidates(courseId) } }),
+    loadQuizBlueprint(courseId)
+  ]);
+
+  // The examination's own table and nothing else. The per-lesson quiz rows say
+  // how long each quiz is, which is a different question, and reading them as
+  // an answer to this one is the mistake the old assembler was built on.
+  const plan = blueprint?.final?.rows?.length ? blueprint.final : null;
+  if (!plan) return { status: "skipped", reason: "no-final-table" };
+
+  const moduleIds = plan.rows.map((row) => row.moduleId).filter(Boolean);
+  if (moduleIds.length === 0) return { status: "skipped", reason: "no-final-table" };
+
+  const candidates = moduleIds.flatMap((id) => idCandidates(id));
+  const [modules, texts] = await Promise.all([
+    collection(MODULES_COLLECTION).find({ _id: { $in: candidates } }).toArray(),
+    (await collectionExists(TEXT_COLLECTION))
+      ? collection(TEXT_COLLECTION).find({ moduleId: { $in: candidates } }).toArray()
+      : []
+  ]);
+
+  const titleOf = new Map(modules.map((lesson) => [asId(lesson._id), lesson.title ?? ""]));
+  const sourceOf = new Map();
+  for (const record of texts) {
+    if (!record?.hasText) continue;
+    const body = toSourceText(record);
+    // The same floor a lesson quiz uses: below this the model is reading an
+    // empty page, and the questions it invents fail validation after being
+    // paid for.
+    if (body.length >= 200) sourceOf.set(asId(record.moduleId), body);
+  }
+
+  const writable = moduleIds
+    .filter((id) => sourceOf.has(asId(id)))
+    .map((id) => ({ id: asId(id), title: titleOf.get(asId(id)) ?? "" }));
+
+  if (writable.length === 0) return { status: "skipped", reason: "no-source-text" };
+
+  const paperPlan = planFinalPaper({ plan, lessons: writable, wanted: itemCount });
+  if (paperPlan.length === 0) return { status: "skipped", reason: "no-final-table" };
+
+  // Named rather than quietly absorbed: a lesson the examination was supposed
+  // to cover and cannot is the assessor's decision to make, not ours.
+  const withoutText = moduleIds
+    .filter((id) => !sourceOf.has(asId(id)))
+    .map((id) => titleOf.get(asId(id)) || asId(id));
+
+  const courseTitle = course?.title ?? course?.courseName ?? course?.courseCode ?? "";
+
+  if (dryRun) {
+    return {
+      status: "planned",
+      scope: "final",
+      itemCount: paperPlan.reduce((sum, entry) => sum + entry.items, 0),
+      calls: paperPlan.length,
+      topics: paperPlan.map((entry) => ({
+        moduleId: entry.moduleId,
+        topic: entry.coverage,
+        items: entry.items,
+        distribution: entry.distribution
+      })),
+      estimatedInputTokens: paperPlan.reduce(
+        (sum, entry) =>
+          sum + Math.round((sourceOf.get(entry.moduleId)?.length ?? 0) / CHARS_PER_TOKEN),
+        0
+      ),
+      unassessedLessons: withoutText
+    };
+  }
+
+  const drafts = await inFlight(paperPlan, FINAL_CONCURRENCY, async (entry) => {
+    try {
+      const generated = await generateAssessmentItems({
+        courseTitle,
+        moduleTitle: entry.coverage || titleOf.get(entry.moduleId) || "",
+        sourceText: sourceOf.get(entry.moduleId) ?? "",
+        itemCount: entry.items,
+        distribution: entry.distribution,
+        model
+      });
+
+      return {
+        entry,
+        // Never more than the lesson's share, however generous the model was:
+        // the share is what the assessor wrote, and what the Skill Score is
+        // read out of.
+        items: mapGeneratedItems(generated.items).slice(0, entry.items),
+        model: generated.model,
+        usage: generated.usage
+      };
+    } catch (error) {
+      // One lesson's call failing must not throw away the twelve that worked.
+      return { entry, items: [], error: error.message ?? "generation-failed" };
+    }
+  });
+
+  const items = [];
+  const itemsPerModule = {};
+  const topics = [];
+  const perLesson = [];
+
+  drafts.forEach((draft, index) => {
+    const { entry } = draft;
+
+    // The lesson prefix only keeps ids unique across banks that each number
+    // their questions from 1; `moduleId` is what actually ties an item to its
+    // lesson, here and in grading and in the Skill Gap report.
+    draft.items.forEach((item) => {
+      items.push({
+        ...item,
+        id: `m${index + 1}-${item.id}`,
+        moduleId: entry.moduleId,
+        topic: entry.coverage
+      });
+    });
+
+    perLesson.push({
+      moduleId: entry.moduleId,
+      topic: entry.coverage,
+      asked: entry.items,
+      written: draft.items.length,
+      ...(draft.error ? { error: draft.error } : {})
+    });
+
+    if (draft.items.length === 0) return;
+
+    // What the paper actually carries, not what it meant to. This is the
+    // denominator of every Skill Score, so it has to describe the questions
+    // really on the page — a lesson the model came up short on is reported
+    // above rather than written into the student's arithmetic.
+    itemsPerModule[entry.moduleId] = draft.items.length;
+    topics.push({ moduleId: entry.moduleId, topic: entry.coverage, items: draft.items.length });
+  });
+
+  if (items.length === 0) {
+    return {
+      status: "error",
+      reason: "generation-failed",
+      message:
+        drafts.find((draft) => draft.error)?.error ?? "The model returned no usable questions.",
+      lessons: perLesson
+    };
+  }
+
+  const numbered = items.map((item, index) => ({ ...item, n: index + 1 }));
+
+  const byLevel = Object.fromEntries(TOS_LEVELS.map((level) => [level, 0]));
+  for (const item of numbered) {
+    if (TOS_LEVELS.includes(item.level)) byLevel[item.level] += 1;
+  }
+
+  const usage = drafts.reduce(
+    (sum, draft) => ({
+      inputTokens: sum.inputTokens + (draft.usage?.inputTokens ?? 0),
+      outputTokens: sum.outputTokens + (draft.usage?.outputTokens ?? 0),
+      totalTokens: sum.totalTokens + (draft.usage?.totalTokens ?? 0)
+    }),
+    { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  );
+
+  const document = buildAssessmentDocument({
+    course,
+    module: null,
+    blueprintRow: { coverage: blueprint?.examination ?? "", distribution: byLevel },
+    items: numbered,
+    itemsPerModule,
+    topics,
+    scope: "final",
+    status,
+    timeLimitMinutes,
+    model: drafts.find((draft) => draft.model)?.model ?? model,
+    usage,
+    classId
+  });
+
+  const check = validateAssessment(document);
+  if (!check.valid) {
+    return { status: "rejected", problems: check.problems, usage, lessons: perLesson };
+  }
+
+  const written = {
+    itemCount: numbered.length,
+    byLevel,
+    topics,
+    lessons: perLesson,
+    unassessedLessons: withoutText,
+    usage
+  };
+
+  try {
+    // Rewritten in place, never deleted and re-inserted: the assessment's id
+    // is what every mark against it points at.
+    if (already) {
+      await collection(ASSESSMENTS_COLLECTION).replaceOne({ _id: already._id }, document);
+      return { status: "replaced", assessmentId: asId(already._id), ...written };
+    }
+
+    const inserted = await collection(ASSESSMENTS_COLLECTION).insertOne(document);
+    return { status: "created", assessmentId: asId(inserted.insertedId), ...written };
   } catch (error) {
     if (error?.code === 11000) return { status: "skipped", reason: "already-exists" };
     throw error;

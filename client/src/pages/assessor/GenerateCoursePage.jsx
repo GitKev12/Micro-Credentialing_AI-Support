@@ -229,8 +229,13 @@ function GenerateCoursePage() {
   // The `closed` line below it is not one of these: a course whose run is over
   // stays over, and that banner has to stay with it.
   const [notice, setNotice] = useNotice();
-  // Generating a lesson quiz is the only press on this screen that spends
-  // money, so it asks first rather than firing on the click that reaches it.
+  // What the paper the model just wrote does not cover: a lesson with no text
+  // to write from, or one it came up short on. Belongs to the last generation
+  // and nothing else, so it is cleared wherever that paper stops being what is
+  // on screen.
+  const [gaps, setGaps] = useState([]);
+  // Generating spends money, so it asks first rather than firing on the click
+  // that reaches it. A final spends the most of all — one call per lesson.
   const [confirming, setConfirming] = useState(false);
 
   // The blueprint, read for the card beside the fields it governs and written
@@ -316,6 +321,7 @@ function GenerateCoursePage() {
 
     setNotice(null);
     setConfirming(false);
+    setGaps([]);
 
     if (!target?.id) {
       setPaper(null);
@@ -410,6 +416,14 @@ function GenerateCoursePage() {
   // here can override it: no plan means there is no paper to write.
   const length = brief.items;
 
+  // What the confirmation names as the material. A quiz is written from the
+  // one lesson picked above; a final is written from every lesson the
+  // examination's table gives a share to.
+  const source =
+    scope === "final"
+      ? "every lesson in the course"
+      : (lesson?.title ?? "this lesson");
+
   const requestedMinutes = timeLimitFor({ mode: limit, minutes });
   // Timed with an empty field is the one answer that is not yet an answer.
   const limitSet = limitReady({ mode: limit, minutes });
@@ -440,6 +454,23 @@ function GenerateCoursePage() {
       if (result.assessment) {
         setPaper(result.assessment);
         setEditingId(null);
+
+        // A final is written lesson by lesson, and two things can go quiet on
+        // the way: a lesson with no readable text, and a lesson the model came
+        // up short on. Either changes what the examination covers, and neither
+        // shows in a paper you would have to count by lesson to find them.
+        //
+        // Kept beside the paper rather than in the notice, because a notice
+        // takes itself away after three seconds and this is the assessor's to
+        // decide about — whether the examination can stand with a lesson
+        // missing from it.
+        setGaps([
+          ...(result.unassessedLessons ?? []).map((title) => `${title} — no lesson text to write from`),
+          ...(result.shortfall ?? []).map(
+            (row) => `${row.topic} — ${row.written} of the ${row.asked} asked for`
+          )
+        ]);
+
         setNotice({
           tone: "ok",
           text: `${result.assessment.itemCount} questions written. Read them before posting.`
@@ -541,6 +572,16 @@ function GenerateCoursePage() {
                   ? `${paper.itemCount} questions · ${paper.totalPoints} points · pass mark ${paper.passMark}`
                   : "Nothing written for this assessment yet."}
               </p>
+
+              {/* The lessons this paper does not measure, and how far short it
+                  fell on each. Stays until the paper does. */}
+              {gaps.length > 0 ? (
+                <ul className="gen-gaps" role="status">
+                  {gaps.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
 
             <div className="gen-paper__tags">
@@ -806,9 +847,12 @@ function GenerateCoursePage() {
               </div>
             ) : null}
 
-            {/* Only a quiz is asked about. Assembling a final draws on questions
-                that already exist and takes nothing from the outside, so there
-                is nothing to stop and check.
+            {/* A final used to go straight through on the click that reached
+                it: assembling one drew on questions that already existed and
+                took nothing from the outside, so there was nothing to stop and
+                check. It is written by the model now, one call per lesson —
+                the most expensive press on the console — and it asks like
+                every other.
 
                 Asked as a question, and naming what is about to be written:
                 how many questions, and off which lesson. That is the thing
@@ -821,8 +865,8 @@ function GenerateCoursePage() {
               <>
                 <p className={`gen-hint${paper ? " is-warn" : ""}`}>
                   {paper
-                    ? `Replace all ${paper.itemCount} questions with ${length} new ones written from ${lesson?.title ?? "this lesson"}? The assessment goes back to a draft.`
-                    : `Write ${length} questions from ${lesson?.title ?? "this lesson"}?`}
+                    ? `Replace all ${paper.itemCount} questions with ${length} new ones written from ${source}? The assessment goes back to a draft.`
+                    : `Write ${length} questions from ${source}?`}
                 </p>
                 <div className="gen-actions">
                   <button
@@ -850,7 +894,7 @@ function GenerateCoursePage() {
                     !limitSet ||
                     (scope === "lesson" && (!moduleId || !lesson?.hasText))
                   }
-                  onClick={scope === "final" ? generate : () => setConfirming(true)}
+                  onClick={() => setConfirming(true)}
                 >
                   <GenerateIcon size={16} />
                   {busy === "generate" ? "Generating…" : paper ? "Regenerate" : "Generate"}

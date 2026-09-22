@@ -2885,6 +2885,21 @@
   color: var(--maroon-900);
 }
 
+/* What the paper beside it does not cover. Sits under the paper's own line
+   rather than in a notice, because a notice leaves after three seconds and
+   this is the assessor's to decide about. */
+.gen-gaps {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--maroon-900);
+  border-radius: var(--radius-sm);
+  background: var(--pink-100);
+  list-style: none;
+  font-size: var(--fs-micro);
+  line-height: 1.6;
+  color: var(--maroon-900);
+}
+
 /* ── One question ────────────────────────────── */
 
 .gen-q-list {

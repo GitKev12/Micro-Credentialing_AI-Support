@@ -22,8 +22,8 @@ import {
 import { openAttemptsByAssessment, takerCounts } from "../assessments/attempts.js";
 import { onResultsChange } from "../lib/resultsEvents.js";
 import {
-  assembleFinalAssessment,
   ensureAssessmentIndexes,
+  generateFinalAssessment,
   generateModuleAssessment
 } from "../assessments/assessments.generate.js";
 import {
@@ -471,6 +471,11 @@ const GENERATION_REASONS = {
     "This lesson has no row in the course's Table of Specification. Set the number of items yourself to generate anyway.",
   "no-blueprint":
     "This course has no Table of Specification yet. Set the number of items yourself to generate anyway.",
+  // The final is written from the examination's own table, so the table is the
+  // thing to send the assessor back to — not the lesson quizzes, which it no
+  // longer draws on.
+  "no-final-table":
+    "This course's Table of Specification has no final exam table yet. Fill in the examination's table first, giving each lesson its share of the paper.",
   "no-lesson-quizzes":
     "The final is drawn from the lesson quizzes, so generate at least one lesson quiz first.",
   "no-lesson-items": "The lesson quizzes hold no usable questions for a final to draw from.",
@@ -479,6 +484,20 @@ const GENERATION_REASONS = {
   "module-not-found": "That lesson no longer exists.",
   "generation-failed": "The generator could not be reached. Try again shortly.",
   "database-not-connected": "The database is not connected."
+};
+
+/**
+ * The same reasons, said for a final.
+ *
+ * A couple of them name "this lesson" because a quiz is one lesson. A final is
+ * every lesson at once, and being told to re-process "the module" when
+ * thirteen of them have no text is advice the assessor cannot follow.
+ */
+const FINAL_REASONS = {
+  "no-source-text":
+    "None of this course's lessons have extracted text yet, so the generator has nothing to read. Re-process the modules first.",
+  "no-blueprint":
+    "This course has no Table of Specification yet, so there is nothing to write the final from."
 };
 
 /**
@@ -527,7 +546,12 @@ export async function generateCourseAssessment(request, response) {
       ) ?? null);
 
   if (existing) {
-    const taken = (await submissionCounts([existing._id])).get(asId(existing._id)) ?? 0;
+    // `submissionCounts` answers with { submissions, students }, not a number.
+    // Comparing the object itself to 0 is always false, so this guard has
+    // never once fired — a paper students had already taken could be rewritten
+    // out from under their marks. It matters more now than it did: regenerating
+    // a final is a paid call per lesson as well as a rewrite.
+    const taken = (await submissionCounts([existing._id])).get(asId(existing._id))?.students.size ?? 0;
     if (taken > 0) {
       return response.status(409).json({
         message: `${taken} student${taken === 1 ? " has" : "s have"} already taken this assessment, so its questions can no longer be rewritten.`,
@@ -539,7 +563,7 @@ export async function generateCourseAssessment(request, response) {
   await ensureAssessmentIndexes();
 
   const result = isFinal
-    ? await assembleFinalAssessment({
+    ? await generateFinalAssessment({
         courseId: course._id,
         classId,
         itemCount,
@@ -559,6 +583,7 @@ export async function generateCourseAssessment(request, response) {
 
   if (result.status !== "created" && result.status !== "replaced") {
     const message =
+      (isFinal ? FINAL_REASONS[result.reason] : null) ??
       GENERATION_REASONS[result.reason] ??
       (result.status === "rejected"
         ? `The generated questions did not pass validation: ${(result.problems ?? []).join(" ")}`
@@ -575,10 +600,20 @@ export async function generateCourseAssessment(request, response) {
     return response.status(500).json({ message: "The assessment was written but could not be read back." });
   }
 
+  // Two things about a final the paper itself cannot say: a lesson the model
+  // came up short on, and a lesson with no text to write from at all. Both
+  // change what the examination covers, and both are silent otherwise — the
+  // assessor would have to count the paper by lesson to find them.
+  const shortfall = (result.lessons ?? []).filter((entry) => entry.written < entry.asked);
+
   return response.json({
     assessment: assessmentDetail(doc, 0),
     replaced: result.status === "replaced",
-    usage: result.usage ?? null
+    usage: result.usage ?? null,
+    ...(shortfall.length > 0 ? { shortfall } : {}),
+    ...(result.unassessedLessons?.length > 0
+      ? { unassessedLessons: result.unassessedLessons }
+      : {})
   });
 }
 
