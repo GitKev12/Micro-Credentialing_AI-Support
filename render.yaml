@@ -16,7 +16,7 @@ services:
     # `free` sleeps after 15 minutes idle and caps memory at 512 MB. The OCR
     # path (tesseract.js + pdfjs + canvas, rendering at ~180 DPI in-request)
     # will very likely be OOM-killed there — move to `starter` before relying
-    # on certificate or module OCR in production.
+    # on module OCR in production. Certificates no longer use OCR.
     plan: free
     buildCommand: npm ci
     startCommand: npm --workspace server run start
