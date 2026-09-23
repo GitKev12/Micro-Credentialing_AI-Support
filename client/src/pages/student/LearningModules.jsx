@@ -26,6 +26,7 @@ import LessonNav from "./components/LessonNav";
 import QuizRunner from "./components/QuizRunner";
 import BadgeToast from "./components/BadgeToast";
 import { BackIcon, BookIcon, LockIcon, QuizIcon } from "./components/icons";
+import { shortDuration } from "./assessmentClock";
 import { SkeletonText } from "../../components/Skeleton";
 
 // Breathing room left above a section heading when jumping to it.
@@ -216,6 +217,9 @@ function LearningModules() {
   // run is over. An ended course is read-only: see courseAccess.js.
   const [course, setCourse] = useState(null);
   const [assessments, setAssessments] = useState([]);
+  // One examination, no lesson quizzes. Sent with the rail rather than worked
+  // out from it: a taught course nobody has generated for yet has the same rows.
+  const [assessOnly, setAssessOnly] = useState(false);
   const [completedIds, setCompletedIds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   // The item shown in the right-hand viewer: { type: "lesson" | "assessment", item }.
@@ -293,21 +297,35 @@ function LearningModules() {
 
     Promise.all([
       fetchCourseModules(courseId).catch(() => ({ course: null, modules: [] })),
-      fetchCourseAssessments(studentId, courseId).catch(() => []),
+      fetchCourseAssessments(studentId, courseId).catch(() => ({
+        assessments: [],
+        assessOnly: false
+      })),
       fetchCourseProgress(studentId, courseId).catch(() => [])
     ])
-      .then(([lessons, assessmentList, completedList]) => {
+      .then(([lessons, rail, completedList]) => {
         if (!active) return;
         const moduleList = lessons.modules;
+        const assessmentList = rail.assessments;
         setCourse(lessons.course);
         setModules(moduleList);
         setAssessments(assessmentList);
+        setAssessOnly(rail.assessOnly);
         setCompletedIds(completedList.map(String));
         // Open the first lesson by default so the viewer isn't empty. Falling
         // back to a quiz, only one that can actually be opened: the list
         // includes locked placeholders for papers the assessor has not posted,
         // and auto-opening one would put a 404 in the viewer on arrival.
-        if (moduleList.length > 0) {
+        //
+        // Nothing at all is opened for an assess-only candidate. There are no
+        // lessons to fall back from, and the one paper here is their timed
+        // examination — asking the server for it registers the attempt as open
+        // (see openAttempt), which would start their paper by their having
+        // arrived on the page and show the assessor somebody working on it.
+        // They open it themselves, from the empty reader.
+        if (rail.assessOnly) {
+          setSelected(null);
+        } else if (moduleList.length > 0) {
           setSelected({ type: "lesson", item: moduleList[0] });
         } else {
           const openable = assessmentList.find(
@@ -553,6 +571,24 @@ function LearningModules() {
     ? Math.round((completedCount / courseItems) * 100)
     : 0;
 
+  /**
+   * What the assess-only candidate has used, which is not the same question.
+   *
+   * There is no ladder on this pathway — no lessons to finish, no quizzes to
+   * pass — so a bar reading "0 of 17" would measure work nobody asked for and
+   * could only ever sit at zero until the examination was passed. What there
+   * is instead is three attempts and a result, and that is what is reported.
+   */
+  const finalRow = finalAssessment?.result ?? null;
+  const attemptsUsed = finalRow?.attemptsUsed ?? 0;
+  // Null until the paper has been taken once, because the limit is the
+  // paper's and there is no paper on record yet.
+  const attemptsAllowed = finalRow?.attemptsAllowed ?? null;
+  // `score` is points out of `total`; the mark the candidate is judged on is
+  // the percentage, which is what `passMark` is read against everywhere else.
+  const finalPercent =
+    finalRow && finalRow.total > 0 ? Math.round((finalRow.score / finalRow.total) * 100) : null;
+
   /** Whether this lesson's quiz has been passed — the second half of it. */
   const quizPassedFor = (moduleId) =>
     (assessmentsByModule[String(moduleId)] ?? []).some((quiz) => quiz.result?.passed);
@@ -641,7 +677,10 @@ function LearningModules() {
 
   const refreshAssessments = () => {
     fetchCourseAssessments(studentId, courseId)
-      .then(setAssessments)
+      .then((rail) => {
+        setAssessments(rail.assessments);
+        setAssessOnly(rail.assessOnly);
+      })
       .catch(() => {});
   };
 
@@ -774,8 +813,11 @@ function LearningModules() {
           <BackIcon size={16} />
         </button>
 
+        {/* Named for what is actually under it. An assess-only candidate has
+            no learning modules, and heading the page with them invites a hunt
+            for something that was never there. */}
         <h2 className="student-courses__title modules-page__title">
-          {courseTitle} · Learning Modules
+          {courseTitle} · {assessOnly ? "Examination" : "Learning Modules"}
         </h2>
       </div>
 
@@ -814,7 +856,27 @@ function LearningModules() {
       <div className="modules-layout">
         {/* Left: curriculum — numbered lessons with completion state */}
         <aside className="modules-layout__aside">
-          {!isLoading && modules.length > 0 ? (
+          {/* Two different questions, so two different panels. A taught
+              course is a ladder and the bar says how far up it; an
+              assess-only one is a single paper, and the only figures it has
+              are the attempts and the mark. */}
+          {isLoading ? null : assessOnly ? (
+            <div className="modules-progress">
+              <p className="modules-progress__label">Examination</p>
+              <div className="modules-progress__row">
+                <span className="modules-progress__count">
+                  {finalPercent === null ? "Not taken" : `${finalPercent}%`}
+                </span>
+                <span className="modules-progress__of">
+                  {finalRow && attemptsAllowed
+                    ? `attempt ${attemptsUsed} of ${attemptsAllowed}`
+                    : finalAssessment?.locked
+                      ? "not open yet"
+                      : "ready to take"}
+                </span>
+              </div>
+            </div>
+          ) : modules.length === 0 ? null : (
             <div className="modules-progress">
               {/* The label above the figure rather than beside it. Sharing a
                   line, a small uppercase eyebrow and a large number had to be
@@ -841,8 +903,14 @@ function LearningModules() {
                 />
               </div>
             </div>
-          ) : null}
+          )}
 
+          {/* No curriculum on the assess-only pathway: the lessons are the
+              taught section's, and this candidate is examined on competence
+              they already hold. The server refuses them too — this is the
+              half that stops the rail offering what it would then refuse. */}
+          {assessOnly ? null : (
+            <>
           <h3 className="modules-section__title">Lessons</h3>
 
           {/* Only the list scrolls — the progress block and heading stay put. */}
@@ -873,6 +941,20 @@ function LearningModules() {
               />
             )}
           </div>
+            </>
+          )}
+
+          {/* Why there is no curriculum here, said once and in the space it
+              would have filled. Without it the panel reads as a course whose
+              lessons have not been uploaded yet, which is a different thing
+              and one the student would wait for. */}
+          {assessOnly && !isLoading ? (
+            <p className="sd-pathway-note">
+              One examination, and nothing to finish before it. This pathway has
+              no lessons and no quizzes — you are assessed on what you already
+              know.
+            </p>
+          ) : null}
 
           {/* Pinned under the scroller rather than sitting at the foot of it.
               It is the last thing you sit and the thing the whole course is
@@ -881,8 +963,10 @@ function LearningModules() {
               stays shut until all lessons are read and all lesson quizzes
               passed — the server decides that and sends the reason with it. */}
           {finalAssessment ? (
-            <div className="sd-final">
-              <p className="sd-final__label">Final Exam</p>
+            <div className={`sd-final${assessOnly ? " sd-final--hero" : ""}`}>
+              <p className="sd-final__label">
+                {assessOnly ? "Your examination" : "Final Exam"}
+              </p>
 
               {/* Opens whether or not it is shut, like a lesson's quiz: the
                   row keeps its lock and its dashed border, and the viewer is
@@ -925,6 +1009,9 @@ function LearningModules() {
                     <span className="sd-final__state">
                       {finalAssessment.itemCount} questions · pass{" "}
                       {finalAssessment.passMark}
+                      {finalAssessment.timeLimitMinutes > 0
+                        ? ` · ${shortDuration(finalAssessment.timeLimitMinutes)}`
+                        : ""}
                     </span>
                   ) : null}
                 </span>
@@ -944,7 +1031,9 @@ function LearningModules() {
               <span className="module-viewer__mark" aria-hidden="true">
                 <BookIcon size={22} />
               </span>
-              <p className="student-courses__status">Select a lesson or assessment.</p>
+              <p className="student-courses__status">
+                {assessOnly ? "Open your examination to begin." : "Select a lesson or assessment."}
+              </p>
             </div>
           ) : selected.type === "lesson" ? (
             <div className="module-viewer">

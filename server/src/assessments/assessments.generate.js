@@ -376,7 +376,7 @@ export async function generateModuleAssessment({
 
   if (!lesson) return { status: "error", reason: "module-not-found" };
 
-  const blueprintRow = await loadLessonBlueprint(courseId, moduleId);
+  const blueprintRow = await loadLessonBlueprint(courseId, moduleId, classId);
 
   // An assessor who typed a length has said what the paper is; the blueprint
   // then only supplies the mix of thinking levels. Without one, the blueprint
@@ -1086,6 +1086,7 @@ async function inFlight(entries, limit, work) {
 export async function generateFinalAssessment({
   courseId,
   classId = null,
+  assessOnly = false,
   dryRun = false,
   model = null,
   itemCount = null,
@@ -1102,7 +1103,9 @@ export async function generateFinalAssessment({
 
   const [course, blueprint] = await Promise.all([
     collection(COURSES_COLLECTION).findOne({ _id: { $in: idCandidates(courseId) } }),
-    loadQuizBlueprint(courseId)
+    // An assess-only class is examined on its own blueprint at its own length,
+    // and never on the taught section's — see loadTosDocument.
+    loadQuizBlueprint(courseId, classId, { assessOnly })
   ]);
 
   // The examination's own table and nothing else. The per-lesson quiz rows say

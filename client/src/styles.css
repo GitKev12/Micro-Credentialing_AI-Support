@@ -900,13 +900,17 @@ a {
    that does not know the keyword drops the line and keeps the old top
    alignment, which is the right thing to lose. */
 .module-viewer__body {
+  /* Named so a child pinned to the top of this scroller can bleed back out to
+     its edges without hardcoding the figure twice — see .sd-quiz__meta. */
+  --viewer-pad-x: 1.5rem;
+  --viewer-pad-top: 1.35rem;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.35rem 1.5rem 1.5rem;
+  padding: var(--viewer-pad-top) var(--viewer-pad-x) 1.5rem;
 }
 
 /* ── Module viewer: OCR text mode ─────────────────────── */
@@ -1291,8 +1295,10 @@ ol.lesson-reader__list li::marker {
   /* The document scrolls down here, so the quiz should not trap it. The
      side padding stays: it is the card's, and the card has none of its own. */
   .module-viewer__body {
+    --viewer-pad-x: 1.1rem;
+    --viewer-pad-top: 1.1rem;
     overflow-y: visible;
-    padding: 1.1rem 1.1rem 1.25rem;
+    padding: var(--viewer-pad-top) var(--viewer-pad-x) 1.25rem;
   }
 
   .module-viewer__text {

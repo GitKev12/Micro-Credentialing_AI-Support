@@ -8,8 +8,8 @@ import {
 import { readError } from "../../services/readError";
 import { useNotice } from "../../lib/useNotice";
 import { ChevronRightIcon } from "./components/icons";
+import { classLine } from "./pathway";
 import {
-  CredentialDots,
   LoadFailed,
   Notice,
   Person,
@@ -172,7 +172,7 @@ function RosterPage() {
         title={course ? `${course.name} — Students` : "Students"}
         eyebrow={
           course
-            ? [course.code, course.section, classes.map((cls) => cls.name).join(" · ")]
+            ? [course.code, course.section, classLine(classes)]
                 .filter(Boolean)
                 .join(" · ")
             : ""
@@ -251,8 +251,25 @@ function RosterPage() {
                       <ProgressBar label={`${done} of ${worth}`} pct={pct} />
                     </td>
 
-                    <td>
-                      <CredentialDots earned={student.creds} total={total} />
+                    {/* A count, not a row of dots. One dot per lesson made
+                        a fifteen-lesson course a wall of them, and the figure
+                        it was counting — issued credentials — was not badges
+                        at all. A badge is a passed lesson quiz, one per
+                        lesson, so the lesson count is what it is out of. */}
+                    <td className="roster-count">
+                      {student.badges === null ? (
+                        // Assess-only: one examination, no lesson quizzes, so
+                        // no badges to hold. A nought here would read as a
+                        // candidate who has not got going.
+                        <span className="assessor-table__dash" title="No badges on this pathway">
+                          —
+                        </span>
+                      ) : (
+                        <>
+                          {student.badges ?? 0}
+                          <span className="roster-count__of"> / {total}</span>
+                        </>
+                      )}
                     </td>
 
                     <td>

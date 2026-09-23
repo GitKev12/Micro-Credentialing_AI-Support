@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { toAssessmentSummary } from "../assessments/assessments.format.js";
 import { scoreOf } from "../assessors/grading.js";
+import { loadStudentPathways } from "../lib/courseAccess.js";
+import { ASSESS_ONLY } from "../lib/classMode.js";
 
 /**
  * Who holds which badges.
@@ -152,9 +154,30 @@ export async function lessonBadgeFor(moduleId) {
  * every course's badges, and a student has no business being shown badges they
  * cannot earn.
  */
-export async function buildStudentBadges(studentId, student, courses) {
-  if (courses.length === 0) return [];
+/**
+ * The courses out of a student's enrolment that can actually give them badges.
+ *
+ * Exported because the admin's student list counts badges without going
+ * through the badge wall, and the two must not disagree about what a student's
+ * badges are out of — which is the whole reason this module exists.
+ */
+export async function earnableCourses(studentId, enrolled) {
+  const pathways = await loadStudentPathways(studentId);
+  return enrolled.filter((course) => pathways.get(String(course._id)) !== ASSESS_ONLY);
+}
+
+export async function buildStudentBadges(studentId, student, enrolled) {
+  if (enrolled.length === 0) return [];
   if (!(await collectionExists(BADGES_COLLECTION))) return [];
+
+  // A course taken assess-only has no badges to offer this student. Its
+  // candidates take one examination and no lesson quizzes, and a badge is a
+  // passed lesson quiz — so every badge on that course is unreachable for
+  // them. Left in, they counted against the denominator: a candidate with
+  // seven badges on a taught course read "7 of 23" because an assess-only
+  // course put eight more on the wall that they could never earn.
+  const courses = await earnableCourses(studentId, enrolled);
+  if (courses.length === 0) return [];
 
   const codes = [...new Set(courses.map(courseCodeOf).filter(Boolean))];
 

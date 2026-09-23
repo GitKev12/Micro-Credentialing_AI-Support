@@ -37,9 +37,17 @@ const asId = (value) => (value == null ? "" : String(value));
  *
  * Upserted rather than inserted, so opening the same paper twice is one row
  * with a later `openedAt` and not two.
+ *
+ * `startedAt` is written once and never again, and that is the whole of the
+ * clock. `openedAt` moves every time the paper is asked for, so it answers
+ * "is this open" and nothing else — timing a sitting from it would hand a
+ * student a fresh hour for pressing reload. The row is deleted when the paper
+ * is handed in (see closeAttempt), so a retake is a new row and a new clock.
  */
 export async function openAttempt({ studentId, assessment }) {
   if (!studentId || !assessment?._id) return;
+
+  const now = new Date();
 
   await collection(ATTEMPTS_COLLECTION).updateOne(
     {
@@ -47,18 +55,56 @@ export async function openAttempt({ studentId, assessment }) {
       assessmentId: { $in: idCandidates(assessment._id) }
     },
     {
-      $set: { openedAt: new Date() },
+      $set: { openedAt: now },
       // The filter matches on either id form, so Mongo cannot lift the values
       // out of it for a new document — they are named here instead.
       $setOnInsert: {
         studentId,
         assessmentId: assessment._id,
         courseId: assessment.courseId ?? null,
-        moduleId: assessment.moduleId ?? null
+        moduleId: assessment.moduleId ?? null,
+        startedAt: now
       }
     },
     { upsert: true }
   );
+
+  // Read back rather than assumed: on a reload the row already existed, so
+  // the clock started whenever it started and not now.
+  const row = await collection(ATTEMPTS_COLLECTION).findOne({
+    studentId: { $in: idCandidates(studentId) },
+    assessmentId: { $in: idCandidates(assessment._id) }
+  });
+
+  return clockFor(row, assessment);
+}
+
+/**
+ * When a sitting began and when it must be in, or null for an untimed paper.
+ *
+ * The deadline is the server's, so it is the same deadline in every tab and
+ * survives a reload — a countdown the browser worked out for itself would
+ * start again at the full hour each time the page was refreshed.
+ *
+ * `startedAt` is missing on rows written before the clock existed. Those fall
+ * back to `openedAt`, which is the best evidence there is of when the paper
+ * was picked up, and is never worse than having no deadline at all.
+ */
+export function clockFor(row, assessment) {
+  const minutes = Number(assessment?.timeLimitMinutes);
+  if (!(minutes > 0)) return null;
+
+  const began = row?.startedAt ?? row?.openedAt;
+  if (!began) return null;
+
+  const startedAt = new Date(began);
+  if (Number.isNaN(startedAt.getTime())) return null;
+
+  return {
+    startedAt: startedAt.toISOString(),
+    endsAt: new Date(startedAt.getTime() + minutes * 60000).toISOString(),
+    limitMinutes: minutes
+  };
 }
 
 /**

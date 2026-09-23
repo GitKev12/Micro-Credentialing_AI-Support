@@ -8,6 +8,7 @@ import {
   streamAssessmentResultsUrl
 } from "../../services/assessors";
 import { readError } from "../../services/readError";
+import { isAssessOnly } from "./pathway";
 import {
   AssessorSelect,
   Chip,
@@ -505,7 +506,12 @@ function ResultsPage() {
                 options={classes.map((cls) => ({
                   value: cls.id,
                   label: cls.name,
-                  meta: `${cls.students} student${cls.students === 1 ? "" : "s"}`
+                  // Which pathway, beside the size. An assessor holding a
+                  // taught section and an assess-only one on the same course
+                  // must never have to guess which board they are reading.
+                  meta: `${isAssessOnly(cls) ? "Assess-only" : "Taught"} · ${
+                    cls.students
+                  } student${cls.students === 1 ? "" : "s"}`
                 }))}
               />
             </div>

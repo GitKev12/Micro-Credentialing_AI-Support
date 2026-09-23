@@ -8,6 +8,7 @@ import {
   teaches
 } from "../lib/courseAccess.js";
 import { paperBelongsToClass, papersForClass } from "../assessments/classPapers.js";
+import { classMode, isAssessOnly } from "../lib/classMode.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 import {
   DEFAULT_FINAL_MINUTES,
@@ -129,9 +130,14 @@ async function resolveScope(request, response) {
     return null;
   }
 
-  const classId = chosen ? asId(chosen._id) : (classes[0] ? asId(classes[0]._id) : null);
+  const held = chosen ?? classes[0] ?? null;
+  const classId = held ? asId(held._id) : null;
 
-  return { assessor, course, classes, classId };
+  // The pathway the chosen class runs. It decides what may be written for it
+  // at all — an assess-only class has one examination and no lesson quizzes —
+  // so it travels with the scope rather than being looked up again by each of
+  // the handlers below.
+  return { assessor, course, classes, classId, assessOnly: isAssessOnly(held) };
 }
 
 /**
@@ -333,7 +339,7 @@ export async function getCourseAssessments(request, response) {
   const scope = await resolveScope(request, response);
   if (!scope) return undefined;
 
-  const { course, classId } = scope;
+  const { course, classId, assessOnly } = scope;
 
   const [modules, everyPaper] = await Promise.all([
     (await collectionExists(MODULES_COLLECTION))
@@ -342,8 +348,9 @@ export async function getCourseAssessments(request, response) {
     assessmentsForCourse(course)
   ]);
 
-  // What this class sits: its own papers, and the course's where it has none.
-  const assessments = papersForClass(everyPaper, classId);
+  // What this class takes: its own papers, and the course's where it has none —
+  // except on the assess-only pathway, which inherits nothing.
+  const assessments = papersForClass(everyPaper, classId, { assessOnly });
 
   const lessons = sortLessons(modules);
 
@@ -414,9 +421,15 @@ export async function getCourseAssessments(request, response) {
       id: asId(cls._id),
       name: cls.name ?? "Unnamed class",
       active: cls.active !== false,
+      mode: classMode(cls),
       students: (cls.studentIds ?? []).length
     })),
     classId: scope.classId,
+    // The pathway the chosen class runs. The screen is a different screen for
+    // each — one examination, or a quiz per lesson and then the examination —
+    // and it cannot tell them apart from the rows, because a taught course
+    // nobody has generated for yet looks exactly like an assess-only one.
+    assessOnly: scope.assessOnly,
     defaultFinalMinutes: DEFAULT_FINAL_MINUTES,
     lessons: rows,
     final: finalDoc
@@ -501,6 +514,20 @@ const FINAL_REASONS = {
 };
 
 /**
+ * The same again for an assess-only class, which reads its own blueprint.
+ *
+ * Being sent to "the course's Table of Specification" would be the wrong
+ * advice twice over: this class does not use it, and the one it does use is
+ * reached from this same screen.
+ */
+const ASSESS_ONLY_REASONS = {
+  "no-blueprint":
+    "This class has no Table of Specification yet. Write one for it — an assess-only class is examined on its own table, not the taught section's.",
+  "no-final-table":
+    "This class's Table of Specification has no final exam table yet. Fill it in, giving each lesson its share of the examination."
+};
+
+/**
  * POST /api/assessors/:assessorId/classes/:courseId/assessments/generate
  * Body: { scope: "lesson" | "final", moduleId?, itemCount?, timeLimitMinutes? }
  *
@@ -515,7 +542,7 @@ export async function generateCourseAssessment(request, response) {
   const scope = await resolveWritableScope(request, response);
   if (!scope) return undefined;
 
-  const { course, classId } = scope;
+  const { course, classId, assessOnly } = scope;
   const body = request.body ?? {};
   const isFinal = body.scope === "final";
   const moduleId = body.moduleId ?? null;
@@ -531,11 +558,23 @@ export async function generateCourseAssessment(request, response) {
     return response.status(400).json({ message: "moduleId is required for a lesson quiz." });
   }
 
+  // An assess-only class has no lesson quizzes to write. The screen does not
+  // offer them, so reaching here means a stale page or a direct call — either
+  // way, writing one would put a paper on a rail that will never show it and
+  // spend a generation doing it.
+  if (!isFinal && assessOnly) {
+    return response.status(409).json({
+      message:
+        "This class is assess-only, so it has no lesson quizzes — its candidates take one examination. Generate the final exam instead.",
+      reason: "assess-only"
+    });
+  }
+
   // The paper this press would rewrite: this class's own. The course's paper
   // is what they fall back to while they have none of their own, and
   // generating is how they stop falling back — it writes theirs and leaves the
   // shared one alone, for whichever class is still reading it.
-  const written = papersForClass(await assessmentsForCourse(course), classId).filter(
+  const written = papersForClass(await assessmentsForCourse(course), classId, { assessOnly }).filter(
     (doc) => String(doc.classId ?? "") === String(classId ?? "")
   );
 
@@ -566,6 +605,7 @@ export async function generateCourseAssessment(request, response) {
     ? await generateFinalAssessment({
         courseId: course._id,
         classId,
+        assessOnly,
         itemCount,
         timeLimitMinutes: lengthGiven ? timeLimitMinutes : DEFAULT_FINAL_MINUTES,
         status: "draft",
@@ -583,6 +623,7 @@ export async function generateCourseAssessment(request, response) {
 
   if (result.status !== "created" && result.status !== "replaced") {
     const message =
+      (isFinal && assessOnly ? ASSESS_ONLY_REASONS[result.reason] : null) ??
       (isFinal ? FINAL_REASONS[result.reason] : null) ??
       GENERATION_REASONS[result.reason] ??
       (result.status === "rejected"

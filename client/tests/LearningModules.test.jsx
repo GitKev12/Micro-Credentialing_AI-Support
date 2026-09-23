@@ -32,6 +32,7 @@ const FINAL = {
 };
 
 let assessments = [FINAL];
+let assessOnly = false;
 let modules = [];
 let completed = [];
 
@@ -69,7 +70,9 @@ jest.unstable_mockModule("../src/services/learningModules.js", () => ({
 }));
 
 jest.unstable_mockModule("../src/services/assessments.js", () => ({
-  fetchCourseAssessments: async () => assessments,
+  // The rail now answers with the pathway beside the rows, because the rows
+  // alone cannot say which pathway a course is on.
+  fetchCourseAssessments: async () => ({ assessments, assessOnly }),
   fetchAssessment: jest.fn(),
   submitAssessment: jest.fn()
 }));
@@ -86,6 +89,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   assessments = [FINAL];
+  assessOnly = false;
   modules = [];
   completed = [];
   lessonText = EMPTY_LESSON;
@@ -541,5 +545,146 @@ describe("a course closed under the student", () => {
   it("leaves a course that loaded shut shut, until the server says otherwise", async () => {
     await draw();
     expect(screen.queryByText(ASSESSOR_CLOSED)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The assess-only pathway, from the candidate's side.
+ *
+ * They are examined on one paper with no lessons to finish first, so the rail
+ * has no quizzes on it and the progress bar has no ladder to measure. Both
+ * absences have to read as the pathway rather than as a course whose assessor
+ * has not got round to it — which is exactly what an ungenerated taught course
+ * looks like from here.
+ */
+describe("an assess-only course", () => {
+  const OPEN_FINAL = {
+    ...FINAL,
+    id: "f1",
+    placeholder: false,
+    title: "Final Exam",
+    itemCount: 100,
+    passMark: 60,
+    locked: false,
+    reason: null
+  };
+
+  beforeEach(() => {
+    assessOnly = true;
+    assessments = [OPEN_FINAL];
+    modules = [
+      { id: "m1", title: "Arrays", order: 1 },
+      { id: "m2", title: "Looping", order: 2 }
+    ];
+  });
+
+  it("says why there is no curriculum, where it would have been", async () => {
+    const { container } = await draw();
+
+    const note = container.querySelector(".sd-pathway-note");
+    expect(note).not.toBeNull();
+    expect(note).toHaveTextContent(/no lessons and no quizzes/i);
+    // It must not send them off to read something they cannot open.
+    expect(note).not.toHaveTextContent(/read any lesson/i);
+  });
+
+  it("says nothing of the sort on a taught course", async () => {
+    assessOnly = false;
+    const { container } = await draw();
+
+    expect(container.querySelector(".sd-pathway-note")).toBeNull();
+  });
+
+  it("gives the examination the weight, since it is the course", async () => {
+    const { container } = await draw();
+
+    expect(container.querySelector(".sd-final--hero")).not.toBeNull();
+    expect(screen.getByText("Your examination")).toBeInTheDocument();
+  });
+
+  /**
+   * The reported trap: a lesson ladder on a pathway that has none can only
+   * ever read zero, and a candidate who has done nothing wrong would be shown
+   * a bar saying so.
+   */
+  it("shows no lesson progress bar", async () => {
+    const { container } = await draw();
+
+    expect(container.querySelector(".modules-progress__bar")).toBeNull();
+    expect(screen.queryByText("Course progress")).not.toBeInTheDocument();
+    expect(screen.getByText("Examination")).toBeInTheDocument();
+  });
+
+  it("reports the paper as not taken before it has been", async () => {
+    const { container } = await draw();
+
+    expect(container.querySelector(".modules-progress__count")).toHaveTextContent("Not taken");
+    expect(container.querySelector(".modules-progress__of")).toHaveTextContent("ready to take");
+  });
+
+  it("reports the mark and the attempt once it has been taken", async () => {
+    assessments = [
+      {
+        ...OPEN_FINAL,
+        result: {
+          score: 72,
+          total: 100,
+          passMark: 60,
+          passed: true,
+          attempt: 2,
+          attemptsUsed: 2,
+          attemptsAllowed: 3,
+          attemptsLeft: 1,
+          items: []
+        }
+      }
+    ];
+    const { container } = await draw();
+
+    expect(container.querySelector(".modules-progress__count")).toHaveTextContent("72%");
+    expect(container.querySelector(".modules-progress__of")).toHaveTextContent("attempt 2 of 3");
+  });
+
+  /**
+   * The curriculum is the taught section's. A candidate examined on competence
+   * they already hold is not given the material the paper is drawn from, and
+   * the server refuses every lesson route for them — so the rail must not
+   * offer what opening it would then refuse.
+   */
+  it("shows no lessons at all, even when the server sends some", async () => {
+    // `modules` is still populated here on purpose: the rail is closed by the
+    // pathway, not by an empty list.
+    await draw();
+
+    expect(screen.queryByText("Arrays")).not.toBeInTheDocument();
+    expect(screen.queryByText("Looping")).not.toBeInTheDocument();
+  });
+
+  it("does not head the page with learning modules it does not have", async () => {
+    await draw();
+
+    expect(screen.getByRole("heading", { name: /Examination/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Learning Modules/)).not.toBeInTheDocument();
+  });
+
+  it("offers no lessons heading and no rail to scroll", async () => {
+    const { container } = await draw();
+
+    expect(screen.queryByText("Lessons")).not.toBeInTheDocument();
+    expect(container.querySelector(".modules-layout__scroll")).toBeNull();
+  });
+
+  it("points an empty reader at the examination rather than at a lesson", async () => {
+    await draw();
+
+    expect(screen.getByText("Open your examination to begin.")).toBeInTheDocument();
+  });
+
+  it("still draws the whole rail on a taught course", async () => {
+    assessOnly = false;
+    await draw();
+
+    expect(screen.getAllByText("Arrays").length).toBeGreaterThan(0);
+    expect(screen.getByText("Lessons")).toBeInTheDocument();
   });
 });

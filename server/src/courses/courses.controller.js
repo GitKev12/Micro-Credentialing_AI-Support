@@ -6,7 +6,12 @@ import { buildStudentBadges } from "../badges/badges.service.js";
 import { buildStudentSkillGap } from "../skillgap/skillgap.service.js";
 import { listIssuedCertificates } from "../certificates/certificates.service.js";
 import { toIsoDay } from "../lib/courseDates.js";
-import { loadStudentSuspensions, toCourseAccess } from "../lib/courseAccess.js";
+import {
+  loadStudentPathways,
+  loadStudentSuspensions,
+  toCourseAccess
+} from "../lib/courseAccess.js";
+import { ASSESS_ONLY, TAUGHT } from "../lib/classMode.js";
 
 /**
  * "Abang" — lookout endpoints that wait for their collections.
@@ -37,8 +42,12 @@ function courseCodeOf(course) {
   return String(course.code ?? course.courseCode ?? course.course_code ?? "").trim();
 }
 
-function toPublicCourse(course, progress, suspension = null) {
+function toPublicCourse(course, progress, suspension = null, mode = TAUGHT) {
   return {
+    // Which pathway this student is on in this course. The card says so before
+    // it is opened, so the missing quizzes are the pathway rather than a
+    // surprise waiting inside.
+    mode,
     id: course._id,
     code: courseCodeOf(course),
     title: course.title ?? course.courseName ?? course.name ?? course.course_name ?? "",
@@ -321,16 +330,29 @@ export async function getStudentCourses(request, response) {
   const passes = await buildPassIndex(studentId, student, courses, owner);
   // Classes hold the student by their Mongo _id; the route may have been given
   // their student number instead, so ask with the id the class would have used.
-  const suspensions = await loadStudentSuspensions(student?._id ?? studentId);
+  const classKey = student?._id ?? studentId;
+  const [suspensions, pathways] = await Promise.all([
+    loadStudentSuspensions(classKey),
+    loadStudentPathways(classKey)
+  ]);
 
   return response.json({
     courses: courses.map((course) => {
-      const { total, completed } = index.get(String(course._id));
-      const passed = passes.get(String(course._id)) ?? { quizzes: new Set(), final: false };
+      const key = String(course._id);
+      const { total, completed } = index.get(key);
+      const passed = passes.get(key) ?? { quizzes: new Set(), final: false };
+      const mode = pathways.get(key) ?? TAUGHT;
+
       return toPublicCourse(
         course,
-        progressSummary(total, completed, passed.quizzes.size, passed.final),
-        suspensions.get(String(course._id)) ?? null
+        // An assess-only course is one paper, so its progress is the paper:
+        // a ladder of lessons and quizzes it does not have would report a
+        // candidate who has done nothing wrong as nought per cent.
+        mode === ASSESS_ONLY
+          ? progressSummary(0, 0, 0, passed.final)
+          : progressSummary(total, completed, passed.quizzes.size, passed.final),
+        suspensions.get(key) ?? null,
+        mode
       );
     })
   });

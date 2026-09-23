@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchAssessorClasses, storedAssessorId } from "../../services/assessors";
 import { readError } from "../../services/readError";
 import { ChevronRightIcon } from "./components/icons";
+import { classLine } from "./pathway";
 import { Chip, LoadFailed, ScreenHeader } from "./components/ui";
 import { formatCourseLength, formatCourseRange } from "../../lib/courseDuration";
 
@@ -33,20 +34,14 @@ function lastActivity(iso) {
 }
 
 /**
- * The classes behind one course row, named.
+ * The classes behind one course row, named — with whichever of them is
+ * assess-only saying so, and whichever is switched off saying that.
  *
  * Nothing at all when the course has no class — that is a course reached by
  * enrolment alone, and inventing a class name for it would be worse than
  * silence.
  */
-function classNames(course) {
-  const classes = course.classes ?? [];
-  if (classes.length === 0) return "";
-
-  return classes
-    .map((cls) => (cls.active ? cls.name : `${cls.name} (off)`))
-    .join(" · ");
-}
+const classNames = (course) => classLine(course.classes);
 
 function ClassesPage() {
   const navigate = useNavigate();

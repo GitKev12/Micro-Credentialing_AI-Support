@@ -11,10 +11,11 @@ import { closeAttempt, openAttempt } from "./attempts.js";
 import { scoreOf } from "../assessors/grading.js";
 import { lessonBadgeFor } from "../badges/badges.service.js";
 import {
-  classIdHolding,
+  classHolding,
   loadStudentRestriction,
   refuseRestrictedCourse
 } from "../lib/courseAccess.js";
+import { isAssessOnly } from "../lib/classMode.js";
 import { paperBelongsToClass, papersForClass } from "./classPapers.js";
 import { publishResults } from "../lib/resultsEvents.js";
 
@@ -83,11 +84,21 @@ const MAX_SITTING_MS = 12 * 60 * 60 * 1000;
  * Null rather than zero for a missing figure: no paper takes no time, and a
  * column of zeroes would read as a claim about every attempt handed in before
  * this was recorded.
+ *
+ * A timed paper is capped at its own limit, which is the one length the server
+ * knows for certain: the sitting ends at the deadline, so anything longer is a
+ * request that took the scenic route or a clock that drifted — never more time
+ * at the paper. The figure is the client's, so this is the only place the
+ * limit can be held to on a submission that arrives late.
  */
-function sittingDuration(raw) {
+export function sittingDuration(raw, limitMinutes = null) {
   const ms = Math.round(Number(raw));
   if (!Number.isFinite(ms) || ms <= 0) return null;
-  return Math.min(ms, MAX_SITTING_MS);
+
+  const minutes = Number(limitMinutes);
+  const limit = minutes > 0 ? minutes * 60000 : MAX_SITTING_MS;
+
+  return Math.min(ms, limit, MAX_SITTING_MS);
 }
 
 function resultPassed(result, assessment) {
@@ -150,15 +161,19 @@ async function loadCourseState(studentId, courseId) {
     collectionExists(RESULTS_COLLECTION)
   ]);
 
-  // The class this student sits the course in decides which papers are theirs.
-  // A course taught through two classes has a paper for each, and the other
-  // section's is not this student's to see or sit — see classPapers.js.
-  const classId = await classIdHolding(studentId, courseId);
+  // The class this student takes the course in decides which papers are theirs
+  // and whether there is anything in front of them. A course taught through two
+  // classes has a paper for each, and the other section's is not this student's
+  // to see or take — see classPapers.js.
+  const held = await classHolding(studentId, courseId);
+  const classId = held?.id ?? null;
+  const assessOnly = held ? isAssessOnly(held) : false;
   const assessments = papersForClass(
     hasAssessments
       ? await collection(ASSESSMENTS_COLLECTION).find(courseMatch(courseId)).toArray()
       : [],
-    classId
+    classId,
+    { assessOnly }
   );
   const modules = hasModules
     ? await collection(MODULES_COLLECTION).find(courseMatch(courseId)).toArray()
@@ -197,6 +212,7 @@ async function loadCourseState(studentId, courseId) {
   return {
     assessments,
     classId,
+    assessOnly,
     modules,
     restriction,
     completedModuleIds: new Set(progress.map((entry) => asId(entry.moduleId))),
@@ -240,6 +256,13 @@ export function lockStateFor(assessment, state) {
       ? { locked: false, reason: null }
       : { locked: true, reason: "Finish this lesson to unlock its quiz." };
   }
+
+  // An assess-only candidate has nothing in front of the examination. They
+  // have no lessons to finish and no quizzes to pass — the curriculum is not
+  // theirs to read at all (see lessonsHiddenFrom) — so once the assessor has
+  // posted the paper it is open, and that first check above is the whole gate
+  // for this pathway.
+  if (state.assessOnly) return { locked: false, reason: null };
 
   const lessonsLeft = state.modules.filter(
     (module) => !state.completedModuleIds.has(asId(module._id))
@@ -432,10 +455,16 @@ export async function getCourseAssessmentsForStudent(request, response) {
   // A lesson with no released quiz behind it still gets its row, so the rail
   // shows the shape of the whole course. Reading this writes nothing and costs
   // nothing — generation is the assessor's, and happens on their screen.
-  state.modules.forEach((module) => {
-    if (coveredModuleIds.has(asId(module._id))) return;
-    assessments.push(placeholderRow(courseId, { scope: "lesson", moduleId: module._id }));
-  });
+  //
+  // Not on the assess-only pathway, where there is no quiz coming: a row
+  // promising one the assessor will never write is worse than no row, and the
+  // rail says what this pathway is instead (see `assessOnly` in the response).
+  if (!state.assessOnly) {
+    state.modules.forEach((module) => {
+      if (coveredModuleIds.has(asId(module._id))) return;
+      assessments.push(placeholderRow(courseId, { scope: "lesson", moduleId: module._id }));
+    });
+  }
 
   if (!assessments.some((row) => row.scope === "final")) {
     assessments.push(placeholderRow(courseId, { scope: "final" }));
@@ -477,6 +506,11 @@ export async function getCourseAssessmentsForStudent(request, response) {
 
   return response.json({
     assessments,
+    // The rail cannot tell the two pathways apart from the rows alone: an
+    // assess-only course and a taught one whose quizzes are all unwritten both
+    // arrive as a single final. The screen says something different about each,
+    // so the pathway travels with them rather than being guessed at.
+    assessOnly: state.assessOnly,
     pending: released.length === 0
   });
 }
@@ -504,7 +538,12 @@ export async function getAssessmentForStudent(request, response) {
   // Another class's paper is not this student's to open, and is answered as
   // though it were not there: the id was reached by guessing or by a stale
   // rail, and either way there is nothing here for them.
-  if (!paperBelongsToClass(doc, state.classId)) {
+  // `assessOnly` matters as much as the class: a candidate on that pathway
+  // inherits no course-wide paper, so the taught section's final is not theirs
+  // either — and it is drawn from the same banks as their own, at the taught
+  // length. Without it here they could open a paper their own rail correctly
+  // refuses to list.
+  if (!paperBelongsToClass(doc, state.classId, { assessOnly: state.assessOnly })) {
     return response.status(404).json({ message: "Assessment not found." });
   }
 
@@ -541,8 +580,9 @@ export async function getAssessmentForStudent(request, response) {
    */
   const isTheStudent = String(studentId) === String(request.session?.id ?? "");
   const retaking = String(request.query?.retake ?? "") === "1";
+  let clock = null;
   if (isTheStudent && (!live || retaking)) {
-    await openAttempt({ studentId, assessment: doc });
+    clock = await openAttempt({ studentId, assessment: doc });
     publishResults(doc._id);
   }
 
@@ -550,6 +590,9 @@ export async function getAssessmentForStudent(request, response) {
     // Every student sits every question; only the order differs, and it is
     // re-drawn here on each request.
     assessment: toStudentAssessment(doc),
+    // When this sitting must be in, on a timed paper. Null on an untimed one,
+    // and null for staff reading a student's paper — nobody is sitting it.
+    clock,
     result: resultSummary(
       live,
       summary,
@@ -585,7 +628,12 @@ export async function submitAssessment(request, response) {
   // Nothing is marked against another class's paper, however the id was come
   // by. Refused before the gates below, which are about this student's own
   // progress rather than about whose paper this is.
-  if (!paperBelongsToClass(doc, state.classId)) {
+  // `assessOnly` matters as much as the class: a candidate on that pathway
+  // inherits no course-wide paper, so the taught section's final is not theirs
+  // either — and it is drawn from the same banks as their own, at the taught
+  // length. Without it here they could open a paper their own rail correctly
+  // refuses to list.
+  if (!paperBelongsToClass(doc, state.classId, { assessOnly: state.assessOnly })) {
     return response.status(404).json({ message: "Assessment not found." });
   }
 
@@ -638,7 +686,7 @@ export async function submitAssessment(request, response) {
     // a sitting could plausibly have lasted: the figure comes from the
     // student's own browser, so a negative or absurd number is discarded
     // rather than shown to an assessor as fact.
-    durationMs: sittingDuration(durationMs),
+    durationMs: sittingDuration(durationMs, doc.timeLimitMinutes),
     aiGrading: {
       // Marked by exact comparison against the key, not by a model — the AI's
       // job is writing the questions, not scoring these two item types.

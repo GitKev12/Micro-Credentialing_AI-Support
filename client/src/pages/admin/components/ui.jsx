@@ -19,3 +19,4 @@ export {
 export { AdminField } from "./ui/AdminField";
 export { AdminModal } from "./ui/AdminModal";
 export { ConfirmDeleteModal } from "./ui/ConfirmDeleteModal";
+export { PathwayChoice, PATHWAYS, pathwayLabel } from "./ui/PathwayChoice";

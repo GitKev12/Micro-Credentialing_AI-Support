@@ -22,6 +22,14 @@ import { AdminButton } from "./primitives";
  * `error` is what came back from a refused attempt. It belongs in the dialog
  * rather than behind it: the dialog stays open, so the admin can see what went
  * wrong without having to start again.
+ *
+ * `lead`, `emptyLead`, `note` and `busyLabel` are the four sentences that make
+ * this a deletion, and they are the four a change which is not a deletion but
+ * is just as unrecoverable needs to say differently. Changing a class's
+ * pathway destroys no records and still cannot be taken back, so it is asked
+ * with this dialog and its own four sentences rather than with a second copy
+ * of it — the shape of the question is the same, and it is the shape that
+ * matters: what it costs, read from the server before the button will agree.
  */
 export function ConfirmDeleteModal({
   title,
@@ -32,6 +40,11 @@ export function ConfirmDeleteModal({
   confirmLabel = "Delete",
   confirmWord = null,
   error = null,
+  lead = "This will also permanently delete:",
+  emptyLead = "Nothing else depends on this.",
+  note = "This cannot be undone.",
+  busyLabel = "Deleting…",
+  checkingLabel = "Checking what this would remove…",
   onCancel,
   onConfirm
 }) {
@@ -60,18 +73,18 @@ export function ConfirmDeleteModal({
             disabled={busy || !confirmable}
             onClick={onConfirm}
           >
-            {busy ? "Deleting…" : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </AdminButton>
         </>
       }
     >
       {!losses ? (
-        <p className="admin-empty-note">Checking what this would remove…</p>
+        <p className="admin-empty-note">{checkingLabel}</p>
       ) : (
         <>
           {losses.length > 0 ? (
             <>
-              <p className="admin-modal__lead">This will also permanently delete:</p>
+              <p className="admin-modal__lead">{lead}</p>
               <ul className="admin-loss-list">
                 {losses.map((line) => (
                   <li key={line}>{line}</li>
@@ -79,7 +92,7 @@ export function ConfirmDeleteModal({
               </ul>
             </>
           ) : (
-            <p className="admin-modal__lead">Nothing else depends on this.</p>
+            <p className="admin-modal__lead">{emptyLead}</p>
           )}
 
           {keeps.length > 0 ? (
@@ -93,7 +106,7 @@ export function ConfirmDeleteModal({
             </>
           ) : null}
 
-          <p className="admin-empty-note">This cannot be undone.</p>
+          <p className="admin-empty-note">{note}</p>
 
           {confirmWord ? (
             <div className="admin-confirm-word">

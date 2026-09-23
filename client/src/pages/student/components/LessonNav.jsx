@@ -1,4 +1,5 @@
-import { CheckIcon, ChevronDownIcon, LockIcon, QuizIcon } from "./icons";
+import { CheckIcon, ChevronDownIcon, ClockIcon, LockIcon, QuizIcon } from "./icons";
+import { shortDuration } from "../assessmentClock";
 
 /**
  * The lesson list in the learning-modules rail.
@@ -245,11 +246,21 @@ function LessonNav({
                       <span className="sd-lesson__quiz-text">
                         <span className="sd-lesson__quiz-title">Quiz {number}</span>
                       </span>
+                      {/* One tag, and what it says is whatever matters most
+                          about the row: that it is shut, then what it was
+                          scored, and failing both how long it runs — a timed
+                          paper should say so before it is opened, not once the
+                          clock is already going. */}
                       {locked ? (
                         <span className="sd-lesson__quiz-tag">Locked</span>
                       ) : quiz.result ? (
                         <span className="sd-lesson__quiz-tag">
                           {quiz.result.score}/{quiz.result.total}
+                        </span>
+                      ) : quiz.timeLimitMinutes > 0 ? (
+                        <span className="sd-lesson__quiz-tag sd-lesson__quiz-tag--timed">
+                          <ClockIcon size={12} />
+                          {shortDuration(quiz.timeLimitMinutes)}
                         </span>
                       ) : null}
                     </button>

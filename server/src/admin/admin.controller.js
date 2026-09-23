@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { buildStudentBadges, passedFromResults, summarizeBadges } from "../badges/badges.service.js";
 import { papersByCourse } from "../assessments/papers.js";
+import { ASSESS_ONLY, classMode } from "../lib/classMode.js";
 import { progressSummary } from "../courses/courses.controller.js";
 import { finalPassedFrom } from "../assessors/grading.js";
 import {
@@ -387,11 +388,26 @@ function badgesPerCourse(courses, badges) {
  * database, the same way `tallyWorkload` is.
  */
 export function tallyActivity(students, courses, sources) {
-  const { modules = [], progress = [], results = [], badges = [], assessments = [] } = sources;
+  const { modules = [], progress = [], results = [], badges = [], assessments = [],
+          classes = [] } = sources;
 
   const lessonCounts = modulesPerCourse(courses, modules);
   const badgeCounts = badgesPerCourse(courses, badges);
   const assessmentById = new Map(assessments.map((entry) => [asId(entry._id), entry]));
+
+  // Which courses each student takes assess-only. That pathway has no lesson
+  // quizzes and a badge is a passed lesson quiz, so its badges can never be
+  // earned — counting them would put a denominator on this screen that the
+  // student's own badge wall does not have (see earnableCourses).
+  const assessOnlyByStudent = new Map();
+  for (const cls of classes) {
+    if (classMode(cls) !== ASSESS_ONLY) continue;
+    for (const studentId of cls.studentIds ?? []) {
+      const key = asId(studentId);
+      if (!assessOnlyByStudent.has(key)) assessOnlyByStudent.set(key, new Set());
+      assessOnlyByStudent.get(key).add(asId(cls.courseId));
+    }
+  }
 
   const groupBy = (rows) => {
     const grouped = new Map();
@@ -431,7 +447,10 @@ export function tallyActivity(students, courses, sources) {
     // One badge per lesson, earned by passing that lesson's quiz — decided by
     // the badge module, not re-derived here.
     const passed = passedFromResults(submissions, assessmentById);
-    const catalogue = enrolled.flatMap((courseId) => badgeCounts.get(courseId) ?? []);
+    const assessOnly = assessOnlyByStudent.get(key) ?? new Set();
+    const catalogue = enrolled
+      .filter((courseId) => !assessOnly.has(courseId))
+      .flatMap((courseId) => badgeCounts.get(courseId) ?? []);
     activity.badgesTotal = catalogue.length;
     activity.badgesEarned = catalogue.filter((badge) => passed.has(asId(badge.moduleId))).length;
 
@@ -439,7 +458,7 @@ export function tallyActivity(students, courses, sources) {
     // still waiting on staff now that marking happens at hand-in. Retired
     // attempts are dropped, as they are on the assessor's own screens.
     const live = submissions.filter((result) => result.superseded !== true);
-    activity.awaiting = live.filter((result) => result.credential?.status === "pending").length;
+    activity.pending = live.filter((result) => result.credential?.status === "pending").length;
 
     activity.lastActive = latestActivity(
       newestDate(completions.map((entry) => entry.completedAt)),
@@ -461,7 +480,7 @@ async function activityForStudents(students, courses) {
           .toArray()
       : [];
 
-  const [modules, progress, results, badges, assessments] = await Promise.all([
+  const [modules, progress, results, badges, assessments, classes] = await Promise.all([
     load(MODULES_COLLECTION, { courseId: 1, courseCode: 1 }),
     load(PROGRESS_COLLECTION, { studentId: 1, courseId: 1, moduleId: 1, completedAt: 1 }),
     load(RESULTS_COLLECTION, {
@@ -471,12 +490,18 @@ async function activityForStudents(students, courses) {
       assessmentId: 1,
       submittedAt: 1,
       superseded: 1,
-      aiGrading: 1
+      aiGrading: 1,
+      // Without this the pending count below reads undefined on every row and
+      // is always nought, however many credentials are waiting.
+      credential: 1
     }),
     load(BADGES_COLLECTION, { courseId: 1, courseCode: 1, moduleId: 1, active: 1 }),
     // Unprojected: the pass mark and scope come from normalizing the whole
     // document, so a partial one would decide a badge on missing fields.
-    load(ASSESSMENTS_COLLECTION)
+    load(ASSESSMENTS_COLLECTION),
+    // Which pathway each student is on, which decides whether a course's
+    // badges are theirs to earn at all.
+    load(CLASSES_COLLECTION, { courseId: 1, studentIds: 1, mode: 1 })
   ]);
 
   return tallyActivity(students, courses, {
@@ -484,7 +509,8 @@ async function activityForStudents(students, courses) {
     progress,
     results,
     badges: badges.filter((badge) => badge.active !== false),
-    assessments
+    assessments,
+    classes
   });
 }
 
@@ -844,7 +870,9 @@ async function workloadByAssessor(assessors, courses) {
   for (const cls of classes) {
     const key = asId(cls.courseId);
     if (!classIds.has(key)) classIds.set(key, []);
-    classIds.get(key).push(asId(cls._id));
+    // With its pathway: an assess-only class owes one examination, not a paper
+    // per lesson — see assessments/papers.js.
+    classIds.get(key).push({ id: asId(cls._id), mode: classMode(cls) });
   }
 
   const lessonCounts = modulesPerCourse(courses, modules);
@@ -870,7 +898,13 @@ async function workloadByAssessor(assessors, courses) {
     for (const course of courses.values()) {
       const key = asId(course._id);
       const onCourse = classesByCourse.get(key) ?? [];
-      mine.set(key, classesTaughtBy(onCourse, assessor._id).map((cls) => asId(cls._id)));
+      mine.set(
+        key,
+        classesTaughtBy(onCourse, assessor._id).map((cls) => ({
+          id: asId(cls._id),
+          mode: classMode(cls)
+        }))
+      );
       students.set(key, studentsTaughtBy(onCourse, assessor._id));
     }
 

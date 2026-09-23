@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "./mongo.js";
+import { ASSESS_ONLY, classMode } from "./classMode.js";
 import { toDate, toIsoDay } from "./courseDates.js";
 
 /**
@@ -192,8 +193,21 @@ async function classesHolding(studentId, courseId) {
  * is written for a class now, and the other section's is not theirs to sit.
  */
 export async function classIdHolding(studentId, courseId) {
+  const held = await classHolding(studentId, courseId);
+  return held ? held.id : null;
+}
+
+/**
+ * The same class, with the pathway it runs.
+ *
+ * Which paper a student takes and whether there are lessons in front of it are
+ * one question asked twice, and the answer to both is on the class document —
+ * so it is read once and carried, rather than fetched again from the caller
+ * that needs the second half.
+ */
+export async function classHolding(studentId, courseId) {
   const [held] = await classesHolding(studentId, courseId);
-  return held ? String(held._id) : null;
+  return held ? { id: String(held._id), mode: classMode(held) } : null;
 }
 
 /** The course fields every screen needs to say whether it is open. */
@@ -244,23 +258,84 @@ export async function findCourse(courseId) {
  */
 export async function loadStudentSuspensions(studentId) {
   const byCourse = new Map();
-  if (!studentId) return byCourse;
-  if (!(await collectionExists(CLASSES_COLLECTION))) return byCourse;
+
+  for (const [courseId, classesOnCourse] of await classesHoldingByCourse(studentId)) {
+    const suspension = classSuspensionFrom(classesOnCourse, studentId);
+    if (suspension) byCourse.set(courseId, suspension);
+  }
+
+  return byCourse;
+}
+
+/**
+ * Every class this student is in, grouped by course.
+ *
+ * One read behind two questions the course list asks together — whether this
+ * student's place in a course is closed, and which pathway they are on. Asking
+ * them separately meant the same query twice on every card.
+ */
+export async function classesHoldingByCourse(studentId) {
+  const holding = new Map();
+  if (!studentId) return holding;
+  if (!(await collectionExists(CLASSES_COLLECTION))) return holding;
 
   const classes = await mongoose.connection
     .collection(CLASSES_COLLECTION)
     .find({ studentIds: { $in: idCandidates(studentId) } })
     .toArray();
 
-  const holding = new Map();
   for (const cls of classes) {
     const key = String(cls.courseId);
     holding.set(key, [...(holding.get(key) ?? []), cls]);
   }
 
-  for (const [courseId, classesOnCourse] of holding) {
-    const suspension = classSuspensionFrom(classesOnCourse, studentId);
-    if (suspension) byCourse.set(courseId, suspension);
+  return holding;
+}
+
+/**
+ * Which pathway this student is on, per course.
+ *
+ * One class per student per course is the rule the console is written to, so
+ * the first is the answer — the same reasoning `classIdHolding` uses.
+ */
+/**
+ * Whether this course's lessons are off this caller's pathway entirely.
+ *
+ * An assess-only candidate is examined on what they already know. They take
+ * one paper and no lesson quizzes, and the lessons are not theirs to read —
+ * the course material is the taught section's, and handing it to someone
+ * being examined on prior competence is handing them the answers to the
+ * examination they are about to take.
+ *
+ * Not a closure, so it does not refuse the way an ended course or a switched
+ * off class does: those shut something that was open, and say so. This was
+ * never open, so a lesson answers the way a lesson that does not exist
+ * answers — the same 404 a paper written for another class gives (see
+ * classPapers.js). There is nothing here to tell them about.
+ *
+ * Staff are never hidden from: an assessor writes the examination out of these
+ * lessons, and an admin uploaded them.
+ */
+export async function lessonsHiddenFrom(session, courseRef) {
+  if (session?.role !== "student") return false;
+  if (!session.id || !courseRef) return false;
+
+  const course = await resolveCourse(courseRef);
+  const held = await classHolding(session.id, course?._id ?? courseRef);
+
+  return held?.mode === ASSESS_ONLY;
+}
+
+/** The same question for a student already named, where there is no session. */
+export async function lessonsHiddenFromStudent(studentId, courseRef) {
+  return lessonsHiddenFrom({ role: "student", id: studentId }, courseRef);
+}
+
+export async function loadStudentPathways(studentId) {
+  const byCourse = new Map();
+
+  for (const [courseId, classesOnCourse] of await classesHoldingByCourse(studentId)) {
+    if (classesOnCourse[0]) byCourse.set(courseId, classMode(classesOnCourse[0]));
   }
 
   return byCourse;

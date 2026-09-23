@@ -274,6 +274,9 @@ function GenerateCoursePage() {
         // assessor came here for — and fall back to the first lesson.
         const owed = data.lessons.find((lesson) => lesson.assessment?.status !== "posted");
         setModuleId(String((owed ?? data.lessons[0])?.moduleId ?? ""));
+        // An assess-only class has one paper, so the screen opens on it rather
+        // than on a quiz type it does not offer.
+        if (data.assessOnly) setScope("final");
       })
       .catch(() => {})
       .finally(() => {
@@ -291,7 +294,7 @@ function GenerateCoursePage() {
     if (!assessorId || !courseId) return undefined;
 
     let active = true;
-    fetchCourseTos(assessorId, courseId)
+    fetchCourseTos(assessorId, courseId, classId || null)
       .then((payload) => {
         if (active) setTos(payload?.tos ?? null);
       })
@@ -302,6 +305,9 @@ function GenerateCoursePage() {
     };
   }, [assessorId, courseId]);
 
+  // One examination and nothing else. The class says so, not the rows: a
+  // taught course nobody has generated for yet has exactly the same rows.
+  const assessOnly = Boolean(overview?.assessOnly);
   const lessons = overview?.lessons ?? [];
   const course = overview?.course ?? null;
 
@@ -345,6 +351,13 @@ function GenerateCoursePage() {
       active = false;
     };
   }, [assessorId, courseId, target?.id, classId]);
+
+  // Switching from a taught class to an assess-only one leaves the old scope
+  // behind for as long as the reload takes. The toggle is gone by then, so
+  // this is the only thing that can put it back.
+  useEffect(() => {
+    if (assessOnly && scope !== "final") setScope("final");
+  }, [assessOnly, scope]);
 
   // A final runs an hour and a half unless someone says otherwise; a quiz is
   // untimed unless someone says otherwise. Only applied where there is no paper to read it off.
@@ -706,32 +719,43 @@ function GenerateCoursePage() {
                   options={classes.map((cls) => ({
                     value: cls.id,
                     label: cls.name,
-                    meta: `${cls.students} student${cls.students === 1 ? "" : "s"}`
+                    // Which pathway, beside the size. An assessor holding one
+                    // of each must never have to open a class to tell them
+                    // apart — the screen is a different screen for each.
+                    meta: `${cls.mode === "assessOnly" ? "Assess-only" : "Taught"} · ${
+                      cls.students
+                    } student${cls.students === 1 ? "" : "s"}`
                   }))}
                 />
               </div>
             ) : null}
 
-            <div className="gen-field">
-              <span className="field-label">Type</span>
-              <div className="gen-toggle" role="group" aria-label="Assessment type" ref={typePillRef}>
-                <span className="gen-toggle__pill" style={typePillStyle} aria-hidden="true" />
-                <button
-                  type="button"
-                  className={`gen-toggle__btn${scope === "lesson" ? " is-active" : ""}`}
-                  onClick={() => setScope("lesson")}
-                >
-                  Quiz
-                </button>
-                <button
-                  type="button"
-                  className={`gen-toggle__btn${scope === "final" ? " is-active" : ""}`}
-                  onClick={() => setScope("final")}
-                >
-                  Final exam
-                </button>
+            {/* Absent on the assess-only pathway rather than disabled. A
+                greyed-out Quiz is a control the assessor has to work out the
+                reason for; with one paper to write there is no type to pick,
+                and the field below says which paper it is. */}
+            {assessOnly ? null : (
+              <div className="gen-field">
+                <span className="field-label">Type</span>
+                <div className="gen-toggle" role="group" aria-label="Assessment type" ref={typePillRef}>
+                  <span className="gen-toggle__pill" style={typePillStyle} aria-hidden="true" />
+                  <button
+                    type="button"
+                    className={`gen-toggle__btn${scope === "lesson" ? " is-active" : ""}`}
+                    onClick={() => setScope("lesson")}
+                  >
+                    Quiz
+                  </button>
+                  <button
+                    type="button"
+                    className={`gen-toggle__btn${scope === "final" ? " is-active" : ""}`}
+                    onClick={() => setScope("final")}
+                  >
+                    Final exam
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Standing here in both types, so the panel keeps its height as the
                 type is toggled — the same reason the Minutes field below is
@@ -991,6 +1015,8 @@ function GenerateCoursePage() {
       {tosOpen ? (
         <TosModal
           courseId={courseId}
+          classId={classId || null}
+          assessOnly={assessOnly}
           mode={scope === "final" ? "final" : "lesson"}
           lessonId={scope === "final" ? "" : moduleId}
           onSaved={setTos}

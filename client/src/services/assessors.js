@@ -179,14 +179,24 @@ function errorMessage(error, fallback) {
  * The lessons come back with it rather than from a second call because the
  * blueprint is meaningless without them: a stored row names a moduleId, and
  * the screen has to put a lesson title beside it before anything can be read.
+ *
+ * `classId` says which class is asking. Taught classes share the course's one
+ * blueprint however many of them there are; an assess-only class writes its
+ * own, because its examination is a different paper at a different length.
+ * The server decides which of the two that is — sending the class is all the
+ * screen has to do.
  */
-export async function fetchCourseTos(assessorId, courseId) {
-  const { data } = await api.get(`/assessors/${assessorId}/classes/${courseId}/tos`);
+export async function fetchCourseTos(assessorId, courseId, classId = null) {
+  const { data } = await api.get(`/assessors/${assessorId}/classes/${courseId}/tos`, {
+    params: classId ? { classId } : undefined
+  });
   return data;
 }
 
-export async function saveCourseTos(assessorId, courseId, body) {
-  const { data } = await api.put(`/assessors/${assessorId}/classes/${courseId}/tos`, body);
+export async function saveCourseTos(assessorId, courseId, body, classId = null) {
+  const { data } = await api.put(`/assessors/${assessorId}/classes/${courseId}/tos`, body, {
+    params: classId ? { classId } : undefined
+  });
   return data;
 }
 

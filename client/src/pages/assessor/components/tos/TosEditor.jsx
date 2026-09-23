@@ -32,6 +32,12 @@ import {
  * you what you had just typed into it, and this one is a length of paper being
  * spent.
  *
+ * A class writing the assess-only pathway has a blueprint of its own rather
+ * than a second table inside the course's: its examination covers the same
+ * lessons at a different length, and it has no lesson quizzes at all. Which
+ * document this is, is the server's answer to the class it is sent — the
+ * screen only says which class is asking.
+ *
  * Two blueprints, because there are two kinds of paper:
  *
  *   A lesson quiz covers one lesson, so there is no content to distribute —
@@ -112,7 +118,7 @@ function readTos(tos, lessons) {
   return { quizzes, finalItems, content, levels, grid };
 }
 
-function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved }) {
+function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, defaultLesson, headerEnd, onSaved }) {
   const assessorId = storedAssessorId();
 
   const [data, setData] = useState(null);
@@ -124,7 +130,9 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
 
   // Opened from the generate screen, so it opens on the paper that screen is
   // pointed at — the assessor came here about that one, and we keep it there.
-  const [mode, setMode] = useState(defaultMode ?? "lesson");
+  // An assess-only class writes one paper, so there is nothing to switch
+  // between and the editor opens on it.
+  const [mode, setMode] = useState(assessOnly ? "final" : (defaultMode ?? "lesson"));
   const [lessonId] = useState(defaultLesson ?? "");
   const [draft, setDraft] = useState(null);
 
@@ -135,13 +143,13 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
     setFailure(null);
 
     try {
-      const payload = await fetchCourseTos(assessorId, courseId);
+      const payload = await fetchCourseTos(assessorId, courseId, classId);
       setData(payload);
       setDraft(readTos(payload.tos, payload.lessons ?? []));
     } catch (error) {
       setFailure(readError(error, "This blueprint could not be loaded."));
     }
-  }, [assessorId, courseId]);
+  }, [assessorId, courseId, classId]);
 
   useEffect(() => {
     load();
@@ -232,11 +240,16 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
     setSaving(true);
     try {
       const payload = await saveCourseTos(assessorId, courseId, {
-        rows: lessons.map((lesson) => ({
-          moduleId: lesson.id,
-          course: lesson.title,
-          ...draft.quizzes[lesson.id]
-        })),
+        // An assess-only class has no lesson quizzes, so it writes no rows for
+        // them. The server stores none either way; sending none keeps the two
+        // ends saying the same thing.
+        rows: assessOnly
+          ? []
+          : lessons.map((lesson) => ({
+              moduleId: lesson.id,
+              course: lesson.title,
+              ...draft.quizzes[lesson.id]
+            })),
         final: {
           items: draft.finalItems,
           levels: draft.levels,
@@ -247,7 +260,7 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
             ...draft.grid[index]
           }))
         }
-      });
+      }, classId);
       setData((current) => ({ ...current, tos: payload.tos }));
       setNotice({ tone: "ok", text: "Blueprint saved." });
       onSaved?.(payload.tos);
@@ -307,15 +320,20 @@ function TosEditor({ courseId, defaultMode, defaultLesson, headerEnd, onSaved })
 
       {notice ? <p className={noticeClass(notice)}>{notice.text}</p> : null}
 
-      <Segmented
-        label="Which paper"
-        value={mode}
-        onChange={setMode}
-        options={[
-          { key: "lesson", label: "Lesson" },
-          { key: "final", label: "Final exam" }
-        ]}
-      />
+      {/* One paper, so no choice of paper. Kept out rather than shown with
+          the Lesson half dead — a switch with one working side is a question
+          the assessor has to answer before they can ignore it. */}
+      {assessOnly ? null : (
+        <Segmented
+          label="Which paper"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { key: "lesson", label: "Lesson" },
+            { key: "final", label: "Final exam" }
+          ]}
+        />
+      )}
 
       {mode === "lesson" ? (
         <>

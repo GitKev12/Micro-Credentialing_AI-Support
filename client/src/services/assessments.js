@@ -24,10 +24,16 @@ import api from "./api";
  * writes nothing.
  */
 export async function fetchCourseAssessments(studentId, courseId) {
-  if (!studentId || !courseId) return [];
+  if (!studentId || !courseId) return { assessments: [], assessOnly: false };
 
   const { data } = await api.get(`/students/${studentId}/courses/${courseId}/assessments`);
-  return Array.isArray(data?.assessments) ? data.assessments : [];
+  return {
+    assessments: Array.isArray(data?.assessments) ? data.assessments : [],
+    // Which pathway this candidate is on. The rows alone cannot say: a taught
+    // course whose quizzes are all still unwritten arrives looking exactly
+    // like an assess-only one.
+    assessOnly: Boolean(data?.assessOnly)
+  };
 }
 
 /**
@@ -45,7 +51,14 @@ export async function fetchAssessment(studentId, assessmentId, { retake = false 
     const { data } = await api.get(`/students/${studentId}/assessments/${assessmentId}`, {
       params: retake ? { retake: 1 } : undefined
     });
-    return { assessment: data?.assessment ?? null, result: data?.result ?? null };
+    return {
+      assessment: data?.assessment ?? null,
+      // When this sitting must be in. The server's deadline, not one worked
+      // out here — a countdown the browser started for itself would begin
+      // again at the full hour on every reload.
+      clock: data?.clock ?? null,
+      result: data?.result ?? null
+    };
   } catch (error) {
     if (error.response?.status === 423) {
       return { locked: true, message: error.response.data?.message ?? "This quiz is locked." };

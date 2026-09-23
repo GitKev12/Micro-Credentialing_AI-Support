@@ -63,6 +63,15 @@ jest.unstable_mockModule("../src/services/classes.js", () => ({
   fetchClasses: async () => [...classes],
   fetchClass: async (id) => classes.find((row) => row.id === id),
   fetchClassImpact: async () => ({ unenroll: 0, unassign: 0 }),
+  fetchPathwayImpact: async (_id, mode) => ({
+    from: mode === "assessOnly" ? "taught" : "assessOnly",
+    to: mode,
+    students: 2,
+    badges: 3,
+    badgeHolders: 2,
+    finalsTaken: 0,
+    quizzes: 4
+  }),
   createClass: async () => ({ name: "New class" }),
   updateClass: async () => ({ name: "Saved" }),
   deleteClass: async () => ({ name: "Gone" }),

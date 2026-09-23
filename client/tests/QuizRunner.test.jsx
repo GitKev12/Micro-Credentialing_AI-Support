@@ -36,7 +36,7 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-const draw = (assessment, onOpenLesson = null) =>
+const paint = (assessment, onOpenLesson = null) =>
   render(
     <QuizRunner
       studentId="stu-1"
@@ -46,6 +46,22 @@ const draw = (assessment, onOpenLesson = null) =>
       onOpenLesson={onOpenLesson}
     />
   );
+
+/**
+ * Draw the paper and turn it over.
+ *
+ * Every paper now opens face down, and nothing is asked of the server until
+ * Start is pressed — that press is what registers the sitting and starts the
+ * clock. The brief renders from the rail row alone, so it is on screen the
+ * moment this returns and the press needs no waiting. Tests about the brief
+ * itself use `paint`, which stops at it.
+ */
+const draw = (assessment, onOpenLesson = null) => {
+  const view = paint(assessment, onOpenLesson);
+  const start = screen.queryByRole("button", { name: /^Start/ });
+  if (start) fireEvent.click(start);
+  return view;
+};
 
 const PLACEHOLDER = {
   id: "placeholder:lesson:m1",
@@ -99,7 +115,7 @@ describe("QuizRunner — a quiz that is not open yet", () => {
     expect(
       await screen.findByText("Finish the lesson to open this quiz.")
     ).toBeInTheDocument();
-    expect(fetchAssessment).toHaveBeenCalledWith("stu-1", "a1");
+    expect(fetchAssessment).toHaveBeenCalledWith("stu-1", "a1", { retake: false });
   });
 });
 
@@ -464,8 +480,10 @@ describe("QuizRunner — picking up where the student left off", () => {
 
     const first = draw(PAPER);
     fireEvent.click(await screen.findByRole("button", { name: "Retake" }));
+    // A retake is briefed like a first sitting: the fresh paper comes on Start.
+    fireEvent.click(await screen.findByRole("button", { name: /^Start attempt/ }));
     await waitFor(() => expect(screen.queryByText(/Not passed/)).toBeNull());
-    fireEvent.click(screen.getByRole("radio", { name: "Source" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Source" }));
     first.unmount();
 
     fetchAssessment.mockResolvedValue(marked);

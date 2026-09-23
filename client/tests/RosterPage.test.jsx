@@ -19,6 +19,7 @@ const ROSTER = [
     completedItems: 5,
     itemCount: 17,
     progress: 29,
+    badges: 2,
     creds: 1,
     suspended: false
   },
@@ -28,6 +29,7 @@ const ROSTER = [
     sid: "202300002",
     classes: ["IT01 - CC2"],
     done: 1,
+    badges: 0,
     creds: 0,
     suspended: true
   }
@@ -320,5 +322,70 @@ describe("how far through the course", () => {
     // 3 of 8 lessons — the older, smaller sum, which beats an empty column.
     expect(progressCell()).toHaveTextContent("3 of 8");
     expect(progressCell()).toHaveTextContent("38%");
+  });
+});
+
+/**
+ * The badges column.
+ *
+ * It drew one square per lesson with the earned ones filled, and printed the
+ * figures beside them anyway because fifteen squares cannot be counted at a
+ * glance. The squares were also counting the wrong thing: issued credentials,
+ * of which a course has one, against the lesson count — a ratio of two
+ * unrelated numbers under a heading that said badges.
+ */
+describe("the badges column", () => {
+  const badgeCell = (name) =>
+    screen.getByRole("rowheader", { name: new RegExp(name) }).closest("tr")
+      .querySelector(".roster-count");
+
+  it("counts badges against the lessons, in figures", async () => {
+    await draw();
+
+    expect(badgeCell("Chris Jerome Dayan")).toHaveTextContent("2 / 8");
+  });
+
+  it("says nought rather than nothing for a student with none", async () => {
+    await draw();
+
+    expect(badgeCell("Angela Reyes")).toHaveTextContent("0 / 8");
+  });
+
+  it("reads badges, not the credentials that used to stand here", async () => {
+    // One issued credential and two badges. The cell must say two.
+    await draw();
+
+    expect(badgeCell("Chris Jerome Dayan")).not.toHaveTextContent("1 / 8");
+  });
+
+  it("draws no squares", async () => {
+    const { container } = await draw();
+
+    expect(container.querySelector(".cred-dot")).toBeNull();
+  });
+
+  it("stands a student in from a server that sends no count", async () => {
+    roster = [{ ...ROSTER[0], badges: undefined }];
+    await draw();
+
+    expect(badgeCell("Chris Jerome Dayan")).toHaveTextContent("0 / 8");
+  });
+
+  it("draws a dash for a candidate whose pathway has no badges", async () => {
+    // Assess-only: one examination, no lesson quizzes. Null, not nought —
+    // a nought out of eight reads as somebody who has not got going.
+    roster = [{ ...ROSTER[0], badges: null }];
+    await draw();
+
+    expect(badgeCell("Chris Jerome Dayan")).toHaveTextContent("—");
+    expect(badgeCell("Chris Jerome Dayan")).not.toHaveTextContent("/ 8");
+  });
+
+  it("tells that dash apart from a count of nought", async () => {
+    roster = [{ ...ROSTER[0], badges: 0 }];
+    await draw();
+
+    expect(badgeCell("Chris Jerome Dayan")).toHaveTextContent("0 / 8");
+    expect(badgeCell("Chris Jerome Dayan")).not.toHaveTextContent("—");
   });
 });

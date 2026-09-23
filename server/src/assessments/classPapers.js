@@ -13,10 +13,18 @@
  * student's rail, the assessor's screen and the final's assembler all have to
  * read it the same way.
  *
- * `classId: null` is not "no class". It is the paper the whole course sits —
+ * `classId: null` is not "no class". It is the paper the whole course takes —
  * which is every paper written before this existed, and every paper on a course
  * that has no classes behind it at all. A class with no paper of its own falls
  * back to it, so nothing that was posted before stops being posted.
+ *
+ * An assess-only class is the exception, and takes nothing course-wide. Its
+ * candidates have no lessons to finish, so a course-wide lesson quiz is not a
+ * paper they could take; and its examination is written to its own blueprint
+ * at its own length, so the course's final is the wrong paper rather than a
+ * reasonable stand-in. Falling back would hand a hundred-question candidate the
+ * sixty-question paper the taught section takes — silently, and scored out of
+ * the wrong total. It holds its own papers or it holds none.
  */
 
 const idOf = (value) => (value == null ? null : String(value));
@@ -24,10 +32,16 @@ const idOf = (value) => (value == null ? null : String(value));
 /** The class a paper was written for, or null for a course-wide one. */
 export const paperClassId = (doc) => idOf(doc?.classId);
 
-/** Whether this paper is one that class sits: its own, or the course's. */
-export function paperBelongsToClass(doc, classId) {
+/**
+ * Whether this paper is one that class takes: its own, or the course's.
+ *
+ * `assessOnly` drops the second half — see the note above on why that class
+ * inherits nothing.
+ */
+export function paperBelongsToClass(doc, classId, { assessOnly = false } = {}) {
   const written = paperClassId(doc);
-  return written === null || written === idOf(classId);
+  if (written !== null) return written === idOf(classId);
+  return !assessOnly;
 }
 
 /** What makes two papers the same paper: the lesson, or the course's final. */
@@ -39,14 +53,15 @@ const slotOf = (doc) =>
  *
  * Their own where they have one, the course-wide paper where they do not, and
  * never another class's. A class that has been given its own quiz for lesson
- * three and nothing else sits its own for three and the course's for the rest.
+ * three and nothing else takes its own for three and the course's for the rest.
+ * An assess-only class takes only its own, whatever the course holds.
  */
-export function papersForClass(assessments, classId) {
+export function papersForClass(assessments, classId, { assessOnly = false } = {}) {
   const wanted = idOf(classId);
   const bySlot = new Map();
 
   for (const doc of assessments ?? []) {
-    if (!paperBelongsToClass(doc, wanted)) continue;
+    if (!paperBelongsToClass(doc, wanted, { assessOnly })) continue;
 
     const slot = slotOf(doc);
     const held = bySlot.get(slot);

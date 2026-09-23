@@ -1,5 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
-import { takerCounts } from "../src/assessments/attempts.js";
+import { clockFor, takerCounts } from "../src/assessments/attempts.js";
+import { sittingDuration } from "../src/assessments/assessments.controller.js";
 
 /**
  * The four numbers under a posted paper. The whole point of them is that the
@@ -94,5 +95,69 @@ describe("takerCounts", () => {
       inProgress: 0,
       submitted: 0
     });
+  });
+});
+
+/**
+ * The deadline, which is the server's and not the browser's.
+ *
+ * A countdown the client worked out for itself would start again at the full
+ * hour on every reload. This is the fixed point it counts against: one stamp
+ * written when the paper was first asked for, and never rewritten.
+ */
+describe("clockFor", () => {
+  const started = new Date("2026-09-23T09:00:00.000Z");
+
+  it("runs from when the paper was first opened, not from now", () => {
+    const clock = clockFor({ startedAt: started, openedAt: new Date("2026-09-23T09:40:00.000Z") }, {
+      timeLimitMinutes: 90
+    });
+
+    expect(clock.startedAt).toBe("2026-09-23T09:00:00.000Z");
+    expect(clock.endsAt).toBe("2026-09-23T10:30:00.000Z");
+    expect(clock.limitMinutes).toBe(90);
+  });
+
+  it("gives an untimed paper no deadline at all", () => {
+    expect(clockFor({ startedAt: started }, { timeLimitMinutes: null })).toBeNull();
+    expect(clockFor({ startedAt: started }, { timeLimitMinutes: 0 })).toBeNull();
+  });
+
+  /** Rows written before the clock existed have only the one stamp. */
+  it("falls back to openedAt where there is no startedAt", () => {
+    const clock = clockFor({ openedAt: started }, { timeLimitMinutes: 30 });
+
+    expect(clock.endsAt).toBe("2026-09-23T09:30:00.000Z");
+  });
+
+  it("has no deadline to give when the paper was never opened", () => {
+    expect(clockFor(null, { timeLimitMinutes: 30 })).toBeNull();
+    expect(clockFor({}, { timeLimitMinutes: 30 })).toBeNull();
+    expect(clockFor({ startedAt: "not a date" }, { timeLimitMinutes: 30 })).toBeNull();
+  });
+});
+
+/**
+ * How long somebody worked, as the assessor is shown it. The figure is timed
+ * by the student's own browser, so it is held to what the paper allowed.
+ */
+describe("sittingDuration", () => {
+  it("keeps a plain figure", () => {
+    expect(sittingDuration(20 * 60000, 90)).toBe(20 * 60000);
+  });
+
+  it("cannot record a timed paper as having taken longer than it ran", () => {
+    expect(sittingDuration(4 * 60 * 60000, 90)).toBe(90 * 60000);
+  });
+
+  it("leaves an untimed paper to the outer bound", () => {
+    expect(sittingDuration(4 * 60 * 60000, null)).toBe(4 * 60 * 60000);
+    expect(sittingDuration(48 * 60 * 60000, null)).toBe(12 * 60 * 60000);
+  });
+
+  it("says nothing rather than zero when the client did not time it", () => {
+    expect(sittingDuration(undefined, 90)).toBeNull();
+    expect(sittingDuration(0, 90)).toBeNull();
+    expect(sittingDuration(-5, 90)).toBeNull();
   });
 });

@@ -30,6 +30,10 @@ import { papersForClass } from "./classPapers.js";
  * two papers delivered — that would let a course report more posted than it has
  * lessons, and `toPost` would reach zero with lessons still uncovered.
  *
+ * An assess-only class owes one paper, not one per lesson and a final: its
+ * candidates take a single examination. Counting it the taught way reported a
+ * class with its whole job done as one paper out of nine.
+ *
  * Kept separate from the query that feeds it so the arithmetic can be exercised
  * without a database.
  *
@@ -41,7 +45,9 @@ import { papersForClass } from "./classPapers.js";
  *                     Whose classes decides whose sum it is — the admin passes
  *                     every class on the course, an assessor their own. A
  *                     course named with none is counted once, which is what a
- *                     course taught through no class is.
+ *                     course taught through no class is. An entry may be an id
+ *                     or `{ id, mode }`; a bare id is a taught class, which is
+ *                     what every caller passed before pathways existed.
  * @returns Map<courseId, { expected, classes, posted, draft, written, toPost,
  *                          finalPosted, lastPosted }>
  */
@@ -73,14 +79,22 @@ export function papersByCourse(assessments, lessonCounts, classIds = new Map()) 
     const documents = documentsByCourse.get(courseKey) ?? [];
     const lessons = lessonCounts.get(courseKey) ?? 0;
 
-    // Null stands for the course itself: the papers everybody sits where no
+    // Null stands for the course itself: the papers everybody takes where no
     // class has been named. It is what every count was before classes existed.
-    const named = (classIds.get(courseKey) ?? []).map(asId);
-    const counted = named.length ? named : [null];
+    const named = (classIds.get(courseKey) ?? []).map((entry) =>
+      entry && typeof entry === "object"
+        ? { id: asId(entry.id ?? entry._id), assessOnly: entry.mode === "assessOnly" }
+        : { id: asId(entry), assessOnly: false }
+    );
+    const counted = named.length ? named : [{ id: null, assessOnly: false }];
 
     const row = {
-      // One paper per lesson, plus the final — for each class.
-      expected: (lessons + 1) * counted.length,
+      // One paper per lesson plus the final for a taught class; one
+      // examination for an assess-only one.
+      expected: counted.reduce(
+        (sum, cls) => sum + (cls.assessOnly ? 1 : lessons + 1),
+        0
+      ),
       classes: counted.length,
       posted: 0,
       draft: 0,
@@ -90,8 +104,8 @@ export function papersByCourse(assessments, lessonCounts, classIds = new Map()) 
       lastPosted: null
     };
 
-    for (const classId of counted) {
-      const held = papersForClass(documents, classId);
+    for (const cls of counted) {
+      const held = papersForClass(documents, cls.id, { assessOnly: cls.assessOnly });
       const postedLessons = new Set();
       let finalPosted = false;
 
@@ -112,7 +126,9 @@ export function papersByCourse(assessments, lessonCounts, classIds = new Map()) 
         if (postedAt && (!row.lastPosted || postedAt > row.lastPosted)) row.lastPosted = postedAt;
       }
 
-      row.posted += postedLessons.size + (finalPosted ? 1 : 0);
+      // An assess-only class has no lesson papers to count, and the one it
+      // does have is the examination.
+      row.posted += cls.assessOnly ? (finalPosted ? 1 : 0) : postedLessons.size + (finalPosted ? 1 : 0);
       if (!finalPosted) row.finalPosted = false;
     }
 

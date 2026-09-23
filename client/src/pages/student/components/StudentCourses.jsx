@@ -271,19 +271,30 @@ function CourseRow({ course, onOpen }) {
   const range = formatCourseRange(course);
   const left = isOpen(course) ? timeLeftOf(course) : null;
   const path = pathOf(course);
+  // One examination and no lessons to finish first. Said on the card rather
+  // than found inside, so nobody opens a course expecting quizzes it does not
+  // have.
+  const assessOnly = course.mode === "assessOnly";
 
-  const progress = total
-    ? `${done} of ${total} done, ${path.read} of ${path.lessons} lessons, ${path.quizzes} of ${
-        path.lessons
-      } quizzes, final exam ${path.finalPassed ? "passed" : "not passed yet"}`
-    : "No lessons yet";
+  const progress = assessOnly
+    ? `One examination, no lesson quizzes. Final exam ${
+        path.finalPassed ? "passed" : "not passed yet"
+      }`
+    : total
+      ? `${done} of ${total} done, ${path.read} of ${path.lessons} lessons, ${path.quizzes} of ${
+          path.lessons
+        } quizzes, final exam ${path.finalPassed ? "passed" : "not passed yet"}`
+      : "No lessons yet";
 
   return (
     <li className="sd-row" data-status={status.id}>
       <CourseCover course={course} className="sd-row__cover" />
 
       <div className="sd-row__text">
-        {course.code ? <span className="sd-row__code">{course.code}</span> : null}
+        <span className="sd-row__code-line">
+          {course.code ? <span className="sd-row__code">{course.code}</span> : null}
+          {assessOnly ? <span className="sd-row__pathway">Assess-only</span> : null}
+        </span>
         <h3 className="sd-row__title">
           <button
             type="button"
@@ -322,7 +333,11 @@ function CourseRow({ course, onOpen }) {
 
       <div className="sd-row__progress">
         <span className="sd-sr-only">{progress}</span>
-        {total ? (
+        {assessOnly ? (
+          <span className="sd-row__none" aria-hidden="true">
+            {path.finalPassed ? "Examination passed" : "One examination"}
+          </span>
+        ) : total ? (
           <>
             <MiniPath path={path} />
             <span className="sd-row__pct" aria-hidden="true">

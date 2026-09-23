@@ -3,6 +3,8 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { toAssessmentSummary } from "../assessments/assessments.format.js";
 import {
   findCourse,
+  lessonsHiddenFrom,
+  lessonsHiddenFromStudent,
   loadClassSuspension,
   loadStudentRestriction,
   refuseRestrictedCourse,
@@ -131,16 +133,31 @@ async function viewerSuspension(request, courseRef) {
 }
 
 /**
- * Turns a lesson route away when the viewer's class has been switched off —
- * closing its lessons is the whole point of the switch, so the refusal comes
- * before the file is read or its text extracted.
+ * Turns a lesson route away, for either of the two reasons a lesson may not be
+ * this reader's to open. The refusal comes before the file is read or its text
+ * extracted, which is the expensive half.
+ *
+ * A switched-off class closes lessons that were open, and says so with the 423
+ * the reader knows how to explain. An assess-only pathway never had them: its
+ * candidate is examined on competence they already hold, and this material is
+ * the taught section's. That one answers exactly as a lesson which does not
+ * exist answers — the same 404 a paper written for another class gives — so
+ * there is nothing here to explain and nothing to go looking for.
  *
  * Returns the sent response when it refused, and null when the route may carry
  * on, so a handler reads as `if (refused) return refused;`.
  */
-async function refuseIfSuspended(request, response, module) {
-  const suspension = await viewerSuspension(request, module.courseId ?? module.courseCode);
-  return suspension ? refuseRestrictedCourse(response, suspension) : null;
+async function refuseLesson(request, response, module) {
+  const courseRef = module.courseId ?? module.courseCode;
+
+  const suspension = await viewerSuspension(request, courseRef);
+  if (suspension) return refuseRestrictedCourse(response, suspension);
+
+  if (await lessonsHiddenFrom(request.session, courseRef)) {
+    return response.status(404).json({ message: "Learning module not found." });
+  }
+
+  return null;
 }
 
 export async function getCourseModules(request, response) {
@@ -154,6 +171,14 @@ export async function getCourseModules(request, response) {
   // explain. The lesson routes refuse on their own — this is not the gate.
   if (suspension) {
     return response.json({ course, modules: [] });
+  }
+
+  // An assess-only candidate has no lessons on their pathway. The course still
+  // comes back — they are on it, and the screen has to name what it is showing
+  // — but the curriculum is not theirs to read, and `assessOnly` is how the
+  // reader knows to say so rather than draw an empty rail it cannot explain.
+  if (await lessonsHiddenFrom(request.session, found ?? courseId)) {
+    return response.json({ course, modules: [], assessOnly: true });
   }
 
   if (!(await collectionExists(MODULES_COLLECTION))) {
@@ -206,7 +231,7 @@ export async function getModuleFile(request, response) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
-  const refused = await refuseIfSuspended(request, response, module);
+  const refused = await refuseLesson(request, response, module);
   if (refused) return refused;
 
   const { bucketName, fileDocument } = await findModuleFile(module);
@@ -418,7 +443,7 @@ export async function getModuleText(request, response) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
-  const refused = await refuseIfSuspended(request, response, module);
+  const refused = await refuseLesson(request, response, module);
   if (refused) return refused;
 
   const result = await getOrExtractModuleText(module);
@@ -437,7 +462,7 @@ export async function getModuleSections(request, response) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
-  const refused = await refuseIfSuspended(request, response, module);
+  const refused = await refuseLesson(request, response, module);
   if (refused) return refused;
 
   const result = await getOrExtractModuleText(module);
@@ -491,7 +516,7 @@ export async function getModuleFigure(request, response) {
   // from the text route, which refuses too — this stops a page left open in
   // another tab from still pulling the pictures.
   const module = await findModule(request.params.moduleId);
-  const refused = module ? await refuseIfSuspended(request, response, module) : null;
+  const refused = module ? await refuseLesson(request, response, module) : null;
   if (refused) return refused;
 
   let figureId;
@@ -561,6 +586,13 @@ export async function markModuleComplete(request, response) {
   );
   if (restriction) return refuseRestrictedCourse(response, restriction);
 
+  // Nothing is finished on a pathway that never had it to read. Refused the
+  // same way the lesson itself is, so a stale tab cannot write progress
+  // against a curriculum this candidate is not on.
+  if (await lessonsHiddenFromStudent(request.params.studentId, module.courseId ?? module.courseCode)) {
+    return response.status(404).json({ message: "Learning module not found." });
+  }
+
   const record = {
     studentId: String(request.params.studentId),
     moduleId: String(module._id),
@@ -593,6 +625,10 @@ export async function unmarkModuleComplete(request, response) {
     ? await loadStudentRestriction(studentId, module.courseId ?? module.courseCode)
     : null;
   if (restriction) return refuseRestrictedCourse(response, restriction);
+
+  if (module && (await lessonsHiddenFromStudent(studentId, module.courseId ?? module.courseCode))) {
+    return response.status(404).json({ message: "Learning module not found." });
+  }
 
   await mongoose.connection
     .collection(PROGRESS_COLLECTION)

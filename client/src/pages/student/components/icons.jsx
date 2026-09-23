@@ -106,6 +106,15 @@ export function QuizIcon({ size = 15 }) {
   );
 }
 
+export function ClockIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 7.4V12l3.2 2" {...line} />
+    </svg>
+  );
+}
+
 export function LockIcon({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">

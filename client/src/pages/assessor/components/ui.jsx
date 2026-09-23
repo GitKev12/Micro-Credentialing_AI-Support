@@ -252,20 +252,6 @@ export function ProgressBar({ label, pct }) {
   );
 }
 
-/** Squares showing earned micro-credentials out of a total. */
-export function CredentialDots({ earned, total }) {
-  return (
-    <div className="cred-dots">
-      {Array.from({ length: total }, (_, index) => (
-        <span key={index} className={`cred-dot${index < earned ? " is-on" : ""}`} />
-      ))}
-      <span className="cred-dots__label">
-        {earned}/{total}
-      </span>
-    </div>
-  );
-}
-
 /**
  * A refusal that retrying cannot change.
  *

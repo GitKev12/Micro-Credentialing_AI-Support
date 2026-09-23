@@ -53,6 +53,19 @@ export async function fetchClassImpact(classId) {
   return data.impact ?? {};
 }
 
+/**
+ * What switching a class's pathway would cost — `{ from, to, students, badges,
+ * badgeHolders, finalsTaken, quizzes }`. Nothing is deleted by the switch, and
+ * nothing it takes can be handed back by switching again, which is why it is
+ * read before the confirmation will agree to it.
+ */
+export async function fetchPathwayImpact(classId, mode) {
+  const { data } = await api.get(`/admin/classes/${classId}/pathway-impact`, {
+    params: { mode }
+  });
+  return data.impact ?? {};
+}
+
 export async function deleteClass(classId) {
   const { data } = await api.delete(`/admin/classes/${classId}`);
   return data.removed ?? {};

@@ -97,6 +97,7 @@ export function blueprintFromTos(doc) {
   return {
     examination: doc?.examination ?? "",
     courseId: doc?.courseId ? String(doc.courseId) : null,
+    classId: doc?.classId ? String(doc.classId) : null,
     courseCode: doc?.courseCode ?? "",
     rowCount: rows.length,
     totalItems,
@@ -120,20 +121,42 @@ export function blueprintFromTos(doc) {
   };
 }
 
-/** A course's stored blueprint, or null when it has none. */
-export async function loadTosDocument(courseId) {
+/**
+ * The blueprint a class is written to, or null when it has none.
+ *
+ * A document with no `classId` is the course's own, which is every blueprint
+ * written before a class could have one — so a taught class reads it and
+ * nothing needs migrating.
+ *
+ * An assess-only class gets a blueprint of its own instead, because its
+ * examination is a different paper: same lessons covered, a different length,
+ * and no per-lesson quiz rows at all. It does not fall back to the course's,
+ * for the same reason it inherits no papers (classPapers.js) — the taught
+ * table would hand it the wrong length silently. No blueprint of its own means
+ * no blueprint, and the assessor is told to write one.
+ */
+export async function loadTosDocument(courseId, classId = null, { assessOnly = false } = {}) {
   if (mongoose.connection.readyState !== 1) return null;
   if (!(await collectionExists(TOS_COLLECTION))) return null;
   if (!courseId) return null;
 
-  return mongoose.connection
-    .collection(TOS_COLLECTION)
-    .findOne({ courseId: String(courseId) });
+  const tos = mongoose.connection.collection(TOS_COLLECTION);
+
+  if (classId) {
+    const own = await tos.findOne({ courseId: String(courseId), classId: String(classId) });
+    if (own || assessOnly) return own ?? null;
+  }
+
+  if (assessOnly) return null;
+
+  // `$in: [null]` matches both a stored null and the field being absent, which
+  // is how every blueprint written before this looks.
+  return tos.findOne({ courseId: String(courseId), classId: { $in: [null] } });
 }
 
-/** The blueprint a quiz generator should follow for one course. */
-export async function loadQuizBlueprint(courseId) {
-  const doc = await loadTosDocument(courseId);
+/** The blueprint a quiz generator should follow for one class of one course. */
+export async function loadQuizBlueprint(courseId, classId = null, options = {}) {
+  const doc = await loadTosDocument(courseId, classId, options);
   return doc ? blueprintFromTos(doc) : null;
 }
 
@@ -141,8 +164,8 @@ export async function loadQuizBlueprint(courseId) {
  * The blueprint row governing one lesson's quiz — what a generator needs when
  * it is writing questions for a specific lesson.
  */
-export async function loadLessonBlueprint(courseId, moduleId) {
-  const blueprint = await loadQuizBlueprint(courseId);
+export async function loadLessonBlueprint(courseId, moduleId, classId = null) {
+  const blueprint = await loadQuizBlueprint(courseId, classId);
   if (!blueprint) return null;
 
   const row = blueprint.rows.find((entry) => String(entry.moduleId) === String(moduleId));

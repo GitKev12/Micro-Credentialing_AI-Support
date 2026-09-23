@@ -2709,6 +2709,18 @@ body:has(.student-app) {
   letter-spacing: 0.02em;
 }
 
+/* A timed paper says so on the row, before it is opened — once it is open the
+   clock is already running, which is too late to be told. */
+.sd-lesson__quiz-tag--timed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-inline: var(--sd-1) 5px;
+  background: transparent;
+  color: var(--sd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .sd-lesson__note {
   margin: var(--sd-1) 0 0 13px;
   padding: var(--sd-1) 0 var(--sd-1) var(--sd-4);
@@ -2842,6 +2854,64 @@ body:has(.student-app) {
    rule above it marks the edge of the list instead of a break inside one. A
    hairline is enough for that — the 2px it used to carry was shouting across a
    boundary the layout already makes. */
+/* ── Assess-only pathway ──────────────────────
+   What this candidate's course is, said where the lesson quizzes would have
+   been. The rail otherwise reads as a course whose quizzes are all still
+   unwritten, because that is exactly what it looks like. */
+
+.sd-pathway-note {
+  margin: var(--sd-3) 0 0;
+  padding: var(--sd-2) var(--sd-3);
+  border-left: 2px solid var(--sd-brand);
+  border-radius: 0 var(--sd-r-sm) var(--sd-r-sm) 0;
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-size: var(--sd-fs-micro);
+  line-height: 1.5;
+}
+
+/* On this pathway the examination is not the last stop after a long rail —
+   it is the course. It takes the weight, and it is the only thing here that
+   does: the lessons stay as quiet as they are on the taught pathway, because
+   they are reference now rather than a route. */
+.sd-final--hero .sd-final__label {
+  color: var(--sd-brand-text);
+}
+
+.sd-final--hero .sd-final__btn {
+  padding: var(--sd-4);
+  border-width: 2px;
+  border-color: var(--sd-brand);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+}
+
+/* Shut is still shut. A paper the assessor has not posted must not be dressed
+   up as one that is ready, however central it is to the course.
+
+   border-color has to be restated. Without it the rule above still applies —
+   .sd-final--hero .sd-final__btn sets --sd-brand and nothing here outranked it
+   — so a locked examination kept the identical brand ring to a ready one and
+   differed only by a dash. The colour is the loudest part of this treatment,
+   and it was the part still saying "open". */
+.sd-final--hero .sd-final__btn.is-locked {
+  border-style: dashed;
+  border-width: 1px;
+  border-color: var(--sd-muted);
+  background: transparent;
+  color: var(--sd-muted);
+}
+
+.sd-final--hero .sd-final__title {
+  font-weight: var(--sd-fw-semibold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-final__btn {
+    transition: none;
+  }
+}
+
 .sd-final {
   padding-top: var(--sd-3);
   border-top: 1px solid var(--sd-border);
@@ -2930,6 +3000,180 @@ body:has(.student-app) {
   color: var(--sd-band-text);
 }
 
+/* ─────────────────────── Assessment brief (paper face down) ─────────────── */
+
+/* The closed paper. It stands where the questions will stand rather than
+   floating over them, because a dialog above a visible paper says the paper is
+   already open — and until Start is pressed nothing has been asked of the
+   server, no attempt is recorded and no clock is running. */
+.sd-brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-5);
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.sd-brief__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-2);
+}
+
+.sd-brief__title {
+  margin: 0;
+  font-size: var(--sd-fs-h3);
+  font-weight: 650;
+  color: var(--sd-ink);
+  text-wrap: balance;
+}
+
+.sd-brief__desc {
+  margin: 0;
+  max-width: 58ch;
+  font-size: var(--sd-fs-body);
+  line-height: 1.55;
+  color: var(--sd-ink-2);
+}
+
+/* The one figure set large. How long the paper runs is the fact that changes
+   how a candidate works, so it carries the weight and everything around it
+   stays quiet. An untimed paper has no block here at all rather than one
+   reading "Untimed" — an absence does not need naming. */
+.sd-brief__clock {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--sd-1) var(--sd-3);
+  padding: var(--sd-4) var(--sd-5);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-brand-wash);
+}
+
+.sd-brief__clock-icon {
+  display: inline-flex;
+  color: var(--sd-brand-text);
+}
+
+.sd-brief__clock-figure {
+  margin: 0;
+  font-size: var(--sd-fs-stat);
+  font-weight: 640;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--sd-brand-text);
+}
+
+.sd-brief__clock-note {
+  grid-column: 2;
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--sd-fs-meta);
+  line-height: 1.5;
+  color: var(--sd-ink-2);
+}
+
+/* Terms, marked up as terms: four related facts about one paper are a
+   description list. Cut into four boxes they would read as four unrelated
+   things, which is what a row of stat cards says. */
+.sd-brief__terms {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-brief__term {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sd-4);
+  padding: var(--sd-3) 0;
+  border-bottom: 1px solid var(--sd-border);
+}
+
+.sd-brief__term dt {
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+.sd-brief__term dd {
+  margin: 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sd-ink);
+}
+
+.sd-brief__go {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sd-2);
+}
+
+.sd-brief__start {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-2);
+  padding: var(--sd-3) var(--sd-5);
+  border: 0;
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-brand);
+  font: inherit;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: 600;
+  color: var(--sd-on-brand);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sd-brief__start:hover:not(:disabled) {
+  background: var(--sd-brand-deep);
+}
+
+.sd-brief__start:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.sd-brief__start:focus-visible {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: 2px;
+}
+
+.sd-brief__saved {
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+/* ─────────────────────────── Countdown ──────────────────────────────────── */
+
+/* Digits, not words: a countdown is read at a glance under pressure, and
+   "twenty-nine minutes" is arithmetic a candidate with twenty-nine minutes
+   left does not have time for. Tabular figures so the strip does not jitter
+   as the seconds fall. */
+.sd-clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--sd-ink-2);
+}
+
+.sd-clock__face {
+  letter-spacing: 0.01em;
+}
+
+/* The last five minutes, which is when the strip stops being background. */
+.sd-clock.is-low {
+  color: var(--sd-warn-text);
+}
+
+.sd-clock.is-out {
+  color: var(--sd-crit-text);
+}
+
 /* ───────────────────────── Quiz runner (viewer pane) ────────────────────── */
 
 .sd-quiz {
@@ -2938,10 +3182,22 @@ body:has(.student-app) {
   gap: var(--sd-4);
 }
 
+/* Pinned to the top of the scroller, so the time left is on screen at question
+   fifty-one and not only at question one. Bled back out to the scroller's own
+   padding (see --viewer-pad-*) so questions pass behind it rather than
+   appearing in the gap above it. */
 .sd-quiz__meta {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--sd-4);
+  margin: calc(-1 * var(--viewer-pad-top, 1.35rem)) calc(-1 * var(--viewer-pad-x, 1.5rem)) 0;
+  padding: var(--sd-3) var(--viewer-pad-x, 1.5rem);
+  border-bottom: 1px solid var(--sd-border);
+  background: var(--sd-surface);
   font-size: var(--sd-fs-meta);
   color: var(--sd-muted);
 }
@@ -3789,6 +4045,27 @@ body:has(.student-app) {
   font-size: var(--sd-fs-label);
   font-weight: var(--sd-fw-semibold);
   color: var(--sd-muted);
+}
+
+/* The code and the pathway on one line above the title. Wraps rather than
+   squeezing the code, which is what the course is called. */
+.sd-row__code-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sd-2);
+}
+
+/* Only the assess-only pathway is named. Taught is what a course is unless it
+   says otherwise, and a tag on every card would bury the one that differs. */
+.sd-row__pathway {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  white-space: nowrap;
 }
 
 .sd-row__title {

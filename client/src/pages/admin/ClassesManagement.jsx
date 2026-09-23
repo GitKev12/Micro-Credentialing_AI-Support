@@ -7,6 +7,7 @@ import {
   fetchClass,
   fetchClasses,
   fetchClassImpact,
+  fetchPathwayImpact,
   setClassActive,
   updateClass
 } from "../../services/classes";
@@ -17,6 +18,7 @@ import {
   AdminModal,
   chosenOption,
   ConfirmDeleteModal,
+  pathwayLabel,
   FILTER_ALL,
   ListFilter,
   PageHeader,
@@ -25,7 +27,14 @@ import {
   useListFilter
 } from "./components/ui";
 import ClassForm from "./components/classes/ClassForm";
-import { classKeeps, classLosses, scheduleSummary } from "./components/classes/classText";
+import {
+  classKeeps,
+  classLosses,
+  classTitle,
+  pathwayKeeps,
+  pathwayLosses,
+  scheduleSummary
+} from "./components/classes/classText";
 import { errorMessage, plural } from "./lib/format";
 import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 
@@ -55,6 +64,11 @@ function ClassesManagement() {
   // than dropping the admin back on the list with a line they have to connect
   // to what they were doing.
   const [deleteError, setDeleteError] = useState(null);
+
+  // A pathway change waiting to be agreed to: which way it is going, its cost
+  // once the server has counted it, and what to run if the admin says yes.
+  const [switching, setSwitching] = useState(null);
+  const [switchImpact, setSwitchImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -104,16 +118,16 @@ function ClassesManagement() {
       if (form === "new") {
         const created = await createClass(values);
         await refreshClasses();
-        setNotice({ tone: "ok", text: `“${created.name}” was created.` });
+        setNotice({ tone: "ok", text: `“${classTitle(created)}” was created.` });
       } else {
         const saved = await updateClass(form.id, values);
         await refreshClasses();
-        setNotice({ tone: "ok", text: `“${saved.name}” was updated.` });
+        setNotice({ tone: "ok", text: `“${classTitle(saved)}” was updated.` });
       }
       setForm(null);
     } catch (error) {
-      // Kept in the form: a missing name or course is fixed in the field the
-      // admin is still looking at.
+      // Kept in the form: a missing course or assessor is fixed in the field
+      // the admin is still looking at.
       setFormError(errorMessage(error, "Couldn't save this class. Try again."));
     } finally {
       setBusy(false);
@@ -136,7 +150,7 @@ function ClassesManagement() {
       await setClassActive(cls.id, next);
       setNotice({
         tone: "ok",
-        text: `“${cls.name}” is now ${next ? "active" : "inactive"}.`
+        text: `“${classTitle(cls)}” is now ${next ? "active" : "inactive"}.`
       });
     } catch (error) {
       setClasses((list) =>
@@ -149,6 +163,28 @@ function ClassesManagement() {
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Ask before moving a class between pathways.
+   *
+   * The form has already decided this is worth asking about — it only calls
+   * here for a class that exists, because a class still being created holds
+   * nobody. What it costs is read from the server first, the same way a
+   * deletion's is: agreeing to a change whose cost has not arrived is agreeing
+   * to nothing in particular.
+   */
+  const askToSwitch = (mode, apply) => {
+    setSwitching({ mode, apply });
+    setSwitchImpact(null);
+    fetchPathwayImpact(form.id, mode)
+      .then(setSwitchImpact)
+      .catch(() => setSwitchImpact({ unknown: true, to: mode }));
+  };
+
+  const closeSwitch = () => {
+    setSwitching(null);
+    setSwitchImpact(null);
   };
 
   const askToDelete = (cls) => {
@@ -173,7 +209,7 @@ function ClassesManagement() {
       const also = classKeeps(impact);
       setNotice({
         tone: "ok",
-        text: `“${removed.name}” was deleted${
+        text: `“${classTitle(removed)}” was deleted${
           also.length ? `. ${plural(impact.unenroll ?? 0, "student")} unenrolled, ${plural(impact.unassign ?? 0, "assessor")} unassigned.` : "."
         }`
       });
@@ -288,7 +324,7 @@ function ClassesManagement() {
       if (!term) return true;
 
       const haystack = [
-        cls.name,
+        classTitle(cls),
         cls.course?.code,
         cls.course?.title,
         ...(cls.assessors ?? []).map((a) => a.name)
@@ -364,8 +400,22 @@ function ClassesManagement() {
                         className="admin-person__name admin-person__link"
                         onClick={() => openEdit(cls)}
                       >
-                        {cls.name}
+                        {classTitle(cls)}
                       </button>
+                      {/* Under the name rather than in a column of its own:
+                          the pathway is what the class is, and the table is
+                          already seven columns wide. Both are labelled, so an
+                          unlabelled row is a row that has not loaded rather
+                          than a taught one. */}
+                      <span className="admin-cell__sub">
+                        <span
+                          className={`admin-pathway-tag${
+                            cls.mode === "assessOnly" ? " admin-pathway-tag--assess" : ""
+                          }`}
+                        >
+                          {pathwayLabel(cls.mode)}
+                        </span>
+                      </span>
                     </td>
                     <td>
                       {cls.course ? (
@@ -408,8 +458,8 @@ function ClassesManagement() {
                         onClick={() => toggleActive(cls)}
                         title={
                           cls.active
-                            ? `Stop running ${cls.name}`
-                            : `Start running ${cls.name}`
+                            ? `Stop running ${classTitle(cls)}`
+                            : `Start running ${classTitle(cls)}`
                         }
                       >
                         <span className="admin-switch__track">
@@ -489,9 +539,10 @@ function ClassesManagement() {
           students={students}
           busy={busy}
           error={formError}
-          confirming={Boolean(deleting)}
+          confirming={Boolean(deleting) || Boolean(switching)}
           onCancel={() => setForm(null)}
           onDelete={askToDelete}
+          onModeChange={askToSwitch}
           onSave={saveClass}
         />
       ) : null}
@@ -499,7 +550,7 @@ function ClassesManagement() {
       {deleting ? (
         <ConfirmDeleteModal
           title="Delete this class?"
-          subject={deleting.name}
+          subject={classTitle(deleting)}
           losses={classLosses(impact)}
           keeps={classKeeps(impact)}
           busy={busy}
@@ -512,6 +563,34 @@ function ClassesManagement() {
             setDeleteError(null);
           }}
           onConfirm={removeClass}
+        />
+      ) : null}
+
+      {switching ? (
+        <ConfirmDeleteModal
+          title={
+            switching.mode === "assessOnly"
+              ? "Switch this class to assess-only?"
+              : "Switch this class back to taught and assessed?"
+          }
+          subject={form === "new" ? null : classTitle(form)}
+          losses={pathwayLosses(switchImpact)}
+          keeps={pathwayKeeps(switchImpact)}
+          busy={busy}
+          lead="What this changes for its candidates:"
+          emptyLead="Nobody in this class has done anything this would change."
+          note="Switching back later does not undo it."
+          checkingLabel="Checking what this would change…"
+          confirmLabel="Switch pathway"
+          busyLabel="Switching…"
+          onCancel={closeSwitch}
+          onConfirm={() => {
+            // The form holds the field; this only agrees to it. Nothing is
+            // written until the admin saves, which is the promise every other
+            // field on this form makes.
+            switching.apply();
+            closeSwitch();
+          }}
         />
       ) : null}
     </div>

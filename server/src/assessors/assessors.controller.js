@@ -21,6 +21,7 @@ import {
   teaches
 } from "../lib/courseAccess.js";
 import { readSuspendedFlag } from "../lib/suspension.js";
+import { ASSESS_ONLY, classMode } from "../lib/classMode.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
@@ -160,7 +161,12 @@ export function classIdsTaughtBy(courses, classesByCourse, assessorId) {
     const key = asId(course._id);
     owned.set(
       key,
-      classesTaughtBy(classesByCourse.get(key) ?? [], assessorId).map((cls) => asId(cls._id))
+      // The pathway travels with the id, because how many papers a class owes
+      // depends on it: one examination, or one per lesson and a final.
+      classesTaughtBy(classesByCourse.get(key) ?? [], assessorId).map((cls) => ({
+        id: asId(cls._id),
+        mode: classMode(cls)
+      }))
     );
   }
 
@@ -459,11 +465,16 @@ export async function getClasses(request, response) {
         // the two of them teach a section each of.
         classes: classesTaughtBy(classesByCourse.get(key) ?? [], assessor._id).map((cls) => ({
           id: asId(cls._id),
-          name: cls.name ?? "Unnamed class",
+          // The section is optional in the admin console, so a class may not
+          // have one. It is listed under its course code then, the same as it
+          // is there — never as a blank the assessor has to identify.
+          name: cls.name || courseCode(course),
           active: cls.active !== false,
+          mode: classMode(cls),
           students: (cls.studentIds ?? []).length
         })),
-        // One paper per lesson, plus the course's final.
+        // One paper per lesson plus the final for a taught class; one
+        // examination for an assess-only one.
         assessmentsExpected: papers.get(key)?.expected ?? 0,
         assessmentsWritten: papers.get(key)?.written ?? 0,
         assessmentsPosted: papers.get(key)?.posted ?? 0,
@@ -523,11 +534,18 @@ export async function getRoster(request, response) {
   // Whose access to this course the assessor has closed. Read off the same
   // class rows as the names above, so the column costs no extra query.
   const closedHere = new Set();
+  // Whose pathway has no badges on it at all.
+  const assessOnlyHere = new Set();
   for (const cls of myClasses) {
+    const assessOnly = classMode(cls) === ASSESS_ONLY;
     for (const studentId of cls.studentIds ?? []) {
       const key = asId(studentId);
       if (!classesByStudent.has(key)) classesByStudent.set(key, []);
       classesByStudent.get(key).push(cls.name ?? "Unnamed class");
+      // An assess-only candidate takes one examination and no lesson quizzes,
+      // so they hold none of this course's badges and never will — which is
+      // not the same thing as holding none yet.
+      if (assessOnly) assessOnlyHere.add(key);
     }
     for (const studentId of cls.suspendedStudentIds ?? []) closedHere.add(asId(studentId));
   }
@@ -574,6 +592,16 @@ export async function getRoster(request, response) {
     );
 
     return {
+      // A badge *is* a passed lesson quiz, so the count above is the roster's
+      // badge column as well as a term in its progress sum. It was already
+      // being worked out here and thrown away; the column was showing issued
+      // credentials instead, out of the lesson count, which is neither the
+      // same figure nor a ratio of anything.
+      //
+      // Null on the assess-only pathway, which has no badges on it — the
+      // column draws a dash there rather than a nought out of eight, which
+      // would read as a candidate who has not got going.
+      badges: assessOnlyHere.has(key) ? null : quizzes,
       progress: summary.progress,
       completedItems: summary.completedItems,
       itemCount: summary.itemCount,
@@ -593,8 +621,9 @@ export async function getRoster(request, response) {
     // say which one it is showing rather than presenting two as one list.
     classes: myClasses.map((cls) => ({
       id: asId(cls._id),
-      name: cls.name ?? "Unnamed class",
+      name: cls.name || courseCode(course),
       active: cls.active !== false,
+      mode: classMode(cls),
       students: (cls.studentIds ?? []).length
     })),
     roster: students.map((student) => ({

@@ -8,6 +8,8 @@ import {
   findAssignedCourse,
   moduleFilterForCourse
 } from "./assessors.controller.js";
+import { classesTaughtBy, loadClassesByCourse } from "../lib/courseAccess.js";
+import { classMode, isAssessOnly } from "../lib/classMode.js";
 
 /**
  * One course's Table of Specification, read and written by its own assessor.
@@ -113,6 +115,7 @@ function publicTos(doc) {
 
   return {
     courseId: doc.courseId ? String(doc.courseId) : null,
+    classId: doc.classId ? String(doc.classId) : null,
     examination: doc.examination ?? "",
     rows: Array.isArray(doc.rows) ? doc.rows.map(quizRow).filter(Boolean) : [],
     final: doc.final ? finalBlock(doc.final) : null,
@@ -134,20 +137,64 @@ async function lessonsOf(course) {
   }));
 }
 
+/**
+ * The course, and which of its classes this blueprint belongs to.
+ *
+ * A taught class writes the course's own blueprint — one document, no classId,
+ * which is every blueprint written before this existed. An assess-only class
+ * writes its own, because it is examined on a different paper: the same lessons
+ * covered, a different length, and no per-lesson quiz rows to fill in at all.
+ *
+ * So `classId` here is not "which class asked" — it is "whose document is
+ * this", and it is null for every taught class however many classes the course
+ * has. Two taught sections share a blueprint exactly as they did.
+ */
 async function scopeOf(request, response) {
   if (!databaseReady()) {
     serviceUnavailable(response);
     return null;
   }
 
-  const course = await findAssignedCourse(request.assessor, request.params.courseId);
+  const assessor = request.assessor;
+  const course = await findAssignedCourse(assessor, request.params.courseId);
   if (!course) {
     response.status(404).json({ message: "Course not found for this assessor." });
     return null;
   }
 
-  return course;
+  const classes = classesTaughtBy(
+    (await loadClassesByCourse([course])).get(asId(course._id)) ?? [],
+    assessor._id
+  );
+
+  const asked = request.query?.classId ?? request.body?.classId ?? null;
+  const chosen = asked ? classes.find((cls) => asId(cls._id) === String(asked)) : null;
+
+  if (asked && !chosen) {
+    response.status(404).json({ message: "Class not found for this assessor on this course." });
+    return null;
+  }
+
+  const held = chosen ?? classes[0] ?? null;
+  const assessOnly = isAssessOnly(held);
+
+  return {
+    course,
+    classes,
+    assessOnly,
+    classId: held ? asId(held._id) : null,
+    // Whose document. Only an assess-only class owns one of its own.
+    ownerId: assessOnly && held ? asId(held._id) : null
+  };
 }
+
+/** The filter that finds one scope's blueprint, and only that one. */
+const tosFilter = (course, ownerId) => ({
+  courseId: { $in: idCandidates(course._id) },
+  // `$in: [null]` matches a stored null and an absent field alike, so the
+  // course's own blueprint still reads after assess-only ones exist beside it.
+  classId: ownerId ? { $in: idCandidates(ownerId) } : { $in: [null] }
+});
 
 /**
  * The blueprint, its lessons, and the course it belongs to.
@@ -158,11 +205,13 @@ async function scopeOf(request, response) {
  * not having written one is a state of the screen, not a missing page.
  */
 export async function getCourseTos(request, response) {
-  const course = await scopeOf(request, response);
-  if (!course) return undefined;
+  const scope = await scopeOf(request, response);
+  if (!scope) return undefined;
+
+  const { course, ownerId } = scope;
 
   const doc = (await collectionExists(TOS_COLLECTION))
-    ? await collection(TOS_COLLECTION).findOne({ courseId: { $in: idCandidates(course._id) } })
+    ? await collection(TOS_COLLECTION).findOne(tosFilter(course, ownerId))
     : null;
 
   return response.json({
@@ -172,6 +221,13 @@ export async function getCourseTos(request, response) {
       title: courseTitle(course),
       section: course.section ?? null
     },
+    classes: scope.classes.map((cls) => ({
+      id: asId(cls._id),
+      name: cls.name ?? "Unnamed class",
+      mode: classMode(cls)
+    })),
+    classId: scope.classId,
+    assessOnly: scope.assessOnly,
     lessons: await lessonsOf(course),
     tos: publicTos(doc)
   });
@@ -190,8 +246,10 @@ export async function getCourseTos(request, response) {
  * for lessons the course no longer has.
  */
 export async function saveCourseTos(request, response) {
-  const course = await scopeOf(request, response);
-  if (!course) return undefined;
+  const scope = await scopeOf(request, response);
+  if (!scope) return undefined;
+
+  const { course, ownerId, assessOnly } = scope;
 
   const { rows, final, examination } = request.body ?? {};
   if (!Array.isArray(rows)) {
@@ -202,20 +260,27 @@ export async function saveCourseTos(request, response) {
   const payload = {
     courseCode: courseCode(course),
     examination: String(examination ?? courseTitle(course) ?? "").trim(),
-    rows: rows.map(quizRow).filter(Boolean),
+    // An assess-only class writes no lesson quizzes, so its document carries no
+    // rows for them. Storing an empty list rather than refusing one that
+    // arrived keeps the screen free to send whatever it has.
+    rows: assessOnly ? [] : rows.map(quizRow).filter(Boolean),
     final: finalBlock(final),
     updatedAt: new Date()
   };
 
-  await collection(TOS_COLLECTION).updateOne(
-    { courseId: { $in: idCandidates(course._id) } },
-    { $set: payload, $setOnInsert: { courseId, createdAt: new Date() } },
-    { upsert: true }
-  );
+  // Found then written, rather than upserted. The filter matches `classId` with
+  // `$in`, and an upsert builds its new document partly out of the filter — so
+  // Mongo would be setting the same path twice and refuse the whole write.
+  const tos = collection(TOS_COLLECTION);
+  const existing = await tos.findOne(tosFilter(course, ownerId));
 
-  const doc = await collection(TOS_COLLECTION).findOne({
-    courseId: { $in: idCandidates(course._id) }
-  });
+  if (existing) {
+    await tos.updateOne({ _id: existing._id }, { $set: payload });
+  } else {
+    await tos.insertOne({ ...payload, courseId, classId: ownerId, createdAt: new Date() });
+  }
+
+  const doc = await tos.findOne(tosFilter(course, ownerId));
 
   return response.json({ tos: publicTos(doc) });
 }

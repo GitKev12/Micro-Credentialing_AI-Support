@@ -27,7 +27,7 @@ import TosEditor from "./TosEditor";
  * for its custom properties and is display:contents, so it carries the tokens
  * without carrying a box.
  */
-export default function TosModal({ courseId, mode, lessonId, onClose, onSaved }) {
+export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, classId = null, assessOnly = false }) {
   const panel = useRef(null);
   // Where the keyboard was when this opened, so it can be put back.
   const opener = useRef(null);
@@ -71,6 +71,8 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved })
         >
           <TosEditor
             courseId={courseId}
+            classId={classId}
+            assessOnly={assessOnly}
             defaultMode={mode}
             defaultLesson={lessonId}
             onSaved={onSaved}

@@ -2578,6 +2578,156 @@
   color: var(--brand-text);
 }
 
+/* ── Pathway choice ───────────────────────────
+   Two cards, one answer. The pathway decides what a class is, so it is read
+   rather than opened: a select would put both options behind a click and the
+   line that tells them apart behind a second one.
+
+   The chosen card takes the console's accent the way every other chosen thing
+   here does, and the mark is drawn rather than native so the two cards line up
+   at any font size. */
+
+.admin-pathway {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-pathway__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--gray-400);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.admin-pathway__option:hover {
+  background: var(--surface-sunken);
+}
+
+/* Teal, because that is what this console already means by "you picked this":
+   the roster's checkbox is accent-color: var(--action) and the select's tick is
+   var(--action). --accent is the student/assessor set (see the note at the top
+   of this file) and resolves to the global blue here, which is a colour the
+   console uses nowhere else.
+
+   No tinted fill: the detail line under the name is --text-muted, and a fill
+   put it at 4.39:1 the moment the card was chosen — choosing an option must not
+   make its own explanation harder to read. The border, the dot and the weight
+   below carry the state instead. */
+.admin-pathway__option.is-chosen {
+  border-color: var(--action);
+}
+
+/* The same reinforcement the select list gives its chosen row. */
+.admin-pathway__option.is-chosen .admin-pathway__name {
+  font-weight: 600;
+}
+
+/* The input carries the focus and the keyboard, and the card shows both — so
+   it is taken out of the layout rather than out of the accessibility tree. */
+.admin-pathway__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.admin-pathway__option:focus-within {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.admin-pathway__mark {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  /* --gray-400 is the hairline grey, and at 1.5px around a 16px mark it came to
+     1.57:1 in light — under the 3:1 that 1.4.11 asks of a control's boundary.
+     The muted ink is the same family a step down and measures 4.97:1. */
+  border: 1.5px solid var(--gray-600);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The dot is an inset shadow rather than a child, so there is one element to
+   keep centred instead of two. */
+.admin-pathway__option.is-chosen .admin-pathway__mark {
+  border-color: var(--action);
+  box-shadow: inset 0 0 0 4px var(--action);
+}
+
+.admin-pathway__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-pathway__name {
+  font-family: var(--font-label);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-body);
+}
+
+.admin-pathway__detail {
+  font-family: var(--font-label);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* Side by side is the comparison; stacked, it is still the same two cards. */
+@media (max-width: 560px) {
+  .admin-pathway {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The pathway wherever a class is listed rather than edited. Every row is
+   labelled, not only the exceptions: an unlabelled row then means one that has
+   not loaded, rather than a taught class the reader has to infer. The common
+   case is quiet and the assess-only one takes the accent, so the exceptions
+   still come off the page first. */
+.admin-pathway-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.admin-pathway-tag--assess {
+  /* The pairing .admin-tag uses, because this is one more tag — the console
+     already had a colour for a named pill and this was reaching past it. */
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-pathway__option,
+  .admin-pathway__mark {
+    transition: none;
+  }
+}
+
 /* ── Class status switch ──────────────────────
    A cell that is both the state and the control: the word says which way the
    class stands, the track says it can be changed. Teal for running, matching

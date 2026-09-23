@@ -41,6 +41,7 @@ import {
   deleteClass,
   getClass,
   getClassImpact,
+  getClassPathwayImpact,
   listClasses,
   updateClass
 } from "./classes.controller.js";
@@ -78,6 +79,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/classes/:id                      — detail (full assessor + student lists)
 //   PATCH  /api/admin/classes/:id                      — edit     { name?, courseId?, assessorIds?, studentIds?, schedule? }
 //   GET    /api/admin/classes/:id/impact               — what deleting it would unenroll/unassign
+//   GET    /api/admin/classes/:id/pathway-impact       — what switching its pathway would cost
 //   DELETE /api/admin/classes/:id                      — delete the class, reconcile links
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
 //   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
@@ -176,6 +178,9 @@ router.post("/classes", createClass);
 router.get("/classes/:id", getClass);
 router.patch("/classes/:id", updateClass);
 router.get("/classes/:id/impact", getClassImpact);
+// Not a delete, but the same promise: a change nobody can undo says what it
+// costs before it is agreed to.
+router.get("/classes/:id/pathway-impact", getClassPathwayImpact);
 router.delete("/classes/:id", deleteClass);
 
 /**

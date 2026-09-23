@@ -1625,27 +1625,21 @@
   transition: width 0.4s ease;
 }
 
-/* Credential dots */
-.cred-dots {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
+/* A counted column: the figure at reading weight, what it is out of beside
+   it and quieter. Replaced a row of one dot per lesson, which on a fifteen
+   lesson course was a wall of them and still had to print the numbers
+   underneath to be read. Tabular figures so the column lines up. */
+.roster-count {
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.cred-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  background: var(--gray-300);
-}
-
-.cred-dot.is-on {
-  background: var(--brand);
-}
-
-.cred-dots__label {
-  margin-left: var(--sp-2);
+.roster-count__of {
   font-size: var(--fs-micro);
+  font-weight: var(--fw-regular);
   color: var(--text-muted);
 }
 

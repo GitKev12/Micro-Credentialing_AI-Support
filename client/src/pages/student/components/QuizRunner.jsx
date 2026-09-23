@@ -8,9 +8,11 @@ import {
   restoreQuizDraft,
   writeQuizDraft
 } from "../quizDraft";
-import { CheckIcon, LockIcon, QuizIcon } from "./icons";
+import { CheckIcon, ClockIcon, LockIcon, QuizIcon } from "./icons";
 import { SkeletonText } from "../../../components/Skeleton";
 import CodeBlock from "../../../components/CodeBlock";
+import AssessmentBrief from "./AssessmentBrief";
+import { LOW_TIME_MS, clockFace, spokenTimeLeft } from "../assessmentClock";
 
 /**
  * Taking a quiz.
@@ -52,7 +54,11 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   // in whatever order the student picks.
   const [current, setCurrent] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [retaking, setRetaking] = useState(false);
+  // Set when Retake is pressed and read by the fetch below, where it is what
+  // tells the server this request is a new attempt rather than somebody
+  // reopening their mark. A ref because nothing on screen reads it, and
+  // because clearing it must not send the effect that reads it round again.
+  const startingAgain = useRef(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   // When this sitting began. A ref rather than state because nothing on screen
@@ -60,6 +66,24 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   // The server never sees the paper being worked on, only fetched and handed
   // in, so this is the only place the length of a sitting can be observed.
   const startedAt = useRef(null);
+  /*
+   * Whether this sitting has begun.
+   *
+   * "brief" is the paper face down: nothing has been asked of the server, so
+   * no attempt is registered and no clock is running. "open" is the paper
+   * turned over. The split exists because fetching the questions is itself
+   * the act of starting — see openAttempt — so a screen that described the
+   * paper by loading it would have started it to ask whether to start it.
+   */
+  const [phase, setPhase] = useState("brief");
+  const [starting, setStarting] = useState(false);
+  // When this sitting must be in, as the server reckons it. Null on an
+  // untimed paper and on one being reviewed rather than taken.
+  const [clock, setClock] = useState(null);
+  const [msLeft, setMsLeft] = useState(null);
+  // So the paper can only ever hand itself in once, however many ticks land
+  // on zero while the request is in flight.
+  const handedIn = useRef(false);
   // The attempt whose mark was on screen when a retake began, or null on a
   // first attempt. Kept with the draft so a reload mid-retake reopens the
   // retake, not the old mark (see quizDraft.js).
@@ -72,9 +96,30 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
     setCurrent(0);
     setResult(null);
     setError("");
+    setClock(null);
+    setMsLeft(null);
     startedAt.current = null;
     retakeOf.current = null;
-  }, [assessmentId]);
+    handedIn.current = false;
+    startingAgain.current = false;
+    setStarting(false);
+
+    /*
+     * Two things open a paper without anybody pressing Start, and neither is
+     * a new sitting: a paper already handed in reopens as its mark, and a
+     * paper left half-finished reopens where it was left. Both are answered
+     * from what the rail already sent and what this browser kept, so the
+     * decision costs no request — which matters, because the request is the
+     * thing that would start the clock.
+     */
+    const taken = Boolean(assessment?.result);
+    const resuming = draftIsOpen(readQuizDraft(studentId, assessmentId), assessment?.result ?? null);
+    // A paper the rail already calls shut is not briefed either: there is
+    // nothing to start, and the server's reason is the one worth showing —
+    // asking for it is how that reason is got.
+    const shut = Boolean(assessment?.locked);
+    setPhase(taken || resuming || shut ? "open" : "brief");
+  }, [assessmentId, studentId, assessment?.result]);
 
   useEffect(() => {
     if (!studentId || !assessmentId) return undefined;
@@ -88,14 +133,36 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
       return undefined;
     }
 
+    // Face down. Nothing is asked for until Start.
+    if (phase === "brief") return undefined;
+
     let active = true;
     setState({ status: "loading" });
 
-    fetchAssessment(studentId, assessmentId)
+    // Read once and cleared here: a retake is this request and not the next
+    // one, and leaving it set would turn a later reload into another attempt.
+    const retake = startingAgain.current;
+    startingAgain.current = false;
+
+    fetchAssessment(studentId, assessmentId, { retake })
       .then((data) => {
         if (!active) return;
         if (data.locked) {
           setState({ status: "locked", message: data.message });
+          return;
+        }
+
+        setClock(data.clock ?? null);
+
+        // A fresh attempt: the mark that was on screen goes, and so do the
+        // answers that earned it. Not a draft to restore — that paper is in.
+        if (retake) {
+          setState({ status: "ready", assessment: data.assessment });
+          setResult(null);
+          setAnswers({});
+          setCurrent(0);
+          startedAt.current = Date.now();
+          clearQuizDraft(studentId, assessmentId);
           return;
         }
 
@@ -138,7 +205,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
     return () => {
       active = false;
     };
-  }, [studentId, assessmentId, placeholder, lockedReason]);
+  }, [studentId, assessmentId, placeholder, lockedReason, phase]);
 
   // Every change to an unmarked paper is kept in the browser as it happens.
   // Keyed by the paper in state rather than the prop, so the render between
@@ -152,6 +219,60 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
       draftOf(paper, answers, current, startedAt.current, retakeOf.current)
     );
   }, [studentId, state, answers, current, result]);
+
+  /*
+   * The countdown.
+   *
+   * Counted against the server's `endsAt` rather than by subtracting a second
+   * a second: an interval that misses ticks — a backgrounded tab, a sleeping
+   * machine — would otherwise leave the student more time the longer they
+   * looked away. Reading the wall clock each tick means a tab reopened after
+   * an hour shows what it should, which is nothing left.
+   */
+  useEffect(() => {
+    if (phase !== "open" || result || !clock?.endsAt) return undefined;
+
+    const endsAt = new Date(clock.endsAt).getTime();
+    if (Number.isNaN(endsAt)) return undefined;
+
+    const tick = () => setMsLeft(endsAt - Date.now());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [phase, result, clock]);
+
+  /*
+   * Time's up. The paper goes in as it stands.
+   *
+   * Guarded by a ref rather than by the submitting flag alone, because the
+   * tick that reaches zero and the tick after it are a second apart and the
+   * request is not always back by then — twice would be two attempts.
+   */
+  useEffect(() => {
+    if (msLeft === null || msLeft > 0) return;
+    if (result || submitting || handedIn.current) return;
+    handedIn.current = true;
+    handleSubmit({ force: true });
+  });
+
+  /*
+   * What is said out loud, and when.
+   *
+   * At the marks an invigilator calls — half an hour, fifteen, ten, five, one,
+   * and time — and once each. Announcing the countdown itself would read the
+   * digits over whatever the student was listening to, once a second, for the
+   * length of the paper.
+   */
+  const [spoken, setSpoken] = useState("");
+  const lastCall = useRef(null);
+
+  useEffect(() => {
+    if (msLeft === null) return;
+    const minutes = msLeft <= 0 ? 0 : Math.ceil(msLeft / 60000);
+    if (![30, 15, 10, 5, 1, 0].includes(minutes) || lastCall.current === minutes) return;
+    lastCall.current = minutes;
+    setSpoken(spokenTimeLeft(msLeft));
+  }, [msLeft]);
 
   const items = state.assessment?.items ?? [];
   const answeredCount = useMemo(
@@ -206,14 +327,26 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
     setAnswers((current) => ({ ...current, [itemId]: choiceId }));
   };
 
-  const handleSubmit = async () => {
-    if (!allAnswered || submitting) return;
+  /**
+   * Hand the paper in.
+   *
+   * `force` is the clock running out, and it is the one case where an
+   * unfinished paper goes in: the sitting is over, so what is on it is what
+   * was done in the time. Every other route waits for the last question,
+   * because handing in early is a mistake nobody can undo.
+   */
+  const handleSubmit = async ({ force = false } = {}) => {
+    if (submitting) return;
+    if (!force && !allAnswered) return;
 
     setSubmitting(true);
     setError("");
 
     try {
-      const payload = items.map((item) => ({ itemId: item.id, choice: answers[item.id] }));
+      // Blank where nothing was chosen, which the server marks wrong — an
+      // unanswered question on a paper that ran out of time is a question
+      // that was not answered.
+      const payload = items.map((item) => ({ itemId: item.id, choice: answers[item.id] ?? "" }));
       // Null when the paper was reopened rather than taken — there is no
       // sitting to measure then, and sending zero would record one.
       const took = startedAt.current ? Date.now() - startedAt.current : null;
@@ -244,46 +377,30 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   /**
    * Sit the paper again.
    *
-   * Re-fetching is the whole mechanism: the server reshuffles the questions and
-   * their choices on every call, so a retake costs nothing to produce — the
-   * bank was written once and no model is asked for anything here.
+   * This turns the paper face down rather than fetching another one. A retake
+   * is a sitting — on a timed paper it is a fresh clock, which starts the
+   * moment the questions are asked for — so it is briefed like the first one,
+   * and the student presses Start when they are ready rather than finding
+   * themselves already a minute into their last attempt.
    *
-   * The previous mark comes back in that response and is deliberately dropped.
-   * The student is starting a fresh attempt, and showing last time's score
-   * above a blank paper would only invite them to re-enter the same answers.
+   * Re-fetching is still the whole mechanism behind it: the server reshuffles
+   * the questions and their choices on every call, so a retake costs nothing
+   * to produce — the bank was written once and no model is asked for anything.
    */
-  const handleRetake = async () => {
-    if (retaking || !assessmentId) return;
+  const handleRetake = () => {
+    if (!assessmentId) return;
 
-    setRetaking(true);
+    // The attempt this retake follows, kept for the draft so a reload
+    // mid-retake reopens the retake rather than the mark it replaced.
+    retakeOf.current = result?.attempt ?? null;
+    startingAgain.current = true;
+    handedIn.current = false;
     setError("");
-
-    try {
-      const data = await fetchAssessment(studentId, assessmentId, { retake: true });
-
-      if (data.locked) {
-        setState({ status: "locked", message: data.message });
-        return;
-      }
-
-      retakeOf.current = result?.attempt ?? null;
-      setState({ status: "ready", assessment: data.assessment });
-      setResult(null);
-      setAnswers({});
-      setCurrent(0);
-      // A retake is its own sitting, timed from here — not from whenever the
-      // first attempt was opened.
-      startedAt.current = Date.now();
-    } catch (_error) {
-      setError("Could not start another attempt. Try again.");
-    } finally {
-      setRetaking(false);
-    }
+    setClock(null);
+    setMsLeft(null);
+    setStarting(false);
+    setPhase("brief");
   };
-
-  if (state.status === "loading") {
-    return <SkeletonText lines={4} label={`Loading ${paper}…`} />;
-  }
 
   if (state.status === "locked") {
     return (
@@ -306,6 +423,28 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
     );
   }
 
+  // The paper face down. Checked after the lock, because a paper nobody can
+  // open has nothing to brief, and before the loading state, because until
+  // Start is pressed there is nothing being loaded.
+  if (phase === "brief") {
+    return (
+      <AssessmentBrief
+        assessment={assessment}
+        result={result ?? assessment?.result ?? null}
+        starting={starting}
+        error={error}
+        onStart={() => {
+          setStarting(true);
+          setPhase("open");
+        }}
+      />
+    );
+  }
+
+  if (state.status === "loading") {
+    return <SkeletonText lines={4} label={`Loading ${paper}…`} />;
+  }
+
   if (state.status === "error") {
     return <p className="student-courses__status">This {paper} could not be loaded.</p>;
   }
@@ -315,6 +454,10 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
 
   return (
     <div className="sd-quiz">
+      {/* Pinned, so it is on screen at question fifty-one as well as at
+          question one. It is the strip of facts about this paper and the time
+          left is one of them, so it belongs here rather than in a badge of
+          its own floating somewhere else. */}
       <div className="sd-quiz__meta">
         <span className="sd-quiz__meta-item">
           <QuizIcon size={14} /> {quiz.itemCount} question
@@ -323,6 +466,26 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
         <span className="sd-quiz__meta-item">
           Pass mark {quiz.passMark} of {quiz.totalPoints}
         </span>
+        {msLeft !== null && !done ? (
+          <span
+            className={`sd-quiz__meta-item sd-clock${
+              msLeft <= 0 ? " is-out" : msLeft <= LOW_TIME_MS ? " is-low" : ""
+            }`}
+            role="timer"
+          >
+            <ClockIcon size={14} />
+            <span className="sd-clock__face" aria-hidden="true">
+              {msLeft <= 0 ? "Time's up" : clockFace(msLeft)}
+            </span>
+            {/* The digits read out as a time of day, so the spoken form is
+                its own sentence — and only at the marks an invigilator would
+                call, because a live region that talks every second talks over
+                everything the student is trying to read. */}
+            <span className="sd-sr-only" aria-live="polite">
+              {spoken}
+            </span>
+          </span>
+        ) : null}
       </div>
 
       {quiz.description ? <p className="module-viewer__desc">{quiz.description}</p> : null}
@@ -363,13 +526,8 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
             </span>
 
             {result.canRetake ? (
-              <button
-                type="button"
-                className="module-row__action"
-                disabled={retaking}
-                onClick={handleRetake}
-              >
-                {retaking ? "Starting…" : "Retake"}
+              <button type="button" className="module-row__action" onClick={handleRetake}>
+                Retake
               </button>
             ) : null}
           </div>
@@ -506,7 +664,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
               type="button"
               className="module-row__action"
               disabled={!allAnswered || submitting}
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
             >
               {submitting ? "Submitting…" : `Submit ${paper}`}
             </button>

@@ -3,6 +3,10 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
 import { publishStanding } from "../lib/standingEvents.js";
+import { ASSESS_ONLY, classMode, toClassMode } from "../lib/classMode.js";
+import { papersForClass } from "../assessments/classPapers.js";
+import { toAssessmentSummary } from "../assessments/assessments.format.js";
+import { passedFromResults } from "../badges/badges.service.js";
 
 /**
  * Classes — one row tying a course to the assessors and students in it, plus a
@@ -21,9 +25,15 @@ import { publishStanding } from "../lib/standingEvents.js";
  * finish a lesson — this system has no schedule-driven release, and a class does
  * not introduce one.
  *
- *   Class { _id, name, courseId, assessorIds[], studentIds[], active,
+ *   Class { _id, name, courseId, assessorIds[], studentIds[], active, mode,
  *           suspendedStudentIds[], schedule: { days, time, room },
  *           createdAt, updatedAt }
+ *
+ * `mode` is the pathway the section runs — taught through its lessons, or
+ * assessed on one examination with no lessons to finish first. It is a class
+ * field rather than a course field so the same course can be credentialed both
+ * ways at once, and it is the class the rest of the app already asks which
+ * paper a student sits. Absent reads as taught; see lib/classMode.js.
  *
  * `suspendedStudentIds` is a subset of `studentIds`: the students whose access
  * to this course the assessor has closed from their own roster. It is read by
@@ -59,6 +69,8 @@ const CLASSES_COLLECTION = "Class";
 const COURSES_COLLECTION = "Course";
 const ASSESSORS_COLLECTION = "Assessor";
 const STUDENTS_COLLECTION = "Student";
+const RESULTS_COLLECTION = "StudentResult";
+const ASSESSMENTS_COLLECTION = "Assessment";
 
 const collection = (name) => mongoose.connection.collection(name);
 const asId = (value) => String(value);
@@ -233,6 +245,7 @@ async function buildClassDetail(cls) {
     })),
     schedule: cleanSchedule(cls.schedule),
     active: cls.active !== false,
+    mode: classMode(cls),
     createdAt: cls.createdAt ?? null,
     updatedAt: cls.updatedAt ?? null
   };
@@ -258,6 +271,7 @@ function publicClassRow(cls, { courseById, assessorById }) {
     // all running — so missing reads as active, and only an explicit false
     // turns it off.
     active: cls.active !== false,
+    mode: classMode(cls),
     createdAt: cls.createdAt ?? null
   };
 }
@@ -333,14 +347,119 @@ export async function getClassImpact(request, response) {
   });
 }
 
+/**
+ * What changing this class's pathway would cost, read before the confirm.
+ *
+ * The two directions cost different things, and neither is recoverable by
+ * switching back:
+ *
+ *   to assess-only — the lesson quizzes stop being this class's papers, so the
+ *     badges its candidates earned stop being part of what they are working
+ *     through. The submissions stay; the pathway they counted towards does not.
+ *
+ *   to taught — the final re-locks behind every lesson and every quiz. A
+ *     candidate who has the examination open right now loses it until they
+ *     have finished a course they were never asked to take.
+ *
+ * Both are counted against the students actually in the class, because a
+ * figure for the whole course would be answering about people this change does
+ * not touch.
+ */
+export async function getClassPathwayImpact(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const cls = await collection(CLASSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!cls) return response.status(404).json({ message: "Class not found." });
+
+  const from = classMode(cls);
+  const to = toClassMode(request.query.mode);
+  const studentIds = cls.studentIds ?? [];
+
+  const empty = {
+    from,
+    to,
+    students: studentIds.length,
+    badges: 0,
+    badgeHolders: 0,
+    finalsTaken: 0,
+    quizzes: 0
+  };
+
+  if (from === to || studentIds.length === 0) return response.json({ impact: empty });
+  if (!(await collectionExists(RESULTS_COLLECTION))) return response.json({ impact: empty });
+
+  const studentKeys = studentIds.flatMap((id) => idCandidates(id));
+  const results = await collection(RESULTS_COLLECTION)
+    .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
+    .toArray();
+
+  const assessments = (await collectionExists(ASSESSMENTS_COLLECTION))
+    ? await collection(ASSESSMENTS_COLLECTION)
+        .find({ courseId: { $in: idCandidates(cls.courseId) } })
+        .toArray()
+    : [];
+
+  // This class's papers only, read the way it stands *now* — the switch has
+  // not happened yet. Another section's quiz is not one these candidates could
+  // have passed, and counting it would overstate the cost.
+  const mine = papersForClass(assessments, asId(cls._id), {
+    assessOnly: from === ASSESS_ONLY
+  });
+  const byId = new Map(mine.map((doc) => [asId(doc._id), doc]));
+
+  // Submissions against papers that are not this class's are not this
+  // change's business — a student who moved sections keeps the old mark, and
+  // it is not what the pathway is about to take away.
+  const relevant = results.filter((result) => byId.has(asId(result.assessmentId)));
+
+  // Badges, counted by the one rule the badge wall and the admin list share.
+  const badgesPerStudent = new Map();
+  for (const result of relevant) {
+    const key = asId(result.studentId);
+    if (!badgesPerStudent.has(key)) badgesPerStudent.set(key, []);
+    badgesPerStudent.get(key).push(result);
+  }
+
+  let badges = 0;
+  let badgeHolders = 0;
+  for (const rows of badgesPerStudent.values()) {
+    const earned = passedFromResults(rows, byId).size;
+    badges += earned;
+    if (earned > 0) badgeHolders += 1;
+  }
+
+  const finalIds = new Set(
+    mine.filter((doc) => toAssessmentSummary(doc)?.scope === "final").map((doc) => asId(doc._id))
+  );
+  const finalsTaken = new Set(
+    relevant
+      .filter((result) => finalIds.has(asId(result.assessmentId)))
+      .map((result) => asId(result.studentId))
+  ).size;
+
+  return response.json({
+    impact: {
+      ...empty,
+      badges,
+      badgeHolders,
+      finalsTaken,
+      quizzes: mine.filter((doc) => toAssessmentSummary(doc)?.scope === "lesson").length
+    }
+  });
+}
+
 /* ─────────────────────────────── Writes ────────────────────────────── */
 
 export async function createClass(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   const body = request.body ?? {};
+  // Optional: a course taught to one cohort has no sections to tell apart, and
+  // a class without one is listed under its course code. The course and the
+  // assessor are what a class cannot be without.
   const name = String(body.name ?? "").trim();
-  if (!name) return response.status(400).json({ message: "A class name is required." });
 
   const course = await resolveCourse(body.courseId);
   if (!course) return response.status(400).json({ message: "Choose a course for this class." });
@@ -361,6 +480,7 @@ export async function createClass(request, response) {
     studentIds,
     schedule: cleanSchedule(body.schedule),
     active: body.active !== false,
+    mode: toClassMode(body.mode),
     createdAt: now,
     updatedAt: now
   };
@@ -386,11 +506,9 @@ export async function updateClass(request, response) {
   const body = request.body ?? {};
   const updates = {};
 
-  if ("name" in body) {
-    const name = String(body.name ?? "").trim();
-    if (!name) return response.status(400).json({ message: "A class name is required." });
-    updates.name = name;
-  }
+  // Sent empty, the section is cleared rather than refused — dropping back to
+  // no section is an ordinary edit, not a mistake.
+  if ("name" in body) updates.name = String(body.name ?? "").trim();
 
   let newCourse = null;
   if ("courseId" in body) {
@@ -415,6 +533,7 @@ export async function updateClass(request, response) {
   }
   if ("schedule" in body) updates.schedule = cleanSchedule(body.schedule);
   if ("active" in body) updates.active = body.active !== false;
+  if ("mode" in body) updates.mode = toClassMode(body.mode);
 
   const oldCourseId = cls.courseId;
   const newCourseId = updates.courseId ?? cls.courseId;

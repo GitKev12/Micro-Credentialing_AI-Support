@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StudentsIcon, TrashIcon } from "../icons";
-import { AdminButton, AdminField, AdminModal, AdminSelect } from "../ui";
+import { AdminButton, AdminField, AdminModal, AdminSelect, PathwayChoice } from "../ui";
+import { classTitle, sectionOptions } from "./classText";
 import ClassRoster from "./ClassRoster";
 import PeoplePicker from "./PeoplePicker";
 
@@ -13,6 +14,11 @@ import PeoplePicker from "./PeoplePicker";
  * number of them. The schedule is three plain labels, shown on the class and
  * never used to gate anything.
  *
+ * The section is a dropdown too, and the one optional choice on the form. A
+ * course taught to a single cohort has no sections to tell apart, so requiring
+ * a name there only bought a typed restatement of the course. Left unset, the
+ * class is listed under its course code — see `classTitle`.
+ *
  * The assessor used to be a tagged roster like the students, which said a class
  * could have several, and optional, which said it could have none. It is one,
  * and it is required: a section with nobody in front of it is a timetable entry.
@@ -22,6 +28,14 @@ import PeoplePicker from "./PeoplePicker";
  *
  * The same assessor may still hold another section, of this course or any
  * other, so every assessor is offered here and none are held back.
+ *
+ * The pathway sits directly under the course, because it is the next most
+ * consequential answer on the form: the course says which subject the class is
+ * for, and the pathway says what being in it involves. Changing it on a class
+ * that already holds people is handed up to the screen above (`onModeChange`),
+ * which reads the cost from the server and asks — it strands the badges its
+ * candidates earned one way, and re-locks an examination they may have open the
+ * other, and neither should happen on a silent click.
  *
  * Deleting lives at the bottom of the edit form rather than on the list row.
  * On the row it sat one careless click from a roster, beside a Manage that did
@@ -44,12 +58,14 @@ function ClassForm({
   confirming = false,
   onCancel,
   onDelete,
+  onModeChange,
   onSave
 }) {
   const editing = Boolean(klass);
   const [name, setName] = useState(klass?.name ?? "");
   const [courseId, setCourseId] = useState(klass?.course?.id ?? "");
   const [assessorId, setAssessorId] = useState(klass?.assessors?.[0]?.id ?? "");
+  const [mode, setMode] = useState(klass?.mode === "assessOnly" ? "assessOnly" : "taught");
   const [studentIds, setStudentIds] = useState((klass?.students ?? []).map((s) => s.id));
   const [schedule, setSchedule] = useState({
     days: klass?.schedule?.days ?? "",
@@ -91,12 +107,13 @@ function ClassForm({
   // class out of editing its own roster.
   const ownStudentIds = (klass?.students ?? []).map((s) => s.id);
 
-  const ready = name.trim() && courseId && assessorId;
+  // The section is optional, so it is not one of the answers save waits for.
+  const ready = courseId && assessorId;
 
   return (
     <AdminModal
       title={editing ? "Edit class" : "New class"}
-      subtitle={editing ? klass.name : null}
+      subtitle={editing ? classTitle(klass) : null}
       // Slides out from under the picker while it is open, so the two sit side
       // by side rather than one over the other.
       // Dropped the moment the panel starts leaving, so the form travels back
@@ -124,6 +141,7 @@ function ClassForm({
                 // one. Save is closed until it holds a name, so it is never
                 // empty by the time it gets here.
                 assessorIds: [assessorId],
+                mode,
                 studentIds,
                 schedule: {
                   days: schedule.days.trim(),
@@ -144,13 +162,16 @@ function ClassForm({
         </p>
       ) : null}
 
-      <AdminField
-        label="Class name"
-        value={name}
-        onChange={setName}
-        placeholder="e.g. CC2 — Section A"
-        required
-      />
+      <div className="admin-field">
+        <div className="admin-field__label">Section</div>
+        <AdminSelect
+          value={name}
+          onChange={setName}
+          options={sectionOptions}
+          label="Section"
+          placeholder="No section"
+        />
+      </div>
 
       <div className="admin-field">
         <div className="admin-field__label">
@@ -164,6 +185,18 @@ function ClassForm({
           placeholder="Choose a course…"
         />
       </div>
+
+      <PathwayChoice
+        value={mode}
+        disabled={busy}
+        onChange={(next) => {
+          if (next === mode) return;
+          // An unsaved class has nobody in it yet, so there is nothing to
+          // weigh and nothing to ask about.
+          if (!editing || !onModeChange) return setMode(next);
+          onModeChange(next, () => setMode(next));
+        }}
+      />
 
       <div className="admin-field">
         <div className="admin-field__label">
