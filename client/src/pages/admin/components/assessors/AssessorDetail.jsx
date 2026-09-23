@@ -174,17 +174,6 @@ export default function AssessorDetail({
                         <tr className="admin-table__static" key={row.id}>
                           <td>
                             <span className="admin-cell__quiet">{row.title || row.code}</span>
-                            {/* Qualifies every figure on the row, so it sits on
-                                the course rather than on any one column: the
-                                counts are the course's, and a co-assessor's
-                                posting shows here as though it were this
-                                assessor's own. */}
-                            {row.sharedWith > 0 ? (
-                              <span className="admin-cell__sub">
-                                Shared with {row.sharedWith} other assessor
-                                {row.sharedWith === 1 ? "" : "s"}
-                              </span>
-                            ) : null}
                           </td>
                           <td>
                             <span className="admin-cell__quiet">{row.code}</span>

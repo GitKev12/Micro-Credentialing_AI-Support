@@ -280,43 +280,6 @@ describe("AssessorsManagement — the students-list interface", () => {
     expect(within(row).getByText("6 / 9")).toBeTruthy();
     expect(within(row).getByText("2 drafts")).toBeTruthy();
   });
-
-  // Every figure on a course row is the course's, not the person's: two
-  // assessors on one course are handed the same posted and credential counts,
-  // so "6 / 9" on a shared course is the course's progress rather than this
-  // assessor's six. The row has to say so or it reads as their own output.
-  it("marks a course another assessor is also on", async () => {
-    detail = {
-      ...defaultDetail(),
-      classes: [{ ...defaultDetail().classes[0], sharedWith: 1 }]
-    };
-
-    const { container } = await openDetail();
-
-    const row = container.querySelector(".admin-table__static");
-    expect(within(row).getByText("Shared with 1 other assessor")).toBeTruthy();
-  });
-
-  it("counts the others, and says nothing on a course this assessor has alone", async () => {
-    detail = {
-      ...defaultDetail(),
-      classes: [{ ...defaultDetail().classes[0], sharedWith: 2 }]
-    };
-
-    const shared = await openDetail();
-    expect(
-      within(shared.container.querySelector(".admin-table__static")).getByText(
-        "Shared with 2 other assessors"
-      )
-    ).toBeTruthy();
-
-    shared.unmount();
-    detail = null;
-
-    const { container } = await openDetail();
-    expect(within(container.querySelector(".admin-table__static")).queryByText(/^Shared with/))
-      .toBeNull();
-  });
 });
 
 // The pill says the account is locked and the tiles say what it owes; joined,

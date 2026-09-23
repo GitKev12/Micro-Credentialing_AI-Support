@@ -38,12 +38,9 @@ import { useNotice } from "../../lib/useNotice";
 // The course option that is not a course: everyone holding none at all.
 const NONE = "none";
 
-const EMPTY_COVERAGE = { unassigned: [], shared: [], unposted: [] };
-
 function AssessorsManagement() {
   const [assessors, setAssessors] = useState([]);
   const [courses, setCourses] = useState([]);
-  const [coverage, setCoverage] = useState(EMPTY_COVERAGE);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
   const filter = useListFilter("course");
@@ -69,7 +66,6 @@ function AssessorsManagement() {
       .then(([assessorData, courseList]) => {
         if (!active) return;
         setAssessors(assessorData.assessors);
-        setCoverage(assessorData.coverage);
         setCourses(courseList);
         setStatus("ready");
       })
@@ -111,10 +107,9 @@ function AssessorsManagement() {
         const created = await createAssessor(values);
         // Re-read rather than append: the list is sorted by name on the server,
         // so an appended row sits at the bottom until the next load and then
-        // jumps. The shared-course note is recounted with it.
+        // jumps.
         const fresh = await fetchAssessors();
         setAssessors(fresh.assessors);
-        setCoverage(fresh.coverage);
         setNotice({ tone: "ok", text: `${created.name} was added.` });
       } else {
         const saved = await updateAssessor(form.id, values);
@@ -158,13 +153,10 @@ function AssessorsManagement() {
     setBusy(true);
     try {
       const { assessor } = await deleteAssessor(deleting.id);
-      // Re-read rather than filter: losing an assessor changes who else is on
-      // their courses, and the shared-course note above the table is counted on
-      // the server. Filtering the row out locally would drop the assessor from
-      // view while that note went on naming a course they no longer share.
+      // Re-read rather than filter: the list is the server's, sorted and shaped
+      // there, so a local splice would leave the rest of it to drift.
       const fresh = await fetchAssessors();
       setAssessors(fresh.assessors);
-      setCoverage(fresh.coverage);
       setDeleting(null);
       setImpact(null);
       // The detail screen is looking at a record that no longer exists.
@@ -393,18 +385,6 @@ function AssessorsManagement() {
           New assessor
         </AdminButton>
       </div>
-
-      {/* Sits under the toolbar rather than riding the search row: a shared
-          course is a fact about the list, not a problem to act on. */}
-      {coverage.shared.length > 0 ? (
-        <p className="admin-notice admin-notice--note" role="status">
-          Shared by more than one assessor:{" "}
-          {coverage.shared
-            .map((course) => `${course.code || course.title} (${course.assessors})`)
-            .join(", ")}
-          . Each of them sees the same submissions.
-        </p>
-      ) : null}
 
       {status === "loading" ? (
         <SkeletonTable rows={6} cols={8} label="Loading assessors…" />
