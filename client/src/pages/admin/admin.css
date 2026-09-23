@@ -809,6 +809,138 @@
   }
 }
 
+/* ── One course's header ───────────────────────────────── */
+
+/* The course as its students see it: the picture from their course card on
+   the left, the name and its two facts beside it. A card rather than bare
+   type on the page, so the header reads as the course itself and the cards
+   below as its parts. */
+.admin-course-hero {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: stretch;
+  margin-bottom: 1.375rem;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-course-hero__art {
+  display: grid;
+  place-items: center;
+  min-height: 7.5rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+}
+
+.admin-course-hero__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-course-hero__mark {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--brand-text);
+}
+
+.admin-course-hero__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.25rem 0.25rem 0.25rem 0;
+}
+
+.admin-course-hero__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-course-hero__names {
+  min-width: 0;
+}
+
+.admin-course-hero__code {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-label);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.admin-course-hero__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.875rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.admin-course-hero__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-course-hero__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  font-family: var(--font-label);
+  font-size: 0.8125rem;
+  color: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-course-hero__fact svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  /* The picture becomes a banner across the top, the way the student's own
+     course card shows it on a phone. */
+  .admin-course-hero {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .admin-course-hero__art {
+    min-height: 0;
+    aspect-ratio: 16 / 7;
+  }
+
+  .admin-course-hero__body {
+    padding: 0 0.25rem 0.25rem;
+  }
+
+  .admin-course-hero__top {
+    flex-direction: column;
+  }
+
+  .admin-course-hero__title {
+    font-size: 1.5rem;
+  }
+}
+
 /* Pair of actions in a page header — edit beside the destructive one. */
 .admin-header__actions {
   display: flex;
@@ -1096,11 +1228,6 @@
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-}
-
-.admin-person__link:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .admin-person__link:focus-visible {
@@ -1986,6 +2113,69 @@
   color: var(--text-muted);
 }
 
+/* A tile that opens onto what it counts. Still the same sunken tile — a
+   button's own chrome is stripped — with a lift on hover and a chevron in the
+   corner so it reads as something to press. */
+.admin-stat--open {
+  position: relative;
+  display: block;
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.admin-stats--compact .admin-stat--open {
+  display: grid;
+  padding-right: 2.25rem;
+}
+
+.admin-stat--open::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  color: var(--text-muted);
+  transform: translateY(-50%) rotate(45deg);
+  transition: right 0.18s ease;
+}
+
+.admin-stat--open:hover {
+  background: var(--brand-hover);
+  box-shadow: inset 0 0 0 1px var(--brand-soft);
+}
+
+.admin-stat--open:hover::after {
+  right: 0.8125rem;
+}
+
+.admin-stat--open:active {
+  transform: scale(0.985);
+}
+
+.admin-stat--open:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-stat--open,
+  .admin-stat--open::after {
+    transition: none;
+  }
+
+  .admin-stat--open:active {
+    transform: none;
+  }
+}
+
 .admin-progress__track {
   height: 0.375rem;
   border-radius: 999px;
@@ -2017,29 +2207,167 @@
 
 /* ── Module rows (Course detail) ────────────────────────── */
 
-.admin-module-list {
+/* The Learning Modules card. Rows in the sunken style the student pop-ups
+   use, numbered because a course's lessons are read in order. Removing one
+   asks inside its row, and the row turns amber while it asks. */
+.admin-lessons__head {
   display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
-.admin-module-row {
-  display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 0.875rem 0.75rem 1.125rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px rgba(130, 43, 32, 0.35);
+  margin-bottom: 1rem;
 }
 
-.admin-module-row__label {
-  font-family: var(--font-ui);
-  font-weight: 500;
-  font-size: 1rem;
-  color: var(--brand-text);
+.admin-lessons__head .admin-card__title {
+  margin: 0;
 }
+
+.admin-lessons__count {
+  flex-shrink: 0;
+  font-family: var(--font-label);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-lesson-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-lesson {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.75rem 0.75rem 0.75rem 0.875rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  transition: background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-lesson:hover {
+  background: var(--brand-hover);
+}
+
+.admin-lesson__num {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-lesson__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.admin-lesson__title {
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-body);
+}
+
+.admin-lesson__meta {
+  overflow: hidden;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-lesson__warn {
+  font-family: var(--font-label);
+  font-size: 0.8125rem;
+  color: var(--warning-text);
+}
+
+.admin-lesson__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Remove is a bare icon beside Preview: it is the rarer act, and the row
+   asks before anything is lost. It turns the warning colour when reached. */
+.admin-lesson__remove {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-lesson__remove:hover:not(:disabled) {
+  background: var(--warning-fill);
+  color: var(--warning-text);
+}
+
+.admin-lesson__remove:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.admin-lesson__remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-lesson.is-confirming {
+  background: var(--warning-fill);
+  box-shadow: inset 0 0 0 1px var(--warning-line);
+}
+
+.admin-lesson.is-confirming .admin-lesson__num {
+  background: var(--surface);
+  color: var(--warning-text);
+}
+
+@media (max-width: 640px) {
+  .admin-lesson {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  /* The actions drop under the title, lined up with it. */
+  .admin-lesson__actions {
+    width: 100%;
+    padding-left: 3.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-lesson,
+  .admin-lesson__remove {
+    transition: none;
+  }
+}
+
+
+
 
 .admin-chip-btn--icon {
   display: inline-flex;
@@ -2065,29 +2393,9 @@
   cursor: not-allowed;
 }
 
-.admin-module-row__main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
 
-.admin-module-row__main .admin-assign-row__meta {
-  margin-left: 0;
-}
 
-.admin-module-row__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
 
-.admin-module-row__warn {
-  font-family: var(--font-label);
-  font-size: 0.8125rem;
-  color: var(--text-body);
-}
 
 /* Result of an add or a remove, shown above the card that did it. */
 .admin-notice {
@@ -2993,55 +3301,236 @@
   align-content: start;
 }
 
-/* The picture as it will be seen: same crop and corner as the student's card,
-   so what the admin approves here is what the dashboard shows. */
-.admin-course-image {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-}
+/* ── Upload cards (Course detail, right column) ─────────── */
 
 /* A button, so it is reachable by keyboard as well as by drop — the real file
-   input behind it is hidden and clicked on its behalf. */
+   input behind it is hidden and clicked on its behalf. Filled in the sunken
+   tone the lesson rows use rather than ringed in dashes, so the column reads
+   as one family with the list beside it; the dashes come back only while a
+   file is being dragged over, when "drop here" is the one thing to say. */
 .admin-dropzone {
+  position: relative;
   display: flex;
   width: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.4375rem;
-  margin-bottom: 0.875rem;
-  padding: 1.25rem 0.875rem;
-  border: 1.5px dashed var(--gray-400);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 1.375rem 1rem;
+  overflow: hidden;
+  border: 0;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--surface-sunken);
   text-align: center;
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 0.875rem;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.admin-dropzone:hover,
-.admin-dropzone.is-dragging {
-  border-color: var(--brand);
-}
-
-.admin-dropzone.is-dragging {
+.admin-dropzone:hover {
   background: var(--brand-hover);
 }
 
-.admin-dropzone:focus-visible {
+.admin-dropzone.is-dragging,
+.admin-picture.is-dragging {
+  background: var(--brand-hover);
+  box-shadow: inset 0 0 0 2px var(--brand);
+}
+
+.admin-dropzone:focus-visible,
+.admin-picture:focus-visible {
   outline: none;
   box-shadow: var(--ring-focus);
 }
 
-.admin-dropzone[disabled] {
+.admin-dropzone[disabled],
+.admin-picture[disabled] {
+  cursor: progress;
+}
+
+.admin-dropzone[disabled]:not(:has(.admin-dropzone__bar)) {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* A chosen file: the zone becomes the file's own row, the way it will sit in
+   the list once added. Still a button — pressing it picks another. */
+.admin-dropzone.has-file {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  text-align: left;
+}
+
+.admin-dropzone__doc {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.875rem;
+  border-radius: 0.375rem;
+  background: var(--brand);
+  color: var(--white);
+  font-family: var(--font-label);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.admin-dropzone__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  min-width: 0;
+}
+
+.admin-dropzone__name {
+  overflow: hidden;
+  font-weight: 500;
+  color: var(--text-body);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-dropzone__chosen .admin-dropzone__file {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.admin-dropzone__icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.admin-dropzone__text {
+  font-size: 0.8125rem;
+}
+
+.admin-dropzone__link {
+  color: var(--brand-text);
+  font-weight: 600;
+}
+
+.admin-dropzone__file {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Upload progress, along the bottom edge of whatever is uploading. */
+.admin-dropzone__bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.1875rem;
+  background: var(--brand-soft);
+}
+
+.admin-dropzone__bar > span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  transition: width 0.2s ease;
+}
+
+/* The course picture, at the student card's 16:9 crop, as its own drop
+   target. Empty, it is a sunken frame with the prompt in the middle; with a
+   picture, the prompt shrinks to a strip along the bottom so the picture
+   stays the thing being looked at. */
+.admin-picture {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  margin-bottom: 0.75rem;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-picture:not(.has-image):hover {
+  background: var(--brand-hover);
+}
+
+.admin-picture__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-picture__prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-picture.has-image .admin-picture__prompt {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  flex-direction: row;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 0.75rem 0.625rem;
+  background: linear-gradient(to top, rgba(16, 24, 40, 0.78), rgba(16, 24, 40, 0));
+  color: #fff;
+  transition: padding 0.18s ease;
+}
+
+.admin-picture.has-image:hover .admin-picture__prompt,
+.admin-picture.has-image.is-dragging .admin-picture__prompt {
+  padding-bottom: 0.875rem;
+}
+
+.admin-picture.has-image .admin-dropzone__icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.admin-picture.has-image .admin-dropzone__link {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.admin-picture__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dropzone,
+  .admin-picture,
+  .admin-picture__prompt,
+  .admin-dropzone__bar > span {
+    transition: none;
+  }
 }
 
 /* Off-screen but still in the accessibility tree — the file input the
@@ -3055,25 +3544,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.admin-dropzone__icon {
-  color: var(--brand-text);
-}
-
-.admin-dropzone__text {
-  font-size: 0.8125rem;
-}
-
-.admin-dropzone__link {
-  color: var(--brand-text);
-  font-weight: 500;
-}
-
-.admin-dropzone__file {
-  font-family: var(--font-label);
-  font-size: 0.75rem;
-  color: var(--brand-text);
 }
 
 /* ── Table of Specification ─────────────────────────────── */
@@ -3337,6 +3807,212 @@
   width: min(32.5rem, 100%);
   height: auto;
   max-height: min(calc(88 * var(--vh)), 100%);
+}
+
+/* ── A student's badges and micro-credentials ─────────── */
+
+.admin-modal__panel--awards {
+  width: min(42rem, 100%);
+  animation: admin-awards-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes admin-awards-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
+}
+
+/* A stronger blur than the forms get: nothing behind this is being edited, so
+   the page can fall further back. */
+.admin-modal:has(.admin-modal__panel--awards) {
+  backdrop-filter: blur(0.5rem);
+  -webkit-backdrop-filter: blur(0.5rem);
+}
+
+.admin-award-group + .admin-award-group {
+  margin-top: 1.375rem;
+}
+
+.admin-award-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+  font-family: var(--font-label);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+.admin-award-group__count {
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-award-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-award {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.875rem 0.625rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  text-align: center;
+}
+
+.admin-award__art {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.admin-award__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-award__name {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-body);
+}
+
+.admin-award__when {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Not yet earned: the artwork greys out, the words stay readable. */
+.admin-award[data-earned="no"] .admin-award__art {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+
+.admin-cred-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-cred {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8125rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.admin-cred__mark {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.admin-cred[data-earned="yes"] .admin-cred__mark {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.admin-cred__course {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.admin-cred__title {
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-body);
+}
+
+.admin-cred__code {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.admin-cred__state {
+  flex-shrink: 0;
+  font-family: var(--font-label);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* An enrolled course: the mark is always the brand's, since every row here is
+   a course the student is actively taking, and the progress bar takes a fixed
+   width so the bars line up down the list. */
+.admin-cred--course .admin-cred__mark {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.admin-cred__progress {
+  flex-shrink: 0;
+  width: 10rem;
+}
+
+.admin-cred[data-earned="yes"] .admin-cred__state {
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+@media (max-width: 40rem) {
+  .admin-award-grid {
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  }
+
+  .admin-cred {
+    flex-wrap: wrap;
+    column-gap: 0.75rem;
+  }
+
+  /* The state drops under the course name, lined up with it rather than
+     with the icon. */
+  .admin-cred__state,
+  .admin-cred__progress {
+    width: 100%;
+    padding-left: 3.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-modal__panel--awards {
+    animation: none;
+  }
 }
 
 .admin-modal__body {

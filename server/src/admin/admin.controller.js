@@ -659,7 +659,8 @@ export async function getStudent(request, response) {
       ...publicStudent(student, courses),
       progress,
       credentials,
-      badges: summarizeBadges(badgeList),
+      // The list itself as well as the counts: the badges tile opens onto it.
+      badges: { ...summarizeBadges(badgeList), list: badgeList },
       lastActive,
       assessors
     }

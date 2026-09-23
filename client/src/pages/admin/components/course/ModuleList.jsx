@@ -2,6 +2,7 @@ import { ModulesIcon, TrashIcon } from "../icons";
 import { SectionTitle } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
 import { impactLabel, moduleMeta } from "./impact";
+import { plural } from "../../lib/format";
 
 /**
  * The lessons on a course, and the two-step removal of one.
@@ -22,77 +23,97 @@ export default function ModuleList({
   onRemove,
   onCancelRemove
 }) {
+  const ready = detailStatus !== "loading" && detailStatus !== "error";
+
   return (
-    <div className="admin-card">
-            <SectionTitle icon={ModulesIcon}>Learning Modules</SectionTitle>
+    <div className="admin-card admin-lessons">
+      <div className="admin-lessons__head">
+        <SectionTitle icon={ModulesIcon}>Learning Modules</SectionTitle>
+        {ready && modules.length > 0 ? (
+          <span className="admin-lessons__count">{plural(modules.length, "lesson")}</span>
+        ) : null}
+      </div>
 
-            {detailStatus === "loading" ? (
-              <SkeletonText lines={4} label="Loading modules…" />
-            ) : detailStatus === "error" ? (
-              <p className="admin-empty-note">Couldn&apos;t load this course.</p>
-            ) : (
-              <div className="admin-module-list">
-                {modules.map((module) => (
-                  <div className="admin-module-row" key={module.id}>
-                    <div className="admin-module-row__main">
-                      <span className="admin-module-row__label">{module.title}</span>
-                      <span className="admin-assign-row__meta">{moduleMeta(module)}</span>
-                    </div>
+      {detailStatus === "loading" ? (
+        <SkeletonText lines={4} label="Loading modules…" />
+      ) : detailStatus === "error" ? (
+        <p className="admin-empty-note">Couldn&apos;t load this course.</p>
+      ) : modules.length === 0 ? (
+        <p className="admin-empty-note">No learning modules uploaded for this course yet.</p>
+      ) : (
+        // Numbered because the order is the course's: lesson 3 is read after 2.
+        <ol className="admin-lesson-list">
+          {modules.map((module, index) => {
+            const asking = confirming === module.id;
+            return (
+              <li
+                className={`admin-lesson${asking ? " is-confirming" : ""}`}
+                key={module.id}
+              >
+                <span className="admin-lesson__num" aria-hidden="true">
+                  {index + 1}
+                </span>
 
-                    {confirming === module.id ? (
-                      <div className="admin-module-row__actions">
-                        <span className="admin-module-row__warn">{impactLabel(impact)}</span>
-                        {/* Held back until the counts are in: agreeing to a
-                            removal whose cost is still loading is agreeing to
-                            nothing in particular. */}
-                        <button
-                          type="button"
-                          className="admin-chip-btn"
-                          disabled={busy || !impact}
-                          onClick={() => onRemove(module)}
-                        >
-                          Yes, remove
-                        </button>
-                        <button
-                          type="button"
-                          className="admin-chip-btn admin-chip-btn--quiet"
-                          disabled={busy}
-                          onClick={onCancelRemove}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="admin-module-row__actions">
-                        <button
-                          type="button"
-                          className="admin-chip-btn admin-chip-btn--quiet"
-                          onClick={() => onPreview(module)}
-                          aria-label={`Preview ${module.title}`}
-                        >
-                          Preview
-                        </button>
-                        <button
-                          type="button"
-                          className="admin-chip-btn admin-chip-btn--icon"
-                          disabled={busy}
-                          onClick={() => onAskRemove(module)}
-                          aria-label={`Remove ${module.title}`}
-                        >
-                          <TrashIcon />
-                          Remove
-                        </button>
-                      </div>
-                    )}
+                <div className="admin-lesson__main">
+                  <span className="admin-lesson__title">{module.title}</span>
+                  {asking ? (
+                    <span className="admin-lesson__warn" role="status">
+                      {impactLabel(impact)}
+                    </span>
+                  ) : (
+                    <span className="admin-lesson__meta">{moduleMeta(module)}</span>
+                  )}
+                </div>
+
+                {asking ? (
+                  <div className="admin-lesson__actions">
+                    <button
+                      type="button"
+                      className="admin-chip-btn admin-chip-btn--quiet"
+                      disabled={busy}
+                      onClick={onCancelRemove}
+                    >
+                      Cancel
+                    </button>
+                    {/* Held back until the counts are in: agreeing to a
+                        removal whose cost is still loading is agreeing to
+                        nothing in particular. */}
+                    <button
+                      type="button"
+                      className="admin-chip-btn"
+                      disabled={busy || !impact}
+                      onClick={() => onRemove(module)}
+                    >
+                      Yes, remove
+                    </button>
                   </div>
-                ))}
-                {modules.length === 0 ? (
-                  <p className="admin-empty-note">
-                    No learning modules uploaded for this course yet.
-                  </p>
-                ) : null}
-              </div>
-            )}
+                ) : (
+                  <div className="admin-lesson__actions">
+                    <button
+                      type="button"
+                      className="admin-chip-btn admin-chip-btn--quiet"
+                      onClick={() => onPreview(module)}
+                      aria-label={`Preview ${module.title}`}
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-lesson__remove"
+                      disabled={busy}
+                      onClick={() => onAskRemove(module)}
+                      aria-label={`Remove ${module.title}`}
+                      title="Remove"
+                    >
+                      <TrashIcon size={15} />
+                    </button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }
