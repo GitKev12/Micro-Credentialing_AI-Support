@@ -69,13 +69,36 @@
   --font-label: "Poppins", "Segoe UI", sans-serif;
   --font-alt: "Poppins", "Segoe UI", sans-serif;
 
+  /* ---- Type and space scales ----
+     The assessor console's steps, value for value (assessor.css), so a size
+     means the same thing on both staff sides. rem rather than px so they
+     follow the reader's own browser text size instead of overriding it. */
+  --fs-micro: 0.75rem;
+  --fs-label: 0.8125rem;
+  --fs-body: 0.9375rem;
+  --fs-body-lg: 1rem;
+  --fs-title-sm: 1.0625rem;
+  --fs-title: 1.125rem;
+  --fs-h3: 1.25rem;
+  --fs-h2: 1.375rem;
+  --fs-h1: clamp(1.625rem, calc(1.1rem + 1.6 * var(--vw)), 2rem);
+
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+
   /* ---- Radii ---- */
   --radius-xs: 8px;
   /* The picker panel that opens beside a form, and the gap between them.
      Both halves of that pairing are positioned from these. */
-  --picker-w: 420px;
-  --picker-gap: 16px;
-  --form-w: 520px;
+  --picker-w: 26.25rem;
+  --picker-gap: 1rem;
+  --form-w: 32.5rem;
 
   --radius-sm: 12px;
   --radius-md: 20px;
@@ -225,7 +248,7 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 30px 36px;
+  padding: 1.875rem 2.25rem;
 }
 
 /* Two things hold the content in, and lifting one without the other does
@@ -233,12 +256,12 @@
    the cap — most of them — the cap is what binds and the padding is only the
    floor under it, so both come down together. */
 .admin-main__inner {
-  max-width: 1320px;
+  max-width: 82.5rem;
   margin: 0 auto;
 }
 
 .admin-main__inner--wide {
-  max-width: 1400px;
+  max-width: 87.5rem;
 }
 
 /* ── Sidebar ────────────────────────────────────────────── */
@@ -261,13 +284,13 @@
   /* Trimmed as far as the nav allows: "Table of Specification" needs 225px of
      rail to stay on one line, and an item that wraps is taller than the four
      around it — which costs more height than the width saves. */
-  width: 230px;
+  width: 14.375rem;
   flex-shrink: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 22px 0 18px;
+  padding: 1.375rem 0 1.125rem;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   background: var(--rail-bg);
   color: var(--sidebar-ink);
@@ -281,14 +304,14 @@
 /* Straddles the sidebar's right edge, below the corner curve. */
 .admin-sidebar__toggle {
   position: absolute;
-  top: 20px;
-  right: -14px;
+  top: 1.25rem;
+  right: -0.875rem;
   z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -314,22 +337,22 @@
 }
 
 .admin-sidebar--collapsed {
-  width: 72px;
+  width: 4.5rem;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__top {
-  gap: 16px;
-  margin-top: 6px;
+  gap: 1rem;
+  margin-top: 0.375rem;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__avatar {
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__avatar svg {
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__who,
@@ -344,13 +367,13 @@
 
 .admin-sidebar--collapsed .admin-nav-item {
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__signout {
-  padding: 8px;
+  padding: 0.5rem;
   border-radius: 50%;
   justify-content: center;
 }
@@ -366,7 +389,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 1.375rem;
   width: 100%;
 }
 
@@ -374,14 +397,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 /* A disc cut out of the panel rather than a white circle sitting on it — a
    surface-coloured avatar goes muddy against navy in the dark theme. */
 .admin-sidebar__avatar {
-  width: 62px;
-  height: 62px;
+  width: 3.875rem;
+  height: 3.875rem;
   border-radius: 50%;
   background: var(--sidebar-hover);
   color: var(--sidebar-ink);
@@ -401,7 +424,7 @@
 .admin-sidebar__name {
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.35;
   letter-spacing: -0.01em;
   color: var(--sidebar-ink);
@@ -410,7 +433,7 @@
 .admin-sidebar__id {
   font-family: var(--font-ui);
   font-weight: 400;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   color: var(--sidebar-ink-soft);
 }
@@ -421,7 +444,7 @@
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding-inline: 12px;
+  padding-inline: 0.75rem;
 }
 
 /* The sliding indicator behind the active nav item, login-toggle style: it is
@@ -443,16 +466,16 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   width: 100%;
-  padding: 9px 12px;
+  padding: 0.5625rem 0.75rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--sidebar-ink);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
@@ -493,19 +516,19 @@
 .admin-sidebar__theme {
   outline: 1px solid var(--sidebar-line);
   margin-top: auto;
-  width: calc(100% - 24px);
+  width: calc(100% - 1.5rem);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.625rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--sidebar-ink);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -516,7 +539,7 @@
 
 .admin-sidebar--collapsed .admin-sidebar__theme {
   width: auto;
-  padding: 7px;
+  padding: 0.4375rem;
 }
 
 .admin-sidebar--collapsed .admin-sidebar__theme span,
@@ -529,8 +552,8 @@
 .admin-theme-switch {
   position: relative;
   flex-shrink: 0;
-  width: 30px;
-  height: 17px;
+  width: 1.875rem;
+  height: 1.0625rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.26);
   transition: background 0.18s ease;
@@ -542,10 +565,10 @@
 
 .admin-theme-switch__thumb {
   position: absolute;
-  top: 2.5px;
-  left: 2.5px;
-  width: 12px;
-  height: 12px;
+  top: 0.1562rem;
+  left: 0.1562rem;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 50%;
   background: var(--white);
   transition: transform 0.18s ease, background 0.18s ease;
@@ -557,17 +580,17 @@
 }
 
 .admin-sidebar__signout {
-  margin-top: 8px;
+  margin-top: 0.5rem;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.75rem;
   border: none;
   background: var(--surface);
   color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   cursor: pointer;
   transition: filter 0.15s ease;
@@ -577,7 +600,7 @@
 
 .admin-sidebar__signout-wrap {
   width: 100%;
-  padding: 0 12px;
+  padding: 0 0.75rem;
 }
 
 .admin-sidebar__signout:hover {
@@ -589,29 +612,82 @@
   outline-offset: 2px;
 }
 
+/* ── Phone-only pieces ──────────────────────────────────────
+   The bar, the scrim behind the open drawer, and the drawer's own close
+   button exist only below md. Drawn here, switched on in the responsive
+   block at the end of this file.
+   ───────────────────────────────────────────────────────── */
+
+.admin-mobilebar,
+.admin-scrim {
+  display: none;
+}
+
+.admin-mobilebar__title {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The two buttons share one spot on the screen — top right, under the
+   thumb — so the one that opens the drawer and the one that shuts it are
+   the same reach and the same size. */
+.admin-mobilebar__menu,
+.admin-sidebar__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-mobilebar__menu:hover,
+.admin-sidebar__close:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.admin-mobilebar__menu:focus-visible,
+.admin-sidebar__close:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: -2px;
+}
+
 /* ── Page header ────────────────────────────────────────── */
 
 .admin-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 22px;
+  gap: 1.25rem;
+  margin-bottom: 1.375rem;
 }
 
 .admin-header__title {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 32px;
+  font-size: 2rem;
   line-height: 1.15;
   color: var(--text-body);
 }
 
 .admin-header__subtitle {
-  margin: 6px 0 0;
+  margin: 0.375rem 0 0;
   font-weight: 300;
-  font-size: 16px;
+  font-size: 1rem;
   color: var(--text-muted);
 }
 
@@ -629,14 +705,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 0.5rem;
   /* The height centres the label on its own, so the vertical padding was only
      ever inflating the box; the horizontal was making it wide. Sized under the
      44px search field it stands beside rather than level with it — the toolbar
      centres them, and the lighter block keeps the row from reading as two
      equal slabs. */
-  height: 38px;
-  padding: 0 15px;
+  height: 2.375rem;
+  padding: 0 0.9375rem;
   border: none;
   border-radius: var(--radius-sm);
   background: var(--brand);
@@ -644,7 +720,7 @@
   box-shadow: var(--shadow-sm);
   font-family: var(--font-alt);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
@@ -668,17 +744,17 @@
 
 .admin-btn--block {
   width: 100%;
-  height: 40px;
+  height: 2.5rem;
   border-radius: var(--radius-sm);
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
 }
 
 .admin-btn--compact {
-  height: 34px;
-  padding: 0 13px;
+  height: 2.125rem;
+  padding: 0 0.8125rem;
   border-radius: var(--radius-xs);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
@@ -713,7 +789,7 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 0.75rem;
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -721,12 +797,12 @@
 .admin-identity__acts {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-left: 16px;
+  gap: 0.625rem;
+  padding-left: 1rem;
   border-left: 1px solid var(--gray-200);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 52rem) {
   .admin-identity__acts {
     padding-left: 0;
     border-left: none;
@@ -737,7 +813,7 @@
 .admin-header__actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   flex-shrink: 0;
 }
 
@@ -754,8 +830,8 @@
 .admin-search {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 22px;
+  gap: 0.75rem;
+  margin-bottom: 1.375rem;
 }
 
 /* min() rather than a hard 340px, so it shrinks with the viewport instead of
@@ -764,10 +840,10 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: min(360px, 100%);
-  height: 44px;
-  padding: 8px 14px;
+  gap: 0.625rem;
+  width: min(22.5rem, 100%);
+  height: 2.75rem;
+  padding: 0.5rem 0.875rem;
   background: var(--surface);
   border: 1px solid var(--gray-400);
   border-radius: var(--radius-md);
@@ -803,7 +879,7 @@
   outline: none;
   background: transparent;
   font-family: var(--font-alt);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--admin-ink);
 }
 
@@ -825,8 +901,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -848,7 +924,7 @@
 
 .admin-search__hint {
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -865,7 +941,13 @@
    against the card's rounded ones. Flush to the edge, the card's own
    border-radius + overflow:hidden round the header for free. */
 .admin-table-card {
-  overflow: hidden;
+  /* Contains what is positioned inside the table, so a visually hidden label
+     in a far column scrolls with it instead of widening the page. */
+  position: relative;
+  /* Scrolls rather than clips. `hidden` also rounded the table's corners into
+     the card, which auto still does — but on a screen narrower than the table
+     it cut the right-hand columns off with no way to reach them. */
+  overflow-x: auto;
   background: var(--surface);
   /* Every list in this console is a table, and the brand keyline is what marks
      one out as the page's content rather than another panel floating on the
@@ -884,11 +966,11 @@
 }
 
 .admin-table th {
-  padding: 13px 18px;
+  padding: 0.8125rem 1.125rem;
   text-align: left;
   background: var(--gray-100);
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--text-muted);
@@ -900,8 +982,8 @@
 }
 
 .admin-table td {
-  padding: 15px 18px;
-  font-size: 15px;
+  padding: 0.9375rem 1.125rem;
+  font-size: 0.9375rem;
   color: var(--text-body);
 }
 
@@ -943,7 +1025,7 @@
 
 .admin-table__empty td {
   cursor: default;
-  padding: 26px 16px;
+  padding: 1.625rem 1rem;
   text-align: center;
   color: var(--text-muted);
 }
@@ -953,7 +1035,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 16px 18px 4px;
+  padding: 1rem 1.125rem 0.25rem;
 }
 
 .admin-table-head .admin-card__title {
@@ -971,7 +1053,7 @@
 
 .admin-table__open {
   display: inline-flex;
-  padding: 6px;
+  padding: 0.375rem;
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -992,10 +1074,10 @@
 .admin-person {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   /* Makes the name column ask for enough width that ordinary full names sit
      on one line — without it the cell shrinks and breaks them mid-name. */
-  min-width: 190px;
+  min-width: 11.875rem;
 }
 
 .admin-person__name {
@@ -1031,7 +1113,7 @@
    so a second tab stop per row would be noise. */
 .admin-table__cue {
   display: inline-flex;
-  padding: 6px;
+  padding: 0.375rem;
   color: var(--brand-text);
 }
 
@@ -1055,7 +1137,7 @@
   display: block;
   margin-top: 2px;
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 400;
   color: var(--text-muted);
 }
@@ -1063,14 +1145,14 @@
 /* A cell whose value is a fact rather than a figure — a date, or "Clear".
    Sits back so it does not compete with the counts either side of it. */
 .admin-cell__quiet {
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--text-muted);
 }
 
 .admin-person__id {
   margin-top: 1px;
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
@@ -1097,8 +1179,8 @@
 /* ── Avatar (initials) ──────────────────────────────────── */
 
 .admin-avatar {
-  width: 38px;
-  height: 38px;
+  width: 2.375rem;
+  height: 2.375rem;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1107,7 +1189,7 @@
   background: var(--maroon-700-23);
   color: var(--brand-text);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* A course is not a person: same disc, squared off, so the two kinds of row
@@ -1121,16 +1203,16 @@
 .admin-back {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 16px;
-  padding: 2px 4px;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+  padding: 2px 0.25rem;
   border: none;
   border-radius: var(--radius-xs);
   background: none;
   color: var(--brand-text);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 15px;
+  font-size: 0.9375rem;
   cursor: pointer;
 }
 
@@ -1144,12 +1226,12 @@
 .admin-identity {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .admin-identity__disc {
-  width: 68px;
-  height: 68px;
+  width: 4.25rem;
+  height: 4.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1162,16 +1244,16 @@
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 28px;
+  font-size: 1.75rem;
   /* The page's <h1> was --text-body, a step below the ink every other heading
      on these screens uses. */
   color: var(--admin-ink);
 }
 
 .admin-identity__meta {
-  margin: 3px 0 0;
+  margin: 0.1875rem 0 0;
   font-weight: 300;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-muted);
 }
 
@@ -1184,8 +1266,8 @@
 .admin-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  margin-top: 20px;
+  gap: 1.125rem;
+  margin-top: 1.25rem;
   align-items: start;
 }
 
@@ -1197,14 +1279,14 @@
 .admin-detail-stack {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  margin-top: 20px;
+  gap: 1.125rem;
+  margin-top: 1.25rem;
 }
 
 .admin-grid-detail {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 18px;
+  gap: 1.125rem;
   align-items: start;
 }
 
@@ -1216,32 +1298,32 @@
 
 
 .admin-card {
-  padding: 24px;
+  padding: 1.5rem;
   background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
 
 .admin-card__title {
-  margin: 0 0 16px;
+  margin: 0 0 1rem;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 20px;
+  font-size: 1.25rem;
   color: var(--text-body);
 }
 
 .admin-card__subtitle {
-  margin: 0 0 10px;
+  margin: 0 0 0.625rem;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-body);
 }
 
 .admin-empty-note {
   margin: 2px 0;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-muted);
 }
 
@@ -1251,14 +1333,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: 3rem 1.5rem;
   text-align: center;
   background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   color: var(--text-muted);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .admin-state-card--error {
@@ -1270,8 +1352,8 @@
 .admin-assign-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
 }
 
 .admin-assign-row {
@@ -1279,8 +1361,8 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 11px 12px 11px 16px;
+  gap: 0.75rem;
+  padding: 0.6875rem 0.75rem 0.6875rem 1rem;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
 }
@@ -1296,14 +1378,14 @@
 .admin-assign-row__title {
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-body);
 }
 
 .admin-assign-row__meta {
-  margin-left: 6px;
+  margin-left: 0.375rem;
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   /* A course code is one token — "DB 205" must not break after "DB". */
   white-space: nowrap;
@@ -1318,19 +1400,19 @@
   align-items: center;
   flex-wrap: wrap;
   flex-basis: 100%;
-  gap: 8px;
+  gap: 0.5rem;
   margin-top: 2px;
 }
 
 .admin-chip-btn {
   border: none;
   cursor: pointer;
-  padding: 6px 12px;
+  padding: 0.375rem 0.75rem;
   border-radius: var(--radius-xs);
   background: var(--maroon-700-23);
   color: var(--brand-text);
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   transition: background 0.15s ease;
 }
@@ -1350,24 +1432,24 @@
 .admin-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 /* Only when something follows the tags — the roster ends on them. */
 .admin-tags:not(:last-child) {
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .admin-tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 6px 5px 11px;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.375rem 0.3125rem 0.6875rem;
   border-radius: var(--radius-xs);
   background: var(--brand-soft);
   color: var(--brand-text);
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 
@@ -1375,8 +1457,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -1419,24 +1501,24 @@
 
 .admin-tags__empty {
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
-  padding: 3px 0;
+  padding: 0.1875rem 0;
 }
 
 /* Field grid — the schedule labels sit as a compact block rather than a tall
    stack, fitting as many across as there is room for. */
 .admin-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
 }
 
 .admin-form-grid .admin-field {
   margin-bottom: 0;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 40rem) {
   .admin-form-grid {
     grid-template-columns: 1fr;
   }
@@ -1451,12 +1533,12 @@
 .admin-table__actions .admin-chip-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   vertical-align: middle;
 }
 
 .admin-table__actions .admin-chip-btn+.admin-chip-btn {
-  margin-left: 6px;
+  margin-left: 0.375rem;
 }
 
 /* "Manage ›" on a class row — the same brand-coloured cue the student and
@@ -1471,12 +1553,12 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 6px 4px;
+  padding: 0.375rem 0.25rem;
   border: 0;
   background: none;
   color: var(--brand-text);
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   vertical-align: middle;
@@ -1503,7 +1585,7 @@
    left padding is 4px against the chip's 12px, which is what keeps the two
    from reading as one control. */
 .admin-chip-btn+.admin-table__manage {
-  margin-left: 6px;
+  margin-left: 0.375rem;
 }
 
 /* ── List toolbar (category + search) ───────────────────── */
@@ -1514,9 +1596,9 @@
 .admin-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 1.125rem;
 }
 
 /* The screen's primary action, at the end of the row. margin-left:auto rather
@@ -1528,13 +1610,13 @@
 }
 
 .admin-toolbar__filter {
-  width: 260px;
+  width: 16.25rem;
   flex-shrink: 0;
 }
 
 .admin-toolbar__search {
   flex: 1;
-  min-width: 240px;
+  min-width: 15rem;
 }
 
 /* The search field carries its own bottom margin for the screens that use it
@@ -1551,7 +1633,7 @@
 .admin-count--badges {
   flex-shrink: 0;
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1563,8 +1645,8 @@
 
 .admin-assign-form {
   display: flex;
-  gap: 8px;
-  padding-top: 14px;
+  gap: 0.5rem;
+  padding-top: 0.875rem;
   border-top: 1px solid var(--gray-150);
 }
 
@@ -1582,15 +1664,15 @@
 .admin-select__trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   width: 100%;
-  height: 42px;
-  padding: 0 12px;
+  height: 2.625rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--gray-400);
   border-radius: var(--radius-xs);
   background: var(--surface);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--admin-ink);
   text-align: left;
   cursor: pointer;
@@ -1664,14 +1746,14 @@
 }
 
 .admin-select--field .admin-select__trigger {
-  gap: 6px;
-  padding-right: 9px;
+  gap: 0.375rem;
+  padding-right: 0.5625rem;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   background: var(--surface-sunken);
   color: var(--text-muted);
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 
@@ -1699,17 +1781,17 @@
 .admin-select__list {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 6px);
+  top: calc(100% + 0.375rem);
   left: 0;
   /* At least as wide as the trigger, but free to grow to its content — the
      trigger is narrow and course titles are long, so matching its width
      exactly would wrap every option onto three lines. */
   min-width: 100%;
   width: max-content;
-  max-width: min(420px, calc(80 * var(--vw)));
-  max-height: 264px;
+  max-width: min(26.25rem, calc(80 * var(--vw)));
+  max-height: 16.5rem;
   margin: 0;
-  padding: 6px;
+  padding: 0.375rem;
   overflow-y: auto;
   list-style: none;
   border: 1px solid var(--gray-200);
@@ -1721,7 +1803,7 @@
 
 .admin-select__list[data-placement="top"] {
   top: auto;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 0.375rem);
   animation-name: admin-select-in-up;
 }
 
@@ -1742,8 +1824,8 @@
 .admin-select__option {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 0.625rem;
+  padding: 0.5rem 0.625rem;
   border-radius: var(--radius-xs);
   cursor: pointer;
 }
@@ -1764,7 +1846,7 @@
 
 .admin-select__option-meta {
   font-family: var(--font-label);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1772,7 +1854,7 @@
 }
 
 .admin-select__option-label {
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.35;
   color: var(--admin-ink);
 }
@@ -1801,8 +1883,8 @@
 
 .admin-stats {
   display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 0.75rem;
+  margin-bottom: 1.125rem;
 }
 
 /* When the tiles are the whole card, the card's padding is the only gap. */
@@ -1824,12 +1906,12 @@
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  column-gap: 12px;
-  padding: 14px 16px;
+  column-gap: 0.75rem;
+  padding: 0.875rem 1rem;
 }
 
 .admin-stats--compact .admin-stat__value {
-  font-size: 30px;
+  font-size: 1.875rem;
 }
 
 .admin-stats--compact .admin-stat__label {
@@ -1842,14 +1924,14 @@
    tall in the first place. */
 .admin-stats--compact .admin-stat__note {
   grid-column: 1 / -1;
-  margin-top: 10px;
+  margin-top: 0.625rem;
   padding-top: 0;
   border-top: 0;
 }
 
 .admin-stat {
   flex: 1;
-  padding: 16px 18px;
+  padding: 1rem 1.125rem;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
 }
@@ -1867,7 +1949,7 @@
 .admin-stat__value {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 34px;
+  font-size: 2.125rem;
   line-height: 1;
   color: var(--brand-text);
   font-variant-numeric: tabular-nums;
@@ -1876,9 +1958,9 @@
 .admin-stat__label {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 5px;
-  font-size: 14px;
+  gap: 0.4375rem;
+  margin-top: 0.3125rem;
+  font-size: 0.875rem;
   color: var(--text-muted);
 }
 
@@ -1895,17 +1977,17 @@
    spaced, so the figure above stays the tile's headline and this reads as its
    footnote. */
 .admin-stat__note {
-  margin-top: 10px;
-  padding-top: 9px;
+  margin-top: 0.625rem;
+  padding-top: 0.5625rem;
   border-top: 1px solid var(--gray-200);
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.4;
   color: var(--text-muted);
 }
 
 .admin-progress__track {
-  height: 6px;
+  height: 0.375rem;
   border-radius: 999px;
   background: var(--gray-150);
   overflow: hidden;
@@ -1920,14 +2002,14 @@
 .admin-cell-progress {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 116px;
-  max-width: 180px;
+  gap: 0.3125rem;
+  min-width: 7.25rem;
+  max-width: 11.25rem;
 }
 
 .admin-cell-progress__figure {
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1938,15 +2020,15 @@
 .admin-module-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .admin-module-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px 12px 18px;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem 0.75rem 1.125rem;
   border-radius: var(--radius-sm);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px rgba(130, 43, 32, 0.35);
@@ -1955,15 +2037,15 @@
 .admin-module-row__label {
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 16px;
+  font-size: 1rem;
   color: var(--brand-text);
 }
 
 .admin-chip-btn--icon {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
+  gap: 0.3125rem;
+  padding: 0.3125rem 0.625rem;
 }
 
 /* Preview sits beside Remove, so it is deliberately the quieter of the two —
@@ -1997,23 +2079,23 @@
 .admin-module-row__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
 .admin-module-row__warn {
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-body);
 }
 
 /* Result of an add or a remove, shown above the card that did it. */
 .admin-notice {
-  margin: 0 0 16px;
-  padding: 11px 16px;
+  margin: 0 0 1rem;
+  padding: 0.6875rem 1rem;
   border-radius: var(--radius-sm);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .admin-notice--ok {
@@ -2038,12 +2120,12 @@
 .admin-notice--inline {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 0.4375rem;
   margin: 0;
-  padding: 7px 12px;
+  padding: 0.4375rem 0.75rem;
   min-width: 0;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 
@@ -2075,7 +2157,7 @@
    how this console says "that just happened"; --note and --warn are outlined
    ones, which is how it says "this is still true". */
 .admin-notice--warn {
-  padding: 12px 16px;
+  padding: 0.75rem 1rem;
   background: var(--warning-fill);
   color: var(--text-body);
   box-shadow: inset 0 0 0 1px var(--warning-line);
@@ -2092,13 +2174,13 @@
 /* ── Upload panel ───────────────────────────────────────── */
 
 .admin-field {
-  margin-bottom: 14px;
+  margin-bottom: 0.875rem;
 }
 
 .admin-field__label {
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
   font-family: var(--font-label);
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--text-body);
 }
 
@@ -2109,23 +2191,23 @@
 }
 
 .admin-field__hint {
-  margin: 6px 0 0;
+  margin: 0.375rem 0 0;
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
 .admin-input {
   width: 100%;
-  height: 44px;
-  padding: 0 16px;
+  height: 2.75rem;
+  padding: 0 1rem;
   border: none;
   outline: none;
   border-radius: var(--radius-sm);
   background: var(--surface);
   box-shadow: var(--shadow-inset-field);
   font-family: var(--font-alt);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--admin-ink);
 }
 
@@ -2141,9 +2223,9 @@
    its own text instead of growing. */
 .admin-input--multiline {
   height: auto;
-  min-height: 96px;
-  max-height: 200px;
-  padding: 12px 16px;
+  min-height: 6rem;
+  max-height: 12.5rem;
+  padding: 0.75rem 1rem;
   line-height: 1.55;
   resize: vertical;
 }
@@ -2247,15 +2329,15 @@
 /* Too narrow to stand side by side: the panel takes the middle, the form stops
    sliding out from under it, and the backdrop comes back because the form is
    now behind the panel rather than beside it. */
-@media (max-width: 1120px) {
+@media (max-width: 68rem) {
   .admin-drawer {
     background: rgba(16, 24, 40, 0.45);
   }
 
   .admin-drawer .admin-drawer__panel {
-    width: min(var(--picker-w), calc(100vw - 32px));
+    width: min(var(--picker-w), calc(100vw - 2rem));
     left: 50%;
-    margin-left: calc(min(var(--picker-w), 100vw - 32px) / -2);
+    margin-left: calc(min(var(--picker-w), 100vw - 2rem) / -2);
   }
 
   .admin-modal__panel--paired {
@@ -2330,21 +2412,21 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 20px 20px 12px;
+  gap: 0.75rem;
+  padding: 1.25rem 1.25rem 0.75rem;
 }
 
 .admin-drawer__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 600;
   color: var(--admin-ink);
 }
 
 .admin-drawer__sub {
   margin: 2px 0 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
@@ -2352,32 +2434,32 @@
    own above the list — not only a number on the button at the bottom. */
 .admin-drawer__count {
   margin: 0;
-  padding: 0 20px 12px;
-  font-size: 14px;
+  padding: 0 1.25rem 0.75rem;
+  font-size: 0.875rem;
   color: var(--text-muted);
 }
 
 .admin-drawer__count strong {
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--admin-ink);
 }
 
 .admin-drawer__search {
-  padding: 0 20px 12px;
+  padding: 0 1.25rem 0.75rem;
 }
 
 .admin-drawer__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 20px 20px;
+  padding: 0 1.25rem 1.25rem;
 }
 
 .admin-drawer__group {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2385,13 +2467,13 @@
 }
 
 .admin-drawer__toggle {
-  margin-top: 12px;
+  margin-top: 0.75rem;
   padding: 0;
   border: 0;
   background: none;
   color: var(--action);
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -2399,7 +2481,7 @@
 .admin-pick-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2409,8 +2491,8 @@
 .admin-pick {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
@@ -2435,8 +2517,8 @@
 }
 
 .admin-pick__box {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   flex-shrink: 0;
   accent-color: var(--action);
 }
@@ -2447,13 +2529,13 @@
 
 .admin-pick__name {
   display: block;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--admin-ink);
 }
 
 .admin-pick__meta {
   display: block;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -2461,8 +2543,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 20px;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
   border-top: 1px solid var(--gray-200);
 }
 
@@ -2480,13 +2562,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  min-height: 28px;
+  gap: 0.5rem;
+  min-height: 1.75rem;
 }
 
 .admin-field__count {
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -2500,9 +2582,9 @@
 .admin-roster-add {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   width: 100%;
-  padding: 11px 14px;
+  padding: 0.6875rem 0.875rem;
   border: 1px dashed var(--gray-400);
   border-radius: var(--radius-xs);
   background: transparent;
@@ -2537,8 +2619,8 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   border-radius: 50%;
   background: var(--brand-soft);
   color: var(--brand-text);
@@ -2557,12 +2639,12 @@
 }
 
 .admin-roster-add__title {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
 .admin-roster-add__note {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -2590,14 +2672,14 @@
 .admin-pathway {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .admin-pathway__option {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
   border: 1px solid var(--gray-400);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -2649,8 +2731,8 @@
 
 .admin-pathway__mark {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   margin-top: 2px;
   /* --gray-400 is the hairline grey, and at 1.5px around a 16px mark it came to
      1.57:1 in light — under the 3:1 that 1.4.11 asks of a control's boundary.
@@ -2671,26 +2753,26 @@
 .admin-pathway__body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0.1875rem;
   min-width: 0;
 }
 
 .admin-pathway__name {
   font-family: var(--font-label);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-body);
 }
 
 .admin-pathway__detail {
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.45;
   color: var(--text-muted);
 }
 
 /* Side by side is the comparison; stacked, it is still the same two cards. */
-@media (max-width: 560px) {
+@media (max-width: 40rem) {
   .admin-pathway {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2704,12 +2786,12 @@
 .admin-pathway-tag {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 2px 0.5rem;
   border-radius: 999px;
   background: var(--surface-sunken);
   color: var(--text-muted);
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -2736,14 +2818,14 @@
 .admin-switch {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
+  gap: 0.5rem;
+  padding: 0.25rem 0.375rem;
   border: none;
   border-radius: var(--radius-xl);
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
@@ -2766,8 +2848,8 @@
 .admin-switch__track {
   position: relative;
   flex-shrink: 0;
-  width: 30px;
-  height: 17px;
+  width: 1.875rem;
+  height: 1.0625rem;
   border-radius: 999px;
   background: var(--maroon-700);
   transition: background 0.18s ease;
@@ -2791,10 +2873,10 @@
 
 .admin-switch__thumb {
   position: absolute;
-  top: 2.5px;
-  left: 2.5px;
-  width: 12px;
-  height: 12px;
+  top: 0.1562rem;
+  left: 0.1562rem;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 50%;
   background: var(--white);
   transition: transform 0.18s ease;
@@ -2814,8 +2896,8 @@
    control that reports as much as it does, and it has to look pressable
    before it is pressed. */
 .admin-switch--lg {
-  gap: 10px;
-  padding: 7px 12px;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.75rem;
   /* 999px, not the --radius-xl the row-sized switch inherits: that is 8px, and
      an 8px corner around a track that is a full pill left the chip and the
      toggle inside it drawn to two different curves. The outline follows the
@@ -2823,19 +2905,19 @@
   border-radius: 999px;
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--gray-200);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .admin-switch--lg .admin-switch__track {
-  width: 38px;
-  height: 21px;
+  width: 2.375rem;
+  height: 1.3125rem;
 }
 
 .admin-switch--lg .admin-switch__thumb {
-  top: 3px;
-  left: 3px;
-  width: 15px;
-  height: 15px;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 0.9375rem;
+  height: 0.9375rem;
 }
 
 .admin-switch--lg.is-on .admin-switch__thumb {
@@ -2859,13 +2941,13 @@
 
 .admin-status-pill {
   display: inline-block;
-  margin-left: 12px;
-  padding: 3px 11px;
+  margin-left: 0.75rem;
+  padding: 0.1875rem 0.6875rem;
   border-radius: 999px;
   background: rgba(2, 110, 120, 0.12);
   color: var(--teal-700);
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   vertical-align: middle;
@@ -2907,7 +2989,7 @@
 .admin-stack {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1rem;
   align-content: start;
 }
 
@@ -2929,16 +3011,16 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  margin-bottom: 14px;
-  padding: 20px 14px;
+  gap: 0.4375rem;
+  margin-bottom: 0.875rem;
+  padding: 1.25rem 0.875rem;
   border: 1.5px dashed var(--gray-400);
   border-radius: var(--radius-sm);
   background: transparent;
   text-align: center;
   color: var(--text-muted);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -2980,7 +3062,7 @@
 }
 
 .admin-dropzone__text {
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .admin-dropzone__link {
@@ -2990,7 +3072,7 @@
 
 .admin-dropzone__file {
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--brand-text);
 }
 
@@ -3002,12 +3084,12 @@
    replaced by the toolbar dropdown). Exam names run long, so this filter is
    wider than the one on the list screens. */
 .admin-toolbar__filter--wide {
-  width: 340px;
+  width: 21.25rem;
 }
 
 .admin-tos-count {
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -3021,16 +3103,16 @@
 
 .admin-tos-summary {
   display: flex;
-  gap: 36px;
+  gap: 2.25rem;
   flex-wrap: wrap;
-  padding: 16px 22px;
+  padding: 1rem 1.375rem;
   background: var(--surface-sunken);
 }
 
 .admin-tos-summary__label {
-  margin-bottom: 5px;
+  margin-bottom: 0.3125rem;
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -3040,7 +3122,7 @@
   padding: 2px 0;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 19px;
+  font-size: 1.1875rem;
   color: var(--text-body);
 }
 
@@ -3051,12 +3133,12 @@
 .admin-tos-summary__input {
   border: none;
   outline: none;
-  padding: 2px 4px;
+  padding: 2px 0.25rem;
   border-radius: 6px;
   background: transparent;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 19px;
+  font-size: 1.1875rem;
   color: var(--text-body);
 }
 
@@ -3071,7 +3153,7 @@
 
 .admin-tos-table {
   width: 100%;
-  min-width: 820px;
+  min-width: 51.25rem;
   border-collapse: collapse;
 }
 
@@ -3080,17 +3162,17 @@
 }
 
 .admin-tos-table th {
-  padding: 13px 12px;
+  padding: 0.8125rem 0.75rem;
   white-space: nowrap;
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: #fff;
 }
 
 .admin-tos-table th.is-course {
-  padding-left: 16px;
-  min-width: 170px;
+  padding-left: 1rem;
+  min-width: 10.625rem;
   text-align: left;
 }
 
@@ -3099,37 +3181,37 @@
 }
 
 .admin-tos-table td {
-  padding: 8px 6px;
+  padding: 0.5rem 0.375rem;
   border-bottom: 1px solid var(--gray-150);
 }
 
 .admin-tos-table td.is-course {
-  padding: 6px 12px 6px 16px;
+  padding: 0.375rem 0.75rem 0.375rem 1rem;
 }
 
 .admin-tos-table td.is-weight {
   text-align: center;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-muted);
 }
 
 .admin-tos-table td.is-items {
   text-align: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--brand-text);
   background: var(--maroon-700-23);
 }
 
 .tos-cell {
   width: 100%;
-  padding: 7px 6px;
+  padding: 0.4375rem 0.375rem;
   border: none;
   outline: none;
   border-radius: 6px;
   background: transparent;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-body);
 }
 
@@ -3147,15 +3229,15 @@
 }
 
 .admin-tos-total td {
-  padding: 13px 6px;
+  padding: 0.8125rem 0.375rem;
   text-align: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-body);
 }
 
 .admin-tos-total td.is-label {
-  padding: 11px 12px 11px 16px;
+  padding: 0.6875rem 0.75rem 0.6875rem 1rem;
   text-align: left;
   font-family: var(--font-ui);
 }
@@ -3167,7 +3249,7 @@
 
 .admin-icon-btn {
   display: inline-flex;
-  padding: 5px;
+  padding: 0.3125rem;
   border: none;
   border-radius: var(--radius-xs);
   background: transparent;
@@ -3189,22 +3271,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 22px;
+  gap: 0.75rem;
+  padding: 0.875rem 1.375rem;
 }
 
 .admin-ghost-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
   border: none;
   border-radius: var(--radius-xs);
   background: var(--gray-100);
   color: var(--text-body);
   font-family: var(--font-ui);
   font-weight: 500;
-  font-size: 13px;
+  font-size: 0.8125rem;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -3220,7 +3302,7 @@
 
 .admin-tos-hint {
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -3233,7 +3315,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: 2rem;
   background: rgba(16, 24, 40, 0.55);
   backdrop-filter: blur(3px);
 }
@@ -3241,7 +3323,7 @@
 .admin-modal__panel {
   display: flex;
   flex-direction: column;
-  width: min(980px, 100%);
+  width: min(61.25rem, 100%);
   height: min(calc(88 * var(--vh)), 100%);
   overflow: hidden;
   background: var(--surface);
@@ -3252,20 +3334,20 @@
 /* The preview panel is sized for a PDF. A form is neither that wide nor that
    tall, and it grows with its own content up to a scrollable ceiling. */
 .admin-modal__panel--form {
-  width: min(520px, 100%);
+  width: min(32.5rem, 100%);
   height: auto;
   max-height: min(calc(88 * var(--vh)), 100%);
 }
 
 .admin-modal__body {
   overflow-y: auto;
-  padding: 20px 22px;
+  padding: 1.25rem 1.375rem;
 }
 
 .admin-modal__lead {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-body);
 }
 
@@ -3273,15 +3355,15 @@
    categories in prose is a sentence nobody finishes reading, and this is the
    part that has to be read. */
 .admin-loss-list {
-  margin: 0 0 16px;
-  padding-left: 20px;
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--warning-text);
 }
 
 .admin-loss-list li {
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 
 .admin-loss-list--keep {
@@ -3291,8 +3373,8 @@
 .admin-modal__foot {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 22px;
+  gap: 0.625rem;
+  padding: 1rem 1.375rem;
   border-top: 1px solid var(--gray-150);
 }
 /* ── Danger Zone (foot of an edit form) ─────────────────── */
@@ -3312,9 +3394,9 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 26px;
-  padding: 16px 18px;
+  gap: 0.75rem;
+  margin-top: 1.625rem;
+  padding: 1rem 1.125rem;
   border-radius: var(--radius-md);
   box-shadow: inset 0 0 0 1px var(--warning-line);
   background: var(--warning-fill);
@@ -3323,7 +3405,7 @@
 .admin-danger__title {
   margin: 0;
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -3336,7 +3418,7 @@
 .admin-danger__btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-shrink: 0;
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--maroon-700);
@@ -3349,15 +3431,15 @@
 /* The word that has to be typed before a deletion goes through. Spaced off the
    "cannot be undone" line above it, because it is the answer to it. */
 .admin-confirm-word {
-  margin-top: 18px;
+  margin-top: 1.125rem;
 }
 
 .admin-modal__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px 22px;
+  gap: 1rem;
+  padding: 1.125rem 1.375rem;
   border-bottom: 1px solid var(--gray-150);
 }
 
@@ -3365,31 +3447,31 @@
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 19px;
+  font-size: 1.1875rem;
   color: var(--text-body);
 }
 
 .admin-modal__meta {
-  margin: 4px 0 0;
+  margin: 0.25rem 0 0;
   font-family: var(--font-label);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
 .admin-modal__actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .admin-modal__close {
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   border: none;
   border-radius: 50%;
   background: var(--gray-100);
   color: var(--text-body);
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -3414,7 +3496,7 @@
 
 /* ── Responsive ─────────────────────────────────────────── */
 
-@media (max-width: 1080px) {
+@media (max-width: 68rem) {
 
   .admin-grid-2,
   .admin-grid-detail {
@@ -3422,62 +3504,129 @@
   }
 }
 
-@media (max-width: 860px) {
+/* ── Phone: the rail becomes a drawer ─────────────────────
+   Below md (see styles.css) the rail leaves the page. It used to turn into a
+   banner across the top — avatar, four sections, the theme switch and Sign
+   Out stacked above the content, a screen and a half of chrome on a phone
+   before the first row of anything. Now a bar says which section this is,
+   and the same rail slides in from the right behind the button on it.
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 52rem) {
   .admin-app {
     flex-direction: column;
-    /* Stacked layout: let the page scroll naturally again. */
+    /* The document scrolls now, not .admin-main: a phone browser only
+       tucks its own address bar away when the page itself is what moves. */
     height: auto;
     min-height: calc(100 * var(--vh));
     overflow: visible;
   }
 
-  .admin-sidebar {
-    width: 100%;
-    padding: 18px 0;
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  .admin-mobilebar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    min-height: 3.5rem;
+    padding: var(--safe-t) calc(var(--sp-2) + var(--safe-r)) 0 var(--sp-4);
+    background: var(--rail-bg);
+    color: var(--white);
+    box-shadow: var(--shadow-card);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
 
-  /* Stacked, the rail's edge is its bottom one. */
+  .admin-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: block;
+    background: rgba(16, 24, 40, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.24s ease, visibility 0s linear 0.24s;
+  }
+
+  .admin-scrim.is-open {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.24s ease, visibility 0s;
+  }
+
+  /* visibility, not display: it takes the closed drawer out of the tab order
+     and away from a screen reader, and unlike display it can wait for the
+     slide to finish before it does. */
+  .admin-sidebar,
+  .admin-sidebar--collapsed {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    width: var(--drawer-w);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(var(--sp-4) + var(--safe-t)) var(--safe-r) calc(var(--sp-4) + var(--safe-b)) 0;
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.28s;
+  }
+
+  .admin-sidebar.is-open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+  }
+
+  /* Its open edge is the left one now. And solid: the dark rail is the
+     page's colour at 88% so that on a desk it takes on whatever it sits on,
+     but a drawer sits on the page's content, which then showed through it. */
   [data-theme="dark"] .admin-app .admin-sidebar {
-    box-shadow: 0 1px 0 0 var(--brand), var(--shadow-sidebar);
+    background: var(--surface);
+    box-shadow: -1px 0 0 0 var(--brand), var(--shadow-sidebar);
   }
 
-  /* Stacked layout: collapsing doesn't apply — hide the toggle and undo
-     any remembered collapsed state. */
+  .admin-sidebar__close {
+    position: absolute;
+    top: calc(var(--sp-2) + var(--safe-t));
+    right: calc(var(--sp-2) + var(--safe-r));
+    z-index: 2;
+  }
+
+  /* Folding to icons is a desk-width idea. */
   .admin-sidebar__toggle {
     display: none;
   }
 
-  .admin-sidebar--collapsed {
-    width: 100%;
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  .admin-sidebar__top {
+    margin-top: var(--sp-8);
   }
 
-  .admin-sidebar--collapsed .admin-sidebar__who {
-    display: flex;
+  .admin-nav-item {
+    min-height: var(--tap);
+    font-size: var(--fs-body);
   }
 
-  .admin-sidebar--collapsed .admin-nav-item__label,
-  .admin-sidebar--collapsed .admin-sidebar__signout span {
-    display: inline;
-  }
-
-  .admin-sidebar--collapsed .admin-sidebar__avatar {
-    width: 62px;
-    height: 62px;
-  }
-
-  .admin-sidebar--collapsed .admin-sidebar__avatar svg {
-    width: 36px;
-    height: 36px;
+  .admin-sidebar__theme {
+    min-height: var(--tap);
+    margin-top: var(--sp-6);
+    font-size: var(--fs-label);
   }
 
   .admin-sidebar__signout {
-    margin: 16px 0 0;
+    min-height: var(--tap);
+    margin: var(--sp-3) 0 0;
+    padding-inline: var(--sp-4);
+    font-size: var(--fs-label);
   }
 
   .admin-main {
-    padding: 20px 16px;
+    padding: var(--sp-5) calc(var(--sp-4) + var(--safe-r)) calc(var(--sp-8) + var(--safe-b))
+      var(--sp-4);
   }
 
   .admin-header {
@@ -3495,12 +3644,57 @@
   }
 }
 
+/* ── Phone ─────────────────────────────────────────────────
+   At sm a dialog stops floating. With 32px of backdrop on each side a 390px
+   phone was left a 326px form with a sliver of dimmed page around it that
+   did nothing but cost width. The sheet takes the screen, and its head and
+   foot keep clear of the notch and the home indicator.
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 40rem) {
+  .admin-modal {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .admin-modal__panel,
+  .admin-modal__panel--form {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .admin-modal__head {
+    padding: calc(var(--sp-3) + var(--safe-t)) calc(var(--sp-3) + var(--safe-r)) var(--sp-3)
+      var(--sp-4);
+  }
+
+  .admin-modal__body {
+    padding: var(--sp-4) calc(var(--sp-4) + var(--safe-r)) var(--sp-4) var(--sp-4);
+  }
+
+  .admin-modal__foot {
+    padding: var(--sp-3) calc(var(--sp-4) + var(--safe-r)) calc(var(--sp-3) + var(--safe-b))
+      var(--sp-4);
+  }
+
+  .admin-modal__close {
+    flex-shrink: 0;
+    width: var(--tap);
+    height: var(--tap);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .admin-nav-item,
   .admin-nav-item__pill,
   .admin-nav-item svg,
   .admin-sidebar__toggle,
   .admin-sidebar,
+  .admin-sidebar.is-open,
+  .admin-scrim,
+  .admin-scrim.is-open,
   .admin-btn {
     transition: none;
   }
@@ -3527,15 +3721,15 @@
 .admin-runpick__trigger {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   width: 100%;
-  height: 42px;
-  padding: 0 12px;
+  height: 2.625rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--gray-400);
   border-radius: var(--radius-xs);
   background: var(--surface);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--admin-ink);
   text-align: left;
   cursor: pointer;
@@ -3593,12 +3787,12 @@
 .admin-runpick__panel {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 6px);
+  top: calc(100% + 0.375rem);
   left: 0;
   /* Wide enough that seven columns and a two-figure day never crowd, and
      narrow enough to sit inside the form it drops into. */
-  width: min(320px, calc(100 * var(--vw) - 48px));
-  padding: 12px 12px 4px;
+  width: min(20rem, calc(100 * var(--vw) - 3rem));
+  padding: 0.75rem 0.75rem 0.25rem;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -3608,7 +3802,7 @@
 
 .admin-runpick__panel[data-placement="top"] {
   top: auto;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 0.375rem);
   animation-name: admin-select-in-up;
 }
 
@@ -3616,23 +3810,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 
 .admin-cal__month {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--admin-ink);
 }
 
 .admin-cal__page {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 1.875rem;
+  height: 1.875rem;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -3658,13 +3852,13 @@
 }
 
 .admin-cal__weekdays {
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 
 .admin-cal__weekdays span {
-  padding-bottom: 4px;
+  padding-bottom: 0.25rem;
   font-family: var(--font-label);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -3692,7 +3886,7 @@
   background: transparent;
   color: var(--text-body);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
@@ -3718,9 +3912,9 @@
 .admin-cal__day.is-today::after {
   content: "";
   position: absolute;
-  bottom: 4px;
-  width: 4px;
-  height: 4px;
+  bottom: 0.25rem;
+  width: 0.25rem;
+  height: 0.25rem;
   border-radius: 50%;
   background: var(--brand-text);
 }
@@ -3765,16 +3959,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  min-height: 34px;
-  margin-top: 8px;
-  padding: 6px 2px;
+  gap: 0.625rem;
+  min-height: 2.125rem;
+  margin-top: 0.5rem;
+  padding: 0.375rem 2px;
   border-top: 1px solid var(--gray-150);
 }
 
 .admin-cal__prompt {
   font-family: var(--font-label);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -3799,7 +3993,7 @@
 .admin-header__lead {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
   min-width: 0;
 }
 
@@ -3809,8 +4003,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
+  width: 2.625rem;
+  height: 2.625rem;
   border-radius: var(--radius-sm);
   background: var(--brand-soft);
   color: var(--brand-text);
@@ -3821,7 +4015,7 @@
 .admin-card__title--icon {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 0.5625rem;
 }
 
 .admin-card__title-mark {
@@ -3834,5 +4028,34 @@
 .admin-drawer__title {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 0.5625rem;
+}
+
+/* ── Tables on a phone ──────────────────────────────────────
+   Below sm a table stays a table. It scrolls inside its own box, sideways
+   and up and down, while the page around it stands still — capped at most of
+   a screen, so the box never grows taller than the phone and hides its own
+   scrollbar below the fold. The cells close up and stop wrapping, so a row
+   is one line and the width goes to scrolling rather than to rows three
+   lines tall; the type stays its full size. The heading row stays pinned, or
+   the columns lose their names the moment the rows move.
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 40rem) {
+  .admin-table-card {
+    overflow: auto;
+    max-height: calc(70 * var(--vh));
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: var(--sp-2) var(--sp-3);
+    white-space: nowrap;
+  }
+
+  .admin-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
 }

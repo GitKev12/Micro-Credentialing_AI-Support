@@ -199,3 +199,12 @@ export function AlertIcon({ size = 16 }) {
     </svg>
   );
 }
+
+/** Three bars: the menu button that opens the rail as a drawer on a phone. */
+export function MenuIcon({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16" {...line} />
+    </svg>
+  );
+}

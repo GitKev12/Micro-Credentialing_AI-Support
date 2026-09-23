@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useGlidingPill } from "../../../hooks/useGlidingPill";
+import { useDrawer } from "../../../hooks/useDrawer";
 import { clearAuthSession, getStoredSession } from "../../../auth/services/authService";
 import { resolveAvatarUrl } from "../../../services/avatar";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import ProfileAvatar from "./ProfileAvatar";
-import { CoursesIcon, DashboardIcon, LogoutIcon, MoonIcon, SunIcon } from "./icons";
+import {
+  CloseIcon,
+  CoursesIcon,
+  DashboardIcon,
+  LogoutIcon,
+  MenuIcon,
+  MoonIcon,
+  SunIcon
+} from "./icons";
 import ccsLogo from "../../../assets/ccs-logo.png";
 
 /** The bar greets the student by given name; `displayName` is "First Last". */
@@ -46,9 +55,13 @@ function StudentNavBar() {
   const studentNumber =
     student?.studentNumber || student?.studentNo || student?.identifier || "—";
   const avatarUrl = resolveAvatarUrl(student);
+  // Below md the account menu is a drawer from the right rather than a card
+  // dropping out of the avatar, and it takes over the two section links the
+  // bar no longer has room for. Above md, the dropdown is exactly as it was.
+  const drawer = useDrawer("Account menu");
 
   useEffect(() => {
-    if (!isOpen) return undefined;
+    if (!isOpen || drawer.isDrawer) return undefined;
 
     function handlePointerDown(event) {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -67,23 +80,94 @@ function StudentNavBar() {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, drawer.isDrawer]);
 
   const isCurrent = (item) =>
     item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
 
   const { pillRef, pillStyle } = useGlidingPill(".sd-topbar__link[aria-current='page']", [location.pathname]);
 
+  // The drawer also shuts itself on a route change, but choosing the page the
+  // student is already on changes no route.
   const go = (to) => {
     setIsOpen(false);
+    drawer.close();
     navigate(to);
   };
 
   const handleLogout = () => {
     setIsOpen(false);
+    drawer.close();
     clearAuthSession();
     navigate("/login", { replace: true });
   };
+
+  /**
+   * The account menu's contents, drawn in two frames. As the desktop dropdown
+   * it is an ARIA menu. As the drawer it is a dialog holding an ordinary list
+   * of buttons — menu roles promise arrow-key movement a dialog does not give
+   * — and it marks the page the student is on, since in the drawer these are
+   * the only section links on the screen.
+   */
+  const renderItems = (asMenu) => (
+    <>
+      <li role={asMenu ? "none" : undefined} className="sd-menu__head">
+        {asMenu ? null : <ProfileAvatar src={avatarUrl} name={studentName} size={56} />}
+        <p className="sd-menu__name">{studentName}</p>
+        <p className="sd-menu__sub">{studentNumber}</p>
+      </li>
+
+      {NAV_ITEMS.map((item) => (
+        <li role={asMenu ? "none" : undefined} key={item.to}>
+          <button
+            type="button"
+            role={asMenu ? "menuitem" : undefined}
+            className="sd-menu__item"
+            aria-current={!asMenu && isCurrent(item) ? "page" : undefined}
+            onClick={() => go(item.to)}
+          >
+            <span className="sd-menu__item-icon">
+              <item.Icon size={16} />
+            </span>
+            {item.label}
+          </button>
+        </li>
+      ))}
+
+      <li role={asMenu ? "none" : undefined}>
+        <button
+          type="button"
+          role={asMenu ? "menuitemcheckbox" : "switch"}
+          aria-checked={isDarkMode}
+          className="sd-menu__item sd-menu__item--toggle"
+          // Stays open so the change is visible and easy to flip back.
+          onClick={() => setTheme(toggleTheme())}
+        >
+          <span className="sd-menu__item-icon">
+            {isDarkMode ? <MoonIcon size={16} /> : <SunIcon size={16} />}
+          </span>
+          Dark mode
+          <span className={`sd-switch${isDarkMode ? " is-on" : ""}`} aria-hidden="true">
+            <span className="sd-switch__thumb" />
+          </span>
+        </button>
+      </li>
+
+      <li role={asMenu ? "none" : undefined}>
+        <button
+          type="button"
+          role={asMenu ? "menuitem" : undefined}
+          className="sd-menu__item sd-menu__item--danger"
+          onClick={handleLogout}
+        >
+          <span className="sd-menu__item-icon">
+            <LogoutIcon size={16} />
+          </span>
+          Log out
+        </button>
+      </li>
+    </>
+  );
 
   return (
     <header className="sd-topbar">
@@ -117,75 +201,56 @@ function StudentNavBar() {
       </nav>
 
       <div className="sd-profile" ref={menuRef}>
-        <button
-          type="button"
-          className="sd-profile__trigger"
-          onClick={() => setIsOpen((open) => !open)}
-          aria-haspopup="menu"
-          aria-expanded={isOpen}
-          aria-label={`Account menu for ${studentName}`}
-        >
-          <ProfileAvatar src={avatarUrl} name={studentName} size={32} />
-          <span className="sd-profile__caret">
-            <CaretIcon />
-          </span>
-        </button>
+        {drawer.isDrawer ? (
+          <button
+            type="button"
+            className="sd-profile__trigger sd-profile__trigger--menu"
+            aria-label={`Menu for ${studentName}`}
+            {...drawer.triggerProps}
+          >
+            <ProfileAvatar src={avatarUrl} name={studentName} size={32} />
+            <span className="sd-profile__bars">
+              <MenuIcon size={20} />
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="sd-profile__trigger"
+            onClick={() => setIsOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={isOpen}
+            aria-label={`Account menu for ${studentName}`}
+          >
+            <ProfileAvatar src={avatarUrl} name={studentName} size={32} />
+            <span className="sd-profile__caret">
+              <CaretIcon />
+            </span>
+          </button>
+        )}
 
-        {isOpen ? (
+        {drawer.isDrawer ? (
+          <>
+            <div
+              className={`sd-scrim${drawer.open ? " is-open" : ""}`}
+              onClick={drawer.close}
+              aria-hidden="true"
+            />
+            <div className={`sd-drawer${drawer.open ? " is-open" : ""}`} {...drawer.panelProps}>
+              <button
+                type="button"
+                className="sd-drawer__close"
+                onClick={drawer.close}
+                aria-label="Close menu"
+              >
+                <CloseIcon size={18} />
+              </button>
+              <ul className="sd-menu sd-menu--drawer">{renderItems(false)}</ul>
+            </div>
+          </>
+        ) : isOpen ? (
           <ul className="sd-menu" role="menu">
-            <li role="none" className="sd-menu__head">
-              <p className="sd-menu__name">{studentName}</p>
-              <p className="sd-menu__sub">{studentNumber}</p>
-            </li>
-
-            {NAV_ITEMS.map(({ to, label, Icon }) => (
-              <li role="none" key={to}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="sd-menu__item"
-                  onClick={() => go(to)}
-                >
-                  <span className="sd-menu__item-icon">
-                    <Icon size={16} />
-                  </span>
-                  {label}
-                </button>
-              </li>
-            ))}
-
-            <li role="none">
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={isDarkMode}
-                className="sd-menu__item sd-menu__item--toggle"
-                // Menu stays open so the change is visible and easy to flip back.
-                onClick={() => setTheme(toggleTheme())}
-              >
-                <span className="sd-menu__item-icon">
-                  {isDarkMode ? <MoonIcon size={16} /> : <SunIcon size={16} />}
-                </span>
-                Dark mode
-                <span className={`sd-switch${isDarkMode ? " is-on" : ""}`} aria-hidden="true">
-                  <span className="sd-switch__thumb" />
-                </span>
-              </button>
-            </li>
-
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                className="sd-menu__item sd-menu__item--danger"
-                onClick={handleLogout}
-              >
-                <span className="sd-menu__item-icon">
-                  <LogoutIcon size={16} />
-                </span>
-                Log out
-              </button>
-            </li>
+            {renderItems(true)}
           </ul>
         ) : null}
       </div>

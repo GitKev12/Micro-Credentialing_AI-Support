@@ -17,10 +17,11 @@ function shellFor(pathname, children) {
 /**
  * `SessionStanding` is a sibling of the shell rather than something inside it,
  * on every route. It draws a fixed overlay when the account behind this session
- * has been suspended, and `.app-shell` carries .entity-enter — an animation
- * filled `both`, so its transform stands for the life of the page and would
- * become the containing block for anything fixed within it. The same trap the
- * blueprint dialog portals out of (see assessor/components/tos/TosModal.jsx).
+ * has been suspended, and `.app-shell` carries .entity-enter. That animation
+ * used to be filled `both`, leaving a transform standing for the life of the
+ * page that became the containing block for anything fixed within it. It is
+ * filled `backwards` now (see styles.css), but an overlay that has to cover
+ * the screen is still safest outside every animated box.
  *
  * It renders on the login routes too, where it does nothing: there is no
  * session to watch, and nobody to tell.
