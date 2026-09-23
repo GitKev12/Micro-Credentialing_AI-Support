@@ -76,9 +76,16 @@ export function BackLink({ children, onClick }) {
  * the figure would compete with the figure. Decorative, because the label it
  * leads already says the same word.
  */
-export function StatTile({ value, label, note, icon: Icon }) {
+export function StatTile({ value, label, note, icon: Icon, onOpen }) {
+  // A tile that opens onto the things it counts is a button; one that only
+  // reports a figure stays a plain block.
+  const Tag = onOpen ? "button" : "div";
+
   return (
-    <div className="admin-stat">
+    <Tag
+      className={`admin-stat${onOpen ? " admin-stat--open" : ""}`}
+      {...(onOpen ? { type: "button", onClick: onOpen, "aria-haspopup": "dialog" } : {})}
+    >
       <div className="admin-stat__value">{value}</div>
       <div className="admin-stat__label">
         {Icon ? (
@@ -92,7 +99,7 @@ export function StatTile({ value, label, note, icon: Icon }) {
         {label}
       </div>
       {note ? <div className="admin-stat__note">{note}</div> : null}
-    </div>
+    </Tag>
   );
 }
 

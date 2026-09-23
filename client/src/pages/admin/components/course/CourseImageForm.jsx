@@ -37,24 +37,21 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
     <section className="admin-card admin-card--stacked">
       <SectionTitle icon={ImageIcon}>Course Picture</SectionTitle>
 
-      {course.hasImage ? (
-        <img
-          className="admin-course-image"
-          src={courseImageUrl(course.id, course.imageUpdatedAt)}
-          alt={`Current picture for ${course.title}`}
-        />
-      ) : null}
-
       {error ? (
         <p className="admin-notice admin-notice--error" role="status">
           {error}
         </p>
       ) : null}
 
+      {/* The picture is its own drop target, at the crop the student's card
+          uses, so what is approved here is what the dashboard shows. */}
       <button
         type="button"
-        className={`admin-dropzone${dragging ? " is-dragging" : ""}`}
+        className={`admin-picture${course.hasImage ? " has-image" : ""}${
+          dragging ? " is-dragging" : ""
+        }`}
         disabled={busy}
+        aria-label={course.hasImage ? "Replace the course picture" : "Upload a course picture"}
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault();
@@ -67,16 +64,31 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
           takeFile(event.dataTransfer.files?.[0]);
         }}
       >
-        <span className="admin-dropzone__icon">
-          <UploadIcon />
+        {course.hasImage ? (
+          <img
+            className="admin-picture__img"
+            src={courseImageUrl(course.id, course.imageUpdatedAt)}
+            alt=""
+          />
+        ) : null}
+        <span className="admin-picture__prompt">
+          <span className="admin-dropzone__icon">
+            <UploadIcon size={course.hasImage ? 16 : 22} />
+          </span>
+          <span className="admin-dropzone__text">
+            {busy
+              ? `Uploading… ${progress}%`
+              : course.hasImage
+                ? "Drop a replacement, or "
+                : "Drag a picture here, or "}
+            {busy ? null : <span className="admin-dropzone__link">browse</span>}
+          </span>
         </span>
-        <span className="admin-dropzone__text">
-          {course.hasImage ? "Drop a replacement here, or " : "Drag a picture here, or "}
-          <span className="admin-dropzone__link">browse</span>
-        </span>
-        <span className="admin-dropzone__file">
-          {busy ? `Uploading… ${progress}%` : "PNG, JPEG, WebP or GIF, up to 5 MB"}
-        </span>
+        {busy ? (
+          <span className="admin-dropzone__bar" aria-hidden="true">
+            <span style={{ width: `${progress}%` }} />
+          </span>
+        ) : null}
       </button>
 
       <input
@@ -88,16 +100,19 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
         onChange={(event) => takeFile(event.target.files?.[0])}
       />
 
-      {course.hasImage ? (
-        <button
-          type="button"
-          className="admin-chip-btn admin-chip-btn--quiet"
-          disabled={busy}
-          onClick={onRemove}
-        >
-          Remove picture
-        </button>
-      ) : null}
+      <div className="admin-picture__foot">
+        <span className="admin-dropzone__file">PNG, JPEG, WebP or GIF, up to 5 MB</span>
+        {course.hasImage ? (
+          <button
+            type="button"
+            className="admin-chip-btn admin-chip-btn--quiet"
+            disabled={busy}
+            onClick={onRemove}
+          >
+            Remove picture
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }

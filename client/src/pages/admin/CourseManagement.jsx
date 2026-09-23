@@ -19,6 +19,7 @@ import { ChevronRightIcon, CoursesIcon } from "./components/icons";
 import { AdminButton, BackLink, ConfirmDeleteModal, PageHeader, SearchField } from "./components/ui";
 import AddModuleForm from "./components/course/AddModuleForm";
 import CourseForm from "./components/course/CourseForm";
+import CourseHeader from "./components/course/CourseHeader";
 import CourseImageForm from "./components/course/CourseImageForm";
 import ModuleList from "./components/course/ModuleList";
 import ModulePreview from "./components/course/ModulePreview";
@@ -334,24 +335,11 @@ function CourseManagement() {
       <div className="admin-main__inner">
         <BackLink onClick={closeCourse}>Courses Management</BackLink>
 
-        <PageHeader
-          icon={CoursesIcon}
-          title={selected.title ?? "Course"}
-          subtitle={
-            detailStatus === "ready"
-              ? [
-                  selected.code,
-                  `${modules.length} ${modules.length === 1 ? "module" : "modules"}`,
-                  formatCourseRun(selected)
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
-              : // The card below is already drawing a skeleton and saying so;
-                // a second "loading" line under the title would be the same
-                // message twice on one screen.
-                null
-          }
-          action={
+        <CourseHeader
+          course={selected}
+          lessons={modules.length}
+          ready={detailStatus === "ready"}
+          actions={
             detailStatus === "ready" ? (
               <div className="admin-header__actions">
                 <button
@@ -405,7 +393,12 @@ function CourseManagement() {
 
           {detailStatus === "ready" ? (
             <div className="admin-stack">
-              <AddModuleForm busy={busy} progress={progress} onAdd={addModule} />
+              <AddModuleForm
+                nextNumber={modules.length + 1}
+                busy={busy}
+                progress={progress}
+                onAdd={addModule}
+              />
               <CourseImageForm
                 course={selected}
                 busy={imageBusy}

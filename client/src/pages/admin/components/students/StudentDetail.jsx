@@ -1,7 +1,10 @@
+import { useState } from "react";
+
 import { BadgeIcon, CoursesIcon, CredentialIcon, UserIcon } from "../icons";
 import { Avatar, BackLink, SectionTitle, StatTile } from "../ui";
 import { SkeletonDetail } from "../../../../components/Skeleton";
 import ProgressCell from "./ProgressCell";
+import StudentAwards from "./StudentAwards";
 import StudentForm from "./StudentForm";
 import { courseRows, lastActiveLabel, latestLine } from "./studentText";
 import { formatDate } from "../../lib/format";
@@ -28,6 +31,8 @@ export default function StudentDetail({
   onSave
 }) {
   const selected = student;
+  // Which tile's list is open over the page: "badges", "credentials", "courses" or none.
+  const [awards, setAwards] = useState(null);
     const enrolled = selected.enrolled ?? [];
     const progress = selected.progress ?? [];
     const badges = selected.badges ?? { earned: 0, total: 0, courses: [], latest: null };
@@ -127,6 +132,7 @@ export default function StudentDetail({
                     icon={BadgeIcon}
                     value={badges.earned ?? 0}
                     label="Badges earned"
+                    onOpen={() => setAwards("badges")}
                     note={
                       badges.latest
                         ? latestLine(badges.latest.name, badges.latest.earnedAt)
@@ -137,13 +143,19 @@ export default function StudentDetail({
                     icon={CredentialIcon}
                     value={selected.credentials ?? 0}
                     label="Micro-credentials"
+                    onOpen={() => setAwards("credentials")}
                     note={
                       latestCredential
                         ? latestLine(latestCredential.label, latestCredential.completedAt)
                         : null
                     }
                   />
-                  <StatTile icon={CoursesIcon} value={enrolled.length} label="Active courses" />
+                  <StatTile
+                    icon={CoursesIcon}
+                    value={enrolled.length}
+                    label="Active courses"
+                    onOpen={() => setAwards("courses")}
+                  />
                 </div>
               </section>
 
@@ -216,6 +228,16 @@ export default function StudentDetail({
             </div>
           </>
         )}
+
+        {awards && detailStatus !== "loading" && detailStatus !== "error" ? (
+          <StudentAwards
+            kind={awards}
+            student={selected}
+            badges={badges}
+            rows={rows}
+            onClose={() => setAwards(null)}
+          />
+        ) : null}
 
         {form ? (
           <StudentForm
