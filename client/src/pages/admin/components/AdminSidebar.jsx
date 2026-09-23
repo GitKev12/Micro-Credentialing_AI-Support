@@ -3,12 +3,15 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { clearAuthSession } from "../../../auth/services/authService";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import { useGlidingPill } from "../../../hooks/useGlidingPill";
+import { useDrawer } from "../../../hooks/useDrawer";
 import {
   AssessorsIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClassesIcon,
+  CloseIcon,
   CoursesIcon,
+  MenuIcon,
   MoonIcon,
   SignOutIcon,
   StudentsIcon,
@@ -44,12 +47,20 @@ function AdminSidebar({ name, idNumber }) {
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem(COLLAPSED_KEY) === "1"
   );
+  // Below md this same rail is the drawer behind the menu button. Folding
+  // it to icons means nothing there, so the remembered state is set aside
+  // rather than cleared: widen the window and the rail comes back as it was.
+  const drawer = useDrawer("Admin menu");
+  const folded = collapsed && !drawer.isDrawer;
+  const here = NAV_ITEMS.find(({ to }) => location.pathname.startsWith(to));
   // The active pill glides between nav items, login-toggle style. It re-measures
-  // when the route changes or the rail folds, since either moves the active item.
-  const { pillRef, pillStyle } = useGlidingPill(
-    ".admin-nav-item.is-active",
-    [location.pathname, collapsed]
-  );
+  // when the route changes or the rail changes width — folding, or becoming
+  // the drawer — since any of those moves the active item.
+  const { pillRef, pillStyle } = useGlidingPill(".admin-nav-item.is-active", [
+    location.pathname,
+    folded,
+    drawer.isDrawer
+  ]);
   // Shares the app-wide theme switch with the student and assessor interfaces.
   const [theme, setTheme] = useState(getStoredTheme);
   const isDark = theme === THEMES.DARK;
@@ -68,75 +79,109 @@ function AdminSidebar({ name, idNumber }) {
   };
 
   return (
-    <aside className={`admin-sidebar${collapsed ? " admin-sidebar--collapsed" : ""}`}>
-      <button
-        type="button"
-        className="admin-sidebar__toggle"
-        onClick={toggleCollapsed}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand" : "Collapse"}
-      >
-        {collapsed ? <ChevronRightIcon size={15} /> : <ChevronLeftIcon size={15} />}
-      </button>
-
-      <div className="admin-sidebar__top">
-        <div className="admin-sidebar__identity">
-          <div className="admin-sidebar__avatar">
-            <UserIcon size={36} color="currentColor" />
-          </div>
-          <div className="admin-sidebar__who">
-            <span className="admin-sidebar__name">{name}</span>
-            <span className="admin-sidebar__id">{idNumber}</span>
-          </div>
-        </div>
-
-        <nav className="admin-sidebar__nav" aria-label="Admin sections" ref={pillRef}>
-          <span className="admin-nav-item__pill" style={pillStyle} aria-hidden="true" />
-          {NAV_ITEMS.map(({ to, label, Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              title={collapsed ? label : undefined}
-              className={({ isActive }) =>
-                `admin-nav-item${isActive ? " is-active" : ""}`
-              }
-            >
-              <Icon size={18} />
-              <span className="admin-nav-item__label">{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </div>
-
-      <button
-        type="button"
-        className="admin-sidebar__theme"
-        onClick={() => setTheme(toggleTheme())}
-        role="switch"
-        aria-checked={isDark}
-        title={collapsed ? (isDark ? "Light mode" : "Dark mode") : undefined}
-      >
-        {isDark ? <SunIcon size={18} /> : <MoonIcon size={18} />}
-        <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
-        <span className={`admin-theme-switch${isDark ? " is-on" : ""}`} aria-hidden="true">
-          <span className="admin-theme-switch__thumb" />
-        </span>
-      </button>
-      <div
-        className="admin-sidebar__signout-wrap"
-      >
+    <>
+      {/* Phone only. Where the rail was, a bar that says which section this
+          is and holds the button that brings the rail in from the right. */}
+      <header className="admin-mobilebar">
+        <span className="admin-mobilebar__title">{here?.label ?? "Admin"}</span>
         <button
           type="button"
-          className="admin-sidebar__signout"
-          onClick={handleSignOut}
-          title={collapsed ? "Sign Out" : undefined}
+          className="admin-mobilebar__menu"
+          aria-label="Open menu"
+          {...drawer.triggerProps}
         >
-          <SignOutIcon size={20} />
-          <span>Sign Out</span>
+          <MenuIcon />
         </button>
-      </div>
-    </aside>
+      </header>
+
+      <div
+        className={`admin-scrim${drawer.open ? " is-open" : ""}`}
+        onClick={drawer.close}
+        aria-hidden="true"
+      />
+
+      <aside
+        className={`admin-sidebar${folded ? " admin-sidebar--collapsed" : ""}${
+          drawer.open ? " is-open" : ""
+        }`}
+        {...drawer.panelProps}
+      >
+        {drawer.isDrawer ? (
+          <button
+            type="button"
+            className="admin-sidebar__close"
+            onClick={drawer.close}
+            aria-label="Close menu"
+          >
+            <CloseIcon size={18} />
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          className="admin-sidebar__toggle"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={folded ? "Expand sidebar" : "Collapse sidebar"}
+          title={folded ? "Expand" : "Collapse"}
+        >
+          {folded ? <ChevronRightIcon size={15} /> : <ChevronLeftIcon size={15} />}
+        </button>
+
+        <div className="admin-sidebar__top">
+          <div className="admin-sidebar__identity">
+            <div className="admin-sidebar__avatar">
+              <UserIcon size={36} color="currentColor" />
+            </div>
+            <div className="admin-sidebar__who">
+              <span className="admin-sidebar__name">{name}</span>
+              <span className="admin-sidebar__id">{idNumber}</span>
+            </div>
+          </div>
+
+          <nav className="admin-sidebar__nav" aria-label="Admin sections" ref={pillRef}>
+            <span className="admin-nav-item__pill" style={pillStyle} aria-hidden="true" />
+            {NAV_ITEMS.map(({ to, label, Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                title={folded ? label : undefined}
+                className={({ isActive }) => `admin-nav-item${isActive ? " is-active" : ""}`}
+              >
+                <Icon size={18} />
+                <span className="admin-nav-item__label">{label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+
+        <button
+          type="button"
+          className="admin-sidebar__theme"
+          onClick={() => setTheme(toggleTheme())}
+          role="switch"
+          aria-checked={isDark}
+          title={folded ? (isDark ? "Light mode" : "Dark mode") : undefined}
+        >
+          {isDark ? <SunIcon size={18} /> : <MoonIcon size={18} />}
+          <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+          <span className={`admin-theme-switch${isDark ? " is-on" : ""}`} aria-hidden="true">
+            <span className="admin-theme-switch__thumb" />
+          </span>
+        </button>
+        <div className="admin-sidebar__signout-wrap">
+          <button
+            type="button"
+            className="admin-sidebar__signout"
+            onClick={handleSignOut}
+            title={folded ? "Sign Out" : undefined}
+          >
+            <SignOutIcon size={20} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 

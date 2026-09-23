@@ -120,8 +120,8 @@
      The admin console's rail, to the pixel: 230px is the width its nav needs
      for its longest label on one line, and a wrapped nav item costs more
      height than the width saves. */
-  --rail-w: 230px;
-  --rail-w-collapsed: 72px;
+  --rail-w: 14.375rem;
+  --rail-w-collapsed: 4.5rem;
 }
 
 /* ── Dark theme ─────────────────────────────────────────────
@@ -271,7 +271,7 @@
   flex-direction: column;
   /* The admin console's page padding, on the same element: one edge for the
      header and everything under it, rather than a clamp on each block. */
-  padding: 30px 36px;
+  padding: 1.875rem 2.25rem;
 }
 
 .assessor-body {
@@ -301,8 +301,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
-  padding: 22px 0 18px;
+  gap: 1.375rem;
+  padding: 1.375rem 0 1.125rem;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   background: var(--rail-bg);
   /* Right edge only — the rail is flush with the viewport on the other
@@ -328,13 +328,13 @@
 }
 
 .assessor-rail--collapsed .assessor-rail__avatar {
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 .assessor-rail--collapsed .assessor-rail__avatar svg {
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .assessor-rail--collapsed .assessor-rail__nav {
@@ -345,8 +345,8 @@
    icon then sits in the middle of something, not in the middle of nothing. */
 .assessor-rail--collapsed .assessor-nav-item {
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
   align-self: center;
 }
@@ -354,18 +354,18 @@
 .assessor-rail--collapsed .assessor-rail__signout {
   align-self: center;
   margin-left: 0;
-  padding: 8px;
+  padding: 0.5rem;
   border-radius: 50%;
 }
 
 /* Collapse toggle sits on the rail's outer edge. */
 .assessor-rail__toggle {
   position: absolute;
-  top: 20px;
-  right: -14px;
+  top: 1.25rem;
+  right: -0.875rem;
   z-index: 2;
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
   display: grid;
   place-items: center;
   padding: 0;
@@ -404,8 +404,8 @@
 .assessor-rail__avatar {
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 3.875rem;
+  height: 3.875rem;
   border-radius: 50%;
   background: var(--surface);
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.14);
@@ -420,7 +420,7 @@
 }
 
 .assessor-rail__name {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: var(--fw-semibold);
   line-height: 1.35;
   color: var(--brand-text);
@@ -469,14 +469,14 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   width: 100%;
-  padding: 9px 12px;
+  padding: 0.5625rem 0.75rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--brand-text);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.3;
   font-weight: var(--fw-medium);
   text-align: left;
@@ -540,9 +540,9 @@
   outline: 1px solid var(--brand);
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: calc(100% - 24px);
-  padding: 7px 10px;
+  gap: 0.625rem;
+  width: calc(100% - 1.5rem);
+  padding: 0.4375rem 0.625rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -566,8 +566,8 @@
 .theme-toggle {
   position: relative;
   flex-shrink: 0;
-  width: 30px;
-  height: 17px;
+  width: 1.875rem;
+  height: 1.0625rem;
   margin-left: auto;
   border-radius: var(--radius-pill);
   background: var(--gray-300);
@@ -580,10 +580,10 @@
 
 .theme-toggle__thumb {
   position: absolute;
-  top: 2.5px;
-  left: 2.5px;
-  width: 12px;
-  height: 12px;
+  top: 0.1562rem;
+  left: 0.1562rem;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 50%;
   background: var(--white);
   transition: transform 0.18s ease;
@@ -598,13 +598,13 @@
 }
 
 .assessor-rail__signout {
-  margin-top: 8px;
+  margin-top: 0.5rem;
   align-self: flex-start;
   margin-left: var(--sp-3);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 7px 12px;
+  padding: 0.4375rem 0.75rem;
   border: none;
   background: var(--brand);
   color: var(--white);
@@ -625,6 +625,72 @@
   outline-offset: 2px;
 }
 
+/* ── Phone-only pieces ──────────────────────────────────────
+   The bar, the scrim behind the open drawer, and the drawer's own close
+   button exist only below md. Drawn here, switched on in the drawer block
+   further down.
+   ───────────────────────────────────────────────────────── */
+
+.assessor-mobilebar,
+.assessor-scrim {
+  display: none;
+}
+
+.assessor-mobilebar__title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The two buttons share one spot on the screen — top right, under the
+   thumb — so the one that opens the drawer and the one that shuts it are the
+   same reach and the same size. */
+.assessor-mobilebar__menu,
+.assessor-rail__close {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--brand-text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.assessor-mobilebar__menu:hover,
+.assessor-rail__close:hover {
+  background: var(--brand-hover);
+}
+
+.assessor-mobilebar__menu:focus-visible,
+.assessor-rail__close:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+/* Work is waiting behind the button — the counts the rail would have shown.
+   A dot, not the number: the number is one tap away, in the drawer, beside
+   the section it belongs to. */
+.assessor-mobilebar__dot {
+  position: absolute;
+  top: 0.625rem;
+  right: 0.5rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--rail-bg);
+}
+
 /* ── Page header ────────────────────────────────────────── */
 
 .assessor-header {
@@ -633,7 +699,7 @@
   align-items: flex-end;
   gap: var(--sp-6);
   flex-wrap: wrap;
-  margin-bottom: 22px;
+  margin-bottom: 1.375rem;
 }
 
 .assessor-header__lead {
@@ -788,8 +854,8 @@
 }
 
 .chip__dot {
-  width: 7px;
-  height: 7px;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
   background: currentColor;
   flex-shrink: 0;
@@ -920,8 +986,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  width: min(320px, 100%);
-  height: 44px;
+  width: min(20rem, 100%);
+  height: 2.75rem;
   padding: 0 var(--sp-4);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -975,8 +1041,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -1006,8 +1072,8 @@
 .person__disc {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 2.875rem;
+  height: 2.875rem;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--surface);
@@ -1015,8 +1081,8 @@
 }
 
 .person__disc--lg {
-  width: 88px;
-  height: 88px;
+  width: 5.5rem;
+  height: 5.5rem;
 }
 
 .person__name {
@@ -1089,8 +1155,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 3rem;
+  height: 3rem;
   border-radius: 50%;
   background: var(--brand-hover);
   color: var(--brand-text);
@@ -1149,6 +1215,11 @@
    column. */
 
 .assessor-table-wrap {
+  /* The frame for anything positioned inside the table — the visually hidden
+     labels in its header, above all. Without it they were placed against the
+     page instead, outside this scroll box, and a label in the last column of a
+     1,100px table stretched the whole page sideways on a phone. */
+  position: relative;
   overflow-x: auto;
   /* The same brand keyline the admin console puts round its tables, off the
      same token: maroon in the light theme, navy in the dark one. Both consoles
@@ -1444,7 +1515,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 3px 5px;
+  padding: 0.1875rem 0.3125rem;
   border: none;
   border-radius: 999px;
   background: none;
@@ -1474,8 +1545,8 @@
 .gen-switch__track {
   position: relative;
   flex-shrink: 0;
-  width: 30px;
-  height: 17px;
+  width: 1.875rem;
+  height: 1.0625rem;
   /* Round-ended, not the console's 8px --radius-pill: on a 17px track that
      reads as a rounded box rather than a switch. */
   border-radius: 999px;
@@ -1510,10 +1581,10 @@
 .roster-switch__thumb,
 .gen-switch__thumb {
   position: absolute;
-  top: 2.5px;
-  left: 2.5px;
-  width: 12px;
-  height: 12px;
+  top: 0.1562rem;
+  left: 0.1562rem;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 50%;
   background: #fff;
   transition: transform 0.18s ease;
@@ -1563,8 +1634,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   margin-top: 1px;
   border-radius: 50%;
   background: currentColor;
@@ -1612,7 +1683,7 @@
 }
 
 .progress__track {
-  height: 8px;
+  height: 0.5rem;
   border-radius: var(--radius-pill);
   background: var(--gray-300);
   overflow: hidden;
@@ -1752,7 +1823,7 @@
      the distance between two scores either side of the line. At 68px the
      weakest column a course can show is still a bar rather than a sliver, and
      its own number stands above it. */
-  height: 68px;
+  height: 4.25rem;
   padding-right: 4.25rem;
   margin-bottom: 1.25em;
 }
@@ -1779,7 +1850,7 @@
   position: absolute;
   right: 0;
   bottom: -0.6em;
-  padding-left: 6px;
+  padding-left: 0.375rem;
   background: var(--surface);
   font-size: var(--fs-micro);
   line-height: 1.2;
@@ -1795,7 +1866,7 @@
 .skill-chart__col {
   position: relative;
   flex: 1 1 0;
-  min-width: 8px;
+  min-width: 0.5rem;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -1883,7 +1954,7 @@
 .status-pill {
   display: inline-block;
   margin-left: var(--sp-3);
-  padding: 3px 11px;
+  padding: 0.1875rem 0.6875rem;
   border-radius: var(--radius-pill);
   background: rgba(2, 110, 120, 0.12);
   color: var(--teal-700);
@@ -1918,7 +1989,7 @@
 
 .student-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 21.25rem);
   gap: var(--sp-6);
   align-items: start;
 }
@@ -1965,6 +2036,9 @@
    narrow enough for the column it sits in — the full-width tables elsewhere
    set theirs at 68rem. */
 .card-table {
+  /* Contains what is positioned inside the table, as .assessor-table-wrap
+     does, so a hidden label in a far column scrolls with it. */
+  position: relative;
   overflow-x: auto;
   border: 1px solid var(--brand);
   border-radius: var(--radius-md);
@@ -2024,7 +2098,7 @@
    says so in words underneath: the state is never colour alone. */
 .badge-wall {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
   gap: var(--sp-5) var(--sp-3);
   margin: 0;
   padding: 0;
@@ -2043,8 +2117,8 @@
 .badge-tile__art {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 3.5rem;
+  height: 3.5rem;
   border-radius: 50%;
   background: var(--gray-100);
   font-size: 1.5rem;
@@ -2096,7 +2170,7 @@
    is a lesson, so the tiles are wider. The seal stands in for artwork —
    filled when the credential is issued, greyed while it waits. */
 .badge-wall--wide {
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
 }
 
 .cred-tile__art {
@@ -2199,8 +2273,8 @@
 }
 
 .legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
 }
 
@@ -2224,8 +2298,8 @@
 .item-card__num {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--gray-050);
@@ -2307,8 +2381,8 @@
 .choice__id {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--surface);
@@ -2478,8 +2552,8 @@
 }
 
 .focus-dot {
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   padding: 0;
   border: none;
   border-radius: var(--radius-pill);
@@ -2493,7 +2567,7 @@
 }
 
 .focus-dot.is-current {
-  width: 26px;
+  width: 1.625rem;
   background: var(--brand);
 }
 
@@ -2566,7 +2640,7 @@
 }
 
 .review-grid--stacked .grade-panel__ai {
-  flex: 0 0 240px;
+  flex: 0 0 15rem;
 }
 
 .grade-panel__ai-label {
@@ -2633,8 +2707,8 @@
 }
 
 .score-input {
-  width: 96px;
-  height: 48px;
+  width: 6rem;
+  height: 3rem;
   padding: 0 var(--sp-4);
   border: none;
   outline: none;
@@ -2743,7 +2817,7 @@
 
 .gen-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 23.75rem);
   align-items: start;
   gap: var(--sp-6);
 }
@@ -2852,7 +2926,7 @@
   color: var(--teal-700);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 52rem) {
   .gen-takers {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2928,8 +3002,8 @@
 .gen-q__num {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--surface);
@@ -2942,7 +3016,7 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  padding-top: 3px;
+  padding-top: 0.1875rem;
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   line-height: 1.5;
@@ -2956,7 +3030,7 @@
    Nudged down to sit on the question's first line, which is padded. */
 .gen-q-list .gen-q__head > .chip {
   flex-shrink: 0;
-  margin-top: 3px;
+  margin-top: 0.1875rem;
 }
 
 .gen-q__edit {
@@ -3351,7 +3425,7 @@
 .assessor-select__list {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 6px);
+  top: calc(100% + 0.375rem);
   left: 0;
   /* At least as wide as the trigger, but free to grow to its content: the card
      is narrow and lesson titles are not, so matching the trigger exactly would
@@ -3374,7 +3448,7 @@
    when that is the roomier side; it comes in from the matching direction. */
 .assessor-select__list[data-placement="top"] {
   top: auto;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 0.375rem);
   animation-name: assessor-select-in-up;
 }
 
@@ -3602,13 +3676,13 @@
      sits well inside that; it takes a bank half again as large, or a very
      short window, before the keypad scrolls rather than pushing Post off the
      bottom of the screen. */
-  max-height: max(120px, calc(100 * var(--vh) - 380px));
+  max-height: max(7.5rem, calc(100 * var(--vh) - 23.75rem));
   overflow-y: auto;
 }
 
 .gen-number {
-  width: 34px;
-  height: 34px;
+  width: 2.125rem;
+  height: 2.125rem;
   border: none;
   border-radius: var(--radius-sm);
   background: var(--gray-050);
@@ -3643,7 +3717,11 @@
 
 /* ── Responsive ─────────────────────────────────────────── */
 
-@media (max-width: 1180px) {
+/* The one width that is not sm, md or lg (see styles.css). It was measured
+   against the paper itself: below it, beside a rail, the two columns are each
+   too narrow to read a question in — and lg, at 68rem, would put them back
+   at about 786px of content between them. Kept, in rem. */
+@media (max-width: 73.75rem) {
   .student-split {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3669,71 +3747,136 @@
   }
 }
 
-@media (max-width: 780px) {
+/* ── Phone: the rail becomes a drawer ─────────────────────
+   Below md (see styles.css) the rail leaves the page. It used to turn into a
+   bar of wrapped links across the top — identity, four sections, the theme
+   switch and Sign Out, several rows of it on a phone before the first line of
+   the console. Now a bar says which section this is, and the same rail slides
+   in from the right behind the button on it.
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 52rem) {
   .assessor-app {
     flex-direction: column;
   }
 
-  .assessor-rail {
-    /* Stacked layout: the rail is a bar across the top, so pinning it to a
-       screen's height would leave one nav bar and no room for the console. */
-    position: static;
-    height: auto;
-    align-self: auto;
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
+  .assessor-mobilebar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-3);
-    padding: var(--sp-4);
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    min-height: 3.5rem;
+    padding: var(--safe-t) calc(var(--sp-2) + var(--safe-r)) 0 var(--sp-4);
+    background: var(--rail-bg);
+    color: var(--brand-text);
+    box-shadow: 0 1px 0 0 var(--brand), var(--shadow-card);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
 
+  .assessor-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: block;
+    background: rgba(16, 24, 40, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.24s ease, visibility 0s linear 0.24s;
+  }
+
+  .assessor-scrim.is-open {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.24s ease, visibility 0s;
+  }
+
+  /* visibility, not display: it takes the closed drawer out of the tab order
+     and away from a screen reader, and unlike display it can wait for the
+     slide to finish before it does. */
+  .assessor-rail,
+  .assessor-rail--collapsed {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    align-self: auto;
+    width: var(--drawer-w);
+    height: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(var(--sp-4) + var(--safe-t)) var(--safe-r) calc(var(--sp-4) + var(--safe-b)) 0;
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    /* Its open edge is the left one now. */
+    box-shadow: -1px 0 0 0 var(--brand), var(--shadow-sidebar);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.28s;
+  }
+
+  .assessor-rail.is-open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+  }
+
+  /* Solid. The dark rail is the page's colour at 88% so that on a desk it
+     takes on whatever it sits on — but a drawer sits on the page's content,
+     which then showed through it. --surface is the same colour, opaque. */
+  [data-theme="dark"] .assessor-app .assessor-rail {
+    background: var(--surface);
+  }
+
+  .assessor-rail__close {
+    position: absolute;
+    top: calc(var(--sp-2) + var(--safe-t));
+    right: calc(var(--sp-2) + var(--safe-r));
+    z-index: 2;
+  }
+
+  /* Folding to icons is a desk-width idea. */
   .assessor-rail__toggle {
     display: none;
   }
 
   .assessor-rail__identity {
-    flex-direction: row;
-    gap: var(--sp-3);
-    text-align: left;
+    margin-top: var(--sp-8);
   }
 
-  .assessor-rail__avatar {
-    width: 44px;
-    height: 44px;
+  .assessor-nav-item {
+    min-height: var(--tap);
+    font-size: var(--fs-body);
   }
 
-  /* Stacked, the nav is a row of real labels again, so the collapsed square
-     from the vertical rail does not apply. */
-  .assessor-rail--collapsed .assessor-nav-item {
-    width: auto;
-    height: auto;
-    padding: 9px 12px;
+  .assessor-rail__bottom {
+    gap: var(--sp-2);
   }
 
-  .assessor-rail__nav {
-    order: 3;
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: auto;
-    padding: 0;
-    overflow: visible;
+  .assessor-rail__theme,
+  .assessor-rail__signout {
+    min-height: var(--tap);
   }
 
   .assessor-rail__signout {
-    margin-top: 0;
+    padding-inline: var(--sp-4);
   }
 
   .assessor-main {
-    padding: 20px 16px;
+    padding: var(--sp-5) calc(var(--sp-4) + var(--safe-r)) calc(var(--sp-8) + var(--safe-b))
+      var(--sp-4);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
 
   .assessor-rail,
+  .assessor-rail.is-open,
+  .assessor-scrim,
+  .assessor-scrim.is-open,
   .assessor-nav-item,
   .assessor-nav-item__icon,
   .assessor-nav-item__pill,
@@ -3820,7 +3963,7 @@
    but it is a select, and it keeps the shape every other select on the screen
    has rather than borrowing the search's ends. */
 .assessor-pickers .gen-field--state .assessor-select__trigger {
-  height: 44px;
+  height: 2.75rem;
 }
 
 /**
@@ -4088,7 +4231,7 @@
 
 /* A run of one question is still a run, not a hairline. */
 .paper__seg {
-  min-width: 3px;
+  min-width: 0.1875rem;
 }
 
 .paper__seg--right {
@@ -4119,7 +4262,7 @@
  * that does not vary, so six points of ten is six questions of ten. */
 .paper__pass {
   position: absolute;
-  top: -4px;
+  top: -0.25rem;
   width: 0;
 }
 
@@ -4127,7 +4270,7 @@
   position: absolute;
   top: 0;
   width: 2px;
-  height: calc(var(--bar-h) + 8px);
+  height: calc(var(--bar-h) + 0.5rem);
   margin-left: -1px;
   border-radius: 1px;
   background: var(--text-strong);
@@ -4137,7 +4280,7 @@
    pass mark set high or low is still readable against the sheet's edge. */
 .paper__pass-name {
   position: absolute;
-  top: calc(var(--bar-h) + 12px);
+  top: calc(var(--bar-h) + 0.75rem);
   font-size: var(--fs-micro);
   color: var(--text-muted);
   white-space: nowrap;
@@ -4181,8 +4324,8 @@
    the fill rather than by their order on the line. */
 .paper__swatch {
   flex: none;
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 3px;
 }
 
@@ -4231,7 +4374,7 @@
 
 /* The mark steps down a size rather than dropping under the name: a name long
    enough to need two lines needs the mark to stay where it was found. */
-@media (max-width: 560px) {
+@media (max-width: 40rem) {
   .paper__mark {
     font-size: var(--fs-stat);
   }
@@ -4466,7 +4609,7 @@
   color: var(--text-strong);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 40rem) {
   .tos-modal {
     padding: var(--sp-3);
   }
@@ -4688,7 +4831,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 3px;
+  min-width: 0.1875rem;
   background: var(--level);
   color: #fff;
   font-size: var(--fs-micro);
@@ -4809,8 +4952,8 @@
 
 .tos-level__swatch {
   flex: none;
-  width: 10px;
-  height: 24px;
+  width: 0.625rem;
+  height: 1.5rem;
   border-radius: 3px;
   background: var(--level);
 }
@@ -4892,7 +5035,7 @@
   flex: none;
   overflow: hidden;
   width: 5.5rem;
-  height: 8px;
+  height: 0.5rem;
   border-radius: 4px;
   background: var(--gray-150);
 }
@@ -5139,7 +5282,7 @@
 
 /* ── Narrow ───────────────────────────────────────────────── */
 
-@media (max-width: 720px) {
+@media (max-width: 52rem) {
   .tos-row__meter {
     display: none;
   }
@@ -5155,5 +5298,41 @@
   .tos-modal,
   .tos-modal__panel {
     animation: none;
+  }
+}
+
+/* ── Tables on a phone ──────────────────────────────────────
+   Below sm a table stays a table. It scrolls inside its own box, sideways
+   and up and down, while the page around it stands still — capped at most of
+   a screen, so the box never grows taller than the phone and hides its own
+   scrollbar below the fold. The cells close up and stop wrapping, so a row
+   is one line and the width goes to scrolling rather than to rows three
+   lines tall; the type stays its full size. The heading row stays pinned, or
+   the columns lose their names the moment the rows move.
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 40rem) {
+  .assessor-table-wrap,
+  .card-table,
+  .tos-matrix-scroll {
+    overflow: auto;
+    max-height: calc(70 * var(--vh));
+  }
+
+  .assessor-app .assessor-table,
+  .tos-matrix {
+    min-width: 0;
+  }
+
+  .assessor-app .assessor-table :is(th, td) {
+    padding: var(--sp-2) var(--sp-3);
+    white-space: nowrap;
+  }
+
+  .assessor-app .assessor-table thead th,
+  .tos-matrix thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
 }

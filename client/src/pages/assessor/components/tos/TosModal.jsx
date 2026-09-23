@@ -19,11 +19,13 @@ import TosEditor from "./TosEditor";
  * rather than a different place.
  *
  * It renders into the body rather than where it is written. `.assessor-app`
- * carries .entity-enter, whose entrance animation is filled `both`, so its
- * final transform stands for the life of the page — and a transformed ancestor
- * is the containing block for anything fixed inside it. Left in place the
- * overlay sized itself to the whole document and opened wherever the page
- * happened to be scrolled to. The portal host wears the console's own class
+ * carries .entity-enter, whose entrance animation was once filled `both`, so
+ * its final transform stood for the life of the page — and a transformed
+ * ancestor is the containing block for anything fixed inside it. Left in place
+ * the overlay sized itself to the whole document and opened wherever the page
+ * happened to be scrolled to. The fill is `backwards` now (see styles.css);
+ * the portal stays, since a dialog over the whole screen should not depend on
+ * no box above it ever animating again. The portal host wears the console's own class
  * for its custom properties and is display:contents, so it carries the tokens
  * without carrying a box.
  */

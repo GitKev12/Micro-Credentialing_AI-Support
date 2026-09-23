@@ -105,7 +105,7 @@
   --sd-ring: 0 0 0 3px rgba(160, 14, 24, 0.22);
 
   /* ---- Layout ---- */
-  --sd-rail-w: 264px;
+  --sd-rail-w: 16.5rem;
 
   color: var(--sd-ink);
 }
@@ -225,8 +225,8 @@ body:has(.student-app) {
    turning it into a button. */
 .sd-topbar__mark {
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 2.375rem;
+  height: 2.375rem;
   object-fit: contain;
   filter: drop-shadow(0 1px 2px rgba(42, 21, 23, 0.18));
 }
@@ -236,7 +236,7 @@ body:has(.student-app) {
 .sd-topbar__rule {
   flex-shrink: 0;
   width: 1px;
-  height: 26px;
+  height: 1.625rem;
   background: var(--sd-border-strong);
 }
 
@@ -430,6 +430,155 @@ body:has(.student-app) {
   color: inherit;
 }
 
+/* ── Account drawer (phone) ─────────────────────────────────
+   Below md the dropdown above becomes a panel from the right, behind a
+   button that pairs the avatar with three bars — the same corner, and the
+   same gesture, as the rail on the staff side. It takes over the two
+   section links the bar has no room for, so it also has to say which of
+   them is the page the student is on. These pieces are only in the DOM
+   below md, so nothing here needs a media query of its own.
+   ───────────────────────────────────────────────────────── */
+
+.sd-profile__trigger--menu {
+  gap: var(--sd-1);
+  min-height: var(--tap);
+  padding-right: var(--sd-2);
+}
+
+.sd-profile__bars {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  color: var(--sd-ink);
+}
+
+.sd-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(16, 24, 40, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.24s ease, visibility 0s linear 0.24s;
+}
+
+.sd-scrim.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.24s ease, visibility 0s;
+}
+
+/* visibility, not display: it takes the closed drawer out of the tab order
+   and away from a screen reader, and unlike display it can wait for the
+   slide to finish before it does. */
+.sd-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: var(--drawer-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(var(--sd-4) + var(--safe-t)) calc(var(--sd-3) + var(--safe-r))
+    calc(var(--sd-4) + var(--safe-b)) var(--sd-3);
+  border-left: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg) 0 0 var(--sd-r-lg);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow-lift);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.28s;
+}
+
+.sd-drawer.is-open {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+}
+
+/* Where the menu button was: top right, the same reach to shut as to open. */
+.sd-drawer__close {
+  position: absolute;
+  top: calc(var(--sd-2) + var(--safe-t));
+  right: calc(var(--sd-2) + var(--safe-r));
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--sd-r-sm);
+  background: transparent;
+  color: var(--sd-muted);
+  cursor: pointer;
+}
+
+.sd-drawer__close:hover {
+  background: var(--sd-brand-wash);
+  color: var(--sd-ink);
+}
+
+.sd-menu--drawer {
+  position: static;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-1);
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sd-menu--drawer .sd-menu__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: var(--sd-5) 0 var(--sd-3);
+  padding: 0 var(--sd-3) var(--sd-4);
+}
+
+/* Spaced off the avatar; the student number stays tucked under it. */
+.sd-menu--drawer .sd-menu__name {
+  margin-top: var(--sd-3);
+  font-size: var(--sd-fs-title);
+}
+
+.sd-menu--drawer .sd-menu__item {
+  min-height: var(--tap);
+  font-size: var(--sd-fs-body-lg);
+}
+
+.sd-menu--drawer .sd-menu__item[aria-current="page"] {
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-weight: var(--sd-fw-semibold);
+}
+
+.sd-menu--drawer .sd-menu__item[aria-current="page"] .sd-menu__item-icon {
+  color: inherit;
+}
+
+/* The account's own two controls sit at the foot, where the staff rails keep
+   theirs, below the places the student can go. */
+.sd-menu--drawer li:has(.sd-menu__item--toggle) {
+  margin-top: auto;
+  padding-top: var(--sd-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-scrim,
+  .sd-scrim.is-open,
+  .sd-drawer,
+  .sd-drawer.is-open {
+    transition: none;
+  }
+}
+
 .sd-switch {
   position: relative;
   flex-shrink: 0;
@@ -501,8 +650,8 @@ body:has(.student-app) {
 }
 
 .sd-rail__avatar {
-  width: 92px;
-  height: 92px;
+  width: 5.75rem;
+  height: 5.75rem;
   margin-bottom: var(--sd-3);
   border-radius: 50%;
   object-fit: cover;
@@ -699,7 +848,7 @@ body:has(.student-app) {
   display: inline-flex;
   align-items: center;
   gap: var(--sd-1);
-  padding: 3px var(--sd-2) 3px var(--sd-1);
+  padding: 0.1875rem var(--sd-2) 0.1875rem var(--sd-1);
   border-radius: var(--sd-r-pill);
   background: color-mix(in srgb, var(--sd-band) 14%, transparent);
   color: var(--sd-band-text);
@@ -717,7 +866,7 @@ body:has(.student-app) {
   display: inline-flex;
   align-items: center;
   gap: var(--sd-1);
-  padding: 3px var(--sd-2);
+  padding: 0.1875rem var(--sd-2);
   border-radius: var(--sd-r-pill);
   background: var(--sd-surface-2);
   color: var(--sd-muted);
@@ -734,14 +883,14 @@ body:has(.student-app) {
 
 .sd-meter {
   position: relative;
-  height: 10px;
+  height: 0.625rem;
   border-radius: 4px;
   background: color-mix(in srgb, var(--sd-band) var(--sd-track-mix), var(--sd-surface));
   overflow: hidden;
 }
 
 .sd-meter--sm {
-  height: 8px;
+  height: 0.5rem;
 }
 
 .sd-meter__fill {
@@ -771,7 +920,7 @@ body:has(.student-app) {
 .sd-meter-legend__tick {
   display: inline-block;
   width: 1px;
-  height: 9px;
+  height: 0.5625rem;
   background: var(--sd-axis);
 }
 
@@ -812,8 +961,8 @@ body:has(.student-app) {
    aria-label and title instead. Everything else — the border, the surface, the
    hover wash — comes from .sd-btn, so the disc cannot drift from the pills. */
 .sd-btn--disc {
-  width: 36px;
-  height: 36px;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
   border-radius: 50%;
 }
@@ -829,7 +978,7 @@ body:has(.student-app) {
 .sd-segmented {
   display: inline-flex;
   gap: 2px;
-  padding: 3px;
+  padding: 0.1875rem;
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-pill);
   background: var(--sd-surface-2);
@@ -956,7 +1105,7 @@ body:has(.student-app) {
 
 .sd-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(13.125rem, 100%), 1fr));
   gap: var(--sd-4);
   margin: 0;
   padding: 0;
@@ -1026,7 +1175,7 @@ body:has(.student-app) {
 
 .sd-focus__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 200px) 4.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 12.5rem) 4.5rem;
   align-items: center;
   gap: var(--sd-4);
   padding: var(--sd-3);
@@ -1142,8 +1291,8 @@ body:has(.student-app) {
 .sd-cert__seal {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 2.625rem;
+  height: 2.625rem;
   border-radius: var(--sd-r-sm);
   background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
@@ -1209,7 +1358,7 @@ body:has(.student-app) {
   align-items: center;
   gap: var(--sd-1);
   margin-top: var(--sd-1);
-  padding: 3px var(--sd-2);
+  padding: 0.1875rem var(--sd-2);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-pill);
   background: var(--sd-brand-wash);
@@ -1249,7 +1398,7 @@ body:has(.student-app) {
    inside — dozens of tiles at once say less than six cards do. */
 .sd-badge-courses {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(17.5rem, 100%), 1fr));
   gap: var(--sd-3);
   margin: 0;
   padding: 0;
@@ -1289,8 +1438,8 @@ body:has(.student-app) {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
+  width: 3.5rem;
+  height: 3.5rem;
 }
 
 .sd-badge-course__art img {
@@ -1360,7 +1509,7 @@ body:has(.student-app) {
 
 .sd-badges {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(11.875rem, 100%), 1fr));
   gap: var(--sd-3);
   margin: 0;
   padding: 0;
@@ -1385,8 +1534,8 @@ body:has(.student-app) {
 .sd-badge__glyph {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
   margin-bottom: var(--sd-1);
   border-radius: var(--sd-r-pill);
   background: var(--sd-brand-wash);
@@ -1397,8 +1546,8 @@ body:has(.student-app) {
 /* Course artwork brings its own shape and colour, so it gets room and no
    pill behind it. */
 .sd-badge__glyph--art {
-  width: 68px;
-  height: 68px;
+  width: 4.25rem;
+  height: 4.25rem;
   border-radius: 0;
   background: none;
 }
@@ -1527,8 +1676,8 @@ body:has(.student-app) {
 }
 
 .sd-skills__legend-swatch {
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 3px;
   background: var(--sd-band);
 }
@@ -1573,7 +1722,7 @@ body:has(.student-app) {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: 0.1875rem;
 }
 
 .sd-skill__score {
@@ -1587,7 +1736,7 @@ body:has(.student-app) {
    the score is printed on every row and repeated in the table view. */
 .sd-tip {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 0.5rem);
   left: 50%;
   z-index: 30;
   transform: translateX(-50%);
@@ -1683,9 +1832,9 @@ body:has(.student-app) {
 .sd-badge-toast__glyph {
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
-  font-size: 34px;
+  width: 4rem;
+  height: 4rem;
+  font-size: 2.125rem;
   line-height: 1;
 }
 
@@ -1835,7 +1984,7 @@ body:has(.student-app) {
   position: relative;
   /* Height is the plot only — there is no axis band to clip, since the topics
      are named in the tooltip rather than under the columns. */
-  height: 74px;
+  height: 4.625rem;
   /* Above the card's click overlay. The overlay covers the whole card, so
      without this it swallows the pointer before it reaches a column and the
      per-topic tooltips never fire — the chart's only way to name a topic. */
@@ -1873,8 +2022,8 @@ body:has(.student-app) {
   /* Grows to share the plot, but never past the cap — a column that fills its
      slot stops being a mark and becomes a slab. */
   flex: 1 1 0;
-  min-width: 10px;
-  max-width: 22px;
+  min-width: 0.625rem;
+  max-width: 1.375rem;
   height: 100%;
   display: flex;
   align-items: flex-end;
@@ -1913,7 +2062,10 @@ body:has(.student-app) {
 
 /* ── Table view twin ────────────────────────────────────── */
 
+/* Relative, so anything positioned inside the table — a visually hidden
+   label in a far column — scrolls with it instead of widening the page. */
 .sd-table-wrap {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -2004,7 +2156,7 @@ body:has(.student-app) {
   display: inline-flex;
   align-items: center;
   gap: var(--sd-2);
-  padding: 6px var(--sd-3);
+  padding: 0.375rem var(--sd-3);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-pill);
   background: var(--sd-surface-2);
@@ -2218,12 +2370,12 @@ body:has(.student-app) {
 }
 
 .sd-skeleton--hero {
-  height: 148px;
+  height: 9.25rem;
   border-radius: var(--sd-r-lg);
 }
 
 .sd-skeleton--tile {
-  height: 92px;
+  height: 5.75rem;
 }
 
 @keyframes sd-shimmer {
@@ -2317,8 +2469,8 @@ body:has(.student-app) {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
   border-radius: 50%;
   background:
     radial-gradient(
@@ -2483,7 +2635,7 @@ body:has(.student-app) {
    marker's centre line: 6px of margin plus half of the 14px node. */
 
 .sd-sections {
-  margin: 0 0 0 6px;
+  margin: 0 0 0 0.375rem;
   padding: 2px 0;
   list-style: none;
 }
@@ -2499,7 +2651,7 @@ body:has(.student-app) {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 6px;
+  left: 0.375rem;
   width: 2px;
   background: var(--sd-border);
   transition: background 0.2s ease;
@@ -2515,18 +2667,18 @@ body:has(.student-app) {
 /* The line is a join between nodes, so it has nothing to reach towards past
    the first and the last. */
 .sd-sections__item:first-child::before {
-  top: 15px;
+  top: 0.9375rem;
 }
 
 .sd-sections__item:last-child::before {
-  bottom: calc(100% - 15px);
+  bottom: calc(100% - 0.9375rem);
 }
 
 .sd-sections__btn {
   display: flex;
   gap: var(--sd-2);
   width: 100%;
-  padding: 6px var(--sd-2) 7px 0;
+  padding: 0.375rem var(--sd-2) 0.4375rem 0;
   border: 0;
   border-radius: var(--sd-r-sm);
   background: transparent;
@@ -2559,8 +2711,8 @@ body:has(.student-app) {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
+  width: 0.875rem;
+  height: 0.875rem;
   margin-top: 2px;
   border-radius: 50%;
   background:
@@ -2619,8 +2771,8 @@ body:has(.student-app) {
 
 .sd-sections__skeleton {
   display: block;
-  height: 26px;
-  margin: 6px 0 6px 20px;
+  height: 1.625rem;
+  margin: 0.375rem 0 0.375rem 1.25rem;
   border-radius: 6px;
 }
 
@@ -2714,15 +2866,15 @@ body:has(.student-app) {
 .sd-lesson__quiz-tag--timed {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding-inline: var(--sd-1) 5px;
+  gap: 0.1875rem;
+  padding-inline: var(--sd-1) 0.3125rem;
   background: transparent;
   color: var(--sd-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .sd-lesson__note {
-  margin: var(--sd-1) 0 0 13px;
+  margin: var(--sd-1) 0 0 0.8125rem;
   padding: var(--sd-1) 0 var(--sd-1) var(--sd-4);
   border-left: 1px solid var(--sd-border-strong);
   font-size: var(--sd-fs-meta);
@@ -2745,7 +2897,7 @@ body:has(.student-app) {
    Responsive
    =========================================================== */
 
-@media (max-width: 1040px) {
+@media (max-width: 68rem) {
   .sd-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2762,8 +2914,8 @@ body:has(.student-app) {
   }
 
   .sd-rail__avatar {
-    width: 64px;
-    height: 64px;
+    width: 4rem;
+    height: 4rem;
     margin-bottom: 0;
   }
 
@@ -2777,24 +2929,23 @@ body:has(.student-app) {
   }
 }
 
-@media (max-width: 820px) {
+/* Below md the two section links move into the account drawer, so the bar
+   keeps one row: the college mark and the greeting on the left, the menu
+   button on the right. It used to wrap the links onto a second row of
+   their own, which pushed every page down by a bar's height. */
+@media (max-width: 52rem) {
   .sd-topbar {
-    flex-wrap: wrap;
-    border-radius: var(--sd-r-lg);
-    padding: var(--sd-3);
+    justify-content: space-between;
+    gap: var(--sd-3);
+    padding: var(--sd-1) var(--sd-1) var(--sd-1) var(--sd-3);
   }
 
   .sd-topbar__nav {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
+    display: none;
   }
+}
 
-  .sd-topbar__link {
-    flex: 1;
-    justify-content: center;
-  }
-
+@media (max-width: 52rem) {
   .sd-hero,
   .sd-detail-hero {
     grid-template-columns: minmax(0, 1fr);
@@ -2824,7 +2975,7 @@ body:has(.student-app) {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 40rem) {
   .sd-card {
     padding: var(--sd-4);
   }
@@ -3255,7 +3406,7 @@ body:has(.student-app) {
 /* Says which kind of item this is without changing how it is answered — both
    types are the same radio group underneath. */
 .sd-quiz__type {
-  padding: 3px var(--sd-2);
+  padding: 0.1875rem var(--sd-2);
   border-radius: var(--sd-r-pill);
   background: var(--sd-band);
   font-size: var(--sd-fs-label);
@@ -3311,8 +3462,8 @@ body:has(.student-app) {
 .sd-quiz__choice.is-wrong input {
   appearance: none;
   -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   margin: 0;
   border-radius: 50%;
   border: 2px solid;
@@ -3336,8 +3487,8 @@ body:has(.student-app) {
 
 .sd-quiz__choice input {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   margin: 0;
   accent-color: var(--sd-brand);
 }
@@ -3596,7 +3747,7 @@ body:has(.student-app) {
   justify-content: center;
   text-align: center;
   gap: var(--sd-4);
-  min-height: 260px;
+  min-height: 16.25rem;
   padding: var(--sd-8) var(--sd-5);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-md);
@@ -3619,7 +3770,7 @@ body:has(.student-app) {
 /* Secondary on purpose: it leads back to the reading, and the quiz itself is
    still the thing being aimed at. */
 .sd-quiz__locked-btn {
-  padding: 9px 20px;
+  padding: 0.5625rem 1.25rem;
   border: 1px solid var(--sd-border-strong);
   border-radius: var(--sd-r-pill);
   background: var(--sd-surface);
@@ -3684,7 +3835,7 @@ body:has(.student-app) {
 
 .sd-quiz__offer-btn {
   margin-top: var(--sd-2);
-  padding: 10px 22px;
+  padding: 0.625rem 1.375rem;
   border: none;
   border-radius: 999px;
   background: var(--sd-brand);
@@ -3712,15 +3863,15 @@ body:has(.student-app) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 52px;
-  height: 52px;
+  width: 3.25rem;
+  height: 3.25rem;
   border-radius: var(--sd-r-pill);
   background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
 }
 
 /* Stacked, a left-hand rule would divide nothing — it turns on its side. */
-@media (max-width: 640px) {
+@media (max-width: 40rem) {
   .sd-raw__formulas {
     flex-direction: column;
   }
@@ -3913,7 +4064,7 @@ body:has(.student-app) {
 
 .sd-path__stage {
   display: grid;
-  grid-template-rows: auto 22px auto;
+  grid-template-rows: auto 1.375rem auto;
   align-items: center;
   row-gap: var(--sd-1);
   min-width: 0;
@@ -3925,7 +4076,7 @@ body:has(.student-app) {
 }
 
 .sd-path__track {
-  height: 8px;
+  height: 0.5rem;
   overflow: hidden;
   border-radius: var(--sd-r-pill);
   background: color-mix(in srgb, var(--sd-ink) 9%, transparent);
@@ -3962,8 +4113,8 @@ body:has(.student-app) {
 .sd-path__node {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   border: 2px solid var(--sd-border-strong);
   border-radius: 50%;
   color: #fff;
@@ -4009,7 +4160,7 @@ body:has(.student-app) {
 .sd-row {
   position: relative;
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr) auto 16px;
+  grid-template-columns: 5.25rem minmax(0, 1fr) auto 1rem;
   align-items: center;
   gap: var(--sd-5);
   padding: var(--sd-3) var(--sd-5) var(--sd-3) var(--sd-3);
@@ -4027,8 +4178,8 @@ body:has(.student-app) {
 /* Tinted rather than filled: the lead course is the page's one block of solid
    brand colour, and a list of them under it would shout it down. */
 .sd-row__cover {
-  width: 84px;
-  height: 64px;
+  width: 5.25rem;
+  height: 4rem;
   border-radius: var(--sd-r-sm);
   background: color-mix(in srgb, var(--sd-brand) 11%, var(--sd-surface));
   color: var(--sd-brand-text);
@@ -4059,7 +4210,7 @@ body:has(.student-app) {
 /* Only the assess-only pathway is named. Taught is what a course is unless it
    says otherwise, and a tag on every card would bury the one that differs. */
 .sd-row__pathway {
-  padding: 1px 7px;
+  padding: 1px 0.4375rem;
   border-radius: 999px;
   background: var(--sd-brand-wash);
   color: var(--sd-brand-text);
@@ -4161,12 +4312,12 @@ body:has(.student-app) {
 .sd-minipath {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
 }
 
 .sd-minipath__track {
-  width: 52px;
-  height: 6px;
+  width: 3.25rem;
+  height: 0.375rem;
   overflow: hidden;
   border-radius: var(--sd-r-pill);
   background: color-mix(in srgb, var(--sd-ink) 9%, transparent);
@@ -4180,8 +4331,8 @@ body:has(.student-app) {
 }
 
 .sd-minipath__node {
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   border: 2px solid var(--sd-border-strong);
   border-radius: 50%;
 }
@@ -4233,10 +4384,10 @@ body:has(.student-app) {
 }
 
 .sd-home__skeleton-row {
-  height: 88px;
+  height: 5.5rem;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 52rem) {
   .sd-feature {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4252,9 +4403,9 @@ body:has(.student-app) {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 40rem) {
   .sd-row {
-    grid-template-columns: 64px minmax(0, 1fr) 16px;
+    grid-template-columns: 4rem minmax(0, 1fr) 1rem;
     gap: var(--sd-2) var(--sd-4);
     padding-right: var(--sd-4);
   }
@@ -4262,8 +4413,8 @@ body:has(.student-app) {
   .sd-row__cover {
     grid-row: span 2;
     align-self: start;
-    width: 64px;
-    height: 52px;
+    width: 4rem;
+    height: 3.25rem;
   }
 
   .sd-row__chevron {
@@ -4288,5 +4439,36 @@ body:has(.student-app) {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── Tables on a phone ──────────────────────────────────────
+   Below sm a table stays a table. It scrolls inside its own box, sideways
+   and up and down, while the page around it stands still — capped at most of
+   a screen, so the box never grows taller than the phone and hides its own
+   scrollbar below the fold. The cells close up and stop wrapping, so a row
+   is one line and the width goes to scrolling rather than to rows three
+   lines tall; the type stays its full size. The heading row stays pinned, or
+   the columns lose their names the moment the rows move.
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 40rem) {
+  .sd-table-wrap {
+    overflow: auto;
+    max-height: calc(70 * var(--vh));
+  }
+
+  .sd-table th,
+  .sd-table td {
+    padding: var(--sd-2) var(--sd-3);
+    white-space: nowrap;
+  }
+
+  /* Pinned, so it needs a fill of its own: rows scroll under it. */
+  .sd-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--sd-surface);
   }
 }
