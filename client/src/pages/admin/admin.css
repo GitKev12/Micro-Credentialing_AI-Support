@@ -3191,7 +3191,12 @@
 }
 
 .admin-switch.is-on .admin-switch__thumb {
-  transform: translateX(13px);
+  /* The track, the thumb and the inset above are all rem, so this travel has
+     to be as well. As a px literal it only lined up against a 16px root: under
+     that the thumb ran out past the end of the track, over it the thumb pulled
+     up short of it. Written out of the same three lengths it is measured from,
+     which is the only way it cannot drift from them again. */
+  transform: translateX(calc(1.875rem - 0.75rem - 2 * 0.1562rem));
 }
 
 .admin-switch__label {
@@ -3229,7 +3234,7 @@
 }
 
 .admin-switch--lg.is-on .admin-switch__thumb {
-  transform: translateX(17px);
+  transform: translateX(calc(2.375rem - 0.9375rem - 2 * 0.1875rem));
 }
 
 .admin-switch.is-on .admin-switch__label {
@@ -3972,19 +3977,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* An enrolled course: the mark is always the brand's, since every row here is
-   a course the student is actively taking, and the progress bar takes a fixed
-   width so the bars line up down the list. */
-.admin-cred--course .admin-cred__mark {
-  background: var(--brand-soft);
-  color: var(--brand-text);
-}
-
-.admin-cred__progress {
-  flex-shrink: 0;
-  width: 10rem;
-}
-
 .admin-cred[data-earned="yes"] .admin-cred__state {
   font-weight: 600;
   color: var(--brand-text);
@@ -4002,8 +3994,7 @@
 
   /* The state drops under the course name, lined up with it rather than
      with the icon. */
-  .admin-cred__state,
-  .admin-cred__progress {
+  .admin-cred__state {
     width: 100%;
     padding-left: 3.25rem;
   }

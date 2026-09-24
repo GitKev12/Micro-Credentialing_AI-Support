@@ -1,7 +1,6 @@
-import { CoursesIcon, CredentialIcon } from "../icons";
+import { CredentialIcon } from "../icons";
 import { AdminModal } from "../ui";
 import { formatDate } from "../../lib/format";
-import ProgressCell from "./ProgressCell";
 
 /** Course artwork when the catalog carries it, the old emoji glyph otherwise. */
 function BadgeArt({ badge }) {
@@ -56,7 +55,7 @@ function BadgesBody({ badges }) {
             <BadgeArt badge={badge} />
             <span className="admin-award__name">{badge.name}</span>
             <span className="admin-award__when">
-              {badge.earned ? formatDate(badge.earnedAt) ?? "Earned" : "Not yet"}
+              {badge.earned ? (formatDate(badge.earnedAt) ?? "Earned") : "Not yet"}
             </span>
           </li>
         ))}
@@ -102,42 +101,10 @@ function CredentialsBody({ rows }) {
   );
 }
 
-/** The courses the student is enrolled in, with how far along each one is. */
-function CoursesBody({ rows }) {
-  if (rows.length === 0) {
-    return <p className="admin-empty-note">Not enrolled in any course yet.</p>;
-  }
-
-  return (
-    <ul className="admin-cred-list">
-      {rows.map((row) => (
-        <li className="admin-cred admin-cred--course" key={row.id}>
-          <span className="admin-cred__mark" aria-hidden="true">
-            <CoursesIcon size={20} />
-          </span>
-          <span className="admin-cred__course">
-            <span className="admin-cred__title">{row.title}</span>
-            <span className="admin-cred__code">{row.code}</span>
-            <span className="admin-cred__code">
-              {row.assessors.length > 0
-                ? `Assessor: ${row.assessors.join(", ")}`
-                : "No assessor yet"}
-            </span>
-          </span>
-          <span className="admin-cred__progress">
-            <ProgressCell progress={row.progress} />
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-const TITLES = { badges: "Badges", credentials: "Micro-credentials", courses: "Active courses" };
+const TITLES = { badges: "Badges", credentials: "Micro-credentials" };
 
 /** The list behind one of a student's tiles, opened over the page. */
 export default function StudentAwards({ kind, student, badges, rows, onClose }) {
-
   return (
     <AdminModal
       title={TITLES[kind]}
@@ -145,13 +112,7 @@ export default function StudentAwards({ kind, student, badges, rows, onClose }) 
       tone="admin-modal__panel--awards"
       onClose={onClose}
     >
-      {kind === "badges" ? (
-        <BadgesBody badges={badges} />
-      ) : kind === "courses" ? (
-        <CoursesBody rows={rows} />
-      ) : (
-        <CredentialsBody rows={rows} />
-      )}
+      {kind === "badges" ? <BadgesBody badges={badges} /> : <CredentialsBody rows={rows} />}
     </AdminModal>
   );
 }

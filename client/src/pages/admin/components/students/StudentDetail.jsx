@@ -31,7 +31,7 @@ export default function StudentDetail({
   onSave
 }) {
   const selected = student;
-  // Which tile's list is open over the page: "badges", "credentials", "courses" or none.
+  // Which tile's list is open over the page: "badges", "credentials" or none.
   const [awards, setAwards] = useState(null);
     const enrolled = selected.enrolled ?? [];
     const progress = selected.progress ?? [];
@@ -150,12 +150,7 @@ export default function StudentDetail({
                         : null
                     }
                   />
-                  <StatTile
-                    icon={CoursesIcon}
-                    value={enrolled.length}
-                    label="Active courses"
-                    onOpen={() => setAwards("courses")}
-                  />
+                  <StatTile icon={CoursesIcon} value={enrolled.length} label="Active courses" />
                 </div>
               </section>
 

@@ -12,6 +12,7 @@ import {
   getGenerationStatus
 } from "../assessments/assessments.generate.js";
 import {
+  classesHoldingByCourse,
   classesTaughtBy,
   loadClassesByCourse,
   studentsTaughtBy,
@@ -596,30 +597,49 @@ async function lastActivityFor(student) {
 }
 
 /**
- * The assessors responsible for this student — the ones assigned to a course
- * they are enrolled in. Answers "who grades them?", which the roster on the
- * assessor's own screen states from the other direction.
+ * The assessor of this student — the one on the class they are in, course by
+ * course. Answers "who grades them?", which the roster on the assessor's own
+ * screen states from the other direction.
+ *
+ * It used to list every assessor assigned to the course, so a course taught
+ * in three classes showed three names against a student only one of them
+ * grades. A class has one assessor and a student is in one class per course,
+ * so the class is the answer. A course the student is on without a class has
+ * no assessor for them, and the screen says "Unassigned".
  */
 async function assessorsFor(student, courses) {
   const enrolledIds = new Set((student.enrolledCourses ?? []).map(asId));
   if (enrolledIds.size === 0) return [];
 
-  const assessors = await collection(ASSESSORS_COLLECTION).find().toArray();
+  const holding = await classesHoldingByCourse(student._id);
+
+  // Assessor id -> the courses they are this student's assessor on.
+  const coursesByAssessor = new Map();
+  for (const [courseId, classes] of holding) {
+    if (!enrolledIds.has(courseId)) continue;
+    const course = courses.get(courseId);
+    if (!course) continue;
+
+    for (const cls of classes) {
+      for (const assessorId of cls.assessorIds ?? []) {
+        const key = asId(assessorId);
+        if (!coursesByAssessor.has(key)) coursesByAssessor.set(key, new Map());
+        coursesByAssessor.get(key).set(courseId, course);
+      }
+    }
+  }
+  if (coursesByAssessor.size === 0) return [];
+
+  const assessors = await collection(ASSESSORS_COLLECTION)
+    .find({ _id: { $in: [...coursesByAssessor.keys()].flatMap(idCandidates) } })
+    .toArray();
 
   return assessors
     .map((assessor) => ({
-      assessor,
-      shared: (assessor.assigned_courses ?? [])
-        .filter((courseId) => enrolledIds.has(asId(courseId)))
-        .map((courseId) => courses.get(asId(courseId)))
-        .filter(Boolean)
-    }))
-    .filter((entry) => entry.shared.length > 0)
-    .map(({ assessor, shared }) => ({
       id: asId(assessor._id),
       name: assessor.full_name ?? assessor.name ?? assessor.email ?? "Unnamed assessor",
       email: assessor.email ?? null,
-      courses: shared.map((course) => ({
+      courses: [...(coursesByAssessor.get(asId(assessor._id))?.values() ?? [])].map((course) => ({
         id: asId(course._id),
         code: courseCode(course),
         title: courseTitle(course)
