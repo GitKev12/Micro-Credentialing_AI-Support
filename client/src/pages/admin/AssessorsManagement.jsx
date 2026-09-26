@@ -1,34 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   createAssessor,
-  deleteAssessor,
   fetchAssessor,
-  fetchAssessorImpact,
   fetchAssessors,
   fetchCourses,
+  setAssessorStatus,
   setAssessorSuspended,
   updateAssessor
 } from "../../services/admin";
-import { AssessorsIcon, ChevronRightIcon } from "./components/icons";
+import { AssessorsIcon } from "./components/icons";
 import {
   AdminButton,
   chosenOption,
   Avatar,
-  ConfirmDeleteModal,
   FILTER_ALL,
   ListFilter,
   PageHeader,
   passesFilter,
   SearchField,
-  useListFilter
+  StatusMenu,
+  AccountStatusPill,
+  accountStatusOf,
+  useListFilter,
+  Pagination,
+  usePagination
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import AssessorDetail from "./components/assessors/AssessorDetail";
 import AssessorForm from "./components/assessors/AssessorForm";
 import {
   activityKindLabel,
-  assessorKeeps,
-  assessorLosses,
   EMPTY_WORKLOAD
 } from "./components/assessors/assessorText";
 import { formatDate } from "./lib/format";
@@ -37,6 +38,8 @@ import { useNotice } from "../../lib/useNotice";
 
 // The course option that is not a course: everyone holding none at all.
 const NONE = "none";
+
+const statusOf = accountStatusOf;
 
 function AssessorsManagement() {
   const [assessors, setAssessors] = useState([]);
@@ -55,9 +58,6 @@ function AssessorsManagement() {
   // The assessor whose details are being corrected, if any.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
-  // The assessor awaiting a "yes, delete", with the cost filled in once read.
-  const [deleting, setDeleting] = useState(null);
-  const [impact, setImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -79,7 +79,6 @@ function AssessorsManagement() {
   }, []);
 
   const detailRequest = useLatestRequest();
-  const impactRequest = useLatestRequest();
 
   const openAssessor = (assessorId) => {
     // Claimed before the fetch, so a slower reply for a record the
@@ -134,45 +133,6 @@ function AssessorsManagement() {
    * papers waiting on them stay waiting. The row moves first and goes back if
    * the write fails.
    */
-  const askToDelete = (assessor) => {
-    // The costs are read for one record; a reply that arrives after the
-    // admin has cancelled and opened another must not fill in that one.
-    const token = impactRequest.next();
-    setDeleting(assessor);
-    setImpact(null);
-    fetchAssessorImpact(assessor.id)
-      .then((data) => {
-        if (impactRequest.isCurrent(token)) setImpact(data);
-      })
-      .catch(() => {
-        if (impactRequest.isCurrent(token)) setImpact({ unknown: true });
-      });
-  };
-
-  const removeAssessor = async () => {
-    setBusy(true);
-    try {
-      const { assessor } = await deleteAssessor(deleting.id);
-      // Re-read rather than filter: the list is the server's, sorted and shaped
-      // there, so a local splice would leave the rest of it to drift.
-      const fresh = await fetchAssessors();
-      setAssessors(fresh.assessors);
-      setDeleting(null);
-      setImpact(null);
-      // The detail screen is looking at a record that no longer exists.
-      if (selected?.id === deleting.id) setSelected(null);
-      setNotice({ tone: "ok", text: `${assessor.name} was deleted.` });
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error?.response?.data?.message || "Couldn't delete this assessor."
-      });
-      setDeleting(null);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const toggleSuspended = async (assessor) => {
     const next = !assessor.suspended;
     const patch = (list) =>
@@ -187,7 +147,7 @@ function AssessorsManagement() {
       );
       setNotice({
         tone: "ok",
-        text: `${assessor.name} is now ${next ? "suspended" : "active"}.`
+        text: `${assessor.name} is now ${next ? "inactive" : "active"}.`
       });
     } catch (error) {
       setAssessors((list) =>
@@ -218,15 +178,36 @@ function AssessorsManagement() {
    * Every course is offered whether or not anyone holds it — that nobody does
    * is the answer to a question this screen is opened with.
    */
+  // Set a assessor to active, inactive or archived from the 3-dots menu.
+  const changeStatus = async (assessor, status) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const saved = await setAssessorStatus(assessor.id, status);
+      const flags = { suspended: saved.suspended, archived: saved.archived };
+      setAssessors((list) => list.map((row) => (row.id === assessor.id ? { ...row, ...flags } : row)));
+      setNotice({ tone: "ok", text: `${assessor.name} is now ${status}.` });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error?.response?.data?.message || "Couldn't change this assessor's status."
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const fields = useMemo(() => {
-    const all = { value: FILTER_ALL, label: "All assessors", meta: `${assessors.length}` };
+    // Archived assessors only count under "Archived".
+    const current = assessors.filter((row) => !row.archived);
+    const all = { value: FILTER_ALL, label: "All assessors", meta: `${current.length}` };
 
     const perCourse = new Map(courses.map((course) => [course.id, 0]));
     let withoutCourse = 0;
-    let suspended = 0;
+    let inactive = 0;
 
-    for (const assessor of assessors) {
-      if (assessor.suspended) suspended += 1;
+    for (const assessor of current) {
+      if (assessor.suspended) inactive += 1;
 
       const assigned = assessor.assigned ?? [];
       if (assigned.length === 0) withoutCourse += 1;
@@ -269,18 +250,23 @@ function AssessorsManagement() {
           {
             value: "active",
             label: "Active",
-            meta: `${assessors.length - suspended}`,
-            empty: "Every assessor is suspended."
+            meta: `${current.length - inactive}`,
+            empty: "Every assessor is inactive."
           },
           {
-            value: "suspended",
-            label: "Suspended",
-            meta: `${suspended}`,
-            empty: "No assessor is suspended."
+            value: "inactive",
+            label: "Inactive",
+            meta: `${inactive}`,
+            empty: "No assessor is inactive."
+          },
+          {
+            value: "archived",
+            label: "Archived",
+            meta: `${assessors.length - current.length}`,
+            empty: "No assessor is archived."
           }
         ],
-        match: (assessor, value) =>
-          value === "active" ? !assessor.suspended : Boolean(assessor.suspended)
+        match: (assessor, value) => statusOf(assessor) === value
       }
     ];
   }, [assessors, courses]);
@@ -291,6 +277,10 @@ function AssessorsManagement() {
     return assessors.filter((assessor) => {
       // The filter narrows first, so the search only ever runs over the rows
       // already on screen.
+      // Archived assessors only show when the Archived filter is picked.
+      if (assessor.archived && !(filter.field === "status" && filter.value === "archived")) {
+        return false;
+      }
       if (!passesFilter(fields, filter.field, filter.value, assessor)) return false;
       if (!term) return true;
 
@@ -300,29 +290,8 @@ function AssessorsManagement() {
     });
   }, [assessors, query, fields, filter.field, filter.value]);
 
-  /**
-   * Rendered by both branches below.
-   *
-   * The detail screen returns before the list's JSX is reached, so a confirm
-   * that lived only down there opened for a row and did nothing at all for the
-   * Delete button on the detail — which is the one place the account is fully
-   * in view when you decide.
-   */
-  const deleteConfirm = deleting ? (
-    <ConfirmDeleteModal
-      title="Delete this assessor?"
-      subject={`${deleting.name}${deleting.assessorNumber ? ` · ${deleting.assessorNumber}` : ""}`}
-      losses={assessorLosses(impact)}
-      keeps={assessorKeeps(impact)}
-      busy={busy}
-      confirmLabel="Delete assessor"
-      onCancel={() => {
-        setDeleting(null);
-        setImpact(null);
-      }}
-      onConfirm={removeAssessor}
-    />
-  ) : null;
+  // 10 rows per page; back to page 1 when the search or filter changes.
+  const { pageRows, page, pageCount, setPage } = usePagination(visible, `${query}|${filter.field}|${filter.value}`);
 
   if (selected) {
     return (
@@ -340,11 +309,9 @@ function AssessorsManagement() {
           setForm(selected);
         }}
         onToggleSuspended={() => toggleSuspended(selected)}
-        onDelete={() => askToDelete(selected)}
         onCancelForm={() => setForm(null)}
         onSave={saveAssessor}
       />
-        {deleteConfirm}
       </>
     );
   }
@@ -405,11 +372,11 @@ function AssessorsManagement() {
                 <th className="is-center">To issue</th>
                 <th>Last active</th>
                 <th className="is-center">Status</th>
-                <th aria-label="Open" />
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {visible.map((assessor) => {
+              {pageRows.map((assessor) => {
                 const workload = assessor.workload ?? EMPTY_WORKLOAD;
                 const active = formatDate(assessor.lastActive?.at);
                 const activeKind = activityKindLabel(assessor.lastActive?.kind);
@@ -503,24 +470,16 @@ function AssessorsManagement() {
                         <span className="admin-count admin-count--none">Never</span>
                       )}
                     </td>
-                    {/* Reported here, set on the assessor's own screen — the
-                        student list works the same way. A switch in a row is a
-                        control you can hit while aiming at the row itself, and
-                        locking someone out of a grading queue is not a thing to
-                        do by near-miss. */}
                     <td className="is-center">
-                      <span
-                        className={`admin-status-pill${
-                          assessor.suspended ? " admin-status-pill--off" : ""
-                        }`}
-                      >
-                        {assessor.suspended ? "Suspended" : "Active"}
-                      </span>
+                      <AccountStatusPill status={statusOf(assessor)} />
                     </td>
-                    <td className="admin-table__chevron" aria-hidden="true">
-                      <span className="admin-table__cue">
-                        <ChevronRightIcon />
-                      </span>
+                    <td className="admin-table__chevron">
+                      <StatusMenu
+                        name={assessor.name}
+                        status={statusOf(assessor)}
+                        busy={busy}
+                        onChange={(status) => changeStatus(assessor, status)}
+                      />
                     </td>
                   </tr>
                 );
@@ -543,6 +502,8 @@ function AssessorsManagement() {
         </div>
       )}
 
+      <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Assessors" />
+
       {form ? (
         <AssessorForm
           assessor={form === "new" ? null : form}
@@ -552,8 +513,6 @@ function AssessorsManagement() {
           onSave={saveAssessor}
         />
       ) : null}
-
-      {deleteConfirm}
     </div>
   );
 }

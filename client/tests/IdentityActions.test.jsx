@@ -8,7 +8,9 @@ globalThis.TextDecoder ??= TextDecoder;
 // The edit forms are the only children that reach for the API module, and they
 // are mounted only while editing — which none of these tests do.
 jest.unstable_mockModule("../src/services/admin.js", () => ({
-  MIN_PASSWORD_LENGTH: 8
+  MIN_PASSWORD_LENGTH: 8,
+  // Used by the Import tab of the student form.
+  createStudent: jest.fn()
 }));
 
 let StudentDetail;
@@ -98,7 +100,7 @@ describe.each(SCREENS)("%s — the account switch lives with the person", (_name
     const { container: second } = draw(get(), base, { suspended: true });
     const off = second.querySelector(".admin-switch");
     expect(off.getAttribute("aria-checked")).toBe("false");
-    expect(off.textContent).toContain("Suspended");
+    expect(off.textContent).toContain("Inactive");
   });
 
   it("asks to flip it when pressed", () => {
@@ -134,10 +136,18 @@ describe("the two screens agree", () => {
     expect(second.querySelector(".admin-identity__name").textContent).toBe("Michael Torres");
   });
 
-  it("keeps Edit and Delete reachable", () => {
+  // Delete was replaced by Archive in the table's 3-dots menu.
+  it("shows an Archived pill in place of the switch for an archived account", () => {
+    const { container } = draw(AssessorDetail, { ...ASSESSOR, suspended: true, archived: true });
+
+    expect(container.querySelector(".admin-switch")).toBeNull();
+    expect(container.querySelector(".admin-status-pill--archived").textContent).toBe("Archived");
+  });
+
+  it("keeps Edit reachable, with no Delete", () => {
     draw(AssessorDetail, ASSESSOR);
 
     expect(screen.getByRole("button", { name: "Edit details" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   });
 });

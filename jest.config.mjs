@@ -36,7 +36,9 @@ export default {
       },
       // Components pull in stylesheets that mean nothing to a test.
       moduleNameMapper: {
-        "\.(css|less|scss)$": "<rootDir>/client/tests/styleStub.js"
+        "\.(css|less|scss)$": "<rootDir>/client/tests/styleStub.js",
+        // The spreadsheet reader for Import students, see readExcelStub.js.
+        "^read-excel-file/browser$": "<rootDir>/client/tests/readExcelStub.js"
       }
     }
   ]

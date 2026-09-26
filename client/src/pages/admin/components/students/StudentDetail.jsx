@@ -1,7 +1,15 @@
 import { useState } from "react";
 
 import { BadgeIcon, CoursesIcon, CredentialIcon, UserIcon } from "../icons";
-import { Avatar, BackLink, SectionTitle, StatTile } from "../ui";
+import {
+  AccountStatusPill,
+  Avatar,
+  BackLink,
+  Pagination,
+  SectionTitle,
+  StatTile,
+  usePagination
+} from "../ui";
 import { SkeletonDetail } from "../../../../components/Skeleton";
 import ProgressCell from "./ProgressCell";
 import StudentAwards from "./StudentAwards";
@@ -25,7 +33,6 @@ export default function StudentDetail({
   formError,
   onBack,
   onEdit,
-  onDelete,
   onToggleSuspended,
   onCancelForm,
   onSave
@@ -38,6 +45,8 @@ export default function StudentDetail({
     const badges = selected.badges ?? { earned: 0, total: 0, courses: [], latest: null };
     const assessors = selected.assessors ?? [];
     const rows = courseRows(enrolled, progress, badges.courses ?? [], assessors);
+    // 10 courses per page; back to page 1 when another student opens.
+    const { pageRows, page, pageCount, setPage } = usePagination(rows, selected.id);
     const latestCredential = progress
       .filter((row) => row.total > 0 && row.pct === 100 && row.completedAt)
       .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0];
@@ -68,13 +77,13 @@ export default function StudentDetail({
                 <p className="admin-identity__meta">{lastActiveLabel(selected.lastActive)}</p>
               </div>
 
-              {/* Two kinds of control, kept apart by a hairline. The switch
-                  is a state — what this account is right now, readable at a
-                  glance and reversible in one press. Edit and Delete are acts
-                  performed on it. Run together as three chips they read as one
-                  menu, and "Suspended" and "Delete" are not decisions of the
-                  same weight. */}
+              {/* The switch is the account's state; Edit is an act on it.
+                  Archiving is done from the 3-dots menu in the table. */}
               <div className="admin-identity__actions">
+                {/* Archived accounts are set back to active from the table's menu. */}
+                {selected.archived ? (
+                  <AccountStatusPill status="archived" />
+                ) : (
                 <button
                   type="button"
                   className={`admin-switch admin-switch--lg${
@@ -87,16 +96,17 @@ export default function StudentDetail({
                   title={
                     selected.suspended
                       ? `Activate ${selected.name}`
-                      : `Suspend ${selected.name}`
+                      : `Deactivate ${selected.name}`
                   }
                 >
                   <span className="admin-switch__track">
                     <span className="admin-switch__thumb" />
                   </span>
                   <span className="admin-switch__label">
-                    {selected.suspended ? "Suspended" : "Active"}
+                    {selected.suspended ? "Inactive" : "Active"}
                   </span>
                 </button>
+                )}
 
                 <div className="admin-identity__acts">
                   <button
@@ -106,14 +116,6 @@ export default function StudentDetail({
                     onClick={onEdit}
                   >
                     Edit details
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-chip-btn admin-chip-btn--danger"
-                    disabled={busy}
-                    onClick={onDelete}
-                  >
-                    Delete
                   </button>
                 </div>
               </div>
@@ -178,7 +180,7 @@ export default function StudentDetail({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
+                    {pageRows.map((row) => (
                       <tr className="admin-table__static" key={row.id}>
                         <td>
                           <span className="admin-cell__quiet">{row.title}</span>
@@ -220,6 +222,7 @@ export default function StudentDetail({
                   </tbody>
                 </table>
               </section>
+              <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Courses" />
             </div>
           </>
         )}

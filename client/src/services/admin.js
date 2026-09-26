@@ -39,18 +39,10 @@ export async function updateCourse(courseId, changes) {
   return data.course;
 }
 
-/**
- * What deleting a course would take with it — lessons, submissions,
- * completions, the blueprint, and how many people would be unenrolled from it.
- */
-export async function fetchCourseImpact(courseId) {
-  const { data } = await api.get(`/admin/courses/${courseId}/impact`);
-  return data.impact ?? {};
-}
-
-export async function deleteCourse(courseId) {
-  const { data } = await api.delete(`/admin/courses/${courseId}`);
-  return data.removed ?? {};
+// Set a course to "active", "inactive" or "archived".
+export async function setCourseStatus(courseId, status) {
+  const { data } = await api.patch(`/admin/courses/${courseId}/status`, { status });
+  return data.course;
 }
 
 /* ---- Learning modules ---- */
@@ -178,17 +170,6 @@ export async function createStudent(details) {
   return data.student;
 }
 
-/** What deleting this student would take with them, read before it is agreed to. */
-export async function fetchStudentImpact(studentId) {
-  const { data } = await api.get(`/admin/students/${studentId}/impact`);
-  return data.impact ?? {};
-}
-
-export async function deleteStudent(studentId) {
-  const { data } = await api.delete(`/admin/students/${studentId}`);
-  return data;
-}
-
 /**
  * Stop a student signing in, or let them back.
  *
@@ -255,17 +236,6 @@ export async function createAssessor(details) {
   return data.assessor;
 }
 
-/** What deleting this assessor would take, and what survives them. */
-export async function fetchAssessorImpact(assessorId) {
-  const { data } = await api.get(`/admin/assessors/${assessorId}/impact`);
-  return data.impact ?? {};
-}
-
-export async function deleteAssessor(assessorId) {
-  const { data } = await api.delete(`/admin/assessors/${assessorId}`);
-  return data;
-}
-
 export async function updateAssessor(assessorId, changes) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}`, changes);
   return data.assessor;
@@ -281,5 +251,17 @@ export async function updateAssessor(assessorId, changes) {
  */
 export async function setAssessorSuspended(assessorId, suspended) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}/suspension`, { suspended });
+  return data.assessor;
+}
+
+// Set a student to "active", "inactive" or "archived" (the 3-dots menu).
+export async function setStudentStatus(studentId, status) {
+  const { data } = await api.patch(`/admin/students/${studentId}/status`, { status });
+  return data.student;
+}
+
+// Same for an assessor.
+export async function setAssessorStatus(assessorId, status) {
+  const { data } = await api.patch(`/admin/assessors/${assessorId}/status`, { status });
   return data.assessor;
 }

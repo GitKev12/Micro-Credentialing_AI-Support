@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
-import { syncAllAssessors } from "./enrollment.sync.js";
 import { readCourseDates, toIsoDay } from "../lib/courseDates.js";
+import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
+import { publishStanding } from "../lib/standingEvents.js";
 
 /**
  * Adding and removing a course's learning modules.
@@ -363,6 +364,7 @@ function publicCourse(course, counts = {}) {
     startsOn: toIsoDay(course.startsOn),
     endsOn: toIsoDay(course.endsOn),
     hasImage: Boolean(course.imageFileId),
+    status: courseStatus(course),
     moduleCount: counts.moduleCount ?? 0,
     studentCount: counts.studentCount ?? 0
   };
@@ -469,6 +471,31 @@ export async function updateCourse(request, response) {
   return response.json({ course: publicCourse({ ...course, ...updates }) });
 }
 
+/** PATCH /api/admin/courses/:id/status — { status: "active" | "inactive" | "archived" } */
+export async function setCourseStatus(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const status = request.body?.status;
+  if (!COURSE_STATUSES.includes(status)) {
+    return response.status(400).json({ message: "Status must be active, inactive or archived." });
+  }
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  await collection(COURSES_COLLECTION).updateOne({ _id: course._id }, { $set: { status } });
+
+  // Tell every enrolled student's open pages to re-check the course.
+  const students = await collection(STUDENTS_COLLECTION)
+    .find({ enrolledCourses: { $in: idCandidates(course._id) } }, { projection: { _id: 1 } })
+    .toArray();
+  for (const student of students) publishStanding(student._id);
+
+  return response.json({ course: publicCourse({ ...course, status }) });
+}
+
 /**
  * PUT /api/admin/courses/:id/image
  *
@@ -556,136 +583,4 @@ export async function removeCourseImage(request, response) {
   }
 
   return response.json({ image: { hasImage: false } });
-}
-
-/** Everything that hangs off a course, counted or collected. */
-async function courseContents(course) {
-  const modules = await collection(MODULES_COLLECTION).find(courseModuleFilter(course)).toArray();
-  const byCourse = { courseId: { $in: idCandidates(course._id) } };
-
-  const countIn = async (name, filter) =>
-    (await collectionExists(name)) ? collection(name).countDocuments(filter) : 0;
-
-  const enrolled = await collection(STUDENTS_COLLECTION).countDocuments({
-    enrolledCourses: { $in: idCandidates(course._id) }
-  });
-
-  const assessors = await collection(ASSESSORS_COLLECTION).countDocuments({
-    assigned_courses: { $in: idCandidates(course._id) }
-  });
-
-  const [submissions, completions, blueprints, classes] = await Promise.all([
-    countIn(RESULTS_COLLECTION, byCourse),
-    countIn(PROGRESS_COLLECTION, byCourse),
-    countIn(TOS_COLLECTION, { courseId: asId(course._id) }),
-    countIn(CLASSES_COLLECTION, byCourse)
-  ]);
-
-  return { modules, enrolled, assessors, submissions, completions, blueprints, classes };
-}
-
-/** GET /api/admin/courses/:id/impact — what deleting this course destroys. */
-export async function getCourseImpact(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const course = await collection(COURSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(request.params.id) }
-  });
-  if (!course) return response.status(404).json({ message: "Course not found." });
-
-  const contents = await courseContents(course);
-
-  return response.json({
-    impact: {
-      id: asId(course._id),
-      title: course.courseName ?? course.title ?? "",
-      modules: contents.modules.length,
-      enrolled: contents.enrolled,
-      assessors: contents.assessors,
-      submissions: contents.submissions,
-      completions: contents.completions,
-      blueprints: contents.blueprints,
-      classes: contents.classes
-    }
-  });
-}
-
-/**
- * DELETE /api/admin/courses/:id
- *
- * The heaviest thing in the console, so it reports every category it touched.
- * Enrolments and assignments are withdrawn rather than deleted — the student
- * and the assessor are not the course's to remove.
- */
-export async function deleteCourse(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const course = await collection(COURSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(request.params.id) }
-  });
-  if (!course) return response.status(404).json({ message: "Course not found." });
-
-  const contents = await courseContents(course);
-  const byCourse = { courseId: { $in: idCandidates(course._id) } };
-
-  // Lessons first, each taking its file, figures, text, quiz and completions.
-  for (const module of contents.modules) {
-    await purgeModule(module);
-  }
-
-  const removeMany = async (name, filter) => {
-    if (!(await collectionExists(name))) return 0;
-    const result = await collection(name).deleteMany(filter);
-    return result.deletedCount ?? 0;
-  };
-
-  // The final exam and any submission that survived its lesson being removed.
-  const assessments = await removeMany(ASSESSMENTS_COLLECTION, byCourse);
-  const submissions = await removeMany(RESULTS_COLLECTION, byCourse);
-  await removeMany(PROGRESS_COLLECTION, byCourse);
-  const blueprints = await removeMany(TOS_COLLECTION, { courseId: asId(course._id) });
-
-  // A class is a section *of* a course — a roster and a schedule for one, and
-  // nothing without it. Left behind, it stayed on Classes Management as a row
-  // reading "No course", still naming students who were no longer enrolled in
-  // anything, with no course to open it against. Withdrawing the enrolments
-  // below is what ends the students' access; this is what stops the empty
-  // shell of the class outliving the course it belonged to.
-  const classes = await removeMany(CLASSES_COLLECTION, byCourse);
-
-  // The people keep their accounts; they simply are not in this course now.
-  const enrolments = await collection(STUDENTS_COLLECTION).updateMany(
-    { enrolledCourses: { $in: idCandidates(course._id) } },
-    { $pull: { enrolledCourses: { $in: idCandidates(course._id) } } }
-  );
-  const assignments = await collection(ASSESSORS_COLLECTION).updateMany(
-    { assigned_courses: { $in: idCandidates(course._id) } },
-    { $pull: { assigned_courses: { $in: idCandidates(course._id) } } }
-  );
-
-  if (course.imageFileId) {
-    await bucketFor(COURSE_IMAGE_BUCKET)
-      .delete(course.imageFileId)
-      .catch(() => {});
-  }
-
-  await collection(COURSES_COLLECTION).deleteOne({ _id: course._id });
-
-  // Rosters are derived from enrolment, and the enrolment just changed.
-  await syncAllAssessors();
-
-  return response.json({
-    removed: {
-      id: asId(course._id),
-      title: course.courseName ?? course.title ?? "",
-      modules: contents.modules.length,
-      assessments,
-      submissions,
-      completions: contents.completions,
-      blueprints,
-      classes,
-      unenrolled: enrolments.modifiedCount ?? 0,
-      unassigned: assignments.modifiedCount ?? 0
-    }
-  });
 }

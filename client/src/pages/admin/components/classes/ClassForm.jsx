@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StudentsIcon, TrashIcon } from "../icons";
+import { ArchiveIcon, StudentsIcon } from "../icons";
 import { AdminButton, AdminField, AdminModal, AdminSelect, PathwayChoice } from "../ui";
 import { classTitle, sectionOptions } from "./classText";
 import ClassRoster from "./ClassRoster";
@@ -57,7 +57,7 @@ function ClassForm({
   error,
   confirming = false,
   onCancel,
-  onDelete,
+  onArchive,
   onModeChange,
   onSave
 }) {
@@ -234,17 +234,18 @@ function ClassForm({
         </div>
       </div>
 
-      {editing && onDelete ? (
+      {/* Archiving switches the class off and hides it; restoring brings it back. */}
+      {editing && onArchive ? (
         <section className="admin-danger">
           <h3 className="admin-danger__title">Danger Zone</h3>
           <button
             type="button"
             className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
             disabled={busy}
-            onClick={() => onDelete(klass)}
+            onClick={() => onArchive(!klass.archived)}
           >
-            <TrashIcon />
-            Delete class
+            <ArchiveIcon size={14} />
+            {klass.archived ? "Restore class" : "Archive class"}
           </button>
         </section>
       ) : null}

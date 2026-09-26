@@ -181,7 +181,8 @@ export async function coursesForAssessor(assessor) {
   const assigned = assessor.assigned_courses ?? [];
   if (assigned.length === 0) return [];
   return collection(COURSES_COLLECTION)
-    .find({ _id: { $in: manyCandidates(assigned) } })
+    // Archived courses are hidden from assessors.
+    .find({ _id: { $in: manyCandidates(assigned) }, status: { $ne: "archived" } })
     .toArray();
 }
 

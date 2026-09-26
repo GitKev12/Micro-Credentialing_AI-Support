@@ -151,6 +151,28 @@ export function PlusIcon({ size = 14 }) {
   );
 }
 
+// A box with a lid, for archived accounts.
+export function ArchiveIcon({ size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <rect x="3" y="4" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M4.5 8v7a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 11h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Three dots, for a row's actions menu.
+export function MoreIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <circle cx="4" cy="10" r="1.6" />
+      <circle cx="10" cy="10" r="1.6" />
+      <circle cx="16" cy="10" r="1.6" />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">

@@ -12,11 +12,10 @@ globalThis.TextDecoder ??= TextDecoder;
 jest.unstable_mockModule("../src/services/classes.js", () => ({
   fetchClasses: async () => [],
   fetchClass: async () => null,
-  fetchClassImpact: async () => ({}),
   createClass: async () => ({}),
   updateClass: async () => ({}),
   setClassActive: async () => ({}),
-  deleteClass: async () => ({})
+  setClassArchived: async () => ({})
 }));
 
 jest.unstable_mockModule("../src/services/admin.js", () => ({

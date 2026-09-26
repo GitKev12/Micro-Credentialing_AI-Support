@@ -2,28 +2,39 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createCourse,
   createCourseModule,
-  deleteCourse,
   deleteCourseModule,
   fetchCourse,
-  fetchCourseImpact,
   fetchCourses,
   fetchModuleImpact,
   removeCourseImage,
+  setCourseStatus,
   updateCourse,
   uploadCourseImage,
   MAX_MODULE_BYTES
 } from "../../services/admin";
 import { sortedLessons } from "../../lib/lessonOrder";
 import { formatCourseRun } from "../../lib/courseDuration";
-import { ChevronRightIcon, CoursesIcon } from "./components/icons";
-import { AdminButton, BackLink, ConfirmDeleteModal, PageHeader, SearchField } from "./components/ui";
+import { CoursesIcon } from "./components/icons";
+import {
+  AdminButton,
+  BackLink,
+  ConfirmDeleteModal,
+  FILTER_ALL,
+  ListFilter,
+  PageHeader,
+  passesFilter,
+  SearchField,
+  StatusMenu,
+  Pagination,
+  usePagination
+} from "./components/ui";
 import AddModuleForm from "./components/course/AddModuleForm";
 import CourseForm from "./components/course/CourseForm";
 import CourseHeader from "./components/course/CourseHeader";
 import CourseImageForm from "./components/course/CourseImageForm";
 import ModuleList from "./components/course/ModuleList";
 import ModulePreview from "./components/course/ModulePreview";
-import { courseKeeps, courseLosses, courseMark } from "./components/course/impact";
+import { courseMark } from "./components/course/impact";
 import { errorMessage } from "./lib/format";
 import { SkeletonTable } from "../../components/Skeleton";
 import { useLatestRequest } from "../../lib/useLatestRequest";
@@ -33,6 +44,8 @@ function CourseManagement() {
   const [courses, setCourses] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
+  // Status filter. Archived courses only show when "Archived" is picked.
+  const [statusFilter, setStatusFilter] = useState(FILTER_ALL);
 
   const [selected, setSelected] = useState(null);
   const [detailStatus, setDetailStatus] = useState("idle");
@@ -50,13 +63,11 @@ function CourseManagement() {
   const [notice, setNotice] = useNotice();
 
   // The course itself, rather than its lessons: which form is open ("new", or
-  // the course being edited), and the deletion waiting on its impact count.
+  // the course being edited).
   const [imageBusy, setImageBusy] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
   const [courseForm, setCourseForm] = useState(null);
   const [formError, setFormError] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [courseImpact, setCourseImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -77,9 +88,6 @@ function CourseManagement() {
   }, []);
 
   const detailRequest = useLatestRequest();
-  const impactRequest = useLatestRequest();
-  // Its own guard: the module confirm sits inline in a row and the course
-  // confirm is a dialog, so both can be open at the same time.
   const moduleImpactRequest = useLatestRequest();
 
   const openCourse = (courseId) => {
@@ -127,43 +135,6 @@ function CourseManagement() {
       // Stays inside the form: the code clash and the missing title are both
       // things the admin fixes in a field they are still looking at.
       setFormError(errorMessage(error, "Couldn't save this course. Try again."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const askToDeleteCourse = (course) => {
-    // The costs are read for one record; a reply that arrives after the
-    // admin has cancelled and opened another must not fill in that one.
-    const token = impactRequest.next();
-    setDeleting(course);
-    setCourseImpact(null);
-    fetchCourseImpact(course.id)
-      .then((data) => {
-        if (impactRequest.isCurrent(token)) setCourseImpact(data);
-      })
-      .catch(() => {
-        if (impactRequest.isCurrent(token)) setCourseImpact({ unknown: true });
-      });
-  };
-
-  const removeCourse = async () => {
-    setBusy(true);
-    try {
-      const removed = await deleteCourse(deleting.id);
-      setCourses((list) => list.filter((c) => c.id !== deleting.id));
-      setDeleting(null);
-      setCourseImpact(null);
-      closeCourse();
-      setNotice({
-        tone: "ok",
-        text: `“${removed.title}” was deleted, along with ${removed.modules} lesson${
-          removed.modules === 1 ? "" : "s"
-        }.`
-      });
-    } catch (error) {
-      setNotice({ tone: "error", text: errorMessage(error, "Couldn't delete this course.") });
-      setDeleting(null);
     } finally {
       setBusy(false);
     }
@@ -320,13 +291,53 @@ function CourseManagement() {
     }
   };
 
+  // Set a course to active, inactive or archived from the 3-dots menu.
+  const changeStatus = async (course, nextStatus) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const saved = await setCourseStatus(course.id, nextStatus);
+      setCourses((list) =>
+        list.map((c) => (c.id === saved.id ? { ...c, status: saved.status } : c))
+      );
+      setNotice({ tone: "ok", text: `“${course.title}” is now ${saved.status}.` });
+    } catch (error) {
+      setNotice({ tone: "error", text: errorMessage(error, "Couldn't change this course's status.") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const statusFields = useMemo(() => {
+    const count = (value) => courses.filter((c) => (c.status ?? "active") === value).length;
+    return [
+      {
+        id: "status",
+        label: "Status",
+        options: [
+          { value: FILTER_ALL, label: "All courses", meta: `${courses.length - count("archived")}` },
+          { value: "active", label: "Active", meta: `${count("active")}` },
+          { value: "inactive", label: "Inactive", meta: `${count("inactive")}` },
+          { value: "archived", label: "Archived", meta: `${count("archived")}` }
+        ],
+        match: (course, value) => (course.status ?? "active") === value
+      }
+    ];
+  }, [courses]);
+
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return courses;
-    return courses.filter((course) =>
-      `${course.title} ${course.code}`.toLowerCase().includes(term)
+    return courses.filter(
+      (course) =>
+        // "All courses" leaves out archived ones.
+        (statusFilter === "archived" || course.status !== "archived") &&
+        passesFilter(statusFields, "status", statusFilter, course) &&
+        `${course.title} ${course.code}`.toLowerCase().includes(term)
     );
-  }, [courses, query]);
+  }, [courses, query, statusFields, statusFilter]);
+
+  // 10 rows per page; back to page 1 when the search or filter changes.
+  const { pageRows, page, pageCount, setPage } = usePagination(visible, `${query}|${statusFilter}`);
 
   if (selected) {
     const modules = selected.modules ?? [];
@@ -352,14 +363,6 @@ function CourseManagement() {
                   }}
                 >
                   Edit course
-                </button>
-                <button
-                  type="button"
-                  className="admin-chip-btn admin-chip-btn--danger"
-                  disabled={busy}
-                  onClick={() => askToDeleteCourse(selected)}
-                >
-                  Delete
                 </button>
               </div>
             ) : null
@@ -422,21 +425,6 @@ function CourseManagement() {
           />
         ) : null}
 
-        {deleting ? (
-          <ConfirmDeleteModal
-            title="Delete this course?"
-            subject={`${deleting.code} · ${deleting.title}`}
-            losses={courseLosses(courseImpact)}
-            keeps={courseKeeps(courseImpact)}
-            busy={busy}
-            confirmLabel="Delete course"
-            onCancel={() => {
-              setDeleting(null);
-              setCourseImpact(null);
-            }}
-            onConfirm={removeCourse}
-          />
-        ) : null}
       </div>
     );
   }
@@ -450,14 +438,27 @@ function CourseManagement() {
           rides the search row rather than a line of its own, so arriving and
           clearing does not shunt the table down and back. */}
       <div className="admin-toolbar">
-        <SearchField
-          value={query}
-          onChange={setQuery}
-          placeholder="Search courses…"
-          label="Search courses"
-          hint={`${visible.length} of ${courses.length}`}
-          notice={notice}
-        />
+        <div className="admin-toolbar__filter">
+          <ListFilter
+            fields={statusFields}
+            field="status"
+            onFieldChange={() => {}}
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+            noun="courses"
+          />
+        </div>
+
+        <div className="admin-toolbar__search">
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder="Search courses…"
+            label="Search courses"
+            hint={`${visible.length} of ${courses.length}`}
+            notice={notice}
+          />
+        </div>
 
         <AdminButton
           variant="admin-toolbar__action"
@@ -491,11 +492,11 @@ function CourseManagement() {
                   <th>Duration</th>
                   <th className="is-center">Modules</th>
                   <th className="is-center">Students</th>
-                  <th aria-label="Open" />
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
-                {visible.map((course) => (
+                {pageRows.map((course) => (
                   <tr key={course.id} onClick={() => openCourse(course.id)}>
                     <td>
                       <div className="admin-person">
@@ -518,7 +519,14 @@ function CourseManagement() {
                             {course.title}
                           </button>
                           {course.code ? (
-                            <div className="admin-person__id">{course.code}</div>
+                            <div className="admin-person__id">
+                              {course.code}
+                              {course.status === "inactive" || course.status === "archived" ? (
+                                <span className={`admin-status-tag admin-status-tag--${course.status}`}>
+                                  {course.status === "inactive" ? "Inactive" : "Archived"}
+                                </span>
+                              ) : null}
+                            </div>
                           ) : null}
                         </div>
                       </div>
@@ -543,21 +551,25 @@ function CourseManagement() {
                       <strong className="admin-strong-brand">{course.studentCount}</strong>
                     </td>
                     <td className="admin-table__chevron">
-                      <span className="admin-table__cue" aria-hidden="true">
-                        <ChevronRightIcon size={15} />
-                      </span>
+                      <StatusMenu
+                        name={course.title}
+                        status={course.status}
+                        busy={busy}
+                        onChange={(next) => changeStatus(course, next)}
+                      />
                     </td>
                   </tr>
                 ))}
 
                 {visible.length === 0 ? (
                   <tr className="admin-table__empty">
-                    <td colSpan={5}>No courses match your search.</td>
+                    <td colSpan={5}>No courses match your search or filter.</td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
           </div>
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Courses" />
         </>
       )}
 

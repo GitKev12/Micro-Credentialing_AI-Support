@@ -87,6 +87,11 @@ jest.unstable_mockModule("../src/services/admin.js", () => ({
     { id: "c2", code: "CC3", title: "Data Structures" }
   ],
   setAssessorSuspended: async () => ({}),
+  // The 3-dots menu: answers with the flags the chosen status sets.
+  setAssessorStatus: async (_id, status) => ({
+    suspended: status !== "active",
+    archived: status === "archived"
+  }),
   updateAssessor: async () => ({}),
   createAssessor: async (details) => {
     // The server sorts by name, so the fake API inserts in that order too.
@@ -94,9 +99,7 @@ jest.unstable_mockModule("../src/services/admin.js", () => ({
     assessors.splice(0, 0, made);
     assessors.sort((a, b) => a.name.localeCompare(b.name));
     return made;
-  },
-  fetchAssessorImpact: async () => ({ classes: 0, assigned: 0, graded: 0 }),
-  deleteAssessor: async () => ({ assessor: { id: "a1", name: "Michael Torres" } })
+  }
 }));
 
 let AssessorsManagement;
@@ -153,7 +156,7 @@ describe("AssessorsManagement — the students-list interface", () => {
     fireEvent.click(screen.getByLabelText("Choose what to filter assessors by"));
     fireEvent.mouseDown(screen.getByRole("option", { name: /^Status$/ }));
     fireEvent.click(screen.getByLabelText("Filter assessors by status"));
-    fireEvent.mouseDown(screen.getByRole("option", { name: /Suspended/ }));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /Inactive/ }));
 
     const body = container.querySelector(".admin-table tbody");
     expect(within(body).queryByText("Michael Torres")).toBeNull();
@@ -181,7 +184,7 @@ describe("AssessorsManagement — the students-list interface", () => {
 
   // The switch moved to the assessor's own screen; the row reports the status
   // and no longer sets it, so nothing here should be pressable.
-  it("reports each account's status without offering to change it", async () => {
+  it("reports each account's status in its pill", async () => {
     const { container } = render(<AssessorsManagement />);
     await flush();
 
@@ -192,8 +195,21 @@ describe("AssessorsManagement — the students-list interface", () => {
     };
 
     expect(statusOf("Michael Torres").textContent).toBe("Active");
-    expect(statusOf("Patricia Mendoza").textContent).toBe("Suspended");
+    expect(statusOf("Patricia Mendoza").textContent).toBe("Inactive");
     expect(container.querySelector(".admin-table .admin-switch")).toBeNull();
+  });
+
+  it("archives from the 3-dots menu and hides the row", async () => {
+    const { container } = render(<AssessorsManagement />);
+    await flush();
+
+    fireEvent.click(screen.getByLabelText("Actions for Michael Torres"));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Archive" }));
+    await flush();
+
+    const body = container.querySelector(".admin-table tbody");
+    expect(within(body).queryByText("Michael Torres")).toBeNull();
+    expect(screen.getByText("Michael Torres is now archived.")).toBeTruthy();
   });
 
   it("narrows by course before searching", async () => {
@@ -292,7 +308,7 @@ describe("AssessorsManagement — a suspended assessor's outstanding work", () =
 
     const notice = container.querySelector(".admin-notice--warn");
     expect(notice).toBeTruthy();
-    expect(notice.textContent).toContain("Suspended with work outstanding");
+    expect(notice.textContent).toContain("Inactive with work outstanding");
     expect(notice.textContent).toContain("3 assessments to post and 2 credentials to issue");
   });
 
@@ -366,15 +382,11 @@ describe("AssessorsManagement — adding and removing accounts", () => {
     expect(screen.getByRole("button", { name: "Create assessor" })).toBeTruthy();
   });
 
-  it("offers Delete on the detail screen, and asks before doing it", async () => {
+  // Delete was replaced by Archive in the table's 3-dots menu.
+  it("offers no Delete on the detail screen", async () => {
     await openDetail();
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await flush();
-
-    expect(screen.getByRole("heading", { name: "Delete this assessor?" })).toBeTruthy();
-    // What survives is the half worth saying out loud.
-    expect(screen.getByRole("button", { name: "Delete assessor" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   });
 });
 

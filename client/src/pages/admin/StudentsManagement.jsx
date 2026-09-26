@@ -1,32 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   createStudent,
-  deleteStudent,
   fetchCourses,
   fetchStudent,
-  fetchStudentImpact,
   fetchStudents,
+  setStudentStatus,
   setStudentSuspended,
   updateStudent
 } from "../../services/admin";
-import { ChevronRightIcon, StudentsIcon } from "./components/icons";
+import { StudentsIcon } from "./components/icons";
 import {
   AdminButton,
   chosenOption,
   Avatar,
-  ConfirmDeleteModal,
   FILTER_ALL,
   ListFilter,
   PageHeader,
   passesFilter,
   SearchField,
-  useListFilter
+  StatusMenu,
+  AccountStatusPill,
+  accountStatusOf,
+  useListFilter,
+  Pagination,
+  usePagination
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import StudentDetail from "./components/students/StudentDetail";
 import StudentForm from "./components/students/StudentForm";
-import { studentKeeps, studentLosses } from "./components/students/studentText";
-import { formatDate } from "./lib/format";
+import { saveStudents } from "./components/students/importStudents";
+import { formatDate, plural } from "./lib/format";
 import { useLatestRequest } from "../../lib/useLatestRequest";
 import { useNotice } from "../../lib/useNotice";
 
@@ -41,6 +44,8 @@ const EMPTY_ACTIVITY = {
   pending: 0,
   lastActive: { at: null, kind: null }
 };
+
+const statusOf = accountStatusOf;
 
 function StudentsManagement() {
   const [students, setStudents] = useState([]);
@@ -59,9 +64,6 @@ function StudentsManagement() {
   // The student whose details are being corrected, if any.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
-  // The student awaiting a "yes, delete", with the cost filled in once read.
-  const [deleting, setDeleting] = useState(null);
-  const [impact, setImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -83,7 +85,6 @@ function StudentsManagement() {
   }, []);
 
   const detailRequest = useLatestRequest();
-  const impactRequest = useLatestRequest();
 
   const openStudent = (studentId) => {
     // Claimed before the fetch, so a slower reply for a record the
@@ -132,47 +133,29 @@ function StudentsManagement() {
     }
   };
 
-  /**
-   * Ask first, and say what it would cost.
-   *
-   * The counts are read rather than assumed: a student who has never opened a
-   * lesson and one who has finished the course both look the same from a row,
-   * and only one of those deletions throws work away.
-   */
-  const askToDelete = (student) => {
-    // The costs are read for one record; a reply that arrives after the
-    // admin has cancelled and opened another must not fill in that one.
-    const token = impactRequest.next();
-    setDeleting(student);
-    setImpact(null);
-    fetchStudentImpact(student.id)
-      .then((data) => {
-        if (impactRequest.isCurrent(token)) setImpact(data);
-      })
-      .catch(() => {
-        if (impactRequest.isCurrent(token)) setImpact({ unknown: true });
-      });
-  };
-
-  const removeStudent = async () => {
+  // Saves every student from the spreadsheet, reloads the list,
+  // and returns the rows that failed so the form can list them.
+  const importStudents = async (list) => {
     setBusy(true);
+    setFormError(null);
+    const failed = await saveStudents(list);
+    const added = plural(list.length - failed.length, "student");
+
     try {
-      const { student } = await deleteStudent(deleting.id);
-      setStudents((list) => list.filter((row) => row.id !== deleting.id));
-      setDeleting(null);
-      setImpact(null);
-      // The detail screen is looking at a record that no longer exists.
-      if (selected?.id === deleting.id) setSelected(null);
-      setNotice({ tone: "ok", text: `${student.name} was deleted.` });
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error?.response?.data?.message || "Couldn't delete this student."
-      });
-      setDeleting(null);
-    } finally {
-      setBusy(false);
+      setStudents(await fetchStudents());
+    } catch {
+      setNotice({ tone: "error", text: "Couldn't reload the list. Refresh the page." });
     }
+
+    if (failed.length === 0) {
+      setNotice({ tone: "ok", text: `${added} added.` });
+      setForm(null);
+    } else {
+      // Keep the form open so the admin can see which rows to fix.
+      setFormError(`${added} added. Fix the rows below in your file, then import them again.`);
+    }
+    setBusy(false);
+    return failed;
   };
 
   /**
@@ -197,7 +180,7 @@ function StudentsManagement() {
       );
       setNotice({
         tone: "ok",
-        text: `${student.name} is now ${next ? "suspended" : "active"}.`
+        text: `${student.name} is now ${next ? "inactive" : "active"}.`
       });
     } catch (error) {
       setStudents((list) =>
@@ -228,15 +211,36 @@ function StudentsManagement() {
    * Every course is offered whether or not anyone holds it — that nobody does
    * is the answer to a question this screen is opened with.
    */
+  // Set a student to active, inactive or archived from the 3-dots menu.
+  const changeStatus = async (student, status) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const saved = await setStudentStatus(student.id, status);
+      const flags = { suspended: saved.suspended, archived: saved.archived };
+      setStudents((list) => list.map((row) => (row.id === student.id ? { ...row, ...flags } : row)));
+      setNotice({ tone: "ok", text: `${student.name} is now ${status}.` });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error?.response?.data?.message || "Couldn't change this student's status."
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const fields = useMemo(() => {
-    const all = { value: FILTER_ALL, label: "All students", meta: `${students.length}` };
+    // Archived students only count under "Archived".
+    const current = students.filter((row) => !row.archived);
+    const all = { value: FILTER_ALL, label: "All students", meta: `${current.length}` };
 
     const perCourse = new Map(courses.map((course) => [course.id, 0]));
     let withoutCourse = 0;
-    let suspended = 0;
+    let inactive = 0;
 
-    for (const student of students) {
-      if (student.suspended) suspended += 1;
+    for (const student of current) {
+      if (student.suspended) inactive += 1;
 
       const enrolled = student.enrolled ?? [];
       if (enrolled.length === 0) withoutCourse += 1;
@@ -279,18 +283,23 @@ function StudentsManagement() {
           {
             value: "active",
             label: "Active",
-            meta: `${students.length - suspended}`,
-            empty: "Every student is suspended."
+            meta: `${current.length - inactive}`,
+            empty: "Every student is inactive."
           },
           {
-            value: "suspended",
-            label: "Suspended",
-            meta: `${suspended}`,
-            empty: "No student is suspended."
+            value: "inactive",
+            label: "Inactive",
+            meta: `${inactive}`,
+            empty: "No student is inactive."
+          },
+          {
+            value: "archived",
+            label: "Archived",
+            meta: `${students.length - current.length}`,
+            empty: "No student is archived."
           }
         ],
-        match: (student, value) =>
-          value === "active" ? !student.suspended : Boolean(student.suspended)
+        match: (student, value) => statusOf(student) === value
       }
     ];
   }, [students, courses]);
@@ -306,6 +315,10 @@ function StudentsManagement() {
     return students.filter((student) => {
       // The filter narrows first, so the search only ever runs over the rows
       // already on screen.
+      // Archived students only show when the Archived filter is picked.
+      if (student.archived && !(filter.field === "status" && filter.value === "archived")) {
+        return false;
+      }
       if (!passesFilter(fields, filter.field, filter.value, student)) return false;
       if (!term) return true;
 
@@ -315,29 +328,8 @@ function StudentsManagement() {
     });
   }, [students, query, fields, filter.field, filter.value]);
 
-  /**
-   * Rendered by both branches below.
-   *
-   * The detail screen returns before the list's JSX is reached, so a confirm
-   * that lived only down there opened for a row and did nothing at all for the
-   * Delete button on the detail — which is the one place the account is fully
-   * in view when you decide.
-   */
-  const deleteConfirm = deleting ? (
-    <ConfirmDeleteModal
-      title="Delete this student?"
-      subject={`${deleting.name}${deleting.studentNumber ? ` · ${deleting.studentNumber}` : ""}`}
-      losses={studentLosses(impact)}
-      keeps={studentKeeps(impact)}
-      busy={busy}
-      confirmLabel="Delete student"
-      onCancel={() => {
-        setDeleting(null);
-        setImpact(null);
-      }}
-      onConfirm={removeStudent}
-    />
-  ) : null;
+  // 10 rows per page; back to page 1 when the search or filter changes.
+  const { pageRows, page, pageCount, setPage } = usePagination(visible, `${query}|${filter.field}|${filter.value}`);
 
   if (selected) {
     return (
@@ -355,11 +347,9 @@ function StudentsManagement() {
           setForm(selected);
         }}
         onToggleSuspended={() => toggleSuspended(selected)}
-        onDelete={() => askToDelete(selected)}
         onCancelForm={() => setForm(null)}
         onSave={saveStudent}
       />
-        {deleteConfirm}
       </>
     );
   }
@@ -419,11 +409,11 @@ function StudentsManagement() {
                 <th className="is-center">Badges</th>
                 <th>Last active</th>
                 <th className="is-center">Status</th>
-                <th aria-label="Open" />
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {visible.map((student) => {
+              {pageRows.map((student) => {
                 const courseCount = student.enrolled?.length ?? 0;
                 const activity = student.activity ?? EMPTY_ACTIVITY;
                 const seen = formatDate(activity.lastActive?.at);
@@ -514,24 +504,16 @@ function StudentsManagement() {
                         <span className="admin-count admin-count--none">Never</span>
                       )}
                     </td>
-                    {/* Reported here, set on the student's own screen. A
-                        switch in a row is a control you can hit while aiming
-                        at the row itself, and suspending someone is not a
-                        thing to do by near-miss — it is done where the person
-                        is named and their record is in front of you. */}
                     <td className="is-center">
-                      <span
-                        className={`admin-status-pill${
-                          student.suspended ? " admin-status-pill--off" : ""
-                        }`}
-                      >
-                        {student.suspended ? "Suspended" : "Active"}
-                      </span>
+                      <AccountStatusPill status={statusOf(student)} />
                     </td>
-                    <td className="admin-table__chevron" aria-hidden="true">
-                      <span className="admin-table__cue">
-                        <ChevronRightIcon />
-                      </span>
+                    <td className="admin-table__chevron">
+                      <StatusMenu
+                        name={student.name}
+                        status={statusOf(student)}
+                        busy={busy}
+                        onChange={(status) => changeStatus(student, status)}
+                      />
                     </td>
                   </tr>
                 );
@@ -554,6 +536,8 @@ function StudentsManagement() {
         </div>
       )}
 
+      <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Students" />
+
       {form ? (
         <StudentForm
           student={form === "new" ? null : form}
@@ -561,10 +545,9 @@ function StudentsManagement() {
           error={formError}
           onCancel={() => setForm(null)}
           onSave={saveStudent}
+          onImport={importStudents}
         />
       ) : null}
-
-      {deleteConfirm}
     </div>
   );
 }

@@ -14,11 +14,9 @@ import {
 import {
   createAssessor,
   createStudent,
-  deleteAssessor,
-  deleteStudent,
-  getAssessorImpact,
-  getStudentImpact,
+  setAssessorStatus,
   setAssessorSuspension,
+  setStudentStatus,
   setStudentSuspension,
   updateAssessor,
   updateStudent
@@ -26,21 +24,18 @@ import {
 import {
   createCourse,
   createCourseModule,
-  deleteCourse,
   deleteCourseModule,
-  getCourseImpact,
   getModuleImpact,
   removeCourseImage,
   setCourseImage,
+  setCourseStatus,
   updateCourse,
   MAX_COURSE_IMAGE_BYTES,
   MAX_MODULE_BYTES
 } from "./modules.controller.js";
 import {
   createClass,
-  deleteClass,
   getClass,
-  getClassImpact,
   getClassPathwayImpact,
   listClasses,
   updateClass
@@ -53,8 +48,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   POST   /api/admin/courses                          — create   { code, title, description?, startsOn?, endsOn? }
 //   GET    /api/admin/courses/:id                      — course detail + modules
 //   PATCH  /api/admin/courses/:id                      — edit     { code?, title?, description?, startsOn?, endsOn? }
-//   GET    /api/admin/courses/:id/impact               — what deleting it would take
-//   DELETE /api/admin/courses/:id                      — delete the course
+//   PATCH  /api/admin/courses/:id/status               — { status: active | inactive | archived }
 //   PUT    /api/admin/courses/:id/image                — set the card picture (image body)
 //   DELETE /api/admin/courses/:id/image                — back to the placeholder
 //   POST   /api/admin/courses/:id/modules              — add a lesson (PDF body)
@@ -65,22 +59,18 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/students/:id                     — detail + progress
 //   PATCH  /api/admin/students/:id                     — edit     { names, email, studentNumber, password }
 //   PATCH  /api/admin/students/:id/suspension          — lock/unlock { suspended }
-//   GET    /api/admin/students/:id/impact              — what deleting them would take
-//   DELETE /api/admin/students/:id                     — delete the account and their records
+//   PATCH  /api/admin/students/:id/status              — { status: active | inactive | archived }
 //   GET    /api/admin/assessors                        — list
 //   POST   /api/admin/assessors                        — create   { name, email, assessorNumber?, password }
 //   GET    /api/admin/assessors/:id                    — detail
 //   PATCH  /api/admin/assessors/:id                    — edit     { name, email, assessorNumber, password }
 //   PATCH  /api/admin/assessors/:id/suspension         — lock/unlock { suspended }
-//   GET    /api/admin/assessors/:id/impact             — what deleting them would take
-//   DELETE /api/admin/assessors/:id                    — delete the account, off every class
+//   PATCH  /api/admin/assessors/:id/status             — { status: active | inactive | archived }
 //   GET    /api/admin/classes                          — list, joined to course + assessors
 //   POST   /api/admin/classes                          — create   { name, courseId, assessorIds, studentIds, schedule }
 //   GET    /api/admin/classes/:id                      — detail (full assessor + student lists)
 //   PATCH  /api/admin/classes/:id                      — edit     { name?, courseId?, assessorIds?, studentIds?, schedule? }
-//   GET    /api/admin/classes/:id/impact               — what deleting it would unenroll/unassign
 //   GET    /api/admin/classes/:id/pathway-impact       — what switching its pathway would cost
-//   DELETE /api/admin/classes/:id                      — delete the class, reconcile links
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
 //   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
 //   POST   /api/admin/assessments/final                — assemble the final { courseId, dryRun? }
@@ -135,36 +125,30 @@ router.get("/courses", listCourses);
 router.post("/courses", createCourse);
 router.get("/courses/:id", getCourse);
 router.patch("/courses/:id", updateCourse);
+router.patch("/courses/:id/status", setCourseStatus);
 // Every destructive route has an /impact twin. What a delete costs has to be
 // readable before it is agreed to — reporting it afterwards is not consent.
-router.get("/courses/:id/impact", getCourseImpact);
-router.delete("/courses/:id", deleteCourse);
 router.put("/courses/:id/image", readCourseImage, setCourseImage);
 router.delete("/courses/:id/image", removeCourseImage);
 router.post("/courses/:id/modules", readLessonFile, createCourseModule);
 router.get("/modules/:moduleId/impact", getModuleImpact);
 router.delete("/modules/:moduleId", deleteCourseModule);
 
-// No create and no delete for either roster: provisioning accounts is outside
-// this system, and with no way to make one, a delete would be a door with no
-// way back. Correcting an existing record is what these routes govern — who is
-// enrolled or assigned is settled by the class, below, and there is no second
-// way in here to put a person on a course without one.
+// No delete for either roster: an account is archived instead (see /status).
+// Who is enrolled or assigned is settled by the class, below.
 router.get("/students", listStudents);
 router.post("/students", createStudent);
 router.get("/students/:id", getStudent);
 router.patch("/students/:id", updateStudent);
 router.patch("/students/:id/suspension", setStudentSuspension);
-router.get("/students/:id/impact", getStudentImpact);
-router.delete("/students/:id", deleteStudent);
+router.patch("/students/:id/status", setStudentStatus);
 
 router.get("/assessors", listAssessors);
 router.post("/assessors", createAssessor);
 router.get("/assessors/:id", getAssessor);
 router.patch("/assessors/:id", updateAssessor);
 router.patch("/assessors/:id/suspension", setAssessorSuspension);
-router.get("/assessors/:id/impact", getAssessorImpact);
-router.delete("/assessors/:id", deleteAssessor);
+router.patch("/assessors/:id/status", setAssessorStatus);
 
 // A class ties a course to its assessors and students in one place, instead of
 // enrolling students on one screen and assigning assessors on another. It writes
@@ -177,11 +161,8 @@ router.get("/classes", listClasses);
 router.post("/classes", createClass);
 router.get("/classes/:id", getClass);
 router.patch("/classes/:id", updateClass);
-router.get("/classes/:id/impact", getClassImpact);
-// Not a delete, but the same promise: a change nobody can undo says what it
-// costs before it is agreed to.
+// A change nobody can undo says what it costs before it is agreed to.
 router.get("/classes/:id/pathway-impact", getClassPathwayImpact);
-router.delete("/classes/:id", deleteClass);
 
 /**
  * Authoring, not scheduling — and deliberately not on a screen.

@@ -245,6 +245,7 @@ async function buildClassDetail(cls) {
     })),
     schedule: cleanSchedule(cls.schedule),
     active: cls.active !== false,
+    archived: cls.archived === true,
     mode: classMode(cls),
     createdAt: cls.createdAt ?? null,
     updatedAt: cls.updatedAt ?? null
@@ -271,6 +272,7 @@ function publicClassRow(cls, { courseById, assessorById }) {
     // all running — so missing reads as active, and only an explicit false
     // turns it off.
     active: cls.active !== false,
+    archived: cls.archived === true,
     mode: classMode(cls),
     createdAt: cls.createdAt ?? null
   };
@@ -305,46 +307,6 @@ export async function listClasses(_request, response) {
 export async function getClass(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
   return respondWithClass(request.params.id, response);
-}
-
-/**
- * What removing this class would touch, read before the confirm is agreed to.
- *
- * A class delete removes no accounts — it unenrols its students and unassigns
- * its assessors from the course, and only those the class is the *last* one
- * holding. Everyone else keeps the link a second class or a direct enrolment
- * gives them, so the counts here are the ones actually about to change.
- */
-export async function getClassImpact(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const cls = await collection(CLASSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(request.params.id) }
-  });
-  if (!cls) return response.status(404).json({ message: "Class not found." });
-
-  let unenroll = 0;
-  for (const studentId of cls.studentIds ?? []) {
-    if (!(await inAnotherClass(studentId, cls.courseId, cls._id, "studentIds"))) unenroll += 1;
-  }
-  let unassign = 0;
-  for (const assessorId of cls.assessorIds ?? []) {
-    if (!(await inAnotherClass(assessorId, cls.courseId, cls._id, "assessorIds"))) unassign += 1;
-  }
-
-  const course = await resolveCourse(cls.courseId);
-
-  return response.json({
-    impact: {
-      id: asId(cls._id),
-      name: cls.name ?? "",
-      course: course ? `${courseCode(course)} · ${courseTitle(course)}`.trim() : "",
-      students: (cls.studentIds ?? []).length,
-      assessors: (cls.assessorIds ?? []).length,
-      unenroll,
-      unassign
-    }
-  });
 }
 
 /**
@@ -533,6 +495,13 @@ export async function updateClass(request, response) {
   }
   if ("schedule" in body) updates.schedule = cleanSchedule(body.schedule);
   if ("active" in body) updates.active = body.active !== false;
+  // Archiving also switches the class off; restoring switches it back on.
+  if ("archived" in body) {
+    updates.archived = body.archived === true;
+    updates.active = !updates.archived;
+  } else if (updates.active === true) {
+    updates.archived = false; // switching a class on takes it out of the archive
+  }
   if ("mode" in body) updates.mode = toClassMode(body.mode);
 
   const oldCourseId = cls.courseId;
@@ -589,29 +558,4 @@ export async function updateClass(request, response) {
   }
 
   return respondWithClass(cls._id, response);
-}
-
-export async function deleteClass(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const cls = await collection(CLASSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(request.params.id) }
-  });
-  if (!cls) return response.status(404).json({ message: "Class not found." });
-
-  // Remove the class first, so the "in another class?" guard cannot count it.
-  await collection(CLASSES_COLLECTION).deleteOne({ _id: cls._id });
-
-  await unlinkFromCourse(STUDENTS_COLLECTION, "enrolledCourses", cls.studentIds ?? [], cls.courseId, "studentIds", cls._id);
-  await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", cls.assessorIds ?? [], cls.courseId, "assessorIds", cls._id);
-  await syncAssessorsForCourse(cls.courseId);
-
-  return response.json({
-    removed: {
-      id: asId(cls._id),
-      name: cls.name ?? "",
-      students: (cls.studentIds ?? []).length,
-      assessors: (cls.assessorIds ?? []).length
-    }
-  });
 }

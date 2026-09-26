@@ -46,11 +46,33 @@ export function readSuspendedFlag(body) {
 
 /** The one write. `account` is a resolved document, so its `_id` is exact. */
 export async function setAccountSuspension(collectionName, account, suspended) {
-  await mongoose.connection
-    .collection(collectionName)
-    .updateOne({ _id: account._id }, { $set: { suspended: suspended === true } });
+  // Letting an account back in also takes it out of the archive.
+  const changes = suspended === true ? { suspended: true } : { suspended: false, archived: false };
+  await mongoose.connection.collection(collectionName).updateOne({ _id: account._id }, { $set: changes });
 
   return suspended === true;
+}
+
+/* ─────────────── Account status: active, inactive, archived ─────────────── */
+
+// Inactive and archived both use the suspended lock, so neither can sign in.
+// Archived also hides the account from the admin tables.
+export const ACCOUNT_STATUSES = ["active", "inactive", "archived"];
+
+export function accountStatus(account) {
+  if (account?.archived === true) return "archived";
+  if (account?.suspended === true) return "inactive";
+  return "active";
+}
+
+export async function setAccountStatus(collectionName, account, status) {
+  const changes = {
+    active: { suspended: false, archived: false },
+    inactive: { suspended: true, archived: false },
+    archived: { suspended: true, archived: true }
+  }[status];
+
+  await mongoose.connection.collection(collectionName).updateOne({ _id: account._id }, { $set: changes });
 }
 
 /* ──────────────────────── The lock, on every request ──────────────────────── */

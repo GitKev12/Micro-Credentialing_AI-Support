@@ -62,7 +62,6 @@ const defaultClasses = () => [
 jest.unstable_mockModule("../src/services/classes.js", () => ({
   fetchClasses: async () => [...classes],
   fetchClass: async (id) => classes.find((row) => row.id === id),
-  fetchClassImpact: async () => ({ unenroll: 0, unassign: 0 }),
   fetchPathwayImpact: async (_id, mode) => ({
     from: mode === "assessOnly" ? "taught" : "assessOnly",
     to: mode,
@@ -74,8 +73,8 @@ jest.unstable_mockModule("../src/services/classes.js", () => ({
   }),
   createClass: async () => ({ name: "New class" }),
   updateClass: async () => ({ name: "Saved" }),
-  deleteClass: async () => ({ name: "Gone" }),
-  setClassActive: async () => ({})
+  setClassActive: async () => ({}),
+  setClassArchived: async (_id, archived) => ({ archived, active: !archived })
 }));
 
 // The staff the classes above name, so the assessor field has something to
@@ -310,5 +309,32 @@ describe("ClassesManagement — the course filter", () => {
     expect(
       within(container.querySelector(".admin-table__empty")).getByText(/No classes yet\./)
     ).toBeTruthy();
+  });
+});
+
+describe("ClassesManagement — row click and archive", () => {
+  it("opens the class when anywhere on its row is clicked", async () => {
+    const { container } = await open();
+
+    const row = [...container.querySelectorAll(".admin-table tbody tr")].find((tr) =>
+      tr.textContent.includes("CC2 — Section B")
+    );
+    fireEvent.click(row.querySelector(".admin-cell__quiet"));
+    await flush();
+
+    expect(screen.getByRole("button", { name: "Archive class" })).toBeTruthy();
+  });
+
+  it("archives from the Danger Zone and hides the row", async () => {
+    const { container } = await open();
+
+    fireEvent.click(screen.getByRole("button", { name: "CC2 — Section B" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Archive class" }));
+    await flush();
+
+    const body = container.querySelector(".admin-table tbody");
+    expect(within(body).queryByText("CC2 — Section B")).toBeNull();
+    expect(screen.getByText("“CC2 — Section B” was archived.")).toBeTruthy();
   });
 });

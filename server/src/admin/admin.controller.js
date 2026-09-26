@@ -14,6 +14,7 @@ import {
 import {
   classesHoldingByCourse,
   classesTaughtBy,
+  courseStatus,
   loadClassesByCourse,
   studentsTaughtBy,
   teaches
@@ -155,6 +156,7 @@ export async function listCourses(_request, response) {
       startsOn: toIsoDay(course.startsOn),
       endsOn: toIsoDay(course.endsOn),
       hasImage: Boolean(course.imageFileId),
+      status: courseStatus(course),
       moduleCount: moduleCounts.get(asId(course._id)) ?? 0,
       studentCount: studentCounts.get(asId(course._id)) ?? 0
     }))
@@ -193,6 +195,7 @@ export async function getCourse(request, response) {
       startsOn: toIsoDay(course.startsOn),
       endsOn: toIsoDay(course.endsOn),
       hasImage: Boolean(course.imageFileId),
+      status: courseStatus(course),
       imageUpdatedAt: toIsoDay(course.imageUpdatedAt),
       modules: modules.map((module) => ({
         id: asId(module._id),
@@ -541,6 +544,7 @@ function publicStudent(student, courses, activity = null) {
     // those were suspended — so missing reads as not suspended, and only an
     // explicit true locks anyone out.
     suspended: student.suspended === true,
+    archived: student.archived === true,
     ...(activity ? { activity } : {})
   };
 }
@@ -985,6 +989,7 @@ function publicAssessor(assessor, courses, tally = blankTally()) {
     // true locks anyone out. `loginUser` searches both collections with one
     // identifier and refuses either, so this is the same lock, not a label.
     suspended: assessor.suspended === true,
+    archived: assessor.archived === true,
     workload: publicWorkload(tally),
     // Whichever kind of work happened last, named — the same shape a student's
     // `lastActive` carries. Posting a paper and releasing a grade are both

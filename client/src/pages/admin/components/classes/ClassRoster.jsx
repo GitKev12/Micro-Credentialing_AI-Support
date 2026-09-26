@@ -1,7 +1,8 @@
 import { CloseIcon, PlusIcon } from "../icons";
+import { Avatar } from "../ui";
 
 /**
- * The tag list and the control that opens the picker, for one kind of person.
+ * The list of chosen people and the control that opens the picker.
  *
  * The control *is* the empty state rather than a chip underneath one. An empty
  * roster is the whole point of the block on a new class, so the row itself is
@@ -9,8 +10,8 @@ import { CloseIcon, PlusIcon } from "../icons";
  * why it is closed before a course is picked at the spot the click would
  * happen, rather than as a footnote below it.
  *
- * Once people are tagged, the tags are the content and the control stands on
- * its own under them. It is deliberately not bundled with the count beside the
+ * Once people are chosen, the list is the content and the control stands on
+ * its own under it. It is deliberately not bundled with the count beside the
  * label: the count reports, the button acts, and a control reads as a control
  * when nothing else is sharing its corner.
  *
@@ -62,22 +63,34 @@ function ClassRoster({
         <span className="admin-field__count">{ids.length} selected</span>
       </div>
 
-      <div className="admin-tags">
+      {/* One row per student in a box of fixed height that scrolls, so a
+          class of forty stays the same size on the form as a class of four,
+          and a long name is cut short instead of pushing the form wider. */}
+      <ul className="admin-roster-list">
         {chosen.map((person) => (
-          <span className="admin-tag" key={person.id}>
-            <span className="admin-tag__label">{person.name}</span>
+          <li className="admin-roster-row" key={person.id}>
+            <Avatar name={person.name} />
+            <span className="admin-roster-row__text">
+              <span className="admin-roster-row__name" title={person.name}>
+                {person.name}
+              </span>
+              {person.studentNumber ? (
+                <span className="admin-roster-row__meta">{person.studentNumber}</span>
+              ) : null}
+            </span>
             <button
               type="button"
-              className="admin-tag__remove"
+              className="admin-roster-row__remove"
               onClick={() => onChange(ids.filter((id) => id !== person.id))}
               aria-label={`Remove ${person.name}`}
+              title="Remove"
               disabled={busy}
             >
-              <CloseIcon size={12} />
+              <CloseIcon size={14} />
             </button>
-          </span>
+          </li>
         ))}
-      </div>
+      </ul>
 
       <button
         type="button"

@@ -8,6 +8,7 @@ import { listIssuedCertificates } from "../certificates/certificates.service.js"
 import { toIsoDay } from "../lib/courseDates.js";
 import {
   loadStudentPathways,
+  courseStatus,
   loadStudentSuspensions,
   toCourseAccess
 } from "../lib/courseAccess.js";
@@ -323,7 +324,10 @@ export async function getStudentCourses(request, response) {
     return response.json({ courses: [], pending: true });
   }
 
-  const { student, courses } = await loadEnrollment(studentId);
+  const enrollment = await loadEnrollment(studentId);
+  const student = enrollment.student;
+  // Archived courses are hidden from the student's list.
+  const courses = enrollment.courses.filter((course) => courseStatus(course) !== "archived");
   if (courses.length === 0) return response.json({ courses: [] });
 
   const { index, owner } = await buildProgressIndex(studentId, student, courses);

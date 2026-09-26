@@ -6,7 +6,9 @@ globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
 jest.unstable_mockModule("../src/services/admin.js", () => ({
-  MIN_PASSWORD_LENGTH: 8
+  MIN_PASSWORD_LENGTH: 8,
+  // Used by the Import tab of the student form.
+  createStudent: jest.fn()
 }));
 
 let StudentForm, AssessorForm;

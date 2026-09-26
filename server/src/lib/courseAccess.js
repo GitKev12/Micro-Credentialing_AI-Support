@@ -64,6 +64,27 @@ export function formatCourseDay(value) {
   });
 }
 
+/* ───────────────────── The admin's course status ───────────────────── */
+
+// A course is "active", "inactive" or "archived". No field means active.
+export const COURSE_STATUSES = ["active", "inactive", "archived"];
+
+export const courseStatus = (course) =>
+  COURSE_STATUSES.includes(course?.status) ? course.status : "active";
+
+const COURSE_CLOSED_REASON =
+  "This course is closed for now. It opens again when the administrator sets it back to active.";
+
+const COURSE_CLOSED_STAFF_REASON =
+  "This course is inactive or archived, so its papers can't be written or posted. " +
+  "Set it back to active in Courses Management to open it again.";
+
+// An inactive or archived course is shut for every student, like a switched-off class.
+export function courseStatusSuspension(course) {
+  if (courseStatus(course) === "active") return null;
+  return { suspended: true, by: "course", reason: COURSE_CLOSED_REASON };
+}
+
 /**
  * The restriction on a course, or null while it is still running.
  *
@@ -211,8 +232,10 @@ export async function classHolding(studentId, courseId) {
 }
 
 /** The course fields every screen needs to say whether it is open. */
-export function toCourseAccess(course, at = new Date(), suspension = null) {
+export function toCourseAccess(course, at = new Date(), classSuspension = null) {
   const restriction = courseRestriction(course, at);
+  // A closed course wins over anything the class says.
+  const suspension = courseStatusSuspension(course) ?? classSuspension;
 
   return {
     startsOn: toIsoDay(course?.startsOn),
@@ -262,6 +285,15 @@ export async function loadStudentSuspensions(studentId) {
   for (const [courseId, classesOnCourse] of await classesHoldingByCourse(studentId)) {
     const suspension = classSuspensionFrom(classesOnCourse, studentId);
     if (suspension) byCourse.set(courseId, suspension);
+  }
+
+  // Closed courses too, or the live standing feed would show them as open again.
+  const closedCourses = await mongoose.connection
+    .collection(COURSES_COLLECTION)
+    .find({ status: { $in: ["inactive", "archived"] } }, { projection: { status: 1 } })
+    .toArray();
+  for (const course of closedCourses) {
+    byCourse.set(String(course._id), courseStatusSuspension(course));
   }
 
   return byCourse;
@@ -354,6 +386,7 @@ async function resolveCourse(courseRef) {
 /** Whether this student's classes on a course have all been switched off. */
 export async function loadClassSuspension(studentId, courseRef) {
   const course = await resolveCourse(courseRef);
+  if (courseStatusSuspension(course)) return courseStatusSuspension(course);
   return classSuspensionFrom(
     await classesHolding(studentId, course?._id ?? courseRef),
     studentId
@@ -373,6 +406,7 @@ export async function loadClassSuspension(studentId, courseRef) {
  */
 export async function loadStudentRestriction(studentId, courseRef, at = new Date()) {
   const course = await resolveCourse(courseRef);
+  if (courseStatusSuspension(course)) return courseStatusSuspension(course);
   const suspension = classSuspensionFrom(
     await classesHolding(studentId, course?._id ?? courseRef),
     studentId
@@ -414,6 +448,11 @@ const CLASSES_OFF_REASON =
  * for the student's half.
  */
 export function authoringRestrictionFrom(course, classes, at = new Date()) {
+  // A course the admin closed comes first.
+  if (courseStatus(course) !== "active") {
+    return { suspended: true, ended: false, endedOn: null, reason: COURSE_CLOSED_STAFF_REASON };
+  }
+
   // The switch first, as on the student side: it is the stricter of the two,
   // and the only one an administrator can undo this afternoon.
   if (allSwitchedOff(classes)) {

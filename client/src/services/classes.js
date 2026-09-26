@@ -43,14 +43,10 @@ export async function setClassActive(classId, active) {
   return data.class;
 }
 
-/**
- * What deleting a class would change — `{ students, assessors, unenroll,
- * unassign }`. Deleting a class removes no accounts; it unenrols/unassigns only
- * the people no other class still holds on that course.
- */
-export async function fetchClassImpact(classId) {
-  const { data } = await api.get(`/admin/classes/${classId}/impact`);
-  return data.impact ?? {};
+// Archive a class (true) or restore it (false). Archiving also switches it off.
+export async function setClassArchived(classId, archived) {
+  const { data } = await api.patch(`/admin/classes/${classId}`, { archived });
+  return data.class;
 }
 
 /**
@@ -64,9 +60,4 @@ export async function fetchPathwayImpact(classId, mode) {
     params: { mode }
   });
   return data.impact ?? {};
-}
-
-export async function deleteClass(classId) {
-  const { data } = await api.delete(`/admin/classes/${classId}`);
-  return data.removed ?? {};
 }

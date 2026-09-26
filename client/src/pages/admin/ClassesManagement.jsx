@@ -3,17 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useNotice } from "../../lib/useNotice";
 import {
   createClass,
-  deleteClass,
   fetchClass,
   fetchClasses,
-  fetchClassImpact,
   fetchPathwayImpact,
   setClassActive,
+  setClassArchived,
   updateClass
 } from "../../services/classes";
 import { fetchAssessors, fetchCourses, fetchStudents } from "../../services/admin";
 import { ChevronRightIcon, ClassesIcon } from "./components/icons";
 import {
+  AccountStatusPill,
   AdminButton,
   AdminModal,
   chosenOption,
@@ -24,23 +24,35 @@ import {
   PageHeader,
   passesFilter,
   SearchField,
-  useListFilter
+  useListFilter,
+  Pagination,
+  usePagination
 } from "./components/ui";
 import ClassForm from "./components/classes/ClassForm";
 import {
-  classKeeps,
-  classLosses,
   classTitle,
   pathwayKeeps,
   pathwayLosses,
   scheduleSummary
 } from "./components/classes/classText";
-import { errorMessage, plural } from "./lib/format";
+import { errorMessage } from "./lib/format";
 import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 
 // The option that means "the ones with none of it" - no course, no assessor.
 // Its sense is the field's, so the same id serves both without colliding.
 const NONE = "none";
+
+// Archived rows can't be picked for a class, but ones already in it stay listed.
+function pickable(list, klass) {
+  const inClass = new Set([
+    klass?.course?.id,
+    ...(klass?.assessors ?? []).map((a) => a.id),
+    ...(klass?.students ?? []).map((s) => s.id)
+  ]);
+  return list.filter(
+    (row) => !(row.archived || row.status === "archived") || inClass.has(row.id)
+  );
+}
 
 function ClassesManagement() {
   const [classes, setClasses] = useState([]);
@@ -54,16 +66,9 @@ function ClassesManagement() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useNotice();
 
-  // The form is "new", a loaded class object being edited, or null. `deleting`
-  // is the class awaiting a "yes, delete", with its impact filled in once read.
+  // The form is "new", a loaded class object being edited, or null.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [impact, setImpact] = useState(null);
-  // A refused delete. It belongs in the confirmation, which stays open rather
-  // than dropping the admin back on the list with a line they have to connect
-  // to what they were doing.
-  const [deleteError, setDeleteError] = useState(null);
 
   // A pathway change waiting to be agreed to: which way it is going, its cost
   // once the server has counted it, and what to run if the admin says yes.
@@ -187,36 +192,24 @@ function ClassesManagement() {
     setSwitchImpact(null);
   };
 
-  const askToDelete = (cls) => {
-    setDeleting(cls);
-    setImpact(null);
-    setDeleteError(null);
-    fetchClassImpact(cls.id)
-      .then(setImpact)
-      .catch(() => setImpact({ unknown: true }));
-  };
 
-  const removeClass = async () => {
+  // Archive a class, or restore it, from the Danger Zone in its form.
+  const changeArchived = async (cls, archived) => {
     setBusy(true);
-    setDeleteError(null);
     try {
-      const removed = await deleteClass(deleting.id);
-      setClasses((list) => list.filter((cls) => cls.id !== deleting.id));
-      setDeleting(null);
-      setImpact(null);
-      // The class it was editing has gone with it.
+      const saved = await setClassArchived(cls.id, archived);
+      setClasses((list) =>
+        list.map((row) =>
+          row.id === cls.id ? { ...row, archived: saved.archived, active: saved.active } : row
+        )
+      );
       setForm(null);
-      const also = classKeeps(impact);
       setNotice({
         tone: "ok",
-        text: `“${classTitle(removed)}” was deleted${
-          also.length ? `. ${plural(impact.unenroll ?? 0, "student")} unenrolled, ${plural(impact.unassign ?? 0, "assessor")} unassigned.` : "."
-        }`
+        text: `“${classTitle(cls)}” was ${archived ? "archived" : "restored"}.`
       });
     } catch (error) {
-      // Kept open, with the reason in it — closing the dialog to report a
-      // failure throws away the confirmation the admin just typed.
-      setDeleteError(errorMessage(error, "Couldn't delete this class."));
+      setFormError(errorMessage(error, "Couldn't change this class."));
     } finally {
       setBusy(false);
     }
@@ -233,7 +226,9 @@ function ClassesManagement() {
    * dropping the empty rows makes it unanswerable here.
    */
   const fields = useMemo(() => {
-    const all = { value: FILTER_ALL, label: "All classes", meta: `${classes.length}` };
+    // Archived classes only count under "Archived".
+    const current = classes.filter((cls) => !cls.archived);
+    const all = { value: FILTER_ALL, label: "All classes", meta: `${current.length}` };
 
     const perCourse = new Map(courses.map((course) => [course.id, 0]));
     const perAssessor = new Map(assessors.map((assessor) => [assessor.id, 0]));
@@ -241,7 +236,7 @@ function ClassesManagement() {
     let unstaffed = 0;
     let running = 0;
 
-    for (const cls of classes) {
+    for (const cls of current) {
       if (cls.active) running += 1;
 
       if (cls.course) perCourse.set(cls.course.id, (perCourse.get(cls.course.id) ?? 0) + 1);
@@ -282,11 +277,18 @@ function ClassesManagement() {
           {
             value: "inactive",
             label: "Inactive",
-            meta: `${classes.length - running}`,
+            meta: `${current.length - running}`,
             empty: "Every class is running."
+          },
+          {
+            value: "archived",
+            label: "Archived",
+            meta: `${classes.length - current.length}`,
+            empty: "No class is archived."
           }
         ],
-        match: (cls, value) => (value === "active" ? Boolean(cls.active) : !cls.active)
+        match: (cls, value) =>
+          value === "archived" ? cls.archived : value === "active" ? cls.active : !cls.active
       },
       {
         id: "assessor",
@@ -320,6 +322,10 @@ function ClassesManagement() {
     return classes.filter((cls) => {
       // The filter narrows first, so the search only ever runs over the rows
       // already on screen.
+      // Archived classes only show when the Archived filter is picked.
+      if (cls.archived && !(filter.field === "status" && filter.value === "archived")) {
+        return false;
+      }
       if (!passesFilter(fields, filter.field, filter.value, cls)) return false;
       if (!term) return true;
 
@@ -335,6 +341,9 @@ function ClassesManagement() {
       return haystack.includes(term);
     });
   }, [classes, query, fields, filter.field, filter.value]);
+
+  // 10 rows per page; back to page 1 when the search or filter changes.
+  const { pageRows, page, pageCount, setPage } = usePagination(visible, `${query}|${filter.field}|${filter.value}`);
 
   return (
     <div className="admin-main__inner">
@@ -388,17 +397,24 @@ function ClassesManagement() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((cls) => {
+              {pageRows.map((cls) => {
                 const schedule = scheduleSummary(cls.schedule);
                 const assessorNames = (cls.assessors ?? []).map((a) => a.name);
 
                 return (
-                  <tr key={cls.id} className={cls.active ? "" : "is-inactive"}>
+                  <tr
+                    key={cls.id}
+                    className={cls.active ? "" : "is-inactive"}
+                    onClick={() => openEdit(cls)}
+                  >
                     <td>
                       <button
                         type="button"
                         className="admin-person__name admin-person__link"
-                        onClick={() => openEdit(cls)}
+                        onClick={(event) => {
+                          event.stopPropagation(); // the row would open it a second time
+                          openEdit(cls);
+                        }}
                       >
                         {classTitle(cls)}
                       </button>
@@ -448,7 +464,11 @@ function ClassesManagement() {
                         <span className="admin-cell__quiet">—</span>
                       )}
                     </td>
-                    <td className="is-center">
+                    <td className="is-center" onClick={(event) => event.stopPropagation()}>
+                      {/* Archived classes are restored from their form's Danger Zone. */}
+                      {cls.archived ? (
+                        <AccountStatusPill status="archived" />
+                      ) : (
                       <button
                         type="button"
                         className={`admin-switch${cls.active ? " is-on" : ""}`}
@@ -469,21 +489,17 @@ function ClassesManagement() {
                           {cls.active ? "Active" : "Inactive"}
                         </span>
                       </button>
+                      )}
                     </td>
                     <td className="admin-table__actions">
-                      {/* The cue the student and assessor lists end their rows
-                          on. Deleting used to sit beside it and is now in the
-                          form's Danger Zone, so the row carries one action and
-                          it is the harmless one.
-
-                          A real button and not their decorative chevron: those
-                          rows are one target with the name as the keyboard
-                          entry, and this cell is a cell of its own. */}
                       <button
                         type="button"
                         className="admin-table__manage"
                         disabled={busy}
-                        onClick={() => openEdit(cls)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEdit(cls);
+                        }}
                       >
                         Manage
                         <ChevronRightIcon size={14} />
@@ -512,12 +528,14 @@ function ClassesManagement() {
         </div>
       )}
 
+      <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Classes" />
+
       {form === "new" ? (
         <ClassForm
           klass={null}
-          courses={courses}
-          assessors={assessors}
-          students={students}
+          courses={pickable(courses, null)}
+          assessors={pickable(assessors, null)}
+          students={pickable(students, null)}
           busy={busy}
           error={formError}
           onCancel={() => setForm(null)}
@@ -534,35 +552,16 @@ function ClassesManagement() {
       {form && form !== "new" && !form.loading ? (
         <ClassForm
           klass={form}
-          courses={courses}
-          assessors={assessors}
-          students={students}
+          courses={pickable(courses, form)}
+          assessors={pickable(assessors, form)}
+          students={pickable(students, form)}
           busy={busy}
           error={formError}
-          confirming={Boolean(deleting) || Boolean(switching)}
+          confirming={Boolean(switching)}
           onCancel={() => setForm(null)}
-          onDelete={askToDelete}
+          onArchive={(archived) => changeArchived(form, archived)}
           onModeChange={askToSwitch}
           onSave={saveClass}
-        />
-      ) : null}
-
-      {deleting ? (
-        <ConfirmDeleteModal
-          title="Delete this class?"
-          subject={classTitle(deleting)}
-          losses={classLosses(impact)}
-          keeps={classKeeps(impact)}
-          busy={busy}
-          confirmLabel="Delete class"
-          confirmWord="CONFIRM"
-          error={deleteError}
-          onCancel={() => {
-            setDeleting(null);
-            setImpact(null);
-            setDeleteError(null);
-          }}
-          onConfirm={removeClass}
         />
       ) : null}
 

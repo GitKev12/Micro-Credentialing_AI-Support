@@ -1,5 +1,12 @@
 import { AssessmentIcon, CoursesIcon, CredentialIcon, UserIcon } from "../icons";
-import { BackLink, SectionTitle, StatTile } from "../ui";
+import {
+  AccountStatusPill,
+  BackLink,
+  Pagination,
+  SectionTitle,
+  StatTile,
+  usePagination
+} from "../ui";
 import { SkeletonDetail } from "../../../../components/Skeleton";
 import AssessorForm from "./AssessorForm";
 import { backlogPhrase, EMPTY_WORKLOAD, lastActiveLabel, papersNote } from "./assessorText";
@@ -21,13 +28,14 @@ export default function AssessorDetail({
   formError,
   onBack,
   onEdit,
-  onDelete,
   onToggleSuspended,
   onCancelForm,
   onSave
 }) {
   const selected = assessor;
   const classes = selected.classes ?? [];
+  // 10 classes per page; back to page 1 when another assessor opens.
+  const { pageRows, page, pageCount, setPage } = usePagination(classes, selected.id);
   const workload = selected.workload ?? EMPTY_WORKLOAD;
 
   return (
@@ -55,6 +63,10 @@ export default function AssessorDetail({
               {/* The switch is a state and the two buttons are acts, kept
                   apart by a hairline — same rail the student screen uses. */}
               <div className="admin-identity__actions">
+                {/* Archived accounts are set back to active from the table's menu. */}
+                {selected.archived ? (
+                  <AccountStatusPill status="archived" />
+                ) : (
                 <button
                   type="button"
                   className={`admin-switch admin-switch--lg${
@@ -67,16 +79,17 @@ export default function AssessorDetail({
                   title={
                     selected.suspended
                       ? `Activate ${selected.name}`
-                      : `Suspend ${selected.name}`
+                      : `Deactivate ${selected.name}`
                   }
                 >
                   <span className="admin-switch__track">
                     <span className="admin-switch__thumb" />
                   </span>
                   <span className="admin-switch__label">
-                    {selected.suspended ? "Suspended" : "Active"}
+                    {selected.suspended ? "Inactive" : "Active"}
                   </span>
                 </button>
+                )}
 
                 <div className="admin-identity__acts">
                   <button
@@ -86,14 +99,6 @@ export default function AssessorDetail({
                     onClick={onEdit}
                   >
                     Edit details
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-chip-btn admin-chip-btn--danger"
-                    disabled={busy}
-                    onClick={onDelete}
-                  >
-                    Delete
                   </button>
                 </div>
               </div>
@@ -112,7 +117,7 @@ export default function AssessorDetail({
                 silent for as long as the suspension stands. */}
             {selected.suspended && backlogPhrase(workload) ? (
               <p className="admin-notice admin-notice--warn" role="status">
-                <strong>Suspended with work outstanding</strong> — {backlogPhrase(workload)}.
+                <strong>Inactive with work outstanding</strong> — {backlogPhrase(workload)}.
               </p>
             ) : null}
 
@@ -169,7 +174,7 @@ export default function AssessorDetail({
                     </tr>
                   </thead>
                   <tbody>
-                    {classes.map((row) => {
+                    {pageRows.map((row) => {
                       return (
                         <tr className="admin-table__static" key={row.id}>
                           <td>
@@ -219,6 +224,7 @@ export default function AssessorDetail({
                   </tbody>
                 </table>
               </section>
+              <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Classes" />
             </div>
           </>
         )}
