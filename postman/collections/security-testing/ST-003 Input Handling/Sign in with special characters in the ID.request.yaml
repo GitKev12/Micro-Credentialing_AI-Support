@@ -1,0 +1,21 @@
+$kind: http-request
+id: edb431d5-897f-4167-bc28-4f70ce873917
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "' OR 1=1 -- <script>alert('x')</script>",
+      "password": "\"; DROP DATABASE; --"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('not signed in', () => pm.expect(pm.response.code).to.be.oneOf([400, 401]));
+      pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);
+      console.log('ST-003 special characters -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 2000

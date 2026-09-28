@@ -1,0 +1,26 @@
+$kind: http-request
+id: fa762f50-c7cb-4591-8da5-03c3ac9f535d
+url: "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}?retake=1"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+queryParams:
+  retake: "1"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('assessment opens', () => pm.response.to.have.status(200));
+      const paper = pm.response.json().assessment;
+      pm.test('the paper is posted and carries its questions', () => {
+        pm.expect(paper.status).to.eql('posted');
+        pm.expect(paper.items.length).to.eql(paper.itemCount);
+      });
+      pm.test('the answer key is not in the candidate copy', () => {
+        pm.expect(paper.items.every((item) => item.key === undefined)).to.be.true;
+      });
+      // Answer every question, first choice each, the way a candidate hands in a full paper.
+      const answers = paper.items.map((item) => ({ itemId: item.id, choice: item.choices[0].id }));
+      pm.collectionVariables.set('quizAnswers', JSON.stringify(answers));
+      console.log('PT-002 open ' + pm.response.responseTime + ' ms, ' + paper.itemCount + ' items, pass mark ' + paper.passMark);
+    language: text/javascript
+order: 1000

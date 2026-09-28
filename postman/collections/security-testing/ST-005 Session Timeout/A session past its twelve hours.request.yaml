@@ -1,0 +1,14 @@
+$kind: http-request
+id: 65907453-cf8b-4529-8481-93726f036ce8
+url: "{{baseUrl}}/api/auth/standing"
+method: GET
+headers:
+  Authorization: Bearer {{expiredToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(401));
+      pm.test('told to sign in again', () => pm.expect(pm.response.json().message).to.eql('Sign in to continue.'));
+      console.log('ST-005 expired session -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 1000

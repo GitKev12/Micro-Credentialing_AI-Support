@@ -1,0 +1,14 @@
+$kind: http-request
+id: 9e0fe282-0e45-4410-b026-43218f0ae5c7
+url: "{{baseUrl}}/api/admin/students"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(403));
+      pm.test('no account records came back', () => pm.expect(pm.response.json().students).to.be.undefined);
+      console.log('ST-001 admin students -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 3000

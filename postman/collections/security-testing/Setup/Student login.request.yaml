@@ -1,0 +1,21 @@
+$kind: http-request
+id: 420d3f13-1ff8-4e78-9c9d-6fa0521d6410
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "{{studentIdentifier}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('candidate signed in', () => pm.response.to.have.status(200));
+      pm.test('the session is for a candidate', () => pm.expect(pm.response.json().user.role).to.eql('student'));
+      pm.collectionVariables.set('studentToken', pm.response.json().token);
+    language: text/javascript
+order: 1000

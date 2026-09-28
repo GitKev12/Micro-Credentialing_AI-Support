@@ -1,0 +1,13 @@
+$kind: http-request
+id: dc415eb5-fee8-4671-a38b-bdfe8d24acf1
+url: "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments"
+method: GET
+headers:
+  Authorization: Bearer {{assessorToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('the assessor is let through', () => pm.response.to.have.status(200));
+      console.log('ST-001 control -> ' + pm.response.code + ' (the route works; the refusal was about the role)');
+    language: text/javascript
+order: 4000

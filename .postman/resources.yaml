@@ -1,0 +1,11 @@
+cloudResources:
+  collections:
+    ../postman/collections/performance-testing: 53942082-56ce8c2b-6fca-4e1f-bef6-0427a743639d
+    ../postman/collections/security-testing: 53942082-3df3b5ef-52a1-449a-baaa-dcc2dae90291
+  environments:
+    ../postman/environments/perftest-scratch.environment.yaml: 53942082-ccf7784e-0af2-4b32-9d32-a7444c3c61b5
+    ../postman/environments/sectest-scratch.environment.yaml: 53942082-de1e6631-964c-4abf-80c2-e328a4f38a8f
+  globals:
+    ../postman/globals/workspace.globals.yaml: 1e8f20d8-7da5-456c-8a99-e5744bdc24f7
+workspace:
+  id: 3f346036-143a-4cfc-8b4e-5bc5b254c4b8

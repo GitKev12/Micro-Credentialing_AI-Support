@@ -1,0 +1,20 @@
+$kind: http-request
+id: 0f350abe-b4b5-4a9b-abff-8a1e386efd4e
+url: "{{baseUrl}}/api/admin/students/{{studentId}}"
+method: PATCH
+headers:
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "lastName": "{{originalLastName}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('restored', () => pm.response.to.have.status(200));
+      console.log('ST-003 name restored: ' + (pm.response.json().student || pm.response.json()).name);
+    language: text/javascript
+order: 6000

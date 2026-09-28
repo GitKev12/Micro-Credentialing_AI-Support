@@ -1,0 +1,23 @@
+$kind: http-request
+id: 9f8f57da-b0ab-47a7-8fef-a990f70f311b
+url: "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments/generate"
+method: POST
+headers:
+  Authorization: Bearer {{studentToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "scope": "lesson",
+      "moduleId": "{{moduleId}}",
+      "itemCount": 10
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused before anything is generated', () => pm.response.to.have.status(403));
+      pm.test('no paper came back', () => pm.expect(pm.response.json().assessment).to.be.undefined);
+      console.log('ST-001 generate -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 2000

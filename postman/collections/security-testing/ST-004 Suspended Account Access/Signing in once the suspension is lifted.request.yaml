@@ -1,0 +1,21 @@
+$kind: http-request
+id: c8df0b6a-50be-48b3-8688-3608e4d422ac
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "{{studentIdentifier}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('signed in again', () => pm.response.to.have.status(200));
+      pm.collectionVariables.set('studentToken', pm.response.json().token);
+      console.log('ST-004 login after restore -> ' + pm.response.code);
+    language: text/javascript
+order: 6000

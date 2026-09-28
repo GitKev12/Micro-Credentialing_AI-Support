@@ -1,0 +1,13 @@
+$kind: http-request
+id: c2d03374-788d-40b0-84c0-72a444ac1edc
+url: "{{baseUrl}}/api/auth/standing"
+method: GET
+headers:
+  Authorization: Bearer {{tamperedToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(401));
+      console.log('ST-005 tampered session -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 3000

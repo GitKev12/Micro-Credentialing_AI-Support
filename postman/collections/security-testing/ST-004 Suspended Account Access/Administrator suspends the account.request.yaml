@@ -1,0 +1,20 @@
+$kind: http-request
+id: c9cd4279-35ae-418f-96cd-3c5b4d4e6fba
+url: "{{baseUrl}}/api/admin/students/{{studentId}}/suspension"
+method: PATCH
+headers:
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "suspended": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('suspended', () => pm.response.to.have.status(200));
+      pm.test('the record says so', () => pm.expect((pm.response.json().student || pm.response.json()).suspended).to.be.true);
+    language: text/javascript
+order: 2000

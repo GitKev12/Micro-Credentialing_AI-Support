@@ -1,0 +1,18 @@
+$kind: http-request
+id: aef8c71b-f75d-467a-85e6-3742e60b9568
+url: "{{baseUrl}}/api/modules/{{moduleId}}/text"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('module opens', () => pm.response.to.have.status(200));
+      const body = pm.response.json();
+      pm.test('the lesson has its reading content', () => {
+        pm.expect(body.numPages, 'pages').to.be.above(0);
+        pm.expect(body.sections, 'sections').to.be.an('array').that.is.not.empty;
+      });
+      console.log('PT-001 module text ' + pm.response.responseTime + ' ms, ' + body.numPages + ' pages, ' + body.sections.length + ' sections');
+    language: text/javascript
+order: 1000

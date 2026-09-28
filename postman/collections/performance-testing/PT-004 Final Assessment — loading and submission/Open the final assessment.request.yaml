@@ -1,0 +1,22 @@
+$kind: http-request
+id: a14376a2-34aa-4c8b-8d35-987a3ff3450f
+url: "{{baseUrl}}/api/students/{{studentId}}/assessments/{{finalId}}?retake=1"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+queryParams:
+  retake: "1"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('final opens', () => pm.response.to.have.status(200));
+      const paper = pm.response.json().assessment;
+      pm.test('the whole paper arrives', () => {
+        pm.expect(paper.scope).to.eql('final');
+        pm.expect(paper.items.length).to.eql(paper.itemCount);
+      });
+      const answers = paper.items.map((item) => ({ itemId: item.id, choice: item.choices[0].id }));
+      pm.collectionVariables.set('finalAnswers', JSON.stringify(answers));
+      console.log('PT-004 open ' + pm.response.responseTime + ' ms, ' + paper.itemCount + ' items, pass mark ' + paper.passMark + ', ' + paper.timeLimitMinutes + ' min');
+    language: text/javascript
+order: 1000

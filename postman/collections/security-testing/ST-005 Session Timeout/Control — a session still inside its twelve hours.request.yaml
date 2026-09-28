@@ -1,0 +1,13 @@
+$kind: http-request
+id: 1d18ea26-6fb4-40e4-8d81-9af53e4db4d3
+url: "{{baseUrl}}/api/auth/standing"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('let through', () => pm.response.to.have.status(200));
+      console.log('ST-005 control -> ' + pm.response.code + ' (the route works; the refusal was about the expiry)');
+    language: text/javascript
+order: 4000

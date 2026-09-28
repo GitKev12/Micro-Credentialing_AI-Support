@@ -1,0 +1,20 @@
+$kind: http-request
+id: f7ce4d32-d47d-4e4d-a7b0-04dd46b66233
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "{{studentIdentifier}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('logged in', () => pm.response.to.have.status(200));
+      pm.collectionVariables.set('studentToken', pm.response.json().token);
+    language: text/javascript
+order: 1000

@@ -1,0 +1,16 @@
+$kind: http-request
+id: 28bfe39f-8f8f-455e-9814-14a24fe08016
+url: "{{baseUrl}}/api/admin/students/{{studentId}}"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('record reads', () => pm.response.to.have.status(200));
+      const student = pm.response.json().student || pm.response.json();
+      const parts = String(student.name).trim().split(' ');
+      pm.collectionVariables.set('originalLastName', parts[parts.length - 1]);
+      console.log('ST-003 name before: ' + student.name);
+    language: text/javascript
+order: 3000

@@ -1,0 +1,13 @@
+$kind: http-request
+id: 4500a3d3-6a1d-45c3-8319-547b7c96a397
+url: "{{baseUrl}}/api/modules/{{moduleId}}/sections"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('sections load', () => pm.response.to.have.status(200));
+      console.log('PT-001 sections ' + pm.response.responseTime + ' ms');
+    language: text/javascript
+order: 2000

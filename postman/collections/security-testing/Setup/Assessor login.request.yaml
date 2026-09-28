@@ -1,0 +1,20 @@
+$kind: http-request
+id: 9bcd6fa0-afe7-403f-b877-00fee452029a
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "{{assessorIdentifier}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('assessor signed in', () => pm.response.to.have.status(200));
+      pm.collectionVariables.set('assessorToken', pm.response.json().token);
+    language: text/javascript
+order: 2000

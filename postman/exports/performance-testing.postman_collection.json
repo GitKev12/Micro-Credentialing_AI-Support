@@ -1,0 +1,477 @@
+{
+  "info": {
+    "name": "Micro-Credentialing — Performance Testing (PT-001..PT-004)",
+    "description": "Response-time runs for the four core features in the Performance Testing form. Each folder is one test ID and can be run on its own with -i. PT-003 makes a paid OpenAI call and is kept in its own folder for that reason.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "2eba0d5e-b006-421d-9aa8-966d6917522b"
+  },
+  "variable": [
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "assessorToken",
+      "value": ""
+    },
+    {
+      "key": "quizAnswers",
+      "value": "[]"
+    },
+    {
+      "key": "finalAnswers",
+      "value": "[]"
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Student login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('logged in', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('studentToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{studentIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "f7ce4d32-d47d-4e4d-a7b0-04dd46b66233"
+        }
+      ],
+      "id": "c84c8f81-a920-4ed4-95a4-037e24bfe92d"
+    },
+    {
+      "name": "PT-001 Learning Module — module loading",
+      "item": [
+        {
+          "name": "Open a selected learning module",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('module opens', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('the lesson has its reading content', () => {",
+                  "  pm.expect(body.numPages, 'pages').to.be.above(0);",
+                  "  pm.expect(body.sections, 'sections').to.be.an('array').that.is.not.empty;",
+                  "});",
+                  "console.log('PT-001 module text ' + pm.response.responseTime + ' ms, ' + body.numPages + ' pages, ' + body.sections.length + ' sections');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/modules/{{moduleId}}/text",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "modules",
+                "{{moduleId}}",
+                "text"
+              ]
+            }
+          },
+          "id": "aef8c71b-f75d-467a-85e6-3742e60b9568"
+        },
+        {
+          "name": "Lesson sections",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sections load', () => pm.response.to.have.status(200));",
+                  "console.log('PT-001 sections ' + pm.response.responseTime + ' ms');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/modules/{{moduleId}}/sections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "modules",
+                "{{moduleId}}",
+                "sections"
+              ]
+            }
+          },
+          "id": "4500a3d3-6a1d-45c3-8319-547b7c96a397"
+        }
+      ],
+      "id": "e7357a22-a777-430a-b1a1-dd358909f234"
+    },
+    {
+      "name": "PT-002 Assessment — loading and submission",
+      "item": [
+        {
+          "name": "Open the approved assessment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('assessment opens', () => pm.response.to.have.status(200));",
+                  "const paper = pm.response.json().assessment;",
+                  "pm.test('the paper is posted and carries its questions', () => {",
+                  "  pm.expect(paper.status).to.eql('posted');",
+                  "  pm.expect(paper.items.length).to.eql(paper.itemCount);",
+                  "});",
+                  "pm.test('the answer key is not in the candidate copy', () => {",
+                  "  pm.expect(paper.items.every((item) => item.key === undefined)).to.be.true;",
+                  "});",
+                  "// Answer every question, first choice each, the way a candidate hands in a full paper.",
+                  "const answers = paper.items.map((item) => ({ itemId: item.id, choice: item.choices[0].id }));",
+                  "pm.collectionVariables.set('quizAnswers', JSON.stringify(answers));",
+                  "console.log('PT-002 open ' + pm.response.responseTime + ' ms, ' + paper.itemCount + ' items, pass mark ' + paper.passMark);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}?retake=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "assessments",
+                "{{quizId}}"
+              ],
+              "query": [
+                {
+                  "key": "retake",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "id": "fa762f50-c7cb-4591-8da5-03c3ac9f535d"
+        },
+        {
+          "name": "Submit the assessment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('submission accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const body = pm.response.json();",
+                  "const result = body.result || body;",
+                  "pm.test('it came back marked', () => pm.expect(result.score).to.be.a('number'));",
+                  "console.log('PT-002 submit ' + pm.response.responseTime + ' ms, scored ' + result.score + '/' + (result.totalPoints || result.total));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": {{quizAnswers}},\n  \"durationMs\": 540000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "assessments",
+                "{{quizId}}",
+                "submit"
+              ]
+            }
+          },
+          "id": "dd47a179-80ea-4109-9cd3-e284c2303fd4"
+        }
+      ],
+      "id": "93221b96-9743-446e-8a61-7b2b15b35fcb"
+    },
+    {
+      "name": "PT-004 Final Assessment — loading and submission",
+      "item": [
+        {
+          "name": "Open the final assessment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('final opens', () => pm.response.to.have.status(200));",
+                  "const paper = pm.response.json().assessment;",
+                  "pm.test('the whole paper arrives', () => {",
+                  "  pm.expect(paper.scope).to.eql('final');",
+                  "  pm.expect(paper.items.length).to.eql(paper.itemCount);",
+                  "});",
+                  "const answers = paper.items.map((item) => ({ itemId: item.id, choice: item.choices[0].id }));",
+                  "pm.collectionVariables.set('finalAnswers', JSON.stringify(answers));",
+                  "console.log('PT-004 open ' + pm.response.responseTime + ' ms, ' + paper.itemCount + ' items, pass mark ' + paper.passMark + ', ' + paper.timeLimitMinutes + ' min');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/assessments/{{finalId}}?retake=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "assessments",
+                "{{finalId}}"
+              ],
+              "query": [
+                {
+                  "key": "retake",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "id": "a14376a2-34aa-4c8b-8d35-987a3ff3450f"
+        },
+        {
+          "name": "Submit the final assessment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('submission accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const body = pm.response.json();",
+                  "const result = body.result || body;",
+                  "pm.test('it came back marked', () => pm.expect(result.score).to.be.a('number'));",
+                  "console.log('PT-004 submit ' + pm.response.responseTime + ' ms, scored ' + result.score + ', attempt ' + (result.attempt || '?'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": {{finalAnswers}},\n  \"durationMs\": 3600000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/assessments/{{finalId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "assessments",
+                "{{finalId}}",
+                "submit"
+              ]
+            }
+          },
+          "id": "e08f561e-9708-487e-a714-a4726eece036"
+        }
+      ],
+      "id": "f749f322-02b3-4288-b6ad-e23702d6ac48"
+    },
+    {
+      "name": "PT-003 AI Assessment Generation — paid, run on its own",
+      "item": [
+        {
+          "name": "Assessor login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('logged in', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('assessorToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{assessorIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "a23b844c-f8b3-4a86-b00f-ba2b5f9a0202"
+        },
+        {
+          "name": "Generate an assessment from a module and the TOS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('a draft came back', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const body = pm.response.json();",
+                  "const paper = body.assessment || body;",
+                  "pm.test('it holds the questions the blueprint asked for', () => {",
+                  "  pm.expect(paper.items.length).to.eql(paper.itemCount);",
+                  "  pm.expect(paper.status).to.eql('draft');",
+                  "});",
+                  "console.log('PT-003 generate ' + pm.response.responseTime + ' ms, ' + paper.itemCount + ' items, model ' + JSON.stringify(paper.source));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{assessorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope\": \"lesson\",\n  \"moduleId\": \"{{generateModuleId}}\",\n  \"itemCount\": 10,\n  \"timeLimitMinutes\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{generateCourseId}}/assessments/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessors",
+                "{{assessorId}}",
+                "classes",
+                "{{generateCourseId}}",
+                "assessments",
+                "generate"
+              ]
+            }
+          },
+          "id": "51ad10b1-c85a-4943-8aa0-ed5c6f317d24"
+        }
+      ],
+      "id": "3b73abbd-5995-464a-b585-08379437204e"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+$kind: http-request
+id: e6dd9732-8670-44e6-bd39-1389d955c502
+url: "{{baseUrl}}/api/students/{{studentId}}/courses"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('the courses still load', () => pm.response.to.have.status(200));
+      pm.test('the enrolments are all still there', () => pm.expect(pm.response.json().courses.length).to.be.above(0));
+      console.log('ST-003 courses after the odd input -> ' + pm.response.code + ', ' + pm.response.json().courses.length + ' courses');
+    language: text/javascript
+order: 5000

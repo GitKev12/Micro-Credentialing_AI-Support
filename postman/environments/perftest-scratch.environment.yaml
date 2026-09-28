@@ -1,0 +1,36 @@
+name: "Performance testing \u2014 scratch clone"
+values:
+  - key: "baseUrl"
+    value: "http://127.0.0.1:5098"
+    enabled: true
+  - key: "studentIdentifier"
+    value: "202300001"
+    enabled: true
+  - key: "assessorIdentifier"
+    value: "ASS001"
+    enabled: true
+  - key: "password"
+    value: ""
+    enabled: true
+    type: secret
+  - key: "studentId"
+    value: "6a2f8c01afe387a98b837141"
+    enabled: true
+  - key: "moduleId"
+    value: "6a4b64bba6cbd0b379f1664d"
+    enabled: true
+  - key: "quizId"
+    value: "6a97f3282233d5f55df409d3"
+    enabled: true
+  - key: "finalId"
+    value: "6ab2d582bfac9763e33b0949"
+    enabled: true
+  - key: "assessorId"
+    value: "6a2f8fabafe387a98b837148"
+    enabled: true
+  - key: "generateCourseId"
+    value: "6a4ca6c19123a0203a3682d1"
+    enabled: true
+  - key: "generateModuleId"
+    value: "6a4b64bba6cbd0b379f1664d"
+    enabled: true

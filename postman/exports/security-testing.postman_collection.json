@@ -1,0 +1,1208 @@
+{
+  "info": {
+    "name": "Micro-Credentialing — Security Testing (ST-001..ST-005)",
+    "description": "The five security scenarios in the testing form. Each folder is one test ID. Every refusal is checked against the message the system actually shows, and each folder carries a control request so a refusal cannot be mistaken for a broken route. Run against a scratch copy of the database — ST-003 and ST-004 write, and both put back what they changed.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "b191102d-3946-4032-943e-e9efac9a2db7"
+  },
+  "variable": [
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "assessorToken",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "quizAnswers",
+      "value": "[]"
+    },
+    {
+      "key": "originalLastName",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Student login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('candidate signed in', () => pm.response.to.have.status(200));",
+                  "pm.test('the session is for a candidate', () => pm.expect(pm.response.json().user.role).to.eql('student'));",
+                  "pm.collectionVariables.set('studentToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{studentIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "420d3f13-1ff8-4e78-9c9d-6fa0521d6410"
+        },
+        {
+          "name": "Assessor login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('assessor signed in', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('assessorToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{assessorIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "9bcd6fa0-afe7-403f-b877-00fee452029a"
+        },
+        {
+          "name": "Administrator login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('administrator signed in', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{adminIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "admin",
+                "login"
+              ]
+            }
+          },
+          "id": "89ded226-9892-40f5-8330-09f26bfe8572"
+        }
+      ],
+      "id": "94b46141-f7db-48e8-a3b7-3d83815768ab"
+    },
+    {
+      "name": "ST-001 Role-Based Access",
+      "item": [
+        {
+          "name": "Candidate opens the assessor's assessment management",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(403));",
+                  "pm.test('told why, and nothing else', () => {",
+                  "  pm.expect(pm.response.json().message).to.eql('You do not have access to this resource.');",
+                  "  pm.expect(pm.response.text()).to.not.include('items');",
+                  "});",
+                  "console.log('ST-001 assessor assessments -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessors",
+                "{{assessorId}}",
+                "classes",
+                "{{courseId}}",
+                "assessments"
+              ]
+            }
+          },
+          "id": "62652c94-e4f0-4951-83db-f5e9fd2294d7"
+        },
+        {
+          "name": "Candidate asks for an AI generation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused before anything is generated', () => pm.response.to.have.status(403));",
+                  "pm.test('no paper came back', () => pm.expect(pm.response.json().assessment).to.be.undefined);",
+                  "console.log('ST-001 generate -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope\": \"lesson\",\n  \"moduleId\": \"{{moduleId}}\",\n  \"itemCount\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessors",
+                "{{assessorId}}",
+                "classes",
+                "{{courseId}}",
+                "assessments",
+                "generate"
+              ]
+            }
+          },
+          "id": "9f8f57da-b0ab-47a7-8fef-a990f70f311b"
+        },
+        {
+          "name": "Candidate opens the administrator's account list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(403));",
+                  "pm.test('no account records came back', () => pm.expect(pm.response.json().students).to.be.undefined);",
+                  "console.log('ST-001 admin students -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/students",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "students"
+              ]
+            }
+          },
+          "id": "9e0fe282-0e45-4410-b026-43218f0ae5c7"
+        },
+        {
+          "name": "Control — the assessor opens the same screen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the assessor is let through', () => pm.response.to.have.status(200));",
+                  "console.log('ST-001 control -> ' + pm.response.code + ' (the route works; the refusal was about the role)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{assessorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessors",
+                "{{assessorId}}",
+                "classes",
+                "{{courseId}}",
+                "assessments"
+              ]
+            }
+          },
+          "id": "dc415eb5-fee8-4671-a38b-bdfe8d24acf1"
+        }
+      ],
+      "id": "a972e3c0-b255-45aa-9e40-dd2d87a2b40c"
+    },
+    {
+      "name": "ST-002 Assessment Data",
+      "item": [
+        {
+          "name": "Candidate rewrites the questions on a posted paper",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(403));",
+                  "console.log('ST-002 edit paper -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"id\": \"g1\",\n      \"q\": \"Rewritten by the candidate\",\n      \"choices\": [{ \"id\": \"a\", \"text\": \"Yes\" }, { \"id\": \"b\", \"text\": \"No\" }],\n      \"key\": \"a\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments/{{quizId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessors",
+                "{{assessorId}}",
+                "classes",
+                "{{courseId}}",
+                "assessments",
+                "{{quizId}}"
+              ]
+            }
+          },
+          "id": "78aff5a2-5561-44e4-a32c-147ef3457f9d"
+        },
+        {
+          "name": "Candidate opens another candidate's paper",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(403));",
+                  "pm.test('no questions and no marks came back', () => {",
+                  "  pm.expect(pm.response.json().assessment).to.be.undefined;",
+                  "  pm.expect(pm.response.json().result).to.be.undefined;",
+                  "});",
+                  "console.log('ST-002 other candidate -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{otherStudentId}}/assessments/{{quizId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{otherStudentId}}",
+                "assessments",
+                "{{quizId}}"
+              ]
+            }
+          },
+          "id": "0d8df19a-7155-4900-9964-4b87fab44d8b"
+        },
+        {
+          "name": "Open own paper, to answer it",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('opens', () => pm.response.to.have.status(200));",
+                  "const paper = pm.response.json().assessment;",
+                  "const answers = paper.items.map((item) => ({ itemId: item.id, choice: item.choices[0].id }));",
+                  "pm.collectionVariables.set('quizAnswers', JSON.stringify(answers));",
+                  "pm.collectionVariables.set('paperTotal', paper.totalPoints);",
+                  "pm.collectionVariables.set('paperPassMark', paper.passMark);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}?retake=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "assessments",
+                "{{quizId}}"
+              ],
+              "query": [
+                {
+                  "key": "retake",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "id": "f02dc9a8-c45c-4b9b-ac32-d1255fae170e"
+        },
+        {
+          "name": "Candidate submits a mark of their own choosing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const result = pm.response.json().result || pm.response.json();",
+                  "const total = Number(pm.collectionVariables.get('paperTotal'));",
+                  "const passMark = Number(pm.collectionVariables.get('paperPassMark'));",
+                  "pm.test('the mark sent in the request was ignored', () => {",
+                  "  pm.expect(result.score).to.not.eql(999);",
+                  "  pm.expect(result.score).to.be.at.most(total);",
+                  "});",
+                  "pm.test('pass or fail follows the mark, not the request', () => {",
+                  "  pm.expect(Boolean(result.passed)).to.eql(result.score >= passMark);",
+                  "});",
+                  "console.log('ST-002 forged mark -> asked for 999 and passed:true, recorded ' + result.score + '/' + total + ', passed ' + result.passed);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": {{quizAnswers}},\n  \"durationMs\": 300000,\n  \"score\": 999,\n  \"passed\": true,\n  \"aiGrading\": { \"status\": \"graded\", \"score\": 999 },\n  \"credential\": { \"status\": \"issued\" }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "assessments",
+                "{{quizId}}",
+                "submit"
+              ]
+            }
+          },
+          "id": "3fada766-8c7b-4367-b8f7-67e72d00a051"
+        }
+      ],
+      "id": "87a412d3-ba44-43f7-af85-e4b49ed793ad"
+    },
+    {
+      "name": "ST-003 Input Handling",
+      "item": [
+        {
+          "name": "Sign in with a query object in place of an ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('not signed in', () => pm.expect(pm.response.code).to.be.oneOf([400, 401]));",
+                  "pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);",
+                  "console.log('ST-003 injection object -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": { \"$ne\": null },\n  \"password\": { \"$ne\": null }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "678bd631-1045-4960-9534-26f15b788319"
+        },
+        {
+          "name": "Sign in with special characters in the ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('not signed in', () => pm.expect(pm.response.code).to.be.oneOf([400, 401]));",
+                  "pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);",
+                  "console.log('ST-003 special characters -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"' OR 1=1 -- <script>alert('x')</script>\",\n  \"password\": \"\\\"; DROP DATABASE; --\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "edb431d5-897f-4167-bc28-4f70ce873917"
+        },
+        {
+          "name": "Read the record before it is changed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('record reads', () => pm.response.to.have.status(200));",
+                  "const student = pm.response.json().student || pm.response.json();",
+                  "const parts = String(student.name).trim().split(' ');",
+                  "pm.collectionVariables.set('originalLastName', parts[parts.length - 1]);",
+                  "console.log('ST-003 name before: ' + student.name);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/students/{{studentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "students",
+                "{{studentId}}"
+              ]
+            }
+          },
+          "id": "28bfe39f-8f8f-455e-9814-14a24fe08016"
+        },
+        {
+          "name": "Put a script tag and quotes into a core field",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('saved without error', () => pm.response.to.have.status(200));",
+                  "const student = pm.response.json().student || pm.response.json();",
+                  "pm.test('kept as plain text, character for character', () => {",
+                  "  pm.expect(student.name).to.include(\"<script>alert('x')</script>\");",
+                  "  pm.expect(student.name).to.include('O\\'Brien\\\"; DROP TABLE Student; --');",
+                  "});",
+                  "pm.test('the rest of the record is untouched', () => {",
+                  "  pm.expect(student.studentNumber).to.eql(pm.variables.get('studentIdentifier'));",
+                  "  pm.expect(student.enrolled.length).to.be.above(0);",
+                  "});",
+                  "console.log('ST-003 name after: ' + student.name);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lastName\": \"<script>alert('x')</script> O'Brien\\\"; DROP TABLE Student; --\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/students/{{studentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "students",
+                "{{studentId}}"
+              ]
+            }
+          },
+          "id": "5bda73e5-fc24-446f-b33d-e5616ed3eeb0"
+        },
+        {
+          "name": "The candidate's own screens still read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the courses still load', () => pm.response.to.have.status(200));",
+                  "pm.test('the enrolments are all still there', () => pm.expect(pm.response.json().courses.length).to.be.above(0));",
+                  "console.log('ST-003 courses after the odd input -> ' + pm.response.code + ', ' + pm.response.json().courses.length + ' courses');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "courses"
+              ]
+            }
+          },
+          "id": "e6dd9732-8670-44e6-bd39-1389d955c502"
+        },
+        {
+          "name": "Put the name back",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('restored', () => pm.response.to.have.status(200));",
+                  "console.log('ST-003 name restored: ' + (pm.response.json().student || pm.response.json()).name);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lastName\": \"{{originalLastName}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/students/{{studentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "students",
+                "{{studentId}}"
+              ]
+            }
+          },
+          "id": "0f350abe-b4b5-4a9b-abff-8a1e386efd4e"
+        }
+      ],
+      "id": "5cb29e50-495f-4b99-8662-25a10f30644a"
+    },
+    {
+      "name": "ST-004 Suspended Account Access",
+      "item": [
+        {
+          "name": "Control — the open session works",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the session is good', () => pm.response.to.have.status(200));",
+                  "console.log('ST-004 before suspension -> ' + pm.response.code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "courses"
+              ]
+            }
+          },
+          "id": "0062ce35-36b2-4ce1-8708-e030d911509d"
+        },
+        {
+          "name": "Administrator suspends the account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('suspended', () => pm.response.to.have.status(200));",
+                  "pm.test('the record says so', () => pm.expect((pm.response.json().student || pm.response.json()).suspended).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"suspended\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/students/{{studentId}}/suspension",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "students",
+                "{{studentId}}",
+                "suspension"
+              ]
+            }
+          },
+          "id": "c9cd4279-35ae-418f-96cd-3c5b4d4e6fba"
+        },
+        {
+          "name": "The same open session, used again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the open session is now refused', () => pm.expect(pm.response.code).to.be.oneOf([401, 403, 423]));",
+                  "pm.test('nothing came back with it', () => pm.expect(pm.response.json().courses).to.be.undefined);",
+                  "console.log('ST-004 open session after suspension -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "courses"
+              ]
+            }
+          },
+          "id": "ea47bbf7-adcd-46a4-81c5-032aca883713"
+        },
+        {
+          "name": "Signing in again while suspended",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.expect(pm.response.code).to.be.oneOf([401, 403, 423]));",
+                  "pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);",
+                  "console.log('ST-004 login while suspended -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{studentIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "78fc4019-cc79-4469-ae1a-dd086146a4ab"
+        },
+        {
+          "name": "Administrator lifts the suspension",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('lifted', () => pm.response.to.have.status(200));",
+                  "pm.test('the record says so', () => pm.expect((pm.response.json().student || pm.response.json()).suspended).to.not.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"suspended\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/students/{{studentId}}/suspension",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "students",
+                "{{studentId}}",
+                "suspension"
+              ]
+            }
+          },
+          "id": "d656e6de-b9d7-45d3-8ef3-3e723ea46f1d"
+        },
+        {
+          "name": "Signing in once the suspension is lifted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('signed in again', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('studentToken', pm.response.json().token);",
+                  "console.log('ST-004 login after restore -> ' + pm.response.code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{studentIdentifier}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "id": "c8df0b6a-50be-48b3-8688-3608e4d422ac"
+        }
+      ],
+      "id": "71d4270a-5b56-49d5-bcb8-e82cba9988e0"
+    },
+    {
+      "name": "ST-005 Session Timeout",
+      "item": [
+        {
+          "name": "A session past its twelve hours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(401));",
+                  "pm.test('told to sign in again', () => pm.expect(pm.response.json().message).to.eql('Sign in to continue.'));",
+                  "console.log('ST-005 expired session -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{expiredToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/standing",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "standing"
+              ]
+            }
+          },
+          "id": "65907453-cf8b-4529-8481-93726f036ce8"
+        },
+        {
+          "name": "An expired session on the candidate's own work",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(401));",
+                  "pm.test('no coursework came back', () => pm.expect(pm.response.json().courses).to.be.undefined);",
+                  "console.log('ST-005 expired session on coursework -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{expiredToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "courses"
+              ]
+            }
+          },
+          "id": "67ff7013-6b9a-46b8-88e6-8a14170d0c9d"
+        },
+        {
+          "name": "A tampered session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('refused', () => pm.response.to.have.status(401));",
+                  "console.log('ST-005 tampered session -> ' + pm.response.code + ' ' + pm.response.json().message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tamperedToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/standing",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "standing"
+              ]
+            }
+          },
+          "id": "c2d03374-788d-40b0-84c0-72a444ac1edc"
+        },
+        {
+          "name": "Control — a session still inside its twelve hours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('let through', () => pm.response.to.have.status(200));",
+                  "console.log('ST-005 control -> ' + pm.response.code + ' (the route works; the refusal was about the expiry)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{studentToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/standing",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "standing"
+              ]
+            }
+          },
+          "id": "1d18ea26-6fb4-40e4-8d81-9af53e4db4d3"
+        }
+      ],
+      "id": "41e8fbac-8c17-411c-91b7-72797113eed3"
+    }
+  ]
+}

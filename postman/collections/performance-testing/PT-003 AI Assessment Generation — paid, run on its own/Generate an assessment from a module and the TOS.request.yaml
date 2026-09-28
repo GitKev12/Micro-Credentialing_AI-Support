@@ -1,0 +1,29 @@
+$kind: http-request
+id: 51ad10b1-c85a-4943-8aa0-ed5c6f317d24
+url: "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{generateCourseId}}/assessments/generate"
+method: POST
+headers:
+  Authorization: Bearer {{assessorToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "scope": "lesson",
+      "moduleId": "{{generateModuleId}}",
+      "itemCount": 10,
+      "timeLimitMinutes": 20
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('a draft came back', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));
+      const body = pm.response.json();
+      const paper = body.assessment || body;
+      pm.test('it holds the questions the blueprint asked for', () => {
+        pm.expect(paper.items.length).to.eql(paper.itemCount);
+        pm.expect(paper.status).to.eql('draft');
+      });
+      console.log('PT-003 generate ' + pm.response.responseTime + ' ms, ' + paper.itemCount + ' items, model ' + JSON.stringify(paper.source));
+    language: text/javascript
+order: 2000

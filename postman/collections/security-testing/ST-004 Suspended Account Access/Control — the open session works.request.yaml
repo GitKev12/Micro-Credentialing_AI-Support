@@ -1,0 +1,13 @@
+$kind: http-request
+id: 0062ce35-36b2-4ce1-8708-e030d911509d
+url: "{{baseUrl}}/api/students/{{studentId}}/courses"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('the session is good', () => pm.response.to.have.status(200));
+      console.log('ST-004 before suspension -> ' + pm.response.code);
+    language: text/javascript
+order: 1000

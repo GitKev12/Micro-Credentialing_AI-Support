@@ -1,0 +1,14 @@
+$kind: http-request
+id: ea47bbf7-adcd-46a4-81c5-032aca883713
+url: "{{baseUrl}}/api/students/{{studentId}}/courses"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('the open session is now refused', () => pm.expect(pm.response.code).to.be.oneOf([401, 403, 423]));
+      pm.test('nothing came back with it', () => pm.expect(pm.response.json().courses).to.be.undefined);
+      console.log('ST-004 open session after suspension -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 3000

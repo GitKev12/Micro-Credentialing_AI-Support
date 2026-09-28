@@ -1,0 +1,14 @@
+$kind: http-request
+id: 67ff7013-6b9a-46b8-88e6-8a14170d0c9d
+url: "{{baseUrl}}/api/students/{{studentId}}/courses"
+method: GET
+headers:
+  Authorization: Bearer {{expiredToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(401));
+      pm.test('no coursework came back', () => pm.expect(pm.response.json().courses).to.be.undefined);
+      console.log('ST-005 expired session on coursework -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 2000

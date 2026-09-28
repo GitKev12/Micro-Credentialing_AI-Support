@@ -1,0 +1,27 @@
+$kind: http-request
+id: 78aff5a2-5561-44e4-a32c-147ef3457f9d
+url: "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments/{{quizId}}"
+method: PUT
+headers:
+  Authorization: Bearer {{studentToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "items": [
+        {
+          "id": "g1",
+          "q": "Rewritten by the candidate",
+          "choices": [{ "id": "a", "text": "Yes" }, { "id": "b", "text": "No" }],
+          "key": "a"
+        }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(403));
+      console.log('ST-002 edit paper -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 1000

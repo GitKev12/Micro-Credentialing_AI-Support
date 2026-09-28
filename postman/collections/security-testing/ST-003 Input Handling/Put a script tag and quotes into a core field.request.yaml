@@ -1,0 +1,29 @@
+$kind: http-request
+id: 5bda73e5-fc24-446f-b33d-e5616ed3eeb0
+url: "{{baseUrl}}/api/admin/students/{{studentId}}"
+method: PATCH
+headers:
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "lastName": "<script>alert('x')</script> O'Brien\"; DROP TABLE Student; --"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('saved without error', () => pm.response.to.have.status(200));
+      const student = pm.response.json().student || pm.response.json();
+      pm.test('kept as plain text, character for character', () => {
+        pm.expect(student.name).to.include("<script>alert('x')</script>");
+        pm.expect(student.name).to.include('O\'Brien\"; DROP TABLE Student; --');
+      });
+      pm.test('the rest of the record is untouched', () => {
+        pm.expect(student.studentNumber).to.eql(pm.variables.get('studentIdentifier'));
+        pm.expect(student.enrolled.length).to.be.above(0);
+      });
+      console.log('ST-003 name after: ' + student.name);
+    language: text/javascript
+order: 4000

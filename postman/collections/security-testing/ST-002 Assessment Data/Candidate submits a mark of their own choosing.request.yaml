@@ -1,0 +1,35 @@
+$kind: http-request
+id: 3fada766-8c7b-4367-b8f7-67e72d00a051
+url: "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}/submit"
+method: POST
+headers:
+  Authorization: Bearer {{studentToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "answers": {{quizAnswers}},
+      "durationMs": 300000,
+      "score": 999,
+      "passed": true,
+      "aiGrading": { "status": "graded", "score": 999 },
+      "credential": { "status": "issued" }
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));
+      const result = pm.response.json().result || pm.response.json();
+      const total = Number(pm.collectionVariables.get('paperTotal'));
+      const passMark = Number(pm.collectionVariables.get('paperPassMark'));
+      pm.test('the mark sent in the request was ignored', () => {
+        pm.expect(result.score).to.not.eql(999);
+        pm.expect(result.score).to.be.at.most(total);
+      });
+      pm.test('pass or fail follows the mark, not the request', () => {
+        pm.expect(Boolean(result.passed)).to.eql(result.score >= passMark);
+      });
+      console.log('ST-002 forged mark -> asked for 999 and passed:true, recorded ' + result.score + '/' + total + ', passed ' + result.passed);
+    language: text/javascript
+order: 4000

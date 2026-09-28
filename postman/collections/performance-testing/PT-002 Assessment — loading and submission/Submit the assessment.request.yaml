@@ -1,0 +1,24 @@
+$kind: http-request
+id: dd47a179-80ea-4109-9cd3-e284c2303fd4
+url: "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}/submit"
+method: POST
+headers:
+  Authorization: Bearer {{studentToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "answers": {{quizAnswers}},
+      "durationMs": 540000
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('submission accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));
+      const body = pm.response.json();
+      const result = body.result || body;
+      pm.test('it came back marked', () => pm.expect(result.score).to.be.a('number'));
+      console.log('PT-002 submit ' + pm.response.responseTime + ' ms, scored ' + result.score + '/' + (result.totalPoints || result.total));
+    language: text/javascript
+order: 2000

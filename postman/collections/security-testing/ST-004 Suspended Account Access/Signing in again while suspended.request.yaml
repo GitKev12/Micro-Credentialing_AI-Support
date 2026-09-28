@@ -1,0 +1,21 @@
+$kind: http-request
+id: 78fc4019-cc79-4469-ae1a-dd086146a4ab
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "{{studentIdentifier}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.expect(pm.response.code).to.be.oneOf([401, 403, 423]));
+      pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);
+      console.log('ST-004 login while suspended -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 4000

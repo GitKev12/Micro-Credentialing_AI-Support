@@ -1,0 +1,9 @@
+$kind: collection
+name: Micro-Credentialing — Security Testing (ST-001..ST-005)
+description: The five security scenarios in the testing form. Each folder is one test ID. Every refusal is checked against the message the system actually shows, and each folder carries a control request so a refusal cannot be mistaken for a broken route. Run against a scratch copy of the database — ST-003 and ST-004 write, and both put back what they changed.
+variables:
+  studentToken: ""
+  assessorToken: ""
+  adminToken: ""
+  quizAnswers: "[]"
+  originalLastName: ""

@@ -1,0 +1,19 @@
+$kind: http-request
+id: f02dc9a8-c45c-4b9b-ac32-d1255fae170e
+url: "{{baseUrl}}/api/students/{{studentId}}/assessments/{{quizId}}?retake=1"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+queryParams:
+  retake: "1"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('opens', () => pm.response.to.have.status(200));
+      const paper = pm.response.json().assessment;
+      const answers = paper.items.map((item) => ({ itemId: item.id, choice: item.choices[0].id }));
+      pm.collectionVariables.set('quizAnswers', JSON.stringify(answers));
+      pm.collectionVariables.set('paperTotal', paper.totalPoints);
+      pm.collectionVariables.set('paperPassMark', paper.passMark);
+    language: text/javascript
+order: 3000

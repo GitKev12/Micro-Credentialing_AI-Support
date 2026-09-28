@@ -1,0 +1,21 @@
+$kind: http-request
+id: 678bd631-1045-4960-9534-26f15b788319
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": { "$ne": null },
+      "password": { "$ne": null }
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('not signed in', () => pm.expect(pm.response.code).to.be.oneOf([400, 401]));
+      pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);
+      console.log('ST-003 injection object -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 1000

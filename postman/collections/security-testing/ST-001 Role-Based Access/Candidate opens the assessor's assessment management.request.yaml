@@ -1,0 +1,17 @@
+$kind: http-request
+id: 62652c94-e4f0-4951-83db-f5e9fd2294d7
+url: "{{baseUrl}}/api/assessors/{{assessorId}}/classes/{{courseId}}/assessments"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(403));
+      pm.test('told why, and nothing else', () => {
+        pm.expect(pm.response.json().message).to.eql('You do not have access to this resource.');
+        pm.expect(pm.response.text()).to.not.include('items');
+      });
+      console.log('ST-001 assessor assessments -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 1000

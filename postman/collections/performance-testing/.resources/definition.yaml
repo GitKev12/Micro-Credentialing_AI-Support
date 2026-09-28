@@ -1,0 +1,8 @@
+$kind: collection
+name: Micro-Credentialing — Performance Testing (PT-001..PT-004)
+description: Response-time runs for the four core features in the Performance Testing form. Each folder is one test ID and can be run on its own with -i. PT-003 makes a paid OpenAI call and is kept in its own folder for that reason.
+variables:
+  studentToken: ""
+  assessorToken: ""
+  quizAnswers: "[]"
+  finalAnswers: "[]"

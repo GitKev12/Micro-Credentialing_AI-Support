@@ -1,0 +1,20 @@
+$kind: http-request
+id: 89ded226-9892-40f5-8330-09f26bfe8572
+url: "{{baseUrl}}/api/auth/admin/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "identifier": "{{adminIdentifier}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('administrator signed in', () => pm.response.to.have.status(200));
+      pm.collectionVariables.set('adminToken', pm.response.json().token);
+    language: text/javascript
+order: 3000

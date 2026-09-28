@@ -1,0 +1,17 @@
+$kind: http-request
+id: 0d8df19a-7155-4900-9964-4b87fab44d8b
+url: "{{baseUrl}}/api/students/{{otherStudentId}}/assessments/{{quizId}}"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refused', () => pm.response.to.have.status(403));
+      pm.test('no questions and no marks came back', () => {
+        pm.expect(pm.response.json().assessment).to.be.undefined;
+        pm.expect(pm.response.json().result).to.be.undefined;
+      });
+      console.log('ST-002 other candidate -> ' + pm.response.code + ' ' + pm.response.json().message);
+    language: text/javascript
+order: 2000
