@@ -35,7 +35,7 @@ import CourseImageForm from "./components/course/CourseImageForm";
 import ModuleList from "./components/course/ModuleList";
 import ModulePreview from "./components/course/ModulePreview";
 import { courseMark } from "./components/course/impact";
-import { errorMessage } from "./lib/format";
+import { errorMessage, plural } from "./lib/format";
 import { SkeletonTable } from "../../components/Skeleton";
 import { useLatestRequest } from "../../lib/useLatestRequest";
 import { noticeClass, useNotice } from "../../lib/useNotice";
@@ -60,6 +60,8 @@ function CourseManagement() {
   const [impact, setImpact] = useState(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
+  // Which file is uploading when several were picked: { index, total }.
+  const [uploadStep, setUploadStep] = useState(null);
   const [notice, setNotice] = useNotice();
 
   // The course itself, rather than its lessons: which form is open ("new", or
@@ -204,38 +206,53 @@ function CourseManagement() {
     );
   };
 
-  const addModule = async ({ file, title }) => {
-    if (!file) return false;
-
-    if (file.size > MAX_MODULE_BYTES) {
-      setNotice({ tone: "error", text: "That file is larger than the 40 MB limit." });
-      return false;
-    }
+  // Uploads the chosen PDFs one after another. `title` is only used for a single file;
+  // with several, each module is named after its file.
+  const addModules = async ({ files, title }) => {
+    if (!files?.length) return false;
 
     setBusy(true);
-    setProgress(0);
     setNotice(null);
-    try {
-      const added = await createCourseModule(selected.id, file, {
-        title,
-        onProgress: setProgress
-      });
-      // Slot it in by lesson number, the order the API lists modules in —
-      // appending would put it last here and somewhere else after the next
-      // reload, and "Chapter 10" is not the last chapter.
-      setModules(sortedLessons([...(selected.modules ?? []), added]));
-      setNotice({ tone: "ok", text: `“${added.title}” was added to this course.` });
-      return true;
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        text: errorMessage(error, "Couldn't add the module. Check the file and try again.")
-      });
-      return false;
-    } finally {
-      setBusy(false);
+    const added = [];
+    const failed = [];
+
+    for (const [index, file] of files.entries()) {
+      setUploadStep({ index: index + 1, total: files.length });
       setProgress(0);
+
+      if (file.size > MAX_MODULE_BYTES) {
+        failed.push(`${file.name} (larger than 40 MB)`);
+        continue;
+      }
+      try {
+        added.push(
+          await createCourseModule(selected.id, file, {
+            title: files.length === 1 ? title : "",
+            onProgress: setProgress
+          })
+        );
+      } catch (error) {
+        failed.push(`${file.name} (${errorMessage(error, "upload failed")})`);
+      }
     }
+
+    // Slot the new ones in by lesson number, the order the API lists modules in.
+    if (added.length) setModules(sortedLessons([...(selected.modules ?? []), ...added]));
+
+    const addedText =
+      added.length === 1
+        ? `“${added[0].title}” was added to this course.`
+        : `${plural(added.length, "module")} were added to this course.`;
+    setNotice(
+      failed.length
+        ? { tone: "error", text: `${added.length ? `${addedText} ` : ""}Not added: ${failed.join(", ")}.` }
+        : { tone: "ok", text: addedText }
+    );
+
+    setBusy(false);
+    setProgress(0);
+    setUploadStep(null);
+    return failed.length === 0;
   };
 
   /**
@@ -400,7 +417,8 @@ function CourseManagement() {
                 nextNumber={modules.length + 1}
                 busy={busy}
                 progress={progress}
-                onAdd={addModule}
+                step={uploadStep}
+                onAdd={addModules}
               />
               <CourseImageForm
                 course={selected}

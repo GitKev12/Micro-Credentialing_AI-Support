@@ -3656,6 +3656,67 @@
   transition: width 0.2s ease;
 }
 
+/* Several PDFs at once: one row per file, under the dropzone and in the same
+   sunken tone, so the pair reads as one upload block inside the card rather
+   than a second panel. No title field in this case — each module is named
+   after its own file, and this list is where you check that. */
+.admin-upload-list {
+  max-height: 12rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.admin-upload-list__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.875rem;
+}
+
+/* A hairline between rows only — not around the list, which would make it a
+   bordered card of its own. */
+.admin-upload-list__item + .admin-upload-list__item {
+  border-top: 1px solid var(--gray-200);
+}
+
+/* Cut off rather than wrapped: the rows stay one line each, so a long name
+   cannot push the size off the end in the narrow right-hand column. */
+.admin-upload-list__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-body);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-upload-list__size {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* On a phone the card is the full width but the text is bigger, so the rows
+   get a little more room to be tapped past and read. */
+@media (max-width: 40rem) {
+  .admin-upload-list {
+    max-height: 14rem;
+  }
+
+  .admin-upload-list__item {
+    padding: 0.625rem 0.875rem;
+  }
+}
+
 /* The course picture, at the student card's 16:9 crop, as its own drop
    target. Empty, it is a sunken frame with the prompt in the middle; with a
    picture, the prompt shrinks to a strip along the bottom so the picture

@@ -2,28 +2,37 @@ import { useRef, useState } from "react";
 
 import { PlusIcon, UploadIcon } from "../icons";
 import { AdminButton, SectionTitle } from "../ui";
-import { fileSizeLabel } from "../../lib/format";
+import { fileSizeLabel, plural } from "../../lib/format";
 
-/** Title + file picker for a new lesson. Drag-and-drop or click to browse. */
-function AddModuleForm({ nextNumber, busy, progress, onAdd }) {
+// Keep only PDFs from what was picked or dropped.
+const onlyPdfs = (fileList) =>
+  [...(fileList ?? [])].filter(
+    (file) => file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+  );
+
+/** Title + file picker for new lessons. Pick or drop one PDF or several. */
+function AddModuleForm({ nextNumber, busy, progress, step, onAdd }) {
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
 
-  const takeFile = (chosen) => {
-    if (!chosen) return;
-    setFile(chosen);
-    // The file name is the obvious first draft of the title; the admin can
-    // still type over it before adding.
-    if (!title.trim()) setTitle(chosen.name.replace(/\.pdf$/i, ""));
+  const single = files.length === 1;
+
+  const takeFiles = (fileList) => {
+    const chosen = onlyPdfs(fileList);
+    if (chosen.length === 0) return;
+    setFiles(chosen);
+    // One file: its name is the first draft of the title.
+    // Several files: each one is titled from its own name.
+    setTitle(chosen.length === 1 ? chosen[0].name.replace(/\.pdf$/i, "") : "");
   };
 
   const submit = async () => {
-    const added = await onAdd({ file, title: title.trim() });
-    if (added) {
+    const done = await onAdd({ files, title: single ? title.trim() : "" });
+    if (done) {
       setTitle("");
-      setFile(null);
+      setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
     }
   };
@@ -39,7 +48,7 @@ function AddModuleForm({ nextNumber, busy, progress, onAdd }) {
       {/* The file comes first: its name is the first draft of the title. */}
       <button
         type="button"
-        className={`admin-dropzone${dragging ? " is-dragging" : ""}${file ? " has-file" : ""}`}
+        className={`admin-dropzone${dragging ? " is-dragging" : ""}${files.length ? " has-file" : ""}`}
         disabled={busy}
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
@@ -50,18 +59,20 @@ function AddModuleForm({ nextNumber, busy, progress, onAdd }) {
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          takeFile(event.dataTransfer.files?.[0]);
+          takeFiles(event.dataTransfer.files);
         }}
       >
-        {file ? (
+        {files.length ? (
           <>
             <span className="admin-dropzone__doc" aria-hidden="true">
               PDF
             </span>
             <span className="admin-dropzone__chosen">
-              <span className="admin-dropzone__name">{file.name}</span>
+              <span className="admin-dropzone__name">
+                {single ? files[0].name : plural(files.length, "file")}
+              </span>
               <span className="admin-dropzone__file">
-                {fileSizeLabel(file.size)}
+                {fileSizeLabel(files.reduce((sum, file) => sum + file.size, 0))}
                 <span className="admin-dropzone__link">Change</span>
               </span>
             </span>
@@ -72,12 +83,12 @@ function AddModuleForm({ nextNumber, busy, progress, onAdd }) {
               <UploadIcon size={22} />
             </span>
             <span className="admin-dropzone__text">
-              Drag a PDF here, or <span className="admin-dropzone__link">browse</span>
+              Drag PDFs here, or <span className="admin-dropzone__link">browse</span>
             </span>
-            <span className="admin-dropzone__file">PDF only, up to 40 MB</span>
+            <span className="admin-dropzone__file">PDF only, up to 40 MB each</span>
           </>
         )}
-        {busy && file ? (
+        {busy && files.length ? (
           <span className="admin-dropzone__bar" aria-hidden="true">
             <span style={{ width: `${progress}%` }} />
           </span>
@@ -89,25 +100,49 @@ function AddModuleForm({ nextNumber, busy, progress, onAdd }) {
         className="admin-visually-hidden"
         type="file"
         accept="application/pdf,.pdf"
+        multiple
         tabIndex={-1}
-        onChange={(event) => takeFile(event.target.files?.[0])}
+        onChange={(event) => takeFiles(event.target.files)}
       />
 
-      <div className="admin-field">
-        <div className="admin-field__label">Module title</div>
-        <input
-          className="admin-input"
-          type="text"
-          value={title}
-          placeholder="e.g. Chapter 3 — Data Representation"
-          aria-label="Module title"
-          disabled={busy}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-      </div>
+      {single ? (
+        <div className="admin-field">
+          <div className="admin-field__label">Module title</div>
+          <input
+            className="admin-input"
+            type="text"
+            value={title}
+            placeholder="e.g. Chapter 3 — Data Representation"
+            aria-label="Module title"
+            disabled={busy}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </div>
+      ) : null}
 
-      <AdminButton variant="admin-btn--block" disabled={busy || !file} onClick={submit}>
-        {busy ? `Uploading… ${progress}%` : "Add module"}
+      {/* Several files: each becomes a module named after its file. */}
+      {files.length > 1 ? (
+        <ul className="admin-upload-list" aria-label="Files to add">
+          {files.map((file) => (
+            <li key={`${file.name}-${file.size}`} className="admin-upload-list__item">
+              {/* title: hover to read a long name that was cut off */}
+              <span className="admin-upload-list__name" title={file.name}>
+                {file.name.replace(/\.pdf$/i, "")}
+              </span>
+              <span className="admin-upload-list__size">{fileSizeLabel(file.size)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <AdminButton variant="admin-btn--block" disabled={busy || files.length === 0} onClick={submit}>
+        {busy
+          ? step && step.total > 1
+            ? `Uploading ${step.index} of ${step.total}… ${progress}%`
+            : `Uploading… ${progress}%`
+          : files.length > 1
+            ? `Add ${plural(files.length, "module")}`
+            : "Add module"}
       </AdminButton>
     </section>
   );
