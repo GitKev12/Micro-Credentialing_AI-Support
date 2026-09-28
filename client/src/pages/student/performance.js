@@ -62,6 +62,38 @@ export const SKILL_FORMULAS = [
   { name: "Weight", expression: "Wi = fi / Σf" }
 ];
 
+/**
+ * The four skill gap tiers, by the id the server sends on each skill.
+ * The server works out the ranges from the class's cut-off (calculateDynamicTiers
+ * in skillgap.service.js); this only says how each one looks.
+ */
+export const TIER_BANDS = {
+  strength: { id: "strength", label: "Strength", tone: "green" },
+  competent: { id: "competent", label: "Competent", tone: "blue" },
+  "needs-improvement": { id: "needs-improvement", label: "Needs Improvement", tone: "orange" },
+  "skill-gap": { id: "skill-gap", label: "Significant Skill Gap", tone: "red" }
+};
+
+/** A skill's tier. An older server sends no tier, so fall back to the cut-off. */
+export function tierBandFor(skill, cutoff) {
+  if (TIER_BANDS[skill.tier]) return TIER_BANDS[skill.tier];
+  return toScore(skill.score) >= cutoff ? TIER_BANDS.competent : TIER_BANDS["needs-improvement"];
+}
+
+/**
+ * The tier a bare score falls in — a course's overall performance, which the
+ * server tiers nothing for. It reads the ranges the server sent with the
+ * course rather than working them out again here, so the client can never
+ * disagree with calculateDynamicTiers about where a boundary sits.
+ */
+export function tierBandForScore(value, cutoff = TARGET, tiers = []) {
+  const score = toScore(value);
+  const match = tiers.find((tier) => score >= tier.min && score <= tier.max);
+  if (match && TIER_BANDS[match.id]) return TIER_BANDS[match.id];
+  // Same fallback as tierBandFor: an older server sends no ranges either.
+  return score >= cutoff ? TIER_BANDS.competent : TIER_BANDS["needs-improvement"];
+}
+
 /** Clamp anything the API hands us into a whole 0–100. */
 export function toScore(value) {
   const number = Number(value);
@@ -95,6 +127,8 @@ export function collectSkills(courses) {
         key: `${course.id}:${skill.topic}`,
         topic: skill.topic,
         score: toScore(skill.score),
+        // Points under the class's cut-off, from the server.
+        gap: Number.isFinite(skill.gap) ? skill.gap : gapToTarget(skill.score),
         courseId: course.id,
         courseTitle: course.title
       }))

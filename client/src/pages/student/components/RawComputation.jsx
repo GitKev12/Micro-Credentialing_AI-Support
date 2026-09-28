@@ -150,9 +150,9 @@ function RawComputation({ course }) {
               </dd>
             </div>
             <div className="sd-raw__result">
-              <dt>Weak threshold</dt>
+              <dt>Target competency</dt>
               <dd>
-                Skill Score &lt; <strong>{TARGET}%</strong>
+                <strong>{course?.cutoff ?? TARGET}%</strong>
               </dd>
             </div>
           </dl>

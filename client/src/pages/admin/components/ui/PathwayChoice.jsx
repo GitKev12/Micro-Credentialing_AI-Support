@@ -18,12 +18,12 @@ export const PATHWAYS = [
   {
     value: "taught",
     label: "Taught and assessed",
-    detail: "Work through the lessons, pass each quiz, then take the final exam."
+    detail: "Work through the lessons, pass each lesson exam, then take the final exam."
   },
   {
     value: "assessOnly",
     label: "Assess-only",
-    detail: "Go straight to one examination. No lessons, no quizzes, no badges."
+    detail: "Go straight to one examination. No lessons, no lesson exams, no badges."
   }
 ];
 

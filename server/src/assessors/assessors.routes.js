@@ -5,6 +5,7 @@ import {
   getPendingCredentials,
   getRoster,
   getStudentDetail,
+  setClassCutoff,
   issueCredential,
   setRosterStudentSuspension
 } from "./assessors.controller.js";
@@ -13,6 +14,7 @@ import {
   getAssessmentResults,
   getCourseAssessment,
   getCourseAssessments,
+  getGenerationProgress,
   getStudentPaper,
   postCourseAssessment,
   streamAssessmentResults,
@@ -95,6 +97,9 @@ router.get("/:assessorId/classes/:courseId/tos", getCourseTos);
 router.put("/:assessorId/classes/:courseId/tos", saveCourseTos);
 router.get("/:assessorId/classes/:courseId/students/:studentId", getStudentDetail);
 
+// The skill gap cut-off of one of this assessor's classes.
+router.patch("/:assessorId/classes/:courseId/cutoff", setClassCutoff);
+
 // The one write here that changes what a student can *do* rather than what
 // their record says, and the only one an assessor makes about a person rather
 // than a paper. It is the admin console's own suspension — same field, same
@@ -110,6 +115,12 @@ router.patch(
 // student's "Take the Quiz" had, moved to the person who reads the result.
 router.get("/:assessorId/classes/:courseId/assessments", getCourseAssessments);
 router.post("/:assessorId/classes/:courseId/assessments/generate", generateCourseAssessment);
+// Before the :assessmentId read below, which would otherwise match this path
+// and look for an assessment called "generation-progress".
+router.get(
+  "/:assessorId/classes/:courseId/assessments/generation-progress",
+  getGenerationProgress
+);
 router.get("/:assessorId/classes/:courseId/assessments/:assessmentId", getCourseAssessment);
 router.put("/:assessorId/classes/:courseId/assessments/:assessmentId", updateCourseAssessment);
 router.post("/:assessorId/classes/:courseId/assessments/:assessmentId/post", postCourseAssessment);

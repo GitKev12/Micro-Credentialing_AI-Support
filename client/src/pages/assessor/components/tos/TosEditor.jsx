@@ -336,52 +336,30 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
       )}
 
       {mode === "lesson" ? (
-        <>
-          <section className="assessor-card tos-block">
-            <div className="tos-block__head">
-              <div>
-                <h2 className="tos-block__title">Lesson quiz</h2>
-                {lessons.length ? (
-                  <span className="tos-editor__lesson-label">
-                    {lessons.find((entry) => String(entry.id) === String(lessonId))?.title}
-                  </span>
-                ) : null}
-              </div>
-              <div className="tos-block__tools">
-                <Stepper
-                  value={quizItems}
-                  max={MAX_ITEMS}
-                  label="Questions in this quiz"
-                  onChange={setQuizItems}
-                />
-              </div>
+        <section className="assessor-card tos-block">
+          <div className="tos-block__head">
+            <div>
+              <h2 className="tos-block__title">Lesson exam</h2>
+              {lessons.length ? (
+                <span className="tos-editor__lesson-label">
+                  {lessons.find((entry) => String(entry.id) === String(lessonId))?.title}
+                </span>
+              ) : null}
             </div>
+            <div className="tos-block__tools">
+              <Stepper
+                value={quizItems}
+                max={MAX_ITEMS}
+                label="Questions in this exam"
+                onChange={setQuizItems}
+              />
+            </div>
+          </div>
 
-            <AllocationBar target={quizItems} split={quizSplit} />
+          <AllocationBar target={quizItems} split={quizSplit} />
 
-            <LevelSplit split={quizSplit} total={quizItems} onChange={setQuizLevel} />
-          </section>
-
-          <section className="assessor-card tos-block">
-            <h2 className="tos-block__title">Course lessons</h2>
-            <ul className="tos-rows tos-rows--compact">
-              {lessons.map((entry, index) => {
-                const items = splitItems(draft.quizzes[entry.id] ?? {});
-                const current = String(entry.id) === String(lessonId);
-
-                return (
-                  <li className={`tos-row${current ? " is-current" : ""}`} key={entry.id}>
-                    <span className="tos-row__n">{index + 1}</span>
-                    <span className="tos-row__name">{entry.title}</span>
-                    <span className={`tos-row__items${items ? "" : " is-empty"}`}>
-                      {items ? `${items} questions` : "Not set"}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </>
+          <LevelSplit split={quizSplit} total={quizItems} onChange={setQuizLevel} />
+        </section>
       ) : (
         <>
           <section className="assessor-card tos-block">

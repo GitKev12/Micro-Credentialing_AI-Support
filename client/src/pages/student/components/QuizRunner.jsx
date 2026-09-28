@@ -43,7 +43,7 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
      loading and locked states are on screen before the paper arrives and they
      have to name it too. The two agree: both carry the same scope. */
   const isFinal = assessment?.scope === "final";
-  const paper = isFinal ? "final exam" : "quiz";
+  const paper = isFinal ? "final exam" : "exam";
   // Why it is shut, as the rail was told. Only read for a placeholder — a real
   // paper is refused by the server, which sends its own reason with the 423,
   // and that one is authoritative where the rail may be a moment out of date.

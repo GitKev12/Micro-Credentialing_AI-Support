@@ -210,14 +210,14 @@ describe("LessonNav — a locked quiz", () => {
     title: "",
     placeholder: true,
     locked: true,
-    reason: "Your assessor will unlock this quiz.",
+    reason: "Your assessor will unlock this exam.",
     result: null
   };
 
   const withQuiz = (quiz = LOCKED, overrides = {}) =>
     draw({ assessmentsByModule: { m1: [quiz] }, ...overrides });
 
-  const quizRow = () => screen.getByText("Quiz 1").closest("button");
+  const quizRow = () => screen.getByText("Exam 1").closest("button");
 
   it("can still be pressed", () => {
     withQuiz();
@@ -248,7 +248,7 @@ describe("LessonNav — a locked quiz", () => {
   it("does not carry the reason itself", () => {
     withQuiz();
 
-    expect(screen.queryByText("Your assessor will unlock this quiz.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your assessor will unlock this exam.")).not.toBeInTheDocument();
     expect(quizRow()).not.toHaveAttribute("title");
   });
 

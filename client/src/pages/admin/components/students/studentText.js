@@ -11,7 +11,7 @@ export function lastActiveLabel(lastActive) {
   if (!when) return "No activity recorded yet";
 
   return `Last active ${when} · ${
-    lastActive.kind === "quiz" ? "submitted a quiz" : "finished a lesson"
+    lastActive.kind === "quiz" ? "submitted an exam" : "finished a lesson"
   }`;
 }
 

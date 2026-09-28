@@ -25,10 +25,10 @@ export function impactLabel(impact) {
   if (!impact) return "Checking what this would remove…";
   // The count failed. Name the categories anyway: silence would read as
   // "nothing else will be lost", which is the one thing we cannot claim.
-  if (impact.unknown) return "Remove this module, its quiz and any completion records?";
+  if (impact.unknown) return "Remove this module, its exam and any completion records?";
 
   const losses = [
-    impact.assessments ? `${impact.assessments} quiz${impact.assessments === 1 ? "" : "zes"}` : "",
+    impact.assessments ? `${impact.assessments} exam${impact.assessments === 1 ? "" : "s"}` : "",
     impact.completions
       ? `${impact.completions} completion record${impact.completions === 1 ? "" : "s"}`
       : "",

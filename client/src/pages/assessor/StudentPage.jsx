@@ -382,7 +382,7 @@ function StudentPage() {
                 <table className="assessor-table">
                   <caption className="assessor-sr-only">
                     Every lesson in this course, how far through it the student
-                    is, the day they read it and what became of its quiz. What a
+                    is, the day they read it and what became of its exam. What a
                     paper scored and how long it took are on the results screen.
                   </caption>
 
@@ -391,7 +391,7 @@ function StudentPage() {
                       <th scope="col">Lesson</th>
                       <th scope="col">Progress</th>
                       <th scope="col">Lesson read</th>
-                      <th scope="col">Quiz</th>
+                      <th scope="col">Exam</th>
                     </tr>
                   </thead>
 

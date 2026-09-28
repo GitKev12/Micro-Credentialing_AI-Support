@@ -291,7 +291,7 @@ function CourseManagement() {
       // Say what else went with it — a quiz costs money to generate again, and
       // completions are a student's record, so neither should vanish silently.
       const also = [
-        removed.assessments ? `${removed.assessments} quiz` : "",
+        removed.assessments ? `${removed.assessments} exam` : "",
         removed.completions ? `${removed.completions} completion record` : ""
       ].filter(Boolean);
       setNotice({

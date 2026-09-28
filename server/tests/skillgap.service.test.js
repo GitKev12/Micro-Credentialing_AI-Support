@@ -1,5 +1,11 @@
 import { describe, it, expect } from "@jest/globals";
-import { SKILL_THRESHOLD, skillGapFromFinal } from "../src/skillgap/skillgap.service.js";
+import {
+  DEFAULT_CUTOFF,
+  calculateDynamicTiers,
+  readCutoff,
+  skillGapFromFinal,
+  tierFor
+} from "../src/skillgap/skillgap.service.js";
 
 /** A graded result in the shape the assessments controller writes. */
 const result = (items) => ({ aiGrading: { status: "graded", items } });
@@ -55,16 +61,16 @@ describe("skillGapFromFinal", () => {
     expect(m2.score).toBe(50);
   });
 
-  it("marks a lesson weak below 60 and strong at or above it", () => {
-    expect(SKILL_THRESHOLD).toBe(60);
+  it("places each lesson in a tier around the default 60% cut-off", () => {
+    expect(DEFAULT_CUTOFF).toBe(60);
 
     const sat = result([
-      // m1: 3 of 4 asked = 75% — strong.
+      // m1: 3 of 4 asked = 75% — Competent (60-79).
       answered("a1", "m1", "correct"),
       answered("a2", "m1", "correct"),
       answered("a3", "m1", "correct"),
       answered("a4", "m1", "incorrect"),
-      // m2: 2 of 4 asked = 50% — weak.
+      // m2: 2 of 4 asked = 50% — Needs Improvement (40-59).
       answered("b1", "m2", "correct"),
       answered("b2", "m2", "correct"),
       answered("b3", "m2", "incorrect"),
@@ -74,11 +80,30 @@ describe("skillGapFromFinal", () => {
     const gap = skillGapFromFinal(sat, finalExam);
     expect(gap.skills.find((skill) => skill.moduleId === "m1")).toMatchObject({
       score: 75,
-      label: "strong"
+      tier: "competent",
+      gap: 0
     });
     expect(gap.skills.find((skill) => skill.moduleId === "m2")).toMatchObject({
       score: 50,
-      label: "weak"
+      tier: "needs-improvement",
+      gap: 10
+    });
+    expect(gap.cutoff).toBe(60);
+  });
+
+  it("uses the class's own cut-off", () => {
+    const sat = result([
+      answered("a1", "m1", "correct"),
+      answered("a2", "m1", "correct"),
+      answered("a3", "m1", "correct"),
+      answered("a4", "m1", "incorrect")
+    ]);
+
+    // 75% against a cut-off of 80 is under it.
+    const gap = skillGapFromFinal(sat, finalExam, 80);
+    expect(gap.skills.find((skill) => skill.moduleId === "m1")).toMatchObject({
+      tier: "needs-improvement",
+      gap: 5
     });
   });
 
@@ -181,5 +206,35 @@ describe("skillGapFromFinal", () => {
     const sat = result([answered("x1", "m9", "correct")]);
     const gap = skillGapFromFinal(sat, { items: [], topics: [], itemsPerModule: {} });
     expect(gap.skills[0].topic).toBe("Untitled lesson");
+  });
+});
+
+describe("calculateDynamicTiers", () => {
+  it("splits a 60% cut-off into 80-100, 60-79, 40-59 and 0-39", () => {
+    expect(calculateDynamicTiers(60).map((tier) => [tier.status, tier.min, tier.max])).toEqual([
+      ["Strength", 80, 100],
+      ["Competent", 60, 79],
+      ["Needs Improvement", 40, 59],
+      ["Significant Skill Gap", 0, 39]
+    ]);
+  });
+
+  it("rounds an odd remainder", () => {
+    // (100 - 75) / 2 = 12.5, rounded to 13.
+    expect(calculateDynamicTiers(75).map((tier) => tier.min)).toEqual([88, 75, 62, 0]);
+  });
+
+  it("puts a score in its tier after rounding to a whole percent", () => {
+    expect(tierFor(28.6, 60).id).toBe("skill-gap");
+    expect(tierFor(39.6, 60).id).toBe("needs-improvement");
+    expect(tierFor(80, 60).id).toBe("strength");
+  });
+
+  it("accepts only whole cut-offs from 1 to 99", () => {
+    expect(readCutoff("70")).toBe(70);
+    expect(readCutoff(0)).toBeNull();
+    expect(readCutoff(100)).toBeNull();
+    expect(readCutoff(60.5)).toBeNull();
+    expect(readCutoff("abc")).toBeNull();
   });
 });

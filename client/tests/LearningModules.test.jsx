@@ -583,7 +583,7 @@ describe("an assess-only course", () => {
 
     const note = container.querySelector(".sd-pathway-note");
     expect(note).not.toBeNull();
-    expect(note).toHaveTextContent(/no lessons and no quizzes/i);
+    expect(note).toHaveTextContent(/no lessons and no lesson exams/i);
     // It must not send them off to read something they cannot open.
     expect(note).not.toHaveTextContent(/read any lesson/i);
   });

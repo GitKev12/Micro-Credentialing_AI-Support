@@ -72,11 +72,11 @@ export function pathwayLosses(impact) {
             )} — no longer part of this pathway`
           : "",
         impact.quizzes
-          ? `${plural(impact.quizzes, "lesson quiz", "zes")} — no longer taken by this class`
+          ? `${plural(impact.quizzes, "lesson exam")} — no longer taken by this class`
           : ""
       ]
     : [
-        `the examination re-locks behind every lesson and quiz for ${plural(
+        `the examination re-locks behind every lesson and lesson exam for ${plural(
           impact.students,
           "candidate"
         )}`,

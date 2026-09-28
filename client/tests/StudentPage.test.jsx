@@ -230,7 +230,7 @@ describe("modules table", () => {
     const table = screen.getAllByRole("table")[0];
     const headers = [...table.querySelectorAll("thead th")].map((cell) => cell.textContent.trim());
 
-    expect(headers).toEqual(["Lesson", "Progress", "Lesson read", "Quiz"]);
+    expect(headers).toEqual(["Lesson", "Progress", "Lesson read", "Exam"]);
   });
 
   /**

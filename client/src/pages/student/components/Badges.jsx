@@ -57,7 +57,7 @@ function Badge({ badge }) {
           {earnedOn ? `Earned ${earnedOn}` : "Earned"}
         </p>
       ) : (
-        <p className="sd-badge__state sd-badge__state--locked">Pass this lesson&apos;s quiz</p>
+        <p className="sd-badge__state sd-badge__state--locked">Pass this lesson&apos;s exam</p>
       )}
     </li>
   );

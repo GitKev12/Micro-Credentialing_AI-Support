@@ -20,6 +20,7 @@ import { getStoredSession } from "../auth/services/authService";
  *   GET  /api/assessors/:id/classes/:courseId/assessments         → { course, lessons, final }
  *   GET  /api/assessors/:id/classes/:courseId/assessments/:aid    → one paper, keys included
  *   POST /api/assessors/:id/classes/:courseId/assessments/generate
+ *   GET  /api/assessors/:id/classes/:courseId/assessments/generation-progress
  *   PUT  /api/assessors/:id/classes/:courseId/assessments/:aid    → correct questions
  *   POST /api/assessors/:id/classes/:courseId/assessments/:aid/post
  *   POST /api/assessors/:id/classes/:courseId/assessments/:aid/unpost
@@ -75,6 +76,15 @@ export async function setRosterStudentSuspended(assessorId, courseId, studentId,
   return data?.student ?? null;
 }
 
+/** Set the skill gap cut-off of one of this assessor's classes (1 to 99). */
+export async function setClassCutoff(assessorId, courseId, classId, cutoff) {
+  const { data } = await api.patch(`/assessors/${assessorId}/classes/${courseId}/cutoff`, {
+    classId,
+    cutoff
+  });
+  return data?.class ?? null;
+}
+
 /* ─────────────── Generating and releasing assessments ─────────────── */
 
 const assessmentsPath = (assessorId, courseId) =>
@@ -119,6 +129,31 @@ export async function generateCourseAssessment(assessorId, courseId, body) {
     return { assessment: data?.assessment ?? null, replaced: Boolean(data?.replaced) };
   } catch (error) {
     return { error: errorMessage(error, "This assessment could not be generated.") };
+  }
+}
+
+/**
+ * How far the generation running right now has got.
+ *
+ * Polled while the screen waits, so the bar can count real lessons instead of
+ * guessing. `null` means there is no run — which is also the answer if the
+ * server restarted mid-write, and the screen treats it as "still working"
+ * rather than as finished, because the POST is what says finished.
+ */
+export async function fetchGenerationProgress(assessorId, courseId, params = {}) {
+  try {
+    const { data } = await api.get(`${assessmentsPath(assessorId, courseId)}/generation-progress`, {
+      params: {
+        scope: params.scope ?? "final",
+        ...(params.moduleId ? { moduleId: params.moduleId } : {}),
+        ...(params.classId ? { classId: params.classId } : {})
+      }
+    });
+    return data?.progress ?? null;
+  } catch {
+    // A poll that fails is not worth telling the assessor about: the write it
+    // is watching reports for itself, and the bar simply stops moving.
+    return null;
   }
 }
 

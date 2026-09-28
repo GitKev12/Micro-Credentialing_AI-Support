@@ -9,7 +9,7 @@ import {
 import { FINAL_ATTEMPT_LIMIT, attemptsUsedFrom } from "../assessments/assessments.controller.js";
 import { buildStudentBadges, passedFromResults } from "../badges/badges.service.js";
 import { issueCertificate, listIssuedCertificates } from "../certificates/certificates.service.js";
-import { SKILL_THRESHOLD, buildStudentSkillGap } from "../skillgap/skillgap.service.js";
+import { buildStudentSkillGap, cutoffOf, readCutoff } from "../skillgap/skillgap.service.js";
 import { papersByCourse } from "../assessments/papers.js";
 import { progressSummary } from "../courses/courses.controller.js";
 import { finalPassedFrom, scoreOf } from "./grading.js";
@@ -625,6 +625,7 @@ export async function getRoster(request, response) {
       name: cls.name || courseCode(course),
       active: cls.active !== false,
       mode: classMode(cls),
+      cutoff: cutoffOf(cls),
       students: (cls.studentIds ?? []).length
     })),
     roster: students.map((student) => ({
@@ -732,6 +733,35 @@ export async function setRosterStudentSuspension(request, response) {
   return response.json({
     student: { id: asId(student._id), name: studentName(student), suspended }
   });
+}
+
+/**
+ * PATCH .../classes/:courseId/cutoff — set one class's skill gap cut-off.
+ * Body: { classId, cutoff }. Only a class this assessor teaches on this course.
+ */
+export async function setClassCutoff(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const assessor = request.assessor;
+
+  const cutoff = readCutoff(request.body?.cutoff);
+  if (cutoff === null) {
+    return response.status(400).json({ message: "The cut-off must be a whole number from 1 to 99." });
+  }
+
+  const course = await findAssignedCourse(assessor, request.params.courseId);
+  if (!course) return response.status(404).json({ message: "Course not found for this assessor." });
+
+  const cls = await collection(CLASSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.body?.classId) },
+    courseId: { $in: idCandidates(course._id) },
+    assessorIds: { $in: idCandidates(assessor._id) }
+  });
+  if (!cls) return response.status(404).json({ message: "Class not found for this assessor." });
+
+  await collection(CLASSES_COLLECTION).updateOne({ _id: cls._id }, { $set: { cutoff } });
+
+  return response.json({ class: { id: asId(cls._id), cutoff } });
 }
 
 /* ───────────────────────── Credentials ───────────────────────── */
@@ -1142,7 +1172,8 @@ export async function getStudentDetail(request, response) {
     },
     skillGap: courseSkillGap
       ? {
-          threshold: SKILL_THRESHOLD,
+          threshold: courseSkillGap.cutoff,
+          tiers: courseSkillGap.tiers,
           performance: courseSkillGap.performance,
           itemsAsked: courseSkillGap.itemsAsked,
           itemsCorrect: courseSkillGap.itemsCorrect,
@@ -1152,7 +1183,8 @@ export async function getStudentDetail(request, response) {
             score: skill.score,
             correct: skill.correct,
             total: skill.total,
-            label: skill.label
+            tier: skill.tier,
+            gap: skill.gap
           }))
         }
       : null,

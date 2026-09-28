@@ -244,7 +244,7 @@ function LessonNav({
                           narrow enough to wrap awkwardly, was the worse of the
                           two places to say it. */}
                       <span className="sd-lesson__quiz-text">
-                        <span className="sd-lesson__quiz-title">Quiz {number}</span>
+                        <span className="sd-lesson__quiz-title">Exam {number}</span>
                       </span>
                       {/* One tag, and what it says is whatever matters most
                           about the row: that it is shut, then what it was

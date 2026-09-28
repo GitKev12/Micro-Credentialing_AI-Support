@@ -69,7 +69,7 @@ const PLACEHOLDER = {
   title: "",
   placeholder: true,
   locked: true,
-  reason: "Your assessor will unlock this quiz."
+  reason: "Your assessor will unlock this exam."
 };
 
 describe("QuizRunner — a quiz that is not open yet", () => {
@@ -77,7 +77,7 @@ describe("QuizRunner — a quiz that is not open yet", () => {
     draw(PLACEHOLDER);
 
     expect(
-      await screen.findByText("Your assessor will unlock this quiz.")
+      await screen.findByText("Your assessor will unlock this exam.")
     ).toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("QuizRunner — a quiz that is not open yet", () => {
     draw({ ...PLACEHOLDER, reason: undefined });
 
     expect(
-      await screen.findByText("Your assessor will unlock this quiz.")
+      await screen.findByText("Your assessor will unlock this exam.")
     ).toBeInTheDocument();
   });
 
@@ -137,7 +137,7 @@ describe("QuizRunner — the way out of a shut quiz", () => {
   it("offers nothing to press when there is nothing the student can do", async () => {
     draw(PLACEHOLDER);
 
-    await screen.findByText("Your assessor will unlock this quiz.");
+    await screen.findByText("Your assessor will unlock this exam.");
     expect(screen.queryByRole("button", { name: "Go to the lesson" })).toBeNull();
   });
 });
@@ -190,7 +190,7 @@ describe("QuizRunner — handing the paper in", () => {
     await screen.findByText("What does the compiler read?");
 
     expect(screen.getByRole("button", { name: "Next question" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Submit quiz" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit exam" })).toBeNull();
   });
 
   it("turns that button into Submit on the last question", async () => {
@@ -200,7 +200,7 @@ describe("QuizRunner — handing the paper in", () => {
     await screen.findByText("What does the compiler read?");
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
 
-    expect(screen.getByRole("button", { name: "Submit quiz" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit exam" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next question" })).toBeNull();
   });
 
@@ -212,7 +212,7 @@ describe("QuizRunner — handing the paper in", () => {
     await screen.findByText("What does the compiler read?");
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
 
-    expect(screen.getByRole("button", { name: "Submit quiz" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit exam" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
   });
 
@@ -229,7 +229,7 @@ describe("QuizRunner — handing the paper in", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
     fireEvent.click(screen.getByRole("radio", { name: "True" }));
 
-    const submit = screen.getByRole("button", { name: "Submit quiz" });
+    const submit = screen.getByRole("button", { name: "Submit exam" });
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
 
@@ -251,7 +251,7 @@ describe("QuizRunner — handing the paper in", () => {
     await screen.findByText("What does the compiler read?");
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
 
-    expect(screen.queryByRole("button", { name: "Submit quiz" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit exam" })).toBeNull();
     expect(screen.getByRole("button", { name: "Next question" })).toBeDisabled();
   });
 });
@@ -282,7 +282,7 @@ describe("QuizRunner — a final exam is not a quiz", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
 
     expect(screen.getByRole("button", { name: "Submit final exam" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Submit quiz" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit exam" })).toBeNull();
   });
 
   it("still calls a lesson quiz a quiz", async () => {
@@ -292,7 +292,7 @@ describe("QuizRunner — a final exam is not a quiz", () => {
     await screen.findByText("What does the compiler read?");
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
 
-    expect(screen.getByRole("button", { name: "Submit quiz" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit exam" })).toBeInTheDocument();
   });
 
   /**
@@ -446,7 +446,7 @@ describe("QuizRunner — picking up where the student left off", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
     fireEvent.click(screen.getByRole("radio", { name: "True" }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit quiz" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit exam" }));
 
     await waitFor(() => expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull());
   });

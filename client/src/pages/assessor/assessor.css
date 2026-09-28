@@ -33,6 +33,10 @@
   /* The admin console's own warning colour, so a suspended account reads the
      same on both sides of the staff app. */
   --warning-text: #96600a;
+  /* Inline form errors. The panel these sit in is white here and navy in
+     dark, and no single red reads on both, so the step is stated per
+     theme like every other type colour in this file. */
+  --error-text: #b3261e;
   /* The student app's own good/critical steps — the skill gap says the same
      thing to an assessor as it does to the student it is about. */
   --skill-strong: #0ca30c;
@@ -167,6 +171,7 @@
   --blue-ink-soft: #a6b0cf;
   --pink-100: #2a1a24;
   --warning-text: #f5bd58;
+  --error-text: #f8b8bd;
   --skill-strong: #0ca30c;
   --skill-weak: #d03b3b;
 
@@ -1060,6 +1065,254 @@
 .assessor-search__clear:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+/* ── Cut-off editor ─────────────────────────
+   Stands in the roster header beside the search, and it is deliberately not
+   shaped like it. The field you type into keeps the round ends to itself (see
+   above), so this one takes the console's 8px and reads as a control you
+   press. It matches the search's height, so the two sit on one line.
+
+   Pressing it drops a small form underneath — the .assessor-select popover's
+   geometry, card and entrance, because it is the same gesture on the same
+   screen and a second popover language would only be a second thing to learn.
+   The form carries one row per class the assessor has on this course, so a
+   single class is a one-row form and the button already shows its number.
+   ────────────────────────────────────── */
+
+.assessor-cutoff {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.assessor-cutoff__button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 2.75rem;
+  padding: 0 var(--sp-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+
+/* The pencil is the quieter half of the button — it says the number can be
+   changed, it is not the number. It keeps the muted step until the button is
+   the thing being pointed at. */
+.assessor-cutoff__button svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.assessor-cutoff__button:hover {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
+/* Open is a state worth seeing from across the header, so it takes the brand
+   hairline and ring the search takes while the caret is in it. This rule sits
+   after :hover on purpose: pointing at an open button must not undo it. */
+.assessor-cutoff__button[aria-expanded="true"] {
+  box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 4px var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.assessor-cutoff__button:hover svg,
+.assessor-cutoff__button[aria-expanded="true"] svg {
+  color: var(--brand-text);
+}
+
+.assessor-cutoff__button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.assessor-cutoff__panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  /* Hangs from the button's left edge, so it opens into the header rather than
+     off the window's right side. The cap is what keeps it on a phone, where
+     the header has already wrapped and this wrapper starts at the content's
+     own left margin. */
+  width: min(18rem, calc(100vw - 2.5rem));
+  padding: var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-row-hover);
+  /* The listbox's entrance, declared with it further down this file. */
+  animation: assessor-select-in 0.14s ease both;
+}
+
+.assessor-cutoff__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.assessor-cutoff__name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-label);
+  color: var(--text-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The shell is the control, not the <input>: the % belongs inside the box the
+   ring is drawn around, or the caret looks like it is sitting in a field that
+   stops short of the unit its number is measured in. */
+.assessor-cutoff__input {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  height: 2.25rem;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  transition: box-shadow 0.15s ease;
+}
+
+.assessor-cutoff__input:focus-within {
+  box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 3px var(--brand-hover);
+}
+
+.assessor-cutoff__input input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  text-align: right;
+}
+
+/* Blink draws steppers in the corner of a number field and Gecko draws none,
+   so the same control came out two different widths in two browsers, and in
+   the narrower one they crowded the %. Off in both; the arrow keys still step
+   the value, and a phone never drew them in the first place. */
+.assessor-cutoff__input input::-webkit-outer-spin-button,
+.assessor-cutoff__input input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.assessor-cutoff__input input[type="number"] {
+  appearance: textfield;
+}
+
+/* Out of range: the hairline turns, and the sentence under the list says what
+   the range is. The colour is never the whole message. */
+.assessor-cutoff__input:has(input[aria-invalid="true"]) {
+  box-shadow: inset 0 0 0 1px var(--error-text);
+}
+
+/* Focused and invalid at once. The glow stays the focus glow and only the
+   hairline carries the error, so the two say one thing each. */
+.assessor-cutoff__input:has(input[aria-invalid="true"]):focus-within {
+  box-shadow: inset 0 0 0 1px var(--error-text), 0 0 0 3px var(--brand-hover);
+}
+
+.assessor-cutoff__error {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  color: var(--error-text);
+}
+
+.assessor-cutoff__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.assessor-cutoff__cancel,
+.assessor-cutoff__save {
+  min-height: 2.375rem;
+  padding: 0 var(--sp-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+
+.assessor-cutoff__cancel {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.assessor-cutoff__cancel:hover {
+  background: var(--brand-hover);
+  color: var(--brand-text);
+}
+
+.assessor-cutoff__save {
+  background: var(--brand);
+  color: var(--white);
+}
+
+.assessor-cutoff__save:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.assessor-cutoff__save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.assessor-cutoff__cancel:focus-visible,
+.assessor-cutoff__save:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* On a phone every control in this console goes thumb-sized. The button above
+   already is. */
+@media (max-width: 40rem) {
+  .assessor-cutoff__input {
+    height: var(--tap);
+  }
+
+  .assessor-cutoff__cancel,
+  .assessor-cutoff__save {
+    min-height: var(--tap);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assessor-cutoff__panel {
+    animation: none;
+  }
+
+  .assessor-cutoff__button,
+  .assessor-cutoff__button svg,
+  .assessor-cutoff__input {
+    transition: none;
+  }
 }
 
 /* Person cell (name over id) */
@@ -3105,63 +3358,91 @@
 }
 
 /* ── The paper while the model writes it ────
-   The left column's loading state. The sheet itself (the header, the chips)
-   stays still — there is a paper being written, not a place being fetched —
-   and its questions are drawn as the bones of the cards they will become, so
-   the column does not jump up when they land. Reuses the shared skeleton bars;
-   only the placement of the rows is this screen's, and it is set to match the
-   real card's. */
-.gen-paper-skel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
+   The left column's waiting state, and a real measure of the wait: a final is
+   one model call per lesson, so the bar counts lessons landed out of lessons
+   planned, read back from the server every second.
 
-.gen-skel-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* The card a question actually stands in: the same padding, radius and slate
-   ground as .gen-q, so the bars sit exactly where the questions will. */
-.gen-skel {
-  display: flex;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  border-radius: var(--radius-sm);
-  background: var(--gray-050);
-}
-
-.gen-skel__body {
+   It replaced three skeleton question cards. Bones in the shape of the real
+   cards were the right idea for a fetch, where the thing arrives whole and
+   soon; a final takes a call per lesson and over a minute, and for that a
+   shape that never changes says only that the screen is stuck. Reuses the
+   console's own .progress__track and .progress__fill, so this bar is the bar
+   the roster and the student page already use. */
+.gen-progress {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  flex: 1;
-  min-width: 0;
+  padding: var(--sp-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-050);
 }
 
-/* A tall block in the shape of a short code snippet, standing where the
-   code block will. */
-.gen-skel__code {
-  margin-top: var(--sp-1);
+.gen-progress__title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
 }
 
-.gen-skel__choices {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  margin-top: var(--sp-1);
+/* The two lesson lines. A label that runs into its list rather than taking a
+   column: "Writing now" and "Written" are different widths, and a column wide
+   enough for both leaves a hole after the shorter one. */
+.gen-progress__line {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--text-body);
 }
 
-/* Each bar carries the choice line's underline, so the rows read as the
-   chooseable list they will become rather than as stacked text bars. */
-.gen-skel__choice {
-  width: 100%;
-  box-shadow: inset 0 -1px 0 var(--gray-200);
+.gen-progress__line.is-quiet {
+  color: var(--text-muted);
+}
+
+.gen-progress__label {
+  margin-right: 0.4em;
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+}
+
+.gen-progress__label::after {
+  content: ":";
+}
+
+/* A quiz is one call. There is no count to show, so the track carries a band
+   that travels instead of a fill that would have to invent a percentage —
+   indeterminate in the aria sense too: the element is given no aria-valuenow. */
+.gen-progress__track--waiting {
+  position: relative;
+}
+
+.gen-progress__band {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  animation: gen-progress-band 1.4s ease-in-out infinite;
+}
+
+/* Dark mode. --brand fills the console's bars, and on this ground it is
+   1.8:1 against the track it is filling — under the 3:1 a control has to meet
+   to be made out at all, which is the whole job of this one. The lighter brand
+   token is 3.4:1 and is already what the dark theme uses for brand-coloured
+   marks. Scoped to this bar on purpose: the roster and student bars have the
+   same problem and the same fix, but they are not this screen's to change. */
+[data-theme="dark"] .gen-progress .progress__fill,
+[data-theme="dark"] .gen-progress__band {
+  background: var(--brand-text);
+}
+
+@keyframes gen-progress-band {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(286%);
+  }
 }
 
 /* ── Fields ─────────────────────────────────── */
@@ -3887,6 +4168,16 @@
   .progress__fill,
   .focus-dot {
     transition: none;
+  }
+
+  /* The travelling band is the only thing on the screen that moves without
+     being asked. Stood still it would read as a stalled bar, so it holds the
+     full track instead and the count beside it carries the progress. */
+  .gen-progress__band {
+    position: static;
+    width: 100%;
+    height: 100%;
+    animation: none;
   }
 
   .assessor-nav-item:hover .assessor-nav-item__icon,
@@ -5002,31 +5293,12 @@
   text-align: right;
 }
 
-.tos-row__name,
-.tos-row__pick {
+.tos-row__name {
   flex: 1;
   min-width: 0;
   color: var(--text-strong);
   font-size: var(--fs-body);
   overflow-wrap: anywhere;
-}
-
-.tos-row__pick {
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.tos-row__pick:hover {
-  color: var(--brand-text);
-}
-
-.tos-row.is-current .tos-row__pick {
-  color: var(--brand-text);
-  font-weight: var(--fw-semibold);
 }
 
 /* The count again as a length, for the comparison a column of figures cannot
@@ -5055,18 +5327,6 @@
   font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
   text-align: right;
-}
-
-.tos-row__items {
-  flex: none;
-  color: var(--text-body);
-  font-size: var(--fs-label);
-  font-variant-numeric: tabular-nums;
-}
-
-.tos-row__items.is-empty {
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* ── The stepper ──────────────────────────────────────────── */

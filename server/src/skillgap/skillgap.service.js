@@ -10,7 +10,7 @@
  *
  * Each item on a final carries the lesson it was written for (see
  * assembleFinalAssessment), and the paper's `itemsPerModule` fixed how many
- * items each lesson was worth before anyone sat it. That is what makes the two
+ * items each lesson was worth before anyone took it. That is what makes the two
  * formulas below computable at all.
  *
  * ── The two formulas ───────────────────────────────────────────────────────
@@ -40,12 +40,12 @@
  * under a label that says "Overall Performance": weighting by correct answers
  * gives a topic the student scored nothing in a weight of zero, so it vanishes
  * from the total instead of lowering it. A 47-out-of-60 paper came out at 98%
- * that way, sitting directly above two topics marked weak at 0%.
+ * that way, printed directly above two topics marked weak at 0%.
  *
- * ── The threshold ──────────────────────────────────────────────────────────
- * 60%, which is TSU's passing percentage by memorandum — the same figure
- * DEFAULT_PASS_RATIO sets every paper's pass mark from. Below it a topic is
- * weak; at or above it, strong.
+ * ── The cut-off and the four tiers ─────────────────────────────────────────
+ * Each class has a cut-off (the target competency). It starts at 60% and the
+ * class's assessor can change it. The cut-off splits the scores into four
+ * tiers by linear interpolation — see calculateDynamicTiers.
  */
 
 import mongoose from "mongoose";
@@ -54,8 +54,54 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 const RESULTS_COLLECTION = "StudentResult";
 const ASSESSMENTS_COLLECTION = "Assessment";
 
-/** Below this a topic is weak. Not a tuning knob — see the header. */
-export const SKILL_THRESHOLD = 60;
+const CLASSES_COLLECTION = "Class";
+
+/** The cut-off a class uses until its assessor changes it. */
+export const DEFAULT_CUTOFF = 60;
+
+/** A cut-off from a form: a whole number from 1 to 99, or null. */
+export function readCutoff(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 1 && number <= 99 ? number : null;
+}
+
+/** The cut-off a class uses. */
+export const cutoffOf = (cls) => readCutoff(cls?.cutoff) ?? DEFAULT_CUTOFF;
+
+/**
+ * The four tiers for one cut-off.
+ * The space above the cut-off is split in two, and the same width is used
+ * below it. Cut-off 60 -> 80-100, 60-79, 40-59, 0-39.
+ */
+export function calculateDynamicTiers(cutoff) {
+  const interval = Math.round((100 - cutoff) / 2);
+
+  return [
+    { id: "strength", status: "Strength", min: cutoff + interval, max: 100, color: "green" },
+    { id: "competent", status: "Competent", min: cutoff, max: cutoff + interval - 1, color: "blue" },
+    {
+      id: "needs-improvement",
+      status: "Needs Improvement",
+      min: Math.max(0, cutoff - interval),
+      max: cutoff - 1,
+      color: "orange"
+    },
+    {
+      id: "skill-gap",
+      status: "Significant Skill Gap",
+      min: 0,
+      max: cutoff - interval - 1,
+      color: "red"
+    }
+  ];
+}
+
+/** Which tier a score falls in. The score is rounded to a whole percent first. */
+export function tierFor(score, cutoff) {
+  const whole = Math.round(score);
+  const tiers = calculateDynamicTiers(cutoff);
+  return tiers.find((tier) => whole >= tier.min) ?? tiers[tiers.length - 1];
+}
 
 const asId = (value) => String(value);
 const round = (value) => Math.round(value * 10) / 10;
@@ -90,13 +136,13 @@ function lessonOf(item, itemLesson) {
 }
 
 /**
- * One course's skill gap, from one sat final exam.
+ * One course's skill gap, from one taken final exam.
  *
  * Returns null when the paper cannot be broken down by lesson at all, because
  * an empty breakdown and a breakdown of zeros say very different things and the
  * dashboard should not have to tell them apart.
  */
-export function skillGapFromFinal(result, assessment) {
+export function skillGapFromFinal(result, assessment, cutoff = DEFAULT_CUTOFF) {
   const answered = verdictsOf(result);
   if (answered.length === 0) return null;
 
@@ -151,19 +197,21 @@ export function skillGapFromFinal(result, assessment) {
       // Wi, normalised so the weights sum to 1. Zero for everyone when nothing
       // was answered correctly, which is the only honest weighting of a blank.
       weight: totalCorrect > 0 ? round((row.correct / totalCorrect) * 100) / 100 : 0,
-      label: score >= SKILL_THRESHOLD ? "strong" : "weak"
+      // Which of the four tiers, and how far under the cut-off (0 when at or above).
+      tier: tierFor(score, cutoff).id,
+      gap: Math.max(0, cutoff - Math.round(score))
     };
   });
 
   const itemsAsked = skills.reduce((sum, skill) => sum + skill.total, 0);
 
   // Overall performance is the exam mark, plainly: what the student scored on
-  // the paper they sat. It used to be the weighted figure below, which reads
+  // the paper they took. It used to be the weighted figure below, which reads
   // far higher than the exam — a student who answered 47 of 60 was shown 98%,
   // printed directly above two topics marked weak at 0%. Weighting by correct
   // answers gives a topic nobody scored in a weight of zero, so it drops out of
   // the total rather than pulling it down, and the figure stops describing the
-  // exam it is sitting under.
+  // exam it appears under.
   const performance = itemsAsked > 0 ? (totalCorrect / itemsAsked) * 100 : 0;
 
   // The weighted figure is still computed, because Wi is what the career
@@ -190,6 +238,8 @@ export function skillGapFromFinal(result, assessment) {
     : skills;
 
   return {
+    cutoff,
+    tiers: calculateDynamicTiers(cutoff),
     skills: inPaperOrder,
     performance: Math.round(performance),
     weightedPerformance: Math.round(weightedPerformance),
@@ -199,9 +249,32 @@ export function skillGapFromFinal(result, assessment) {
 }
 
 /**
- * Every course this student has sat the final for, with its breakdown.
+ * The cut-off of the student's class on each course, as Map<courseId, cutoff>.
+ * A course with no class for this student is left out (the default is used).
+ */
+async function loadCutoffs(studentId, courses) {
+  const cutoffs = new Map();
+  if (!(await collectionExists(CLASSES_COLLECTION))) return cutoffs;
+
+  const classes = await mongoose.connection
+    .collection(CLASSES_COLLECTION)
+    .find(
+      {
+        courseId: { $in: courses.flatMap((course) => idCandidates(course._id)) },
+        studentIds: { $in: idCandidates(studentId) }
+      },
+      { projection: { courseId: 1, cutoff: 1 } }
+    )
+    .toArray();
+
+  for (const cls of classes) cutoffs.set(asId(cls.courseId), cutoffOf(cls));
+  return cutoffs;
+}
+
+/**
+ * Every course this student has taken the final for, with its breakdown.
  *
- * A course whose final has not been sat is absent rather than present at zero —
+ * A course whose final has not been taken is absent rather than present at zero —
  * "not measured yet" is not a gap, and showing it as one would tell a student
  * they are failing a course they have not been examined on.
  */
@@ -233,6 +306,7 @@ export async function buildStudentSkillGap(studentId, courses) {
 
   if (results.length === 0) return [];
 
+  const cutoffByCourse = await loadCutoffs(studentId, courses);
   const finalById = new Map(finals.map((doc) => [asId(doc._id), doc]));
   const courseById = new Map(courses.map((course) => [asId(course._id), course]));
 
@@ -240,7 +314,11 @@ export async function buildStudentSkillGap(studentId, courses) {
     .map((result) => {
       const assessment = finalById.get(asId(result.assessmentId));
       const course = courseById.get(asId(assessment?.courseId));
-      const analysis = skillGapFromFinal(result, assessment);
+      const analysis = skillGapFromFinal(
+        result,
+        assessment,
+        cutoffByCourse.get(asId(assessment?.courseId)) ?? DEFAULT_CUTOFF
+      );
       if (!analysis) return null;
 
       return {
@@ -257,6 +335,13 @@ export async function buildStudentSkillGap(studentId, courses) {
         // there is no release step left for it to be provisional against.
         status: "completed",
         performance: analysis.performance,
+        cutoff: analysis.cutoff,
+        tiers: analysis.tiers,
+        // Which paper this came from, and when it was handed in.
+        exam: {
+          title: assessment?.title ?? null,
+          takenAt: result.submittedAt ?? null
+        },
         itemsAsked: analysis.itemsAsked,
         itemsCorrect: analysis.itemsCorrect,
         skills: analysis.skills

@@ -233,7 +233,7 @@ async function loadCourseState(studentId, courseId) {
 export function unreleasedReason(scope) {
   return scope === "final"
     ? "Your assessor will unlock this final exam."
-    : "Your assessor will unlock this quiz.";
+    : "Your assessor will unlock this exam.";
 }
 
 /**
@@ -254,7 +254,7 @@ export function lockStateFor(assessment, state) {
     const done = state.completedModuleIds.has(asId(summary.moduleId));
     return done
       ? { locked: false, reason: null }
-      : { locked: true, reason: "Finish this lesson to unlock its quiz." };
+      : { locked: true, reason: "Finish this lesson to unlock its exam." };
   }
 
   // An assess-only candidate has nothing in front of the examination. They
@@ -283,7 +283,7 @@ export function lockStateFor(assessment, state) {
 
   const parts = [];
   if (lessonsLeft > 0) parts.push(`${lessonsLeft} lesson${lessonsLeft === 1 ? "" : "s"}`);
-  if (quizzesLeft > 0) parts.push(`${quizzesLeft} quiz${quizzesLeft === 1 ? "" : "zes"}`);
+  if (quizzesLeft > 0) parts.push(`${quizzesLeft} lesson exam${quizzesLeft === 1 ? "" : "s"}`);
 
   return { locked: true, reason: `Complete ${parts.join(" and ")} to unlock the final exam.` };
 }

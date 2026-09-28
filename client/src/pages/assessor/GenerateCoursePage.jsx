@@ -4,6 +4,7 @@ import {
   fetchCourseAssessment,
   fetchCourseAssessments,
   fetchCourseTos,
+  fetchGenerationProgress,
   generateCourseAssessment,
   postCourseAssessment,
   storedAssessorId,
@@ -13,10 +14,11 @@ import {
 import { CheckIcon, ClockIcon, GenerateIcon, PencilIcon } from "./components/icons";
 import { AssessorSelect, Chip, ChoiceLetter, ScreenHeader, choiceLetter } from "./components/ui";
 import { useGlidingPill } from "../../hooks/useGlidingPill";
-import { Skeleton, SkeletonText } from "../../components/Skeleton";
+import { SkeletonText } from "../../components/Skeleton";
 import CodeBlock from "../../components/CodeBlock";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, TIMED, UNTIMED, limitModeFor, limitReady, timeLimitFor } from "./timeLimit";
+import GenerationProgress from "./components/GenerationProgress";
 import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
 import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
@@ -43,10 +45,6 @@ import LevelChip from "./components/tos/LevelChip";
  * A draft is invisible to students until it is posted. That is the point of the
  * screen — a wrong answer key found here is found before a class takes it.
  */
-
-/* What the Lesson field reads on a final, which is drawn from all of them.
-   Never sent anywhere: the field is disabled, and a final carries no lesson. */
-const EVERY_LESSON = "all";
 
 /* ─────────────────────────── One question ─────────────────────────── */
 
@@ -225,6 +223,8 @@ function GenerateCoursePage() {
   const [paper, setPaper] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [busy, setBusy] = useState("");
+  // How far the write in flight has got, as the server last reported it.
+  const [progress, setProgress] = useState(null);
   // Three seconds and it fades, like every other console's — see useNotice.
   // The `closed` line below it is not one of these: a course whose run is over
   // stays over, and that banner has to stay with it.
@@ -441,6 +441,37 @@ function GenerateCoursePage() {
   // Timed with an empty field is the one answer that is not yet an answer.
   const limitSet = limitReady({ mode: limit, minutes });
 
+  /*
+   * Read how far the write has got, while it is in flight.
+   *
+   * A poll rather than a stream: the POST that started the work is still open
+   * and is what reports the result, so this only has to answer "where is it
+   * now". A second is well inside the six to eight a lesson takes, and the read
+   * is a count out of a Map — it touches neither the model nor the database.
+   */
+  useEffect(() => {
+    if (busy !== "generate") return undefined;
+
+    let active = true;
+    const read = async () => {
+      const next = await fetchGenerationProgress(assessorId, courseId, {
+        scope,
+        moduleId: scope === "final" ? null : moduleId,
+        classId: classId || null
+      });
+      // A null is a run the server does not know about; the bar holds what it
+      // had rather than dropping back to nothing.
+      if (active && next) setProgress(next);
+    };
+
+    read();
+    const timer = setInterval(read, 1000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [busy, assessorId, courseId, scope, moduleId, classId]);
+
   const run = async (label, work) => {
     setBusy(label);
     setNotice(null);
@@ -456,6 +487,7 @@ function GenerateCoursePage() {
   const generate = () =>
     run("generate", async () => {
       setConfirming(false);
+      setProgress(null);
       const result = await generateCourseAssessment(assessorId, courseId, {
         scope,
         moduleId: scope === "final" ? null : moduleId,
@@ -578,7 +610,7 @@ function GenerateCoursePage() {
           <header className="gen-paper__head">
             <div style={{ minWidth: 0 }}>
               <h2 className="assessor-card-title" style={{ margin: 0 }}>
-                {paper?.title || (scope === "final" ? "Final assessment" : "Quiz")}
+                {paper?.title || (scope === "final" ? "Final assessment" : "Exam")}
               </h2>
               <p className="assessor-meta" style={{ marginTop: "var(--sp-1)" }}>
                 {paper
@@ -641,41 +673,8 @@ function GenerateCoursePage() {
             </p>
           ) : null}
 
-          {/* While the model writes, the sheet shows a paper's bones: rows
-              shaped like the question cards they become, and nothing of a real
-              question, because there is not a question yet. A row says the
-              write is in flight without pretending the work is further along
-              than it is, and it lets the questions in without the column
-              jumping up to meet them. */}
           {busy === "generate" ? (
-            <div className="gen-paper-skel" role="status" aria-live="polite">
-              <span className="assessor-sr-only">Writing the paper</span>
-              <p className="gen-hint">Writing questions…</p>
-              <ol className="gen-skel-list" aria-hidden="true">
-                {Array.from({ length: 3 }, (_, block) => (
-                  <li key={block} className="gen-skel">
-                    <span className="gen-skel__num">
-                      <Skeleton h={20} circle />
-                    </span>
-                    <div className="gen-skel__body">
-                      <Skeleton w="86%" h={11} />
-                      <Skeleton w="94%" h={9} />
-                      <Skeleton className="gen-skel__code" w="100%" h={68} />
-                      <div className="gen-skel__choices">
-                        {[62, 48, 70, 54].map((width, choice) => (
-                          <Skeleton
-                            key={choice}
-                            className="gen-skel__choice"
-                            w={`${width}%`}
-                            h={13}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            <GenerationProgress progress={progress} scope={scope} />
           ) : items.length > 0 ? (
             <ol className="gen-q-list">
               {items.map((item) => (
@@ -744,7 +743,7 @@ function GenerateCoursePage() {
                     className={`gen-toggle__btn${scope === "lesson" ? " is-active" : ""}`}
                     onClick={() => setScope("lesson")}
                   >
-                    Quiz
+                    Exam
                   </button>
                   <button
                     type="button"
@@ -757,57 +756,40 @@ function GenerateCoursePage() {
               </div>
             )}
 
-            {/* Standing here in both types, so the panel keeps its height as the
-                type is toggled — the same reason the Minutes field below is
-                shown while the default is in force rather than swapped out.
-                Dropping it moved every control under it up by a field, and the
-                paper beside it with them.
-
-                A final is not drawn from one lesson but from all of them,
-                which is what it says while it cannot be used. */}
-            <div className="gen-field">
-              <span className="field-label">Lesson</span>
-              {scope === "lesson" ? (
-                <>
-                  {/* Each lesson says on its own line whether its paper is
-                      already out, which is the thing that decides whether
-                      generating over it is a new paper or a replacement. */}
-                  <AssessorSelect
-                    label="Lesson"
-                    value={moduleId}
-                    onChange={setModuleId}
-                    options={lessons.map((row) => ({
-                      value: row.moduleId,
-                      label: `${row.n}. ${row.title}`,
-                      meta: row.assessment
-                        ? row.assessment.status === "posted"
-                          ? "Posted"
-                          : "Draft"
-                        : undefined
-                    }))}
-                  />
-                  {/* The generator reads the extracted text, so a lesson without
-                      it is worth saying before the button is pressed rather than
-                      after the call comes back empty. */}
-                  {lesson && !lesson.hasText ? (
-                    <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
-                  ) : null}
-                </>
-              ) : (
+            {/* Only a lesson exam needs a lesson. A final draws from all of them. */}
+            {scope === "lesson" ? (
+              <div className="gen-field">
+                <span className="field-label">Lesson</span>
+                {/* Each lesson says on its own line whether its paper is
+                    already out, which is the thing that decides whether
+                    generating over it is a new paper or a replacement. */}
                 <AssessorSelect
                   label="Lesson"
-                  value={EVERY_LESSON}
-                  onChange={() => {}}
-                  options={[{ value: EVERY_LESSON, label: "Every lesson" }]}
-                  disabled
+                  value={moduleId}
+                  onChange={setModuleId}
+                  options={lessons.map((row) => ({
+                    value: row.moduleId,
+                    label: `${row.n}. ${row.title}`,
+                    meta: row.assessment
+                      ? row.assessment.status === "posted"
+                        ? "Posted"
+                        : "Draft"
+                      : undefined
+                  }))}
                 />
-              )}
-            </div>
+                {/* The generator reads the extracted text, so a lesson without
+                    it is worth saying before the button is pressed rather than
+                    after the call comes back empty. */}
+                {lesson && !lesson.hasText ? (
+                  <span className="gen-hint is-warn">This lesson has no extracted text yet.</span>
+                ) : null}
+              </div>
+            ) : null}
 
             <QuestionsField
               count={length}
               split={brief.split}
-              paper={scope === "final" ? "final exam" : "quiz"}
+              paper={scope === "final" ? "final exam" : "exam"}
               onModify={() => setTosOpen(true)}
             />
 

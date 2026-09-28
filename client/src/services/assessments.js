@@ -61,7 +61,7 @@ export async function fetchAssessment(studentId, assessmentId, { retake = false 
     };
   } catch (error) {
     if (error.response?.status === 423) {
-      return { locked: true, message: error.response.data?.message ?? "This quiz is locked." };
+      return { locked: true, message: error.response.data?.message ?? "This exam is locked." };
     }
     throw error;
   }
@@ -101,7 +101,7 @@ export async function submitAssessment(studentId, assessmentId, answers, duratio
       };
     }
     if (status === 423) {
-      return { locked: true, message: error.response.data?.message ?? "This quiz is locked." };
+      return { locked: true, message: error.response.data?.message ?? "This exam is locked." };
     }
     throw error;
   }

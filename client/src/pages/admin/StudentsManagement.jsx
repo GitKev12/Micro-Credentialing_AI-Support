@@ -497,7 +497,7 @@ function StudentsManagement() {
                         <>
                           <span className="admin-cell__quiet">{seen}</span>
                           <span className="admin-cell__sub">
-                            {activity.lastActive.kind === "quiz" ? "quiz" : "lesson"}
+                            {activity.lastActive.kind === "quiz" ? "exam" : "lesson"}
                           </span>
                         </>
                       ) : (

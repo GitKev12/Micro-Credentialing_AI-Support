@@ -951,7 +951,7 @@ function LearningModules() {
           {assessOnly && !isLoading ? (
             <p className="sd-pathway-note">
               One examination, and nothing to finish before it. This pathway has
-              no lessons and no quizzes — you are assessed on what you already
+              no lessons and no lesson exams — you are assessed on what you already
               know.
             </p>
           ) : null}
@@ -1128,7 +1128,7 @@ function LearningModules() {
                       it to have been named, and the heading cannot be blank
                       now that one can be opened. */}
                   {selected.item.title ||
-                    (selected.item.scope === "final" ? "Final Exam" : "Quiz")}
+                    (selected.item.scope === "final" ? "Final Exam" : "Exam")}
                 </h3>
                 {selected.item.scope === "final" ? (
                   <span className="module-row__action module-viewer__complete">

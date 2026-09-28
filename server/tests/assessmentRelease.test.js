@@ -107,7 +107,7 @@ describe("lockStateFor", () => {
     const lock = lockStateFor(draft, state({ done: ["m1"] }));
 
     expect(lock.locked).toBe(true);
-    expect(lock.reason).toBe("Your assessor will unlock this quiz.");
+    expect(lock.reason).toBe("Your assessor will unlock this exam.");
   });
 
   it("names the final exam when the final is the paper being held back", () => {
@@ -123,7 +123,7 @@ describe("lockStateFor", () => {
 
     expect(lockStateFor(posted, state({ done: [] }))).toEqual({
       locked: true,
-      reason: "Finish this lesson to unlock its quiz."
+      reason: "Finish this lesson to unlock its exam."
     });
     expect(lockStateFor(posted, state({ done: ["m1"] }))).toEqual({
       locked: false,
@@ -159,7 +159,7 @@ describe("lockStateFor", () => {
       state({ done: ["m1"], modules: [{ _id: "m1" }], assessments: [quiz, final], results: failed })
     );
     expect(shut.locked).toBe(true);
-    expect(shut.reason).toBe("Complete 1 quiz to unlock the final exam.");
+    expect(shut.reason).toBe("Complete 1 lesson exam to unlock the final exam.");
 
     const passed = new Map([["a1", { aiGrading: { score: 2 } }]]);
     const open = lockStateFor(

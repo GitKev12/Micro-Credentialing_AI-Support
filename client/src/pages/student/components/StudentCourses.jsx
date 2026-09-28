@@ -191,7 +191,7 @@ function CoursePath({ path }) {
       </div>
 
       <div className="sd-path__stage">
-        <span className="sd-path__label">Quizzes</span>
+        <span className="sd-path__label">Exams</span>
         <span className="sd-path__track">
           <span className="sd-path__fill" style={{ "--fill": share(path.quizzes, path.lessons) }} />
         </span>
@@ -277,13 +277,13 @@ function CourseRow({ course, onOpen }) {
   const assessOnly = course.mode === "assessOnly";
 
   const progress = assessOnly
-    ? `One examination, no lesson quizzes. Final exam ${
+    ? `One examination, no lesson exams. Final exam ${
         path.finalPassed ? "passed" : "not passed yet"
       }`
     : total
       ? `${done} of ${total} done, ${path.read} of ${path.lessons} lessons, ${path.quizzes} of ${
           path.lessons
-        } quizzes, final exam ${path.finalPassed ? "passed" : "not passed yet"}`
+        } lesson exams, final exam ${path.finalPassed ? "passed" : "not passed yet"}`
       : "No lessons yet";
 
   return (

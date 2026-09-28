@@ -22,7 +22,7 @@ import { durationLabel } from "../assessmentClock";
  */
 function AssessmentBrief({ assessment, result, starting, error, onStart }) {
   const isFinal = assessment?.scope === "final";
-  const paper = isFinal ? "final exam" : "quiz";
+  const paper = isFinal ? "final exam" : "exam";
 
   const minutes = Number(assessment?.timeLimitMinutes) || 0;
   const timed = minutes > 0;
@@ -42,7 +42,7 @@ function AssessmentBrief({ assessment, result, starting, error, onStart }) {
   return (
     <div className="sd-brief">
       <div className="sd-brief__head">
-        <h3 className="sd-brief__title">{assessment?.title ?? (isFinal ? "Final exam" : "Quiz")}</h3>
+        <h3 className="sd-brief__title">{assessment?.title ?? (isFinal ? "Final exam" : "Exam")}</h3>
         {assessment?.description ? (
           <p className="sd-brief__desc">{assessment.description}</p>
         ) : null}

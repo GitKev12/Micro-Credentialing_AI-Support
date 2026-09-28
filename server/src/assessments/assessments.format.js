@@ -545,7 +545,7 @@ export function validateAssessment(doc) {
   if (!text(doc.title)) problems.push("title is required.");
   if (!doc.courseId) problems.push("courseId is required.");
   if (doc.scope !== "final" && !(doc.moduleId ?? doc.module_id)) {
-    problems.push("a lesson quiz needs a moduleId.");
+    problems.push("a lesson exam needs a moduleId.");
   }
 
   const raw = Array.isArray(doc.items) ? doc.items : [];

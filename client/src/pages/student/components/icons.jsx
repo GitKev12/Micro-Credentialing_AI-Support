@@ -4,7 +4,9 @@
  *
  * The band icons are load-bearing, not decoration: the status palette says
  * colour must never carry meaning alone, so each band pairs a distinct
- * silhouette (check / alert) with its word.
+ * silhouette with its word. The four skill gap tiers read as a ladder —
+ * check, level line, arrow down, alert — so the step a topic is on is
+ * legible without the colour and without reading the label twice.
  */
 
 const line = {
@@ -35,9 +37,33 @@ export function WeakIcon({ size = 14 }) {
   );
 }
 
+/** At the standard, not above it — the level line. */
+export function CompetentIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8.2 12h7.6" {...line} />
+    </svg>
+  );
+}
+
+/** Under the standard, but not the worst of it — pointing down, not alarming. */
+export function NeedsWorkIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 7.9v6.6M9.1 11.9l2.9 2.9 2.9-2.9" {...line} />
+    </svg>
+  );
+}
+
 const BAND_ICONS = {
   strong: StrongIcon,
-  weak: WeakIcon
+  weak: WeakIcon,
+  strength: StrongIcon,
+  competent: CompetentIcon,
+  "needs-improvement": NeedsWorkIcon,
+  "skill-gap": WeakIcon
 };
 
 /**
@@ -223,25 +249,7 @@ export function BadgeIcon({ size = 16 }) {
   );
 }
 
-export function ChartIcon({ size = 15 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 19h16" {...line} />
-      <rect x="5" y="11" width="4" height="5" rx="1" stroke="currentColor" strokeWidth="1.8" />
-      <rect x="11" y="7" width="4" height="9" rx="1" stroke="currentColor" strokeWidth="1.8" />
-      <rect x="17" y="13" width="2.5" height="3" rx="1" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
 
-export function TableIcon({ size = 15 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M3.5 9.5h17M10 9.5V19.5" {...line} />
-    </svg>
-  );
-}
 
 /** Three bars: the menu button that opens the account drawer on a phone. */
 export function MenuIcon({ size = 22 }) {
