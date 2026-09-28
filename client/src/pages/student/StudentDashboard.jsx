@@ -101,11 +101,13 @@ function StudentDashboard() {
             skillCount={(selected.skills ?? []).length}
             cutoff={selected.cutoff ?? TARGET}
             tiers={selected.tiers ?? []}
+            exam={selected.exam}
           />
           <SkillGapAnalysis
             skills={selected.skills}
             cutoff={selected.cutoff ?? TARGET}
             tiers={selected.tiers ?? []}
+            exam={selected.exam}
           />
           <RawComputation course={selected} />
         </main>

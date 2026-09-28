@@ -71,3 +71,24 @@ describe("CutoffEditor", () => {
     expect(screen.getByRole("button", { name: "Save" }).disabled).toBe(true);
   });
 });
+
+describe("skill gap exam line", () => {
+  it("names the exam and the day it was taken", () => {
+    const { container } = render(
+      <SkillGapAnalysis
+        cutoff={60}
+        tiers={tiers}
+        exam={{ title: "CC2 Final Exam", takenAt: "2026-09-12T08:00:00Z" }}
+        skills={[{ moduleId: "m1", topic: "A", score: 90, tier: "strength", gap: 0 }]}
+      />
+    );
+    expect(container.querySelector(".sd-eyebrow").textContent).toBe("CC2 Final Exam · Taken 12 Sept 2026");
+  });
+
+  it("falls back to Final exam with no date", () => {
+    const { container } = render(
+      <SkillGapAnalysis cutoff={60} tiers={tiers} skills={[{ moduleId: "m1", topic: "A", score: 90, tier: "strength", gap: 0 }]} />
+    );
+    expect(container.querySelector(".sd-eyebrow").textContent).toBe("Final exam");
+  });
+});

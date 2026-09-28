@@ -337,6 +337,11 @@ export async function buildStudentSkillGap(studentId, courses) {
         performance: analysis.performance,
         cutoff: analysis.cutoff,
         tiers: analysis.tiers,
+        // Which paper this came from, and when it was handed in.
+        exam: {
+          title: assessment?.title ?? null,
+          takenAt: result.submittedAt ?? null
+        },
         itemsAsked: analysis.itemsAsked,
         itemsCorrect: analysis.itemsCorrect,
         skills: analysis.skills

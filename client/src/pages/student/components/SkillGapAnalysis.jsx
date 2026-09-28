@@ -12,7 +12,20 @@ import { Meter } from "./ui";
  * its own value and the items it came from, and the figures are repeated in
  * full under Raw computation for anyone the picture does not reach.
  */
-function SkillGapAnalysis({ skills = [], cutoff = TARGET, tiers = [] }) {
+// "12 Sept 2026", or "" when there is no date.
+const dayLabel = (value) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+};
+
+function SkillGapAnalysis({ skills = [], cutoff = TARGET, tiers = [], exam = null }) {
+  // The eyebrow names the paper and the day it was taken.
+  const takenOn = dayLabel(exam?.takenAt);
+  const examLine = [exam?.title || "Final exam", takenOn ? `Taken ${takenOn}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+
   const rows = useMemo(
     () =>
       skills
@@ -67,7 +80,7 @@ function SkillGapAnalysis({ skills = [], cutoff = TARGET, tiers = [] }) {
           {/* The paper, then the reading of it. Same two-step head the course
               card above uses, so the source labels the panel instead of
               competing with its name inside one long heading. */}
-          <p className="sd-eyebrow">Final exam</p>
+          <p className="sd-eyebrow">{examLine}</p>
           <h2 className="sd-h3" id="sd-skills-title">
             Skill gap analysis
           </h2>
