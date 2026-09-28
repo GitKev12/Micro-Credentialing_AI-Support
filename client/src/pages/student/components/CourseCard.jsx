@@ -1,5 +1,5 @@
 import { ColumnPlot } from "../../../components/ColumnPlot";
-import { TARGET, bandFor, toScore } from "../performance";
+import { TARGET, tierBandFor, tierBandForScore, toScore } from "../performance";
 import { BandChip, Meter, useGrown } from "./ui";
 
 /**
@@ -17,14 +17,16 @@ import { BandChip, Meter, useGrown } from "./ui";
  * table view). Hover names any column.
  */
 
-function TopicColumns({ skills, courseTitle, onOpen }) {
+function TopicColumns({ skills, courseTitle, cutoff, onOpen }) {
   const grown = useGrown();
 
   // The whole slot is the hover target, not the bar — a 14% column is 8px of
   // hittable height on its own, so the tooltip hangs off the column.
   const columns = skills.map((skill, index) => {
     const score = toScore(skill.score);
-    const band = bandFor(score);
+    // The same four tiers the course's own analysis draws, against the same
+    // class cut-off — a column and the bar it opens must not disagree.
+    const band = tierBandFor(skill, cutoff);
 
     return {
       key: skill.moduleId ?? `${skill.topic}:${index}`,
@@ -50,13 +52,12 @@ function TopicColumns({ skills, courseTitle, onOpen }) {
     // action itself. Mouse-only by design: the overlay button behind it is
     // still the one control keyboards and screen readers see.
     //
-    // The passing mark rides across the plot as the same recessive hairline
-    // the meters use, and the legend below names it rather than leaving the
-    // reader to guess — so it needs no label of its own here.
+    // The target competency rides across the plot as the same recessive
+    // hairline the meters use, at whatever this class's assessor set it to.
     <ColumnPlot
       prefix="sd-cc-chart"
       columns={columns}
-      target={TARGET}
+      target={cutoff}
       grown={grown}
       as="ul"
       item="li"
@@ -68,7 +69,8 @@ function TopicColumns({ skills, courseTitle, onOpen }) {
 
 function CourseCard({ course, onOpen }) {
   const score = toScore(course.performance);
-  const band = bandFor(score);
+  const cutoff = course.cutoff ?? TARGET;
+  const band = tierBandForScore(score, cutoff, course.tiers);
   const skills = course.skills ?? [];
   return (
     <li className="sd-cc" data-band={band.id}>
@@ -98,6 +100,7 @@ function CourseCard({ course, onOpen }) {
       <Meter
         value={score}
         band={band}
+        target={cutoff}
         label={`${course.title} overall performance: ${score} percent, ${band.label}`}
       />
 
@@ -107,7 +110,12 @@ function CourseCard({ course, onOpen }) {
             {skills.length} {skills.length === 1 ? "topic" : "topics"}
           </p>
 
-          <TopicColumns skills={skills} courseTitle={course.title} onOpen={onOpen} />
+          <TopicColumns
+            skills={skills}
+            courseTitle={course.title}
+            cutoff={cutoff}
+            onOpen={onOpen}
+          />
         </>
       ) : (
         <p className="sd-cc__note">No topic scores yet.</p>

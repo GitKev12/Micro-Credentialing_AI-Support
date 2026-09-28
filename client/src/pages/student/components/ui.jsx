@@ -28,7 +28,7 @@ export function useGrown() {
  * the same hue tinted back toward the surface, and the passing mark rides
  * along as a hairline so "how far off am I" is readable without arithmetic.
  */
-export function Meter({ value, band, label, small = false, showTarget = true }) {
+export function Meter({ value, band, label, small = false, showTarget = true, target = TARGET }) {
   const grown = useGrown();
   const score = toScore(value);
 
@@ -44,18 +44,18 @@ export function Meter({ value, band, label, small = false, showTarget = true }) 
     >
       <div className="sd-meter__fill" style={{ width: `${grown ? score : 0}%` }} />
       {showTarget ? (
-        <span className="sd-meter__target" style={{ left: `${TARGET}%` }} aria-hidden="true" />
+        <span className="sd-meter__target" style={{ left: `${target}%` }} aria-hidden="true" />
       ) : null}
     </div>
   );
 }
 
 /** Caption naming the hairline, so the target line is never unexplained. */
-export function TargetLegend() {
+export function TargetLegend({ target = TARGET, label = "Passing mark" }) {
   return (
     <span className="sd-meter-legend">
       <span className="sd-meter-legend__tick" aria-hidden="true" />
-      Passing mark {TARGET}%
+      {label} {target}%
     </span>
   );
 }

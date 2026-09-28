@@ -40,22 +40,30 @@
   /* ---- Status palette (fixed — never themed, never a series) ----
      Fills are the marks; the -text steps are for type, because the
      fills themselves are too light to read as words on this surface.
-     Two bands are in use — weak and strong, split at the 60% passing
-     mark — so the only pair that has to be tellable apart is good
-     against critical, the widest one this palette holds. Warning is
-     kept defined for anything else that needs a caution fill; it is
-     no longer a band. Every band still ships icon + label + number,
-     so none of this rests on colour alone. */
+     Four bands are in use — the skill gap tiers, cut from the
+     class's own cut-off — so every pair has to be tellable apart,
+     not just the widest one. Each fill clears 3:1 against
+     --sd-surface, the floor for a mark that carries meaning: good
+     3.3, info 3.2, warning 3.2, critical 4.7. Warning came back
+     into band service for Needs Improvement, and moved off #fab219
+     to this orange to make that floor — at 1.8:1 the amber was
+     nearly invisible as a 12px legend swatch on a near-white card.
+     Nothing was drawing it as a fill, so nothing else moved.
+     Every band still ships its own silhouette + label + number, so
+     none of this rests on colour alone. */
   --sd-good: #0ca30c;
-  --sd-warn: #fab219;
+  --sd-info: #2196d6;
+  --sd-warn: #d9730d;
   --sd-crit: #d03b3b;
   --sd-good-text: #046b04;           /* 6.6:1 */
+  --sd-info-text: #0f5f8c;           /* 6.8:1 */
   --sd-warn-text: #8a5a00;           /* 5.8:1 */
   --sd-crit-text: #b32020;           /* 6.5:1 */
   /* For band type on an inverted surface — the tooltip, which is ink-on-
      surface flipped. That plane is dark in light mode, so it borrows the
-     other mode's text steps: 9.9 / 10.4 / 7.2:1 against --sd-ink. */
+     other mode's text steps: 9.9 / 10.3 / 10.4 / 7.2:1 against --sd-ink. */
   --sd-good-inverse: #4ade80;
+  --sd-info-inverse: #7dd3fc;
   --sd-warn-inverse: #fbbf3f;
   --sd-crit-inverse: #f08b8b;
 
@@ -143,14 +151,19 @@
   --sd-muted: #9599ad;               /*  6.0:1 */
 
   --sd-good-text: #2cb57e;           /*  6.4:1 */
+  --sd-info-text: #47bce8;           /*  7.7:1 */
   --sd-warn-text: #f5bd58;           /*  9.9:1 */
   --sd-crit-text: #f56e50;           /*  5.8:1 */
 
-  /* The tooltip plane is light here, so the inverse steps swap back:
-     5.6 / 4.9 / 5.5:1 against --sd-ink. */
-  --sd-good-inverse: #046b04;
-  --sd-warn-inverse: #8a5a00;
-  --sd-crit-inverse: #b32020;
+  /* The tooltip plane is light here (--sd-ink is #c3cbe4 in this theme), so
+     the inverse steps swap back to dark type. Re-measured against that
+     plane rather than carried over: 5.1 / 5.4 / 5.0 / 5.5:1. The three that
+     were here read 4.2, 3.7 and 4.0 against it, under AA for 12px — they
+     are darker now, and nothing but tooltip band type uses them. */
+  --sd-good-inverse: #045c04;
+  --sd-info-inverse: #0c5074;
+  --sd-warn-inverse: #6e4800;
+  --sd-crit-inverse: #941414;
 
   --sd-axis: rgba(195, 203, 228, 0.32);
   --sd-track-mix: 26%;
@@ -169,6 +182,35 @@
 }
 
 .student-app [data-band="weak"] {
+  --sd-band: var(--sd-crit);
+  --sd-band-text: var(--sd-crit-text);
+  --sd-band-inverse: var(--sd-crit-inverse);
+}
+
+/* The four skill gap tiers, under the ids the server sends. Strength and
+   Significant Skill Gap are the two ends above, renamed; Competent and Needs
+   Improvement are the two steps the class cut-off opened up in between. Set
+   here and nowhere else, so the meter, the chip, the row, the legend swatch
+   and the callout are all painted by one declaration each. */
+.student-app [data-band="strength"] {
+  --sd-band: var(--sd-good);
+  --sd-band-text: var(--sd-good-text);
+  --sd-band-inverse: var(--sd-good-inverse);
+}
+
+.student-app [data-band="competent"] {
+  --sd-band: var(--sd-info);
+  --sd-band-text: var(--sd-info-text);
+  --sd-band-inverse: var(--sd-info-inverse);
+}
+
+.student-app [data-band="needs-improvement"] {
+  --sd-band: var(--sd-warn);
+  --sd-band-text: var(--sd-warn-text);
+  --sd-band-inverse: var(--sd-warn-inverse);
+}
+
+.student-app [data-band="skill-gap"] {
   --sd-band: var(--sd-crit);
   --sd-band-text: var(--sd-crit-text);
   --sd-band-inverse: var(--sd-crit-inverse);
@@ -973,53 +1015,6 @@ body:has(.student-app) {
   border-radius: 50%;
 }
 
-/* ── Segmented control (chart/table switch) ── */
-
-.sd-segmented {
-  display: inline-flex;
-  gap: 2px;
-  padding: 0.1875rem;
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-r-pill);
-  background: var(--sd-surface-2);
-}
-
-.sd-segmented__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sd-2);
-  padding: var(--sd-2) var(--sd-4);
-  border: 0;
-  border-radius: var(--sd-r-pill);
-  background: transparent;
-  color: var(--sd-muted);
-  font: inherit;
-  font-size: var(--sd-fs-meta);
-  font-weight: var(--sd-fw-semibold);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.sd-segmented__btn:hover {
-  color: var(--sd-ink);
-}
-
-.sd-segmented__btn[aria-selected="true"],
-.sd-segmented__btn[aria-pressed="true"] {
-  background: var(--sd-surface);
-  color: var(--sd-brand-text);
-  box-shadow: var(--sd-shadow-sm);
-}
-
-.sd-segmented__count {
-  padding: 0 var(--sd-1);
-  border-radius: var(--sd-r-pill);
-  background: color-mix(in srgb, var(--sd-ink) 8%, transparent);
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-bold);
-  font-variant-numeric: tabular-nums;
-}
-
 /* One shared focus ring for everything interactive. */
 .student-app :is(button, a, input, [tabindex]):focus-visible {
   outline: 2px solid var(--sd-brand);
@@ -1657,29 +1652,83 @@ body:has(.student-app) {
 
 /* ── Skill chart ────────────────────────────────────────── */
 
+/* ── Tier key ──────────────────────────────────────────
+   Not a colour key. The chip beside every bar already spells its tier out in
+   full, in colour, with its own icon — so what is left for this to say is the
+   one thing nothing else does: which scores fall in which tier. Those ranges
+   are not fixed. They are recut every time the class's assessor moves the
+   cut-off, so they are the subject here and everything else gets out of
+   their way.
+
+   Four equal columns, lowest tier first. The four are four steps of one
+   0–100 scale, which is the same axis every meter below is drawn on, so a
+   bar's length can be carried straight across to the step it lands in. The
+   old row read highest-first and wrapped wherever it ran out of width, which
+   put the steps in the reverse order to the bars and left the ranges floating
+   after their labels instead of lining up.
+
+   No caption for the hairline on the meters. It is drawn at the cut-off,
+   which is the boundary between the third step and the second, so the two
+   ranges printed either side of it already say where it is and what it
+   divides — and the line above the list says the figure a third time.
+
+   Deliberately not drawn as a proportional scale bar. The segments would be
+   honest — at a cut-off of 70 the lowest tier really is 55% of the range —
+   but at a cut-off of 90 all four collapse to about 5% each and no label
+   fits under any of them, and equal columns under unequal segments would be
+   worse than no bar at all.
+   ──────────────────────────────────────────────────────── */
+
 .sd-skills__legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sd-4);
   margin-bottom: var(--sd-4);
   padding-bottom: var(--sd-4);
   border-bottom: 1px solid var(--sd-border);
 }
 
-.sd-skills__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sd-2);
-  font-size: var(--sd-fs-label);
-  color: var(--sd-muted);
+.sd-skills__legend-tiers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sd-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.sd-skills__legend-swatch {
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 3px;
-  background: var(--sd-band);
+.sd-skills__legend-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+/* The icon is the mark. It carries the tier's own type colour — the same
+   colour and the same silhouette the chip beside each bar is drawn in — so
+   the key and the rows point at each other. The swatch that used to sit in
+   front of it was a second mark saying the same thing, in a third colour
+   (the bar fill) that nothing else in this block uses. */
+.sd-skills__legend-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-1);
+  color: var(--sd-band-text);
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.35;
+}
+
+.sd-skills__legend-name svg {
+  flex-shrink: 0;
+}
+
+/* The scores the tier covers. Tabular and on its own line, so the four read
+   down the row as a column of figures rather than trailing off four labels
+   of different lengths. */
+.sd-skills__legend-range {
+  color: var(--sd-muted);
+  font-size: var(--sd-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .sd-skills__list {
@@ -1693,7 +1742,7 @@ body:has(.student-app) {
 .sd-skill {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(7rem, 12rem) minmax(0, 1fr) 8.5rem;
+  grid-template-columns: minmax(7rem, 12rem) minmax(0, 1fr) 3.5rem;
   align-items: center;
   gap: var(--sd-4);
   /* A hit target well past the 24px minimum, so hovering a 10px bar
@@ -1709,24 +1758,42 @@ body:has(.student-app) {
 }
 
 .sd-skill__topic {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
   font-size: var(--sd-fs-body);
   font-weight: var(--sd-fw-medium);
   color: var(--sd-ink);
+}
+
+/* How many of the exam's items came from this lesson, and how many of those
+   were right — where the percentage on the other side of the bar came from.
+   It sits with the lesson because that is what it is about, and it is on the
+   row rather than inside the hover tip, because a figure only a mouse can
+   reach is no use on a phone and none at a glance. It is also the honest
+   caveat for a 100% that came from two questions. */
+.sd-skill__items {
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--sd-muted);
 }
 
 .sd-skill__plot {
   position: relative;
 }
 
+/* The number, and only the number. The tier it lands in is the colour of the
+   bar it is sitting beside and the range the key prints against that colour,
+   so a chip here named a third time what the row had already said twice — and
+   it was the widest thing in the row, which is why the bars were short.
+   Screen readers still hear the tier: it is in the meter's own label. */
 .sd-skill__value {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.1875rem;
+  text-align: right;
 }
 
 .sd-skill__score {
-  font-size: var(--sd-fs-body-lg);
+  font-size: var(--sd-fs-body);
   font-weight: var(--sd-fw-semibold);
   color: var(--sd-ink);
   font-variant-numeric: tabular-nums;
@@ -1769,6 +1836,43 @@ body:has(.student-app) {
 .sd-tip__band {
   color: var(--sd-band-inverse);
   font-weight: var(--sd-fw-semibold);
+}
+
+/* The five facts behind one bar, as a label/value list. The label column is
+   a fixed width — wide enough for the longest of the five on one line — so
+   the values line up as a column instead of five ragged starts. */
+.sd-tip__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  margin: 0;
+}
+
+.sd-tip__list > div {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sd-2);
+}
+
+/* The labels name the rows; the numbers are what is being read. Held back by
+   letting the plane through the type rather than by a grey of its own, which
+   is the only way one value works on a plane that is dark in one theme and
+   light in the other: 8.6:1 light, 4.9:1 dark. */
+.sd-tip__list dt {
+  color: color-mix(in srgb, var(--sd-surface) 70%, transparent);
+  font-weight: var(--sd-fw-regular);
+}
+
+.sd-tip__list dd {
+  margin: 0;
+  font-weight: var(--sd-fw-medium);
+}
+
+/* Five rows do not fit the width a one-line tip is capped at. Only the tips
+   that hold the list widen; the course chart's stay as they were. */
+.sd-tip:has(.sd-tip__list) {
+  max-width: min(21.5rem, calc(100vw - 2rem));
 }
 
 /* ── Badge earned popup ─────────────────────────────────── */
@@ -2284,37 +2388,6 @@ body:has(.student-app) {
 
 .sd-raw__result dd strong {
   color: var(--sd-ink);
-}
-
-/* ── Callout ────────────────────────────────────────────── */
-
-.sd-callout {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sd-3);
-  margin-top: var(--sd-5);
-  padding: var(--sd-4);
-  border: 1px solid color-mix(in srgb, var(--sd-band) 26%, transparent);
-  border-radius: var(--sd-r-md);
-  background: color-mix(in srgb, var(--sd-band) 8%, transparent);
-}
-
-.sd-callout__icon {
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--sd-band-text);
-}
-
-.sd-callout__body {
-  margin: 0;
-  font-size: var(--sd-fs-body);
-  line-height: 1.55;
-  color: var(--sd-ink-2);
-}
-
-.sd-callout__body strong {
-  color: var(--sd-ink);
-  font-weight: var(--sd-fw-semibold);
 }
 
 /* ===========================================================
@@ -2957,8 +3030,13 @@ body:has(.student-app) {
     min-width: 0;
   }
 
+  .sd-skills__legend-tiers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sd-3);
+  }
+
   .sd-skill {
-    grid-template-columns: minmax(0, 1fr) 6.5rem;
+    grid-template-columns: minmax(0, 1fr) 3.5rem;
     gap: var(--sd-2) var(--sd-3);
   }
 
@@ -2983,16 +3061,6 @@ body:has(.student-app) {
   .sd-hero,
   .sd-detail-hero {
     padding: var(--sd-5);
-  }
-
-  .sd-segmented {
-    width: 100%;
-  }
-
-  .sd-segmented__btn {
-    flex: 1;
-    justify-content: center;
-    padding: var(--sd-2);
   }
 }
 

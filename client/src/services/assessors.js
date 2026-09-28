@@ -75,6 +75,15 @@ export async function setRosterStudentSuspended(assessorId, courseId, studentId,
   return data?.student ?? null;
 }
 
+/** Set the skill gap cut-off of one of this assessor's classes (1 to 99). */
+export async function setClassCutoff(assessorId, courseId, classId, cutoff) {
+  const { data } = await api.patch(`/assessors/${assessorId}/classes/${courseId}/cutoff`, {
+    classId,
+    cutoff
+  });
+  return data?.class ?? null;
+}
+
 /* ─────────────── Generating and releasing assessments ─────────────── */
 
 const assessmentsPath = (assessorId, courseId) =>

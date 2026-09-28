@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   fetchClassRoster,
+  setClassCutoff,
   setRosterStudentSuspended,
   storedAssessorId
 } from "../../services/assessors";
 import { readError } from "../../services/readError";
 import { useNotice } from "../../lib/useNotice";
 import { ChevronRightIcon } from "./components/icons";
+import CutoffEditor from "./components/CutoffEditor";
 import { classLine } from "./pathway";
 import {
   LoadFailed,
@@ -165,6 +167,19 @@ function RosterPage() {
     }
   };
 
+  // Save one class's cut-off, then show the new value.
+  const saveCutoff = async (classId, cutoff) => {
+    setNotice(null);
+    try {
+      await setClassCutoff(storedAssessorId(), courseId, classId, cutoff);
+      setClasses((list) => list.map((cls) => (cls.id === classId ? { ...cls, cutoff } : cls)));
+      setNotice({ tone: "ok", text: `Cut-off set to ${cutoff}%.` });
+    } catch (error) {
+      setNotice({ tone: "error", text: readError(error, "Couldn't save the cut-off.").message });
+      throw error;
+    }
+  };
+
   return (
     <>
       <ScreenHeader
@@ -178,6 +193,7 @@ function RosterPage() {
             : ""
         }
       >
+        <CutoffEditor classes={classes} onSave={saveCutoff} />
         <SearchField
           value={query}
           onChange={setQuery}

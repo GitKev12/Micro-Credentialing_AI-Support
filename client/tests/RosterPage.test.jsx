@@ -47,6 +47,7 @@ jest.unstable_mockModule("../src/services/assessors.js", () => ({
     classes: [{ id: "k1", name: "IT01 - CC2", active: true, students: 2 }],
     roster
   }),
+  setClassCutoff: async () => null,
   setRosterStudentSuspended: async (assessorId, courseId, studentId, suspended) => {
     suspensionCalls.push({ assessorId, courseId, studentId, suspended });
     if (suspensionFails) {

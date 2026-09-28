@@ -5,6 +5,7 @@ import {
   getPendingCredentials,
   getRoster,
   getStudentDetail,
+  setClassCutoff,
   issueCredential,
   setRosterStudentSuspension
 } from "./assessors.controller.js";
@@ -94,6 +95,9 @@ router.get("/:assessorId/classes/:courseId/roster", getRoster);
 router.get("/:assessorId/classes/:courseId/tos", getCourseTos);
 router.put("/:assessorId/classes/:courseId/tos", saveCourseTos);
 router.get("/:assessorId/classes/:courseId/students/:studentId", getStudentDetail);
+
+// The skill gap cut-off of one of this assessor's classes.
+router.patch("/:assessorId/classes/:courseId/cutoff", setClassCutoff);
 
 // The one write here that changes what a student can *do* rather than what
 // their record says, and the only one an assessor makes about a person rather

@@ -1,6 +1,6 @@
 import { useLocation } from "react-router-dom";
-import { TARGET, bandFor, gapToTarget, toScore } from "../performance";
-import { BandChip, Meter, TargetLegend } from "./ui";
+import { TARGET, tierBandForScore, toScore } from "../performance";
+import { BandChip, Meter } from "./ui";
 
 /**
  * The header of a single course's analysis.
@@ -8,15 +8,17 @@ import { BandChip, Meter, TargetLegend } from "./ui";
  * The overall score is the one number this view leads with, so it is a hero
  * figure rather than a chart — a ring gauge would be a two-slice pie, and a
  * bar chart of one bar is not a chart. The meter underneath places that
- * number against the passing mark, which is the only comparison it needs.
+ * number against the class's target competency, which is the only comparison
+ * it needs.
  */
-function CoursePerformance({ title, performance = 0, skillCount = 0 }) {
+function CoursePerformance({ title, performance = 0, skillCount = 0, cutoff = TARGET, tiers = [] }) {
   const location = useLocation();
   const courseTitle = title || location.state?.title || "Course";
 
   const score = toScore(performance);
-  const band = bandFor(score);
-  const gap = gapToTarget(score);
+  const band = tierBandForScore(score, cutoff, tiers);
+  // Points under the target competency; 0 at or above it.
+  const gap = Math.max(0, cutoff - score);
 
   return (
     <section className="sd-detail-hero" aria-labelledby="sd-course-title">
@@ -34,7 +36,9 @@ function CoursePerformance({ title, performance = 0, skillCount = 0 }) {
             </span>
           ) : null}
           <span className="sd-chip">
-            {gap > 0 ? `${gap} points to the passing mark` : `At or above the ${TARGET}% mark`}
+            {gap > 0
+              ? `${gap} points to the target competency`
+              : `At or above the ${cutoff}% target competency`}
           </span>
         </div>
       </div>
@@ -49,10 +53,10 @@ function CoursePerformance({ title, performance = 0, skillCount = 0 }) {
           <Meter
             value={score}
             band={band}
+            target={cutoff}
             label={`${courseTitle} overall performance: ${score} percent, ${band.label}`}
           />
         </div>
-        <TargetLegend />
       </div>
     </section>
   );

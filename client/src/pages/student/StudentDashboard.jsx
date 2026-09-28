@@ -11,7 +11,6 @@ import {
   averageScore,
   bandFor,
   collectSkills,
-  gapToTarget,
   toScore
 } from "./performance";
 import { getStoredSession } from "../../auth/services/authService";
@@ -71,7 +70,7 @@ function StudentDashboard() {
   const overallBand = bandFor(overall);
 
   const allSkills = useMemo(() => collectSkills(courses), [courses]);
-  const gaps = useMemo(() => allSkills.filter((skill) => gapToTarget(skill.score) > 0), [allSkills]);
+  const gaps = useMemo(() => allSkills.filter((skill) => skill.gap > 0), [allSkills]);
   const completedCount = courses.filter((course) => course.status === "completed").length;
 
   const railSummary = courses.length
@@ -100,8 +99,14 @@ function StudentDashboard() {
             title={selected.title}
             performance={selected.performance}
             skillCount={(selected.skills ?? []).length}
+            cutoff={selected.cutoff ?? TARGET}
+            tiers={selected.tiers ?? []}
           />
-          <SkillGapAnalysis skills={selected.skills} />
+          <SkillGapAnalysis
+            skills={selected.skills}
+            cutoff={selected.cutoff ?? TARGET}
+            tiers={selected.tiers ?? []}
+          />
           <RawComputation course={selected} />
         </main>
       </div>
