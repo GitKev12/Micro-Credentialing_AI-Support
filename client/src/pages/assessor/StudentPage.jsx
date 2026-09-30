@@ -83,11 +83,15 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
 
   // Each topic's tier (Strength … Significant Skill Gap) and points under the
   // class cut-off, both from the server; worked out here only for an old reply.
-  const rated = skills.map((skill) => ({
-    ...skill,
-    band: tierBandFor(skill, threshold),
-    gap: Number.isFinite(skill.gap) ? skill.gap : Math.max(0, threshold - Math.round(skill.score))
-  }));
+  // Sorted Lesson 1 to the last lesson; a topic with no lesson number goes last.
+  const lessonOrder = (skill) => lessonNumbers.get(skill.moduleId) ?? Infinity;
+  const rated = skills
+    .map((skill) => ({
+      ...skill,
+      band: tierBandFor(skill, threshold),
+      gap: Number.isFinite(skill.gap) ? skill.gap : Math.max(0, threshold - Math.round(skill.score))
+    }))
+    .sort((a, b) => lessonOrder(a) - lessonOrder(b));
   // Lowest tier first, the same order as the Student End's legend.
   const tiers = [...(skillGap?.tiers ?? [])].sort((a, b) => a.min - b.min);
 
@@ -160,7 +164,7 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
         role="img"
         ariaLabel={
           taken
-            ? skills.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")
+            ? rated.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")
             : `One column per lesson, empty — the final exam has not been taken. The target competency is ${threshold} percent.`
         }
       />
