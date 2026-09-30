@@ -113,8 +113,7 @@ describe("the final exam card", () => {
 
     // The pass mark is drawn even with nothing standing against it.
     expect(container.querySelector(".skill-chart__target").style.bottom).toBe("60%");
-    expect(screen.getByText("60% pass")).toBeInTheDocument();
-    expect(screen.getByText("Not taken yet")).toBeInTheDocument();
+    expect(screen.getByText("60% target")).toBeInTheDocument();
     expect(container.querySelector(".skill-chart__score--waiting").textContent).toBe("—");
   });
 
@@ -148,11 +147,7 @@ describe("the final exam card", () => {
     const bands = [...container.querySelectorAll(".skill-chart__col")].map((col) =>
       col.getAttribute("data-band")
     );
-    expect(bands).toEqual(["strong", "weak"]);
-
-    expect(
-      screen.getByText("1 of 2 topics below 60% — weakest is Two at 40%.")
-    ).toBeInTheDocument();
+    expect(bands).toEqual(["competent", "needs-improvement"]);
   });
 
   /**
@@ -187,7 +182,7 @@ describe("the final exam card", () => {
 
     const plot = container.querySelector(".skill-chart");
     expect(plot.getAttribute("role")).toBe("img");
-    expect(plot.getAttribute("aria-label")).toContain("pass mark is 60 percent");
+    expect(plot.getAttribute("aria-label")).toContain("target competency is 60 percent");
   });
 });
 

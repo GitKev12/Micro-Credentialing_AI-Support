@@ -14,6 +14,7 @@ import {
   getAssessmentResults,
   getCourseAssessment,
   getCourseAssessments,
+  getGenerationProgress,
   getStudentPaper,
   postCourseAssessment,
   streamAssessmentResults,
@@ -114,6 +115,12 @@ router.patch(
 // student's "Take the Quiz" had, moved to the person who reads the result.
 router.get("/:assessorId/classes/:courseId/assessments", getCourseAssessments);
 router.post("/:assessorId/classes/:courseId/assessments/generate", generateCourseAssessment);
+// Before the :assessmentId read below, which would otherwise match this path
+// and look for an assessment called "generation-progress".
+router.get(
+  "/:assessorId/classes/:courseId/assessments/generation-progress",
+  getGenerationProgress
+);
 router.get("/:assessorId/classes/:courseId/assessments/:assessmentId", getCourseAssessment);
 router.put("/:assessorId/classes/:courseId/assessments/:assessmentId", updateCourseAssessment);
 router.post("/:assessorId/classes/:courseId/assessments/:assessmentId/post", postCourseAssessment);

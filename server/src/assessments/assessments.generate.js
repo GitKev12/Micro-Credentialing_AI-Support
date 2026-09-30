@@ -349,6 +349,9 @@ async function existingAssessment(courseId, moduleId, scope, classId = null) {
 export async function generateModuleAssessment({
   courseId,
   moduleId,
+  // Called as the run moves on, so a screen waiting on it can say where it is.
+  // Optional: nothing in here depends on anyone listening.
+  onProgress = null,
   // The class this quiz is for. Null writes the course's own paper, which is
   // what a course with no classes behind it has.
   classId = null,
@@ -363,6 +366,7 @@ export async function generateModuleAssessment({
   replaceExisting = false
 }) {
   if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
+  const report = onProgress ?? (() => {});
 
   const already = await existingAssessment(courseId, moduleId, "lesson", classId);
   if (already && !replaceExisting) {
@@ -386,6 +390,7 @@ export async function generateModuleAssessment({
     return { status: "skipped", reason: "no-blueprint-row", moduleId: asId(moduleId) };
   }
 
+  report({ stage: "reading" });
   const textRecord = await loadModuleText(moduleId);
   const sourceText = toSourceText(textRecord);
 
@@ -413,6 +418,11 @@ export async function generateModuleAssessment({
     };
   }
 
+  // A quiz is a single call, so there is no count to give — the stages are all
+  // that can honestly be shown.
+  report({ stage: "writing", total: 1 });
+  report({ lessonStarted: lesson.title ?? blueprintRow.coverage });
+
   let generated;
   try {
     generated = await generateAssessmentItems({
@@ -426,6 +436,9 @@ export async function generateModuleAssessment({
   } catch (error) {
     return { status: "error", reason: "generation-failed", moduleId: asId(moduleId), message: error.message };
   }
+
+  report({ lessonDone: lesson.title ?? blueprintRow.coverage });
+  report({ stage: "checking" });
 
   const items = mapGeneratedItems(generated.items);
   const document = buildAssessmentDocument({
@@ -451,6 +464,8 @@ export async function generateModuleAssessment({
       usage: generated.usage
     };
   }
+
+  report({ stage: "saving" });
 
   try {
     // Rewriting a draft keeps the document it replaces, rather than deleting
@@ -1091,10 +1106,13 @@ export async function generateFinalAssessment({
   model = null,
   itemCount = null,
   timeLimitMinutes = null,
+  // As above: where the run is, for whoever is watching it.
+  onProgress = null,
   status = "draft",
   replaceExisting = false
 }) {
   if (!databaseReady()) return { status: "error", reason: "database-not-connected" };
+  const report = onProgress ?? (() => {});
 
   const already = await existingAssessment(courseId, null, "final", classId);
   if (already && !replaceExisting) {
@@ -1117,6 +1135,7 @@ export async function generateFinalAssessment({
   const moduleIds = plan.rows.map((row) => row.moduleId).filter(Boolean);
   if (moduleIds.length === 0) return { status: "skipped", reason: "no-final-table" };
 
+  report({ stage: "reading" });
   const candidates = moduleIds.flatMap((id) => idCandidates(id));
   const [modules, texts] = await Promise.all([
     collection(MODULES_COLLECTION).find({ _id: { $in: candidates } }).toArray(),
@@ -1174,7 +1193,14 @@ export async function generateFinalAssessment({
     };
   }
 
+  // How many calls this paper takes. Nobody knows it before the plan is read,
+  // which is why the screen starts with no count and gains one here.
+  report({ stage: "writing", total: paperPlan.length });
+
   const drafts = await inFlight(paperPlan, FINAL_CONCURRENCY, async (entry) => {
+    const topic = entry.coverage || titleOf.get(entry.moduleId) || "";
+    report({ lessonStarted: topic });
+
     try {
       const generated = await generateAssessmentItems({
         courseTitle,
@@ -1197,6 +1223,10 @@ export async function generateFinalAssessment({
     } catch (error) {
       // One lesson's call failing must not throw away the twelve that worked.
       return { entry, items: [], error: error.message ?? "generation-failed" };
+    } finally {
+      // Written or failed, the call is spent and the run has moved on. The bar
+      // measures the work, not how much of it came back usable.
+      report({ lessonDone: topic });
     }
   });
 
@@ -1279,6 +1309,8 @@ export async function generateFinalAssessment({
     classId
   });
 
+  report({ stage: "checking" });
+
   const check = validateAssessment(document);
   if (!check.valid) {
     return { status: "rejected", problems: check.problems, usage, lessons: perLesson };
@@ -1292,6 +1324,8 @@ export async function generateFinalAssessment({
     unassessedLessons: withoutText,
     usage
   };
+
+  report({ stage: "saving" });
 
   try {
     // Rewritten in place, never deleted and re-inserted: the assessment's id

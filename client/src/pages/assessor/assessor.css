@@ -38,8 +38,12 @@
      theme like every other type colour in this file. */
   --error-text: #b3261e;
   /* The student app's own good/critical steps — the skill gap says the same
-     thing to an assessor as it does to the student it is about. */
+     thing to an assessor as it does to the student it is about. The two
+     middle tiers are the student app's --sd-info and --sd-warn, to the hex:
+     one report of one exam, read the same way on both ends. */
   --skill-strong: #0ca30c;
+  --skill-competent: #2196d6;
+  --skill-improve: #d9730d;
   --skill-weak: #d03b3b;
 
   /* ---- Neutrals ---- */
@@ -173,6 +177,8 @@
   --warning-text: #f5bd58;
   --error-text: #f8b8bd;
   --skill-strong: #0ca30c;
+  --skill-competent: #2196d6;
+  --skill-improve: #d9730d;
   --skill-weak: #d03b3b;
 
   /* Light-lifted shadows, matching the student theme's --shadow. */
@@ -221,9 +227,16 @@
   background: rgba(245, 189, 88, 0.16);
 }
 
-[data-theme="dark"] .assessor-app .badge-tile__link:hover,
-[data-theme="dark"] .assessor-app .badge-tile__link:focus-visible {
+[data-theme="dark"] .assessor-app .badge-tile__link:hover {
+  border-color: var(--brand-text);
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* --brand is the navy here and comes to 1.7:1 against the page it would be
+   ringing, which cannot be seen. --brand-text is the light step the dark theme
+   already uses for brand marks, and reads at 11:1. */
+[data-theme="dark"] .assessor-app .badge-tile__link:focus-visible {
+  outline-color: var(--brand-text);
 }
 
 /* Cards sit on a near-black page, so give them a hairline edge. */
@@ -1992,12 +2005,6 @@
    A card at the head of the coursework column. It carries no furniture of its
    own: the card's header holds the title and the score, and the plot's own
    bottom margin is the room the tick numbers hang in. */
-/* The plot's own bottom margin is the room the tick numbers hang in, not a
-   gap under them, so the sentence takes one of its own. */
-.skill-card__caption {
-  margin: var(--sp-2) 0 0;
-}
-
 /**
  * The head of the final exam's card: the paper on one side, the mark on the
  * other.
@@ -2127,20 +2134,52 @@
   height: 100%;
 }
 
-.skill-chart__bar {
-  width: 100%;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
-  background: var(--skill-strong);
+/* ── The four tiers ──
+   Set once per band, on whatever carries the data-band — the column, or a
+   legend item — and read by the bar and the swatch inside it. Three lines a
+   tier, the same shape the student app's band map uses, so the two ends cannot
+   drift apart on what a tier looks like.
+
+   The colours are the student's own: a topic the student sees in blue is blue
+   here too, and the assessor is looking at that student's report. */
+.assessor-app [data-band="strength"] {
+  --skill-band: var(--skill-strong);
 }
 
-.skill-chart__col[data-band="weak"] .skill-chart__bar {
-  background-color: var(--skill-weak);
-  background-image: repeating-linear-gradient(
+.assessor-app [data-band="competent"] {
+  --skill-band: var(--skill-competent);
+}
+
+.assessor-app [data-band="needs-improvement"] {
+  --skill-band: var(--skill-improve);
+}
+
+.assessor-app [data-band="skill-gap"] {
+  --skill-band: var(--skill-weak);
+}
+
+/* Colour is never the only cue, and here it cannot be: green and blue are
+   1.02:1 apart in luminance, which is no difference at all in greyscale. The
+   stripes mark the two tiers under the cut-off — the distinction the chart is
+   actually read for — and those columns print their number as well. The height
+   against the target line is the third telling, and it is the plainest. */
+.assessor-app [data-band="needs-improvement"],
+.assessor-app [data-band="skill-gap"] {
+  --skill-band-stripes: repeating-linear-gradient(
     45deg,
     rgba(255, 255, 255, 0.38) 0 2px,
     transparent 2px 6px
   );
+}
+
+.skill-chart__bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  /* Green for a column with no band: a lesson the exam did not reach is not
+     a failure, and this is the colour the chart had before the tiers. */
+  background-color: var(--skill-band, var(--skill-strong));
+  background-image: var(--skill-band-stripes, none);
 }
 
 /* Before the exam is taken. The seat is drawn full height so the plot shows
@@ -2172,6 +2211,53 @@
   font-size: var(--fs-micro);
   line-height: 1;
   color: var(--text-muted);
+}
+
+/* ── The key under the chart ──
+   A row that wraps, not a grid: the four labels are different lengths and a
+   column wide enough for "Significant Skill Gap" leaves three holes. Wrapping
+   puts as many on a line as the card is wide, which on a phone is two. */
+.skill-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: var(--sp-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-micro);
+  color: var(--text-body);
+}
+
+/* The swatch carries the stripes as well as the colour, so the key shows the
+   same two things the columns do rather than only one of them. */
+.skill-chart__legend-swatch {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  background-color: var(--skill-band, var(--skill-strong));
+  background-image: var(--skill-band-stripes, none);
+}
+
+/* The range is what the label means, not a second label: quieter, and in
+   tabular figures so the four read as one column of numbers. */
+.skill-chart__legend-range {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 40rem) {
+  /* Two to a line rather than four cramped ones. The column gap closes to the
+     label gap, which is as near as they can sit and stay separate. */
+  .skill-chart__legend {
+    gap: var(--sp-2) var(--sp-4);
+  }
 }
 
 .student-hero {
@@ -2396,7 +2482,8 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
   /* Two lines whether the lesson's name needs them or not, so the row of
-     "Earned"s underneath sits on one line rather than stepping about. */
+     "Earned"s underneath sits on one line rather than stepping about. The
+     credential wall sets its own rows and takes this back below. */
   min-height: 2.6em;
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
@@ -2423,7 +2510,79 @@
    is a lesson, so the tiles are wider. The seal stands in for artwork —
    filled when the credential is issued, greyed while it waits. */
 .badge-wall--wide {
-  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+}
+
+/* ── A credential lies down ──
+   A badge stands up because a badge is a medal: the art over its name, centred,
+   one per lesson, a dozen to a wall. A credential is a document — there are a
+   handful of them, the name is a phrase rather than a lesson, and the tile that
+   opens one opens a sheet. So the seal leads from the left and the name runs
+   beside it, which is the way the record itself reads and the way a name of six
+   words wants to be set.
+
+   Both kinds of tile take the grid: the one that is a link, and the one that is
+   still waiting for release and is not. The seal spans the two text rows and the
+   middle row takes the slack, so the action sits on the floor of the tile and
+   the rule above it runs at one height across the row. */
+.badge-wall--wide .badge-tile:not(:has(.badge-tile__link)),
+.badge-wall--wide .badge-tile__link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "art  name   act"
+    "art  state  act";
+  align-content: start;
+  align-items: start;
+  column-gap: var(--sp-3);
+  row-gap: 0;
+  text-align: left;
+}
+
+.badge-wall--wide .badge-tile:not(:has(.badge-tile__link)) {
+  padding: var(--sp-4) var(--sp-3) var(--sp-3);
+  border: 1px solid transparent;
+}
+
+/* Centred against the two lines it stands beside, and smaller than a badge's:
+   at 3.5rem it out-weighed the name it is there to introduce. */
+.badge-wall--wide .badge-tile__art {
+  grid-area: art;
+  align-self: center;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.badge-wall--wide .badge-tile__name {
+  grid-area: name;
+  /* Three, because a credential is a phrase and clipping one mid-word to keep
+     a row tidy is the wrong trade on a wall of four. */
+  -webkit-line-clamp: 3;
+  /* The grid gives each row its own line, so nothing here has to be propped
+     up to keep the tile beside it level. */
+  min-height: 0;
+}
+
+.badge-wall--wide .badge-tile__state {
+  grid-area: state;
+  margin-top: 0.15em;
+}
+
+/* The mark that says the sheet is one press away, on the right where a row's
+   action belongs. It carries no word: the tile it sits in is the link and is
+   already named by the credential and the date beside it, so "Certificate"
+   under them was the third time the tile said the same thing. The word is
+   still there for a screen reader, which has no icon to read. */
+.badge-wall--wide .badge-tile__action {
+  grid-area: act;
+  align-self: center;
+  width: 2rem;
+  height: 2rem;
+  padding-top: 0;
+  border-top: 0;
+  border-radius: var(--radius-sm);
+  background: var(--gray-050);
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .cred-tile__art {
@@ -2436,34 +2595,72 @@
   color: var(--white);
 }
 
-/* A released credential carries its certificate: the tile opens the stamped
-   sheet, so what the student holds is one click from their record. */
+/* ── The tile that opens the certificate ──
+   A released credential carries its stamped sheet, and this tile opens it. It
+   used to be the badge tile exactly: the same flat centred column, the same
+   nothing around it, and a hover wash as the only sign it did anything at all.
+   Beside a credential still awaiting release — which is not a link and never
+   opens — the two were indistinguishable until the pointer was already on one,
+   and on a touch screen there is no hover to find them with.
+
+   So it takes the shape the console already gives a whole card you can press,
+   the one the overview's stat cards use: a hairline edge, the card surface, and
+   the brand edge and lift under the pointer. The difference between the two
+   kinds of tile is now the thing you see first, before reading either. */
 .badge-tile__link {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
+  align-self: stretch;
   gap: var(--sp-2);
   min-width: 0;
-  margin: calc(var(--sp-2) * -1);
-  padding: var(--sp-2);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
+  background: var(--surface);
   color: inherit;
   text-decoration: none;
-  transition: background 0.15s ease;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.badge-tile__link:hover,
+.badge-tile__link:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand);
+  box-shadow: var(--shadow-row-hover);
+}
+
+.badge-tile__link:active {
+  transform: translateY(0);
+}
+
+/* The console's own ring, which this tile never had: its whole focus state was
+   a wash of --gray-050 over white, 1.09:1, which is no focus state at all for
+   anyone arriving by keyboard. */
 .badge-tile__link:focus-visible {
-  background: var(--gray-050);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
+/* The action, as a footer rather than a fourth line of text. `margin-top: auto`
+   pins it to the bottom of a stretched tile, so the rule runs at the same
+   height across the row however many lines the names above it took. It only
+   ever renders inside this link — a credential with no sheet has no action —
+   so the divider belongs to it and not to the plain tiles. */
 .badge-tile__action {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-1);
+  flex: none;
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
   color: var(--brand-text);
+}
+
+.badge-tile__link:hover .badge-tile__action {
+  background: var(--brand);
+  color: var(--white);
 }
 
 /* Brand call-out panel */
@@ -3358,63 +3555,91 @@
 }
 
 /* ── The paper while the model writes it ────
-   The left column's loading state. The sheet itself (the header, the chips)
-   stays still — there is a paper being written, not a place being fetched —
-   and its questions are drawn as the bones of the cards they will become, so
-   the column does not jump up when they land. Reuses the shared skeleton bars;
-   only the placement of the rows is this screen's, and it is set to match the
-   real card's. */
-.gen-paper-skel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
+   The left column's waiting state, and a real measure of the wait: a final is
+   one model call per lesson, so the bar counts lessons landed out of lessons
+   planned, read back from the server every second.
 
-.gen-skel-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* The card a question actually stands in: the same padding, radius and slate
-   ground as .gen-q, so the bars sit exactly where the questions will. */
-.gen-skel {
-  display: flex;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  border-radius: var(--radius-sm);
-  background: var(--gray-050);
-}
-
-.gen-skel__body {
+   It replaced three skeleton question cards. Bones in the shape of the real
+   cards were the right idea for a fetch, where the thing arrives whole and
+   soon; a final takes a call per lesson and over a minute, and for that a
+   shape that never changes says only that the screen is stuck. Reuses the
+   console's own .progress__track and .progress__fill, so this bar is the bar
+   the roster and the student page already use. */
+.gen-progress {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  flex: 1;
-  min-width: 0;
+  padding: var(--sp-5);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-050);
 }
 
-/* A tall block in the shape of a short code snippet, standing where the
-   code block will. */
-.gen-skel__code {
-  margin-top: var(--sp-1);
+.gen-progress__title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
 }
 
-.gen-skel__choices {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  margin-top: var(--sp-1);
+/* The two lesson lines. A label that runs into its list rather than taking a
+   column: "Writing now" and "Written" are different widths, and a column wide
+   enough for both leaves a hole after the shorter one. */
+.gen-progress__line {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--text-body);
 }
 
-/* Each bar carries the choice line's underline, so the rows read as the
-   chooseable list they will become rather than as stacked text bars. */
-.gen-skel__choice {
-  width: 100%;
-  box-shadow: inset 0 -1px 0 var(--gray-200);
+.gen-progress__line.is-quiet {
+  color: var(--text-muted);
+}
+
+.gen-progress__label {
+  margin-right: 0.4em;
+  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+}
+
+.gen-progress__label::after {
+  content: ":";
+}
+
+/* A quiz is one call. There is no count to show, so the track carries a band
+   that travels instead of a fill that would have to invent a percentage —
+   indeterminate in the aria sense too: the element is given no aria-valuenow. */
+.gen-progress__track--waiting {
+  position: relative;
+}
+
+.gen-progress__band {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  animation: gen-progress-band 1.4s ease-in-out infinite;
+}
+
+/* Dark mode. --brand fills the console's bars, and on this ground it is
+   1.8:1 against the track it is filling — under the 3:1 a control has to meet
+   to be made out at all, which is the whole job of this one. The lighter brand
+   token is 3.4:1 and is already what the dark theme uses for brand-coloured
+   marks. Scoped to this bar on purpose: the roster and student bars have the
+   same problem and the same fix, but they are not this screen's to change. */
+[data-theme="dark"] .gen-progress .progress__fill,
+[data-theme="dark"] .gen-progress__band {
+  background: var(--brand-text);
+}
+
+@keyframes gen-progress-band {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(286%);
+  }
 }
 
 /* ── Fields ─────────────────────────────────── */
@@ -4140,6 +4365,28 @@
   .progress__fill,
   .focus-dot {
     transition: none;
+  }
+
+  .badge-tile__link {
+    transition: none;
+  }
+
+  .badge-tile__link:hover {
+    transform: none;
+  }
+
+  .badge-tile__action {
+    transition: none;
+  }
+
+  /* The travelling band is the only thing on the screen that moves without
+     being asked. Stood still it would read as a stalled bar, so it holds the
+     full track instead and the count beside it carries the progress. */
+  .gen-progress__band {
+    position: static;
+    width: 100%;
+    height: 100%;
+    animation: none;
   }
 
   .assessor-nav-item:hover .assessor-nav-item__icon,

@@ -28,6 +28,15 @@ import {
   generateModuleAssessment
 } from "../assessments/assessments.generate.js";
 import {
+  endRun,
+  lessonDone,
+  lessonStarted,
+  readRun,
+  runKey,
+  setStage,
+  startRun
+} from "../assessments/generation.progress.js";
+import {
   courseCode,
   courseTitle,
   findAssignedCourse,
@@ -528,6 +537,31 @@ const ASSESS_ONLY_REASONS = {
 };
 
 /**
+ * How far a generation run has got.
+ *
+ * Polled by the Generate screen while it waits, and answers `null` when there
+ * is no run — which is the honest answer before one starts and after the ten
+ * minutes a finished one is kept for. Reading a count is never refused for a
+ * closed course: resolveScope, not resolveWritableScope.
+ */
+export async function getGenerationProgress(request, response) {
+  const scope = await resolveScope(request, response);
+  if (!scope) return undefined;
+
+  const isFinal = request.query?.scope === "final";
+  const progress = readRun(
+    runKey({
+      courseId: asId(scope.course._id),
+      classId: scope.classId,
+      scope: isFinal ? "final" : "lesson",
+      moduleId: isFinal ? null : (request.query?.moduleId ?? null)
+    })
+  );
+
+  return response.json({ progress });
+}
+
+/**
  * POST /api/assessors/:assessorId/classes/:courseId/assessments/generate
  * Body: { scope: "lesson" | "final", moduleId?, itemCount?, timeLimitMinutes? }
  *
@@ -601,25 +635,49 @@ export async function generateCourseAssessment(request, response) {
 
   await ensureAssessmentIndexes();
 
-  const result = isFinal
-    ? await generateFinalAssessment({
-        courseId: course._id,
-        classId,
-        assessOnly,
-        itemCount,
-        timeLimitMinutes: lengthGiven ? timeLimitMinutes : DEFAULT_FINAL_MINUTES,
-        status: "draft",
-        replaceExisting: true
-      })
-    : await generateModuleAssessment({
-        courseId: course._id,
-        moduleId,
-        classId,
-        itemCount,
-        timeLimitMinutes,
-        status: "draft",
-        replaceExisting: true
-      });
+  // The screen polls for this while it waits. A final is a call per lesson and
+  // takes over a minute, which the assessor used to spend looking at a skeleton.
+  const key = runKey({
+    courseId: asId(course._id),
+    classId,
+    scope: isFinal ? "final" : "lesson",
+    moduleId: isFinal ? null : moduleId
+  });
+  const onProgress = (event) => {
+    if (event.stage) setStage(key, event.stage, event.total ?? null);
+    if (event.lessonStarted) lessonStarted(key, event.lessonStarted);
+    if (event.lessonDone) lessonDone(key, event.lessonDone);
+  };
+  startRun(key);
+
+  let result;
+  try {
+    result = isFinal
+      ? await generateFinalAssessment({
+          courseId: course._id,
+          classId,
+          assessOnly,
+          itemCount,
+          timeLimitMinutes: lengthGiven ? timeLimitMinutes : DEFAULT_FINAL_MINUTES,
+          onProgress,
+          status: "draft",
+          replaceExisting: true
+        })
+      : await generateModuleAssessment({
+          courseId: course._id,
+          moduleId,
+          classId,
+          itemCount,
+          timeLimitMinutes,
+          onProgress,
+          status: "draft",
+          replaceExisting: true
+        });
+  } finally {
+    // However it ended, the run is over: a poll that arrives after this reads
+    // "done" rather than a count frozen where the failure happened.
+    endRun(key);
+  }
 
   if (result.status !== "created" && result.status !== "replaced") {
     const message =
