@@ -71,6 +71,26 @@ export function CredentialIcon({ size = 20 }) {
   );
 }
 
+/**
+ * The certificate itself: a sheet with a seal, not a medal.
+ *
+ * The tile that carries this opens the stamped sheet the student was given,
+ * and a ribbon said "award" where what the press actually produces is a
+ * document. CredentialIcon stays as it is — the sidebar's Credentials section
+ * is the award, and that one is right.
+ */
+export function CertificateIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M19 12V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h7" {...line} />
+      <path d="M6.5 8h9" {...line} />
+      <path d="M6.5 11h6" {...line} />
+      <circle cx="16.5" cy="16" r="3.1" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M14.5 18.5 13.9 22l2.6-1.4L19.1 22l-.6-3.5" {...line} />
+    </svg>
+  );
+}
+
 /** Phosphor "User" (thin) — avatar glyph. */
 export function UserIcon({ size = 24, color }) {
   return (

@@ -3,11 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ColumnPlot } from "../../components/ColumnPlot";
 import { certificateFileUrl } from "../../services/achievements";
 import { fetchStudentDetail, storedAssessorId } from "../../services/assessors";
-import { CredentialIcon, DownloadIcon, UserIcon } from "./components/icons";
+import { CertificateIcon, DownloadIcon, UserIcon } from "./components/icons";
 import { Chip, ProgressBar, ScreenHeader } from "./components/ui";
 import { SkeletonDetail } from "../../components/Skeleton";
+import { TIER_BANDS, tierBandFor } from "../student/performance";
 
-/** The server's own pass ratio, used until a run reports its own threshold. */
+/** The default cut-off, used until the server sends the class's own. */
 const PASS_MARK = 60;
 
 /** Dates here are read off the record, so they are written out rather than
@@ -80,27 +81,36 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
   const skills = skillGap?.skills ?? [];
   const taken = skills.length > 0;
 
-  const weak = skills.filter((skill) => skill.score < threshold);
-  const weakest = weak.reduce(
-    (lowest, skill) => (lowest === null || skill.score < lowest.score ? skill : lowest),
-    null
-  );
+  // Each topic's tier (Strength … Significant Skill Gap) and points under the
+  // class cut-off, both from the server; worked out here only for an old reply.
+  const rated = skills.map((skill) => ({
+    ...skill,
+    band: tierBandFor(skill, threshold),
+    gap: Number.isFinite(skill.gap) ? skill.gap : Math.max(0, threshold - Math.round(skill.score))
+  }));
+  // Lowest tier first, the same order as the Student End's legend.
+  const tiers = [...(skillGap?.tiers ?? [])].sort((a, b) => a.min - b.min);
 
   // A scored column per topic once the exam is taken; before that, a waiting
   // seat per lesson, full height in a neutral so it reads as an empty slot
   // rather than a perfect score.
   const columns = taken
-    ? skills.map((skill, index) => {
-        const isWeak = skill.score < threshold;
+    ? rated.map((skill, index) => {
+        const isWeak = skill.gap > 0;
 
         return {
           key: skill.moduleId ?? `${skill.topic}:${index}`,
           score: skill.score,
-          band: isWeak ? "weak" : "strong",
-          title: `${skill.topic} — ${skill.score}% (${skill.correct}/${skill.total}), ${
-            isWeak ? "weak" : "strong"
-          }`,
-          before: isWeak ? <span className="skill-chart__value">{skill.score}</span> : null,
+          band: skill.band.id,
+          // Hover info: the same five facts the student sees.
+          title: [
+            `Skill: ${skill.topic}`,
+            `Final Exam Performance: ${Math.round(skill.score)}% (${skill.correct} of ${skill.total} correct)`,
+            `Target Competency: ${threshold}%`,
+            `Skill Gap: ${skill.gap > 0 ? `${skill.gap} percentage ${skill.gap === 1 ? "point" : "points"}` : "None"}`,
+            `Status: ${skill.band.label}`
+          ].join("\n"),
+          before: isWeak ? <span className="skill-chart__value">{Math.round(skill.score)}</span> : null,
           after: (
             <span className="skill-chart__tick">
               {lessonNumbers.get(skill.moduleId) ?? index + 1}
@@ -114,13 +124,6 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
         barClass: "skill-chart__bar--waiting",
         after: <span className="skill-chart__tick">{module.n}</span>
       }));
-
-  let caption = "Not taken yet";
-  if (taken && weak.length === 0) {
-    caption = `Every topic at or above the ${threshold}% pass mark.`;
-  } else if (taken) {
-    caption = `${weak.length} of ${skills.length} topics below ${threshold}% — weakest is ${weakest.topic} at ${weakest.score}%.`;
-  }
 
   // The paper's own verdict, which is the record's rather than this chart's
   // arithmetic — a card that computed it from the columns would be marking the
@@ -153,16 +156,30 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
         prefix="skill-chart"
         columns={columns}
         target={threshold}
-        targetLabel={`${threshold}% pass`}
+        targetLabel={`${threshold}% target`}
         role="img"
         ariaLabel={
           taken
             ? skills.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")
-            : `One column per lesson, empty — the final exam has not been taken. The pass mark is ${threshold} percent.`
+            : `One column per lesson, empty — the final exam has not been taken. The target competency is ${threshold} percent.`
         }
       />
 
-      <p className="skill-card__caption assessor-meta">{caption}</p>
+      {/* The four tiers and the range each covers for this class's cut-off. */}
+      {taken && tiers.length ? (
+        <ul className="skill-chart__legend" aria-label="Skill gap tiers">
+          {tiers.map((tier) => (
+            <li className="skill-chart__legend-item" key={tier.id} data-band={tier.id}>
+              <span className="skill-chart__legend-swatch" aria-hidden="true" />
+              {TIER_BANDS[tier.id]?.label ?? tier.status}
+              <span className="skill-chart__legend-range">
+                {tier.min}–{tier.max}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
     </section>
   );
 }
@@ -469,14 +486,14 @@ function StudentPage() {
                     const body = (
                       <>
                         <span className="badge-tile__art cred-tile__art" aria-hidden="true">
-                          <CredentialIcon size={24} />
+                          <CertificateIcon size={24} />
                         </span>
                         <span className="badge-tile__name">{credential.name}</span>
                         <span className="badge-tile__state">{credentialMeta(credential)}</span>
                         {certificate ? (
                           <span className="badge-tile__action">
-                            <DownloadIcon size={13} />
-                            Certificate
+                            <DownloadIcon size={16} />
+                            <span className="assessor-sr-only">Download the certificate</span>
                           </span>
                         ) : null}
                       </>
