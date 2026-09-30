@@ -379,7 +379,10 @@ export async function loadStudentPathways(studentId) {
  * second read of the row they are already holding.
  */
 async function resolveCourse(courseRef) {
-  if (courseRef && typeof courseRef === "object" && courseRef._id) return courseRef;
+  // An ObjectId also has an `_id` (itself), so check for it first —
+  // otherwise the id is mistaken for the course and its end date is never read.
+  const isId = courseRef instanceof mongoose.Types.ObjectId;
+  if (courseRef && typeof courseRef === "object" && !isId && courseRef._id) return courseRef;
   return findCourse(courseRef);
 }
 
