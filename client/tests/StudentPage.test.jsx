@@ -150,31 +150,6 @@ describe("the final exam card", () => {
     expect(bands).toEqual(["competent", "needs-improvement"]);
   });
 
-  it("orders the columns Lesson 1 to the last lesson, whatever order the exam lists them", async () => {
-    detail = {
-      ...base,
-      skillGap: {
-        performance: 60,
-        released: true,
-        threshold: 60,
-        skills: [
-          { moduleId: "m3", topic: "Three", score: 30, correct: 3, total: 10 },
-          { moduleId: "m1", topic: "One", score: 80, correct: 8, total: 10 },
-          { moduleId: "m2", topic: "Two", score: 40, correct: 4, total: 10 }
-        ]
-      }
-    };
-    const { container } = draw();
-
-    await screen.findByText("60%");
-
-    expect(plotted(container)).toEqual([
-      ["1", "80%"],
-      ["2", "40%"],
-      ["3", "30%"]
-    ]);
-  });
-
   /**
    * A card at the head of the coursework column, not half the hero. Sharing
    * the band with the name left a column per lesson a few pixels wide on a

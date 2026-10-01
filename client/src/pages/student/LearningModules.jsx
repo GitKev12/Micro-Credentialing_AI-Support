@@ -836,14 +836,11 @@ function LearningModules() {
         </div>
       ) : null}
 
-      {/* Said once, above everything it shuts. Centred and locked like the
-          switched-off notice, so the reader closes the same way twice — but
-          kept to a banner, because unlike that one it has lessons under it that
-          are still open to read. */}
+      {/* Said once, above everything it shuts: the lock, then the sentence. */}
       {ended && !suspended ? (
         <div className="modules-page__ended">
           <span className="modules-page__ended-icon" aria-hidden="true">
-            <LockIcon size={30} />
+            <LockIcon size={18} />
           </span>
           <p className="modules-page__ended-text">
             {course?.endedReason ??

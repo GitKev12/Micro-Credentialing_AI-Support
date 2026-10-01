@@ -83,15 +83,12 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
 
   // Each topic's tier (Strength … Significant Skill Gap) and points under the
   // class cut-off, both from the server; worked out here only for an old reply.
-  // Sorted Lesson 1 to the last lesson; a topic with no lesson number goes last.
-  const lessonOrder = (skill) => lessonNumbers.get(skill.moduleId) ?? Infinity;
-  const rated = skills
-    .map((skill) => ({
-      ...skill,
-      band: tierBandFor(skill, threshold),
-      gap: Number.isFinite(skill.gap) ? skill.gap : Math.max(0, threshold - Math.round(skill.score))
-    }))
-    .sort((a, b) => lessonOrder(a) - lessonOrder(b));
+  // The server already sends them Lesson 1 to the last lesson.
+  const rated = skills.map((skill) => ({
+    ...skill,
+    band: tierBandFor(skill, threshold),
+    gap: Number.isFinite(skill.gap) ? skill.gap : Math.max(0, threshold - Math.round(skill.score))
+  }));
   // Lowest tier first, the same order as the Student End's legend.
   const tiers = [...(skillGap?.tiers ?? [])].sort((a, b) => a.min - b.min);
 
