@@ -322,6 +322,8 @@ function StudentPage() {
   const badges = detail.badges ?? { earned: 0, total: detail.totalModules ?? 0 };
   const badgeItems = badges.items ?? [];
   const issuedCount = credentials.filter((credential) => credential.status === "issued").length;
+  // Named like the Credentials page. Every credential here is this course's.
+  const credentialName = `${course.code} Certification`;
   const skillGap = detail.skillGap ?? null;
   // The chart's columns carry the lesson numbers the table uses, so a column
   // and a row point at the same lesson.
@@ -489,7 +491,7 @@ function StudentPage() {
                         <span className="badge-tile__art cred-tile__art" aria-hidden="true">
                           <CertificateIcon size={24} />
                         </span>
-                        <span className="badge-tile__name">{credential.name}</span>
+                        <span className="badge-tile__name">{credentialName}</span>
                         <span className="badge-tile__state">{credentialMeta(credential)}</span>
                         {certificate ? (
                           <span className="badge-tile__action">
@@ -508,7 +510,7 @@ function StudentPage() {
                         key={credential.submissionId}
                         className="badge-tile"
                         data-earned={credential.status === "issued" ? "yes" : "no"}
-                        title={credential.name}
+                        title={credentialName}
                       >
                         {certificate ? (
                           <a

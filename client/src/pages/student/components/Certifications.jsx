@@ -42,12 +42,13 @@ function Certificate({ certification, studentId }) {
         <CertificateIcon size={20} />
       </span>
 
+      {/* Named like the assessor's screens, so the code isn't repeated underneath. */}
       <div className="sd-cert__text">
-        <p className="sd-cert__name">{certification.name}</p>
+        <p className="sd-cert__name">
+          {certification.courseCode ? `${certification.courseCode} Certification` : certification.name}
+        </p>
         <p className="sd-cert__meta">
-          {[certification.courseCode, certification.courseTitle || certification.assessmentTitle]
-            .filter(Boolean)
-            .join(" · ")}
+          {certification.courseTitle || certification.assessmentTitle}
         </p>
       </div>
 

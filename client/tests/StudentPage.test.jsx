@@ -417,3 +417,19 @@ describe("modules table", () => {
     });
   });
 });
+
+describe("micro-credentials", () => {
+  it("names each one by course code, like the Credentials page", async () => {
+    detail = {
+      ...base,
+      skillGap: null,
+      credentials: [
+        { name: "IT 101 Final Exam Credential", status: "pending", submissionId: "r1", certificate: null }
+      ]
+    };
+    draw();
+
+    expect(await screen.findByText("IT 101 Certification")).toBeInTheDocument();
+    expect(screen.queryByText("IT 101 Final Exam Credential")).not.toBeInTheDocument();
+  });
+});
