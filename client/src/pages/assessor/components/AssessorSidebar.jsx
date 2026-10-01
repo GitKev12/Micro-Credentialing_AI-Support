@@ -5,11 +5,11 @@ import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import { useGlidingPill } from "../../../hooks/useGlidingPill";
 import { useDrawer } from "../../../hooks/useDrawer";
 import {
+  CertificateIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClassesIcon,
   CloseIcon,
-  CredentialIcon,
   GenerateIcon,
   MenuIcon,
   MoonIcon,
@@ -37,8 +37,8 @@ const NAV_ITEMS = [
   // — so it is the one that most needs saying so from the rail.
   {
     to: "/assessor/credentials",
-    label: "Credentials",
-    Icon: CredentialIcon,
+    label: "Release",
+    Icon: CertificateIcon,
     countKey: "credentials"
   }
 ];

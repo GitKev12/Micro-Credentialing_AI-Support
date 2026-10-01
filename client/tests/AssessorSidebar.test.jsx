@@ -40,7 +40,7 @@ describe("the counts on the sidebar", () => {
     draw({ toPost: 4, credentials: 2 });
 
     expect(within(link("Generate Assessment")).getByText("4")).toBeInTheDocument();
-    expect(within(link("Credentials")).getByText("2")).toBeInTheDocument();
+    expect(within(link("Release")).getByText("2")).toBeInTheDocument();
   });
 
   /**
@@ -51,7 +51,7 @@ describe("the counts on the sidebar", () => {
     draw({ toPost: 0, credentials: 0 });
 
     expect(within(link("Generate Assessment")).queryByText("0")).not.toBeInTheDocument();
-    expect(within(link("Credentials")).queryByText("0")).not.toBeInTheDocument();
+    expect(within(link("Release")).queryByText("0")).not.toBeInTheDocument();
   });
 
   // The rail is drawn before the overview call comes back, and on a failed one
@@ -59,7 +59,7 @@ describe("the counts on the sidebar", () => {
   it("draws every section before any count has arrived", () => {
     draw(null);
 
-    ["My Classes", "Generate Assessment", "Results", "Credentials"].forEach((label) => {
+    ["My Classes", "Generate Assessment", "Results", "Release"].forEach((label) => {
       expect(link(label)).toBeInTheDocument();
     });
   });

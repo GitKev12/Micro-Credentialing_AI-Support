@@ -62,22 +62,11 @@ export function PencilIcon({ size = 16 }) {
   );
 }
 
-export function CredentialIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="9" r="5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8.5 13.5L7 21l5-2.4L17 21l-1.5-7.5" {...line} />
-    </svg>
-  );
-}
-
 /**
  * The certificate itself: a sheet with a seal, not a medal.
  *
- * The tile that carries this opens the stamped sheet the student was given,
- * and a ribbon said "award" where what the press actually produces is a
- * document. CredentialIcon stays as it is — the sidebar's Credentials section
- * is the award, and that one is right.
+ * What the assessor releases is a document, so the sidebar's Release item, the
+ * Issue certificate button and the student page's tiles all use this one.
  */
 export function CertificateIcon({ size = 20 }) {
   return (
