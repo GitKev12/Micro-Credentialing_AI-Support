@@ -307,7 +307,7 @@ function StudentPage() {
               This student could not be loaded for this class.
             </p>
           ) : (
-            <SkeletonDetail label="Fetching module progress and credentials…" />
+            <SkeletonDetail label="Fetching module progress and certificates…" />
           )}
         </div>
       </>
@@ -471,7 +471,7 @@ function StudentPage() {
 
             <section className="assessor-card">
               <header className="card-head">
-                <h2 className="assessor-card-title">Micro-credentials</h2>
+                <h2 className="assessor-card-title">Certificates</h2>
                 {credentials.length ? (
                   <span className="assessor-meta">
                     {issuedCount} of {credentials.length} issued
@@ -480,7 +480,7 @@ function StudentPage() {
               </header>
 
               {credentials.length === 0 ? (
-                <p className="assessor-meta">No credentials yet.</p>
+                <p className="assessor-meta">No certificates yet.</p>
               ) : (
                 <ul className="badge-wall badge-wall--wide">
                   {credentials.map((credential) => {
