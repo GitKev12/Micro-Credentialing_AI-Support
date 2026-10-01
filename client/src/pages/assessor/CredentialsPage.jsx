@@ -8,15 +8,17 @@ import {
 } from "../../services/assessors";
 import { readError } from "../../services/readError";
 import { useNotice } from "../../lib/useNotice";
-import { CheckIcon } from "./components/icons";
+import { CertificateIcon, CheckIcon } from "./components/icons";
 import {
   AssessorSelect,
   Chip,
   LoadFailed,
   Notice,
+  Pagination,
   Person,
   ScreenHeader,
-  SearchField
+  SearchField,
+  usePagination
 } from "./components/ui";
 import { SkeletonText } from "../../components/Skeleton";
 
@@ -130,6 +132,8 @@ function CredentialsPage() {
     });
   }, [rows, courseId, query]);
 
+  const { pageRows, page, pageCount, setPage } = usePagination(shown, `${courseId}|${query}`);
+
   const issue = async (row) => {
     setIssuing((current) => ({ ...current, [row.id]: true }));
     try {
@@ -147,7 +151,7 @@ function CredentialsPage() {
       // from a slow network. The failure has to say it failed.
       setNotice({
         tone: "error",
-        text: `Couldn't issue ${row.name}'s credential. Try again.`
+        text: `Couldn't issue ${row.name}'s certificate. Try again.`
       });
     } finally {
       setIssuing((current) => ({ ...current, [row.id]: false }));
@@ -221,7 +225,7 @@ function CredentialsPage() {
             </thead>
 
             <tbody>
-              {shown.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
                   <td className="assessor-table__num">
                     {row.sid || <span className="assessor-table__dash">—</span>}
@@ -231,11 +235,10 @@ function CredentialsPage() {
                     <Person as="span" name={row.name} />
                   </th>
 
+                  {/* The exam title already has the course code, so it isn't repeated. */}
                   <td className="assessor-table__paper">
-                    <span className="assessor-table__name">{row.credential}</span>
-                    <span className="assessor-table__sub">
-                      {row.courseCode} · {row.assessmentTitle}
-                    </span>
+                    <span className="assessor-table__name">{row.courseCode} Certification</span>
+                    <span className="assessor-table__sub">{row.assessmentTitle}</span>
                   </td>
 
                   <td className="assessor-table__num">
@@ -250,19 +253,28 @@ function CredentialsPage() {
                   </td>
 
                   <td className="assessor-table__open">
+                    {/* Once issued it becomes a receipt, not a button. */}
                     {issued[row.id] ? (
-                      <span className="btn btn--ghost" role="status">
-                        <CheckIcon />
+                      <span className="cert-receipt" role="status">
+                        <span className="cert-receipt__mark" aria-hidden="true">
+                          <CheckIcon size={12} />
+                        </span>
                         Issued today
                       </span>
                     ) : (
                       <button
                         type="button"
-                        className="btn btn--primary"
+                        className="cert-issue"
                         disabled={Boolean(issuing[row.id])}
+                        aria-busy={issuing[row.id] ? "true" : undefined}
                         onClick={() => issue(row)}
                       >
-                        {issuing[row.id] ? "Issuing…" : "Issue credential"}
+                        {issuing[row.id] ? (
+                          <span className="cert-issue__spinner" aria-hidden="true" />
+                        ) : (
+                          <CertificateIcon size={18} />
+                        )}
+                        {issuing[row.id] ? "Issuing…" : "Issue certificate"}
                       </button>
                     )}
                   </td>
@@ -300,6 +312,8 @@ function CredentialsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Credentials" />
       </div>
     </>
   );

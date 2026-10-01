@@ -1,3 +1,4 @@
+import { Pagination as SharedPagination } from "../../../components/Pagination";
 import { Select } from "../../../components/Select";
 import { Skeleton } from "../../../components/Skeleton";
 import { useGlidingPill } from "../../../hooks/useGlidingPill";
@@ -69,6 +70,20 @@ export function AssessorSelect(props) {
       classPrefix="assessor-select"
       CaretIcon={ChevronDownIcon}
       TickIcon={CheckIcon}
+    />
+  );
+}
+
+export { usePagination } from "../../../components/Pagination";
+
+// The shared pagination with this console's class names (assessor.css) and arrows.
+export function Pagination(props) {
+  return (
+    <SharedPagination
+      {...props}
+      classPrefix="assessor-pagination"
+      PrevIcon={ChevronLeftIcon}
+      NextIcon={ChevronRightIcon}
     />
   );
 }

@@ -13,9 +13,11 @@ import {
   AssessorSelect,
   Chip,
   LoadFailed,
+  Pagination,
   Person,
   ScreenHeader,
-  SearchField
+  SearchField,
+  usePagination
 } from "./components/ui";
 import { ChevronRightIcon, FilterIcon } from "./components/icons";
 import StudentPaper from "./components/StudentPaper";
@@ -407,6 +409,13 @@ function ResultsPage() {
     });
   }, [query, status, rows]);
 
+  // A hook, so it must sit above the early return below. That also keeps the
+  // page number while a student's paper is open.
+  const { pageRows, page, pageCount, setPage } = usePagination(
+    shown,
+    `${courseId}|${classId}|${assessmentId}|${status}|${query}`
+  );
+
   /**
    * The register, or one paper off it.
    *
@@ -592,7 +601,7 @@ function ResultsPage() {
             </thead>
 
             <tbody>
-              {shown.map((row) => {
+              {pageRows.map((row) => {
                 const status = STATUS[row.status] ?? STATUS["not-started"];
                 const opens = row.status === "submitted";
 
@@ -706,6 +715,8 @@ function ResultsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Results" />
       </div>
     </>
   );
