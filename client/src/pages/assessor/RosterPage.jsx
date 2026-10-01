@@ -14,10 +14,12 @@ import { classLine } from "./pathway";
 import {
   LoadFailed,
   Notice,
+  Pagination,
   Person,
   ProgressBar,
   ScreenHeader,
-  SearchField
+  SearchField,
+  usePagination
 } from "./components/ui";
 
 /**
@@ -120,6 +122,8 @@ function RosterPage() {
         student.name.toLowerCase().includes(term) || (student.sid ?? "").includes(term)
     );
   }, [query, students]);
+
+  const { pageRows, page, pageCount, setPage } = usePagination(roster, `${courseId}|${query}`);
 
   const openStudent = (student) =>
     navigate(`/assessor/classes/${courseId}/students/${student.id}`);
@@ -226,7 +230,7 @@ function RosterPage() {
             </thead>
 
             <tbody>
-              {roster.map((student) => {
+              {pageRows.map((student) => {
                 const { done, worth, pct } = courseProgress(student, total);
                 // Nowhere to record a closure: the server keeps it on the class.
                 const noClass = (student.classes ?? []).length === 0;
@@ -367,6 +371,8 @@ function RosterPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Students" />
       </div>
     </>
   );

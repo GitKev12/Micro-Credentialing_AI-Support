@@ -94,7 +94,7 @@ const open = async () => {
   return container;
 };
 
-const issueButtons = () => screen.getAllByRole("button", { name: "Issue credential" });
+const issueButtons = () => screen.getAllByRole("button", { name: "Issue certificate" });
 
 // Asked for by class rather than by role: the released row is itself a
 // role="status" ("Issued today"), so a role query cannot tell the receipt
@@ -135,7 +135,7 @@ describe("releasing a credential", () => {
     });
 
     expect(
-      await screen.findByText("Couldn't issue Nicole Fernandez's credential. Try again.")
+      await screen.findByText("Couldn't issue Nicole Fernandez's certificate. Try again.")
     ).toBeInTheDocument();
 
     // Still offered, because the release can be tried again.
@@ -172,7 +172,7 @@ describe("releasing a credential", () => {
     });
 
     expect(
-      await screen.findByText("Couldn't issue Miguel Bautista's credential. Try again.")
+      await screen.findByText("Couldn't issue Miguel Bautista's certificate. Try again.")
     ).toBeInTheDocument();
   });
 });
@@ -223,6 +223,14 @@ describe("the credentials list as a table", () => {
       screen.getByRole("rowheader", { name: /Nicole Fernandez/ })
     ).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(3);
+  });
+
+  it("names the certification by course code, with only the exam under it", async () => {
+    await open();
+
+    expect(screen.getAllByText("CC2 Certification")).toHaveLength(2);
+    expect(screen.getAllByText("Computer Programming 2 — Final Exam")).toHaveLength(2);
+    expect(screen.queryByText("Computer Programming 2 Credential")).not.toBeInTheDocument();
   });
 
   it("keeps the score and the mark it was passed against on the same row", async () => {
@@ -365,5 +373,33 @@ describe("narrowing the queue", () => {
 
     await type("bautista");
     expect(screen.getByText("2 awaiting release")).toBeInTheDocument();
+  });
+});
+
+describe("paging the queue", () => {
+  it("shows ten a page in the assessor's own page strip", async () => {
+    pending = Array.from({ length: 12 }, (_, i) => ({
+      ...ROWS[0],
+      id: `p${i + 1}`,
+      name: `Student ${i + 1}`
+    }));
+    const { container } = render(
+      <MemoryRouter>
+        <CredentialsPage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Student 1");
+
+    expect(issueButtons()).toHaveLength(10);
+    expect(container.querySelector(".assessor-pagination")).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    });
+
+    expect(screen.getByText("Student 11")).toBeInTheDocument();
+    expect(screen.queryByText("Student 1")).not.toBeInTheDocument();
+    // The count is the whole queue's, not the page's.
+    expect(screen.getByText("12 awaiting release")).toBeInTheDocument();
   });
 });
