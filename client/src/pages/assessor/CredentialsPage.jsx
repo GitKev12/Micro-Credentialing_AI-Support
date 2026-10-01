@@ -165,7 +165,7 @@ function CredentialsPage() {
       <ScreenHeader
         back={{ label: "Classes", onClick: () => navigate("/assessor/classes") }}
         eyebrow={`${awaitingCount} awaiting release`}
-        title="Credentials"
+        title="Release"
       />
 
       <div className="assessor-body assessor-stack--tight" style={{ display: "flex", flexDirection: "column" }}>
@@ -313,7 +313,7 @@ function CredentialsPage() {
           </table>
         </div>
 
-        <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Credentials" />
+        <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Release" />
       </div>
     </>
   );
