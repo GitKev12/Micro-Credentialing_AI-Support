@@ -418,7 +418,7 @@ describe("modules table", () => {
   });
 });
 
-describe("micro-credentials", () => {
+describe("certificates", () => {
   it("names each one by course code, like the Credentials page", async () => {
     detail = {
       ...base,
@@ -431,5 +431,13 @@ describe("micro-credentials", () => {
 
     expect(await screen.findByText("IT 101 Certification")).toBeInTheDocument();
     expect(screen.queryByText("IT 101 Final Exam Credential")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Certificates" })).toBeInTheDocument();
+  });
+
+  it("says when there are none yet", async () => {
+    detail = { ...base, skillGap: null };
+    draw();
+
+    expect(await screen.findByText("No certificates yet.")).toBeInTheDocument();
   });
 });
