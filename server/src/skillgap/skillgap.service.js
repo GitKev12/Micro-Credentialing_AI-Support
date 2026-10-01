@@ -50,9 +50,11 @@
 
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { byLesson } from "../lib/lessonOrder.js";
 
 const RESULTS_COLLECTION = "StudentResult";
 const ASSESSMENTS_COLLECTION = "Assessment";
+const MODULES_COLLECTION = "LearningModule";
 
 const CLASSES_COLLECTION = "Class";
 
@@ -272,6 +274,27 @@ async function loadCutoffs(studentId, courses) {
 }
 
 /**
+ * Sorts each course's skills Lesson 1 to the last lesson, the same order the
+ * lessons are read in (see lessonOrder.js). A skill whose lesson is gone goes last.
+ */
+async function sortSkillsByLesson(courses) {
+  const ids = courses.flatMap((course) => course.skills.map((skill) => skill.moduleId));
+  if (ids.length === 0 || !(await collectionExists(MODULES_COLLECTION))) return;
+
+  const modules = await mongoose.connection
+    .collection(MODULES_COLLECTION)
+    .find({ _id: { $in: ids.flatMap(idCandidates) } }, { projection: { fileName: 1, title: 1 } })
+    .toArray();
+  const moduleById = new Map(modules.map((module) => [asId(module._id), module]));
+
+  for (const course of courses) {
+    course.skills.sort((left, right) =>
+      byLesson(moduleById.get(left.moduleId), moduleById.get(right.moduleId))
+    );
+  }
+}
+
+/**
  * Every course this student has taken the final for, with its breakdown.
  *
  * A course whose final has not been taken is absent rather than present at zero —
@@ -310,7 +333,7 @@ export async function buildStudentSkillGap(studentId, courses) {
   const finalById = new Map(finals.map((doc) => [asId(doc._id), doc]));
   const courseById = new Map(courses.map((course) => [asId(course._id), course]));
 
-  return results
+  const skillGaps = results
     .map((result) => {
       const assessment = finalById.get(asId(result.assessmentId));
       const course = courseById.get(asId(assessment?.courseId));
@@ -348,4 +371,7 @@ export async function buildStudentSkillGap(studentId, courses) {
       };
     })
     .filter(Boolean);
+
+  await sortSkillsByLesson(skillGaps);
+  return skillGaps;
 }

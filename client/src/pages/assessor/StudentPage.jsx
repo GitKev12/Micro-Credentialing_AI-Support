@@ -83,6 +83,7 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
 
   // Each topic's tier (Strength … Significant Skill Gap) and points under the
   // class cut-off, both from the server; worked out here only for an old reply.
+  // The server already sends them Lesson 1 to the last lesson.
   const rated = skills.map((skill) => ({
     ...skill,
     band: tierBandFor(skill, threshold),
@@ -160,7 +161,7 @@ function FinalExam({ final, skillGap, modules, lessonNumbers }) {
         role="img"
         ariaLabel={
           taken
-            ? skills.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")
+            ? rated.map((skill) => `${skill.topic}: ${skill.score} percent`).join(", ")
             : `One column per lesson, empty — the final exam has not been taken. The target competency is ${threshold} percent.`
         }
       />
