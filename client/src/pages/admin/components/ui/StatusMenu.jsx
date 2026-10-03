@@ -10,7 +10,8 @@ const OPTIONS = [
 
 // The 3-dots button at the end of a table row, with its status menu.
 // Used by the Courses, Students and Assessors tables.
-export function StatusMenu({ name, status, busy, onChange }) {
+// Delete shows only once the row is archived, and only if onDelete is given.
+export function StatusMenu({ name, status, busy, onChange, onDelete }) {
   const [open, setOpen] = useState(false);
   // Where the menu sits on screen, next to the button (wide screens only).
   const [place, setPlace] = useState(null);
@@ -82,6 +83,21 @@ export function StatusMenu({ name, status, busy, onChange }) {
               </button>
             </li>
           ))}
+          {current === "archived" && onDelete ? (
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                className="admin-row-menu__item admin-row-menu__item--danger"
+                onClick={() => {
+                  setOpen(false);
+                  onDelete();
+                }}
+              >
+                Delete
+              </button>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </div>

@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { getAssessor, getStudent } from "./admin.controller.js";
+import { syncAssessorsForCourse } from "./enrollment.sync.js";
+import { removeIssuedCertificatesFor } from "../certificates/certificates.service.js";
 import {
   ACCOUNT_STATUSES,
   readSuspendedFlag,
@@ -540,4 +542,144 @@ export async function createAssessor(request, response) {
   if (password) addPasswordToReply(response, password);
   request.params = { ...request.params, id: asId(inserted.insertedId) };
   return getAssessor(request, response);
+}
+
+/* ─────────────────── Deleting accounts ───────────────────
+ *
+ * Only an archived account can be deleted, so a delete is always a second,
+ * deliberate step after archiving. What goes with a student is theirs alone:
+ * submissions, lesson completions and certificates. An assessor's released
+ * grades and posted papers stay, because they belong to the course.
+ */
+
+const CLASSES_COLLECTION = "Class";
+const PROGRESS_COLLECTION = "ModuleProgress";
+const RESULTS_COLLECTION = "StudentResult";
+const ISSUED_COLLECTION = "IssuedCertificate";
+
+const NOT_ARCHIVED = "Archive this account before deleting it.";
+
+/** Counts a query without failing on a collection that was never created. */
+async function countIn(name, filter) {
+  if (!(await collectionExists(name))) return 0;
+  return collection(name).countDocuments(filter);
+}
+
+async function removeFrom(name, filter) {
+  if (!(await collectionExists(name))) return 0;
+  const result = await collection(name).deleteMany(filter);
+  return result.deletedCount ?? 0;
+}
+
+/** GET /api/admin/students/:id/impact — what deleting this student would take. */
+export async function getStudentImpact(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const student = await collection(STUDENTS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!student) return response.status(404).json({ message: "Student not found." });
+
+  const keys = idCandidates(student._id);
+
+  return response.json({
+    impact: {
+      id: asId(student._id),
+      submissions: await countIn(RESULTS_COLLECTION, { studentId: { $in: keys } }),
+      completions: await countIn(PROGRESS_COLLECTION, { studentId: { $in: keys } }),
+      certificates: await countIn(ISSUED_COLLECTION, { studentId: { $in: keys.map(asId) } }),
+      classes: await countIn(CLASSES_COLLECTION, { studentIds: { $in: keys } }),
+      enrolled: (student.enrolledCourses ?? []).length
+    }
+  });
+}
+
+/** DELETE /api/admin/students/:id — the account and everything only theirs. */
+export async function deleteStudent(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const student = await collection(STUDENTS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!student) return response.status(404).json({ message: "Student not found." });
+  if (student.archived !== true) return response.status(409).json({ message: NOT_ARCHIVED });
+
+  const keys = idCandidates(student._id);
+  const name = [student.first_name, student.last_name].filter(Boolean).join(" ").trim();
+  // Read before the account goes: the recount at the end needs these courses.
+  const wasEnrolledIn = student.enrolledCourses ?? [];
+
+  const submissions = await removeFrom(RESULTS_COLLECTION, { studentId: { $in: keys } });
+  const completions = await removeFrom(PROGRESS_COLLECTION, { studentId: { $in: keys } });
+  // Through the certificates service, so the PDF file goes with the record.
+  const certificates = await removeIssuedCertificatesFor(asId(student._id));
+
+  // Taken off every class roster, so no class keeps counting them.
+  if (await collectionExists(CLASSES_COLLECTION)) {
+    await collection(CLASSES_COLLECTION).updateMany(
+      { studentIds: { $in: keys } },
+      { $pull: { studentIds: { $in: keys }, suspendedStudentIds: { $in: keys } } }
+    );
+  }
+
+  await collection(STUDENTS_COLLECTION).deleteOne({ _id: student._id });
+
+  // Each assessor's student count is stored, so recount it after the delete.
+  for (const courseId of wasEnrolledIn) {
+    await syncAssessorsForCourse(courseId);
+  }
+
+  return response.json({
+    student: { id: asId(student._id), name: name || student.email || "Student" },
+    removed: { submissions, completions, certificates }
+  });
+}
+
+/** GET /api/admin/assessors/:id/impact — what deleting this assessor would take. */
+export async function getAssessorImpact(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const assessor = await collection(ASSESSORS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+
+  const keys = idCandidates(assessor._id);
+
+  return response.json({
+    impact: {
+      id: asId(assessor._id),
+      classes: await countIn(CLASSES_COLLECTION, { assessorIds: { $in: keys } }),
+      assigned: (assessor.assigned_courses ?? []).length,
+      // Shown as something that stays: a released grade outlives the account.
+      graded: await countIn(RESULTS_COLLECTION, { "credential.issuedBy": { $in: keys.map(asId) } })
+    }
+  });
+}
+
+/** DELETE /api/admin/assessors/:id — the account, off every class it staffed. */
+export async function deleteAssessor(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const assessor = await collection(ASSESSORS_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!assessor) return response.status(404).json({ message: "Assessor not found." });
+  if (assessor.archived !== true) return response.status(409).json({ message: NOT_ARCHIVED });
+
+  const keys = idCandidates(assessor._id);
+
+  if (await collectionExists(CLASSES_COLLECTION)) {
+    await collection(CLASSES_COLLECTION).updateMany(
+      { assessorIds: { $in: keys } },
+      { $pull: { assessorIds: { $in: keys } } }
+    );
+  }
+
+  // Grades they released and papers they posted stay with the course.
+  await collection(ASSESSORS_COLLECTION).deleteOne({ _id: assessor._id });
+
+  return response.json({
+    assessor: { id: asId(assessor._id), name: assessor.full_name ?? assessor.email ?? "Assessor" }
+  });
 }

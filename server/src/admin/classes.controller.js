@@ -436,3 +436,69 @@ export async function updateClass(request, response) {
 
   return respondWithClass(cls._id, response);
 }
+
+/* ─────────────────── Deleting a class ───────────────────
+ *
+ * Only an archived class can be deleted. It removes no accounts: its students
+ * and assessors are taken off the course, but only those no other class on
+ * the same course still holds.
+ */
+
+/** GET /api/admin/classes/:id/impact — who deleting this class would unenrol. */
+export async function getClassImpact(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const cls = await collection(CLASSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!cls) return response.status(404).json({ message: "Class not found." });
+
+  let unenroll = 0;
+  for (const studentId of cls.studentIds ?? []) {
+    if (!(await inAnotherClass(studentId, cls.courseId, cls._id, "studentIds"))) unenroll += 1;
+  }
+  let unassign = 0;
+  for (const assessorId of cls.assessorIds ?? []) {
+    if (!(await inAnotherClass(assessorId, cls.courseId, cls._id, "assessorIds"))) unassign += 1;
+  }
+
+  return response.json({
+    impact: {
+      id: asId(cls._id),
+      name: cls.name ?? "",
+      students: (cls.studentIds ?? []).length,
+      assessors: (cls.assessorIds ?? []).length,
+      unenroll,
+      unassign
+    }
+  });
+}
+
+/** DELETE /api/admin/classes/:id — the class, with its links to the course. */
+export async function deleteClass(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const cls = await collection(CLASSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!cls) return response.status(404).json({ message: "Class not found." });
+  if (cls.archived !== true) {
+    return response.status(409).json({ message: "Archive this class before deleting it." });
+  }
+
+  // Remove the class first, so the "in another class?" check cannot count it.
+  await collection(CLASSES_COLLECTION).deleteOne({ _id: cls._id });
+
+  await unlinkFromCourse(STUDENTS_COLLECTION, "enrolledCourses", cls.studentIds ?? [], cls.courseId, "studentIds", cls._id);
+  await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", cls.assessorIds ?? [], cls.courseId, "assessorIds", cls._id);
+  await syncAssessorsForCourse(cls.courseId);
+
+  return response.json({
+    removed: {
+      id: asId(cls._id),
+      name: cls.name ?? "",
+      students: (cls.studentIds ?? []).length,
+      assessors: (cls.assessorIds ?? []).length
+    }
+  });
+}

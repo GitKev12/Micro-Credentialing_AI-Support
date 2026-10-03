@@ -4,6 +4,7 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { readCourseDates, startsInPast, toIsoDay } from "../lib/courseDates.js";
 import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
 import { publishStanding } from "../lib/standingEvents.js";
+import { syncAllAssessors } from "./enrollment.sync.js";
 
 /**
  * Adding and removing a course's learning modules.
@@ -591,4 +592,129 @@ export async function removeCourseImage(request, response) {
   }
 
   return response.json({ image: { hasImage: false } });
+}
+
+/* ─────────────────── Deleting a course ───────────────────
+ *
+ * Only an archived course can be deleted. Its lessons, quizzes, submissions,
+ * completions, blueprint and classes go with it. Students and assessors keep
+ * their accounts; they are just taken off the course.
+ */
+
+/** Everything that hangs off a course, counted or collected. */
+async function courseContents(course) {
+  const modules = await collection(MODULES_COLLECTION).find(courseModuleFilter(course)).toArray();
+  const byCourse = { courseId: { $in: idCandidates(course._id) } };
+
+  const countIn = async (name, filter) =>
+    (await collectionExists(name)) ? collection(name).countDocuments(filter) : 0;
+
+  const enrolled = await collection(STUDENTS_COLLECTION).countDocuments({
+    enrolledCourses: { $in: idCandidates(course._id) }
+  });
+  const assessors = await collection(ASSESSORS_COLLECTION).countDocuments({
+    assigned_courses: { $in: idCandidates(course._id) }
+  });
+
+  const [submissions, completions, blueprints, classes] = await Promise.all([
+    countIn(RESULTS_COLLECTION, byCourse),
+    countIn(PROGRESS_COLLECTION, byCourse),
+    countIn(TOS_COLLECTION, { courseId: asId(course._id) }),
+    countIn(CLASSES_COLLECTION, byCourse)
+  ]);
+
+  return { modules, enrolled, assessors, submissions, completions, blueprints, classes };
+}
+
+/** GET /api/admin/courses/:id/impact — what deleting this course destroys. */
+export async function getCourseImpact(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+
+  const contents = await courseContents(course);
+
+  return response.json({
+    impact: {
+      id: asId(course._id),
+      modules: contents.modules.length,
+      enrolled: contents.enrolled,
+      assessors: contents.assessors,
+      submissions: contents.submissions,
+      completions: contents.completions,
+      blueprints: contents.blueprints,
+      classes: contents.classes
+    }
+  });
+}
+
+/** DELETE /api/admin/courses/:id — the course and everything that hangs off it. */
+export async function deleteCourse(request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+
+  const course = await collection(COURSES_COLLECTION).findOne({
+    _id: { $in: idCandidates(request.params.id) }
+  });
+  if (!course) return response.status(404).json({ message: "Course not found." });
+  if (courseStatus(course) !== "archived") {
+    return response.status(409).json({ message: "Archive this course before deleting it." });
+  }
+
+  const contents = await courseContents(course);
+  const byCourse = { courseId: { $in: idCandidates(course._id) } };
+
+  // Lessons first, each taking its file, figures, text, quiz and completions.
+  for (const module of contents.modules) {
+    await purgeModule(module);
+  }
+
+  const removeMany = async (name, filter) => {
+    if (!(await collectionExists(name))) return 0;
+    const result = await collection(name).deleteMany(filter);
+    return result.deletedCount ?? 0;
+  };
+
+  // The final exam, leftover submissions, the blueprint and its classes.
+  const assessments = await removeMany(ASSESSMENTS_COLLECTION, byCourse);
+  const submissions = await removeMany(RESULTS_COLLECTION, byCourse);
+  await removeMany(PROGRESS_COLLECTION, byCourse);
+  const blueprints = await removeMany(TOS_COLLECTION, { courseId: asId(course._id) });
+  const classes = await removeMany(CLASSES_COLLECTION, byCourse);
+
+  // The people keep their accounts; they are just not in this course now.
+  const enrolments = await collection(STUDENTS_COLLECTION).updateMany(
+    { enrolledCourses: { $in: idCandidates(course._id) } },
+    { $pull: { enrolledCourses: { $in: idCandidates(course._id) } } }
+  );
+  const assignments = await collection(ASSESSORS_COLLECTION).updateMany(
+    { assigned_courses: { $in: idCandidates(course._id) } },
+    { $pull: { assigned_courses: { $in: idCandidates(course._id) } } }
+  );
+
+  if (course.imageFileId) {
+    await bucketFor(COURSE_IMAGE_BUCKET)
+      .delete(course.imageFileId)
+      .catch(() => {});
+  }
+
+  await collection(COURSES_COLLECTION).deleteOne({ _id: course._id });
+
+  // Assessor rosters come from enrolment, which just changed.
+  await syncAllAssessors();
+
+  return response.json({
+    removed: {
+      id: asId(course._id),
+      title: course.courseName ?? course.title ?? "",
+      modules: contents.modules.length,
+      assessments,
+      submissions,
+      classes,
+      unenrolled: enrolments.modifiedCount ?? 0,
+      unassigned: assignments.modifiedCount ?? 0
+    }
+  });
 }

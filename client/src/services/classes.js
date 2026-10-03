@@ -48,3 +48,15 @@ export async function setClassArchived(classId, archived) {
   const { data } = await api.patch(`/admin/classes/${classId}`, { archived });
   return data.class;
 }
+
+// Who deleting a class would unenrol or unassign.
+export async function fetchClassImpact(classId) {
+  const { data } = await api.get(`/admin/classes/${classId}/impact`);
+  return data.impact ?? {};
+}
+
+// Delete an archived class.
+export async function deleteClass(classId) {
+  const { data } = await api.delete(`/admin/classes/${classId}`);
+  return data.removed ?? {};
+}
