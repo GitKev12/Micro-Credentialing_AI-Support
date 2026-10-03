@@ -30,7 +30,6 @@ import {
   Pagination,
   usePagination
 } from "./components/ui";
-import AddModuleForm from "./components/course/AddModuleForm";
 import CourseForm from "./components/course/CourseForm";
 import CourseHeader from "./components/course/CourseHeader";
 import CourseImageForm from "./components/course/CourseImageForm";
@@ -69,7 +68,6 @@ function CourseManagement() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   // Which file is uploading when several were picked: { index, total }.
-  const [uploadStep, setUploadStep] = useState(null);
   const [notice, setNotice] = useNotice();
 
   // The course itself, rather than its lessons: which form is open ("new", or
@@ -224,8 +222,7 @@ function CourseManagement() {
     const added = [];
     const failed = [];
 
-    for (const [index, file] of files.entries()) {
-      setUploadStep({ index: index + 1, total: files.length });
+    for (const file of files) {
       setProgress(0);
 
       if (file.size > MAX_MODULE_BYTES) {
@@ -259,7 +256,6 @@ function CourseManagement() {
 
     setBusy(false);
     setProgress(0);
-    setUploadStep(null);
     return failed.length === 0;
   };
 
@@ -440,11 +436,10 @@ function CourseManagement() {
           </p>
         ) : null}
 
-        {/* Two columns on the detail: the module list reads down the left, and
-            the upload panel sits to its right where it is always in reach —
-            rather than below a list that grows and pushes it off-screen. */}
+        {/* Two columns: the modules on the left, the course image on the right. */}
         <div className="admin-grid-detail">
           <ModuleList
+            key={selected.id}
             modules={modules}
             detailStatus={detailStatus}
             busy={busy}
@@ -457,17 +452,12 @@ function CourseManagement() {
               setConfirming(null);
               setImpact(null);
             }}
+            progress={progress}
+            onAdd={addModules}
           />
 
           {detailStatus === "ready" ? (
             <div className="admin-stack">
-              <AddModuleForm
-                nextNumber={modules.length + 1}
-                busy={busy}
-                progress={progress}
-                step={uploadStep}
-                onAdd={addModules}
-              />
               <CourseImageForm
                 course={selected}
                 busy={imageBusy}
