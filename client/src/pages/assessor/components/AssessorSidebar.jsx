@@ -64,13 +64,11 @@ function AssessorSidebar({ name, idNumber, counts }) {
     (sum, { countKey }) => sum + (countKey ? Number(counts?.[countKey]) || 0 : 0),
     0
   );
-  // The active pill glides between nav items, login-style. It re-measures when
-  // the route changes or the rail changes width — folding, or becoming the
-  // drawer — since any of those moves the active item.
+  // The active pill glides between nav items, login-style, when the route
+  // changes. Folding the rail or turning it into the drawer is followed by the
+  // hook itself, since the nav changes size.
   const { pillRef, pillStyle } = useGlidingPill(".assessor-nav-item.is-active", [
-    location.pathname,
-    folded,
-    drawer.isDrawer
+    location.pathname
   ]);
   // Shares the app-wide theme switch with the student interface.
   const [theme, setTheme] = useState(getStoredTheme);

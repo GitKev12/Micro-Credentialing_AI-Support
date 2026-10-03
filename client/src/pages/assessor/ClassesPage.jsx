@@ -96,7 +96,7 @@ function ClassesPage() {
           <table className="assessor-table">
             <caption className="assessor-sr-only">
               Classes assigned to you, with enrolment, lesson counts, run dates,
-              assessments posted and credentials issued.
+              assessments posted and certificates issued.
             </caption>
 
             <thead>
@@ -106,7 +106,7 @@ function ClassesPage() {
                 <th scope="col" className="assessor-table__num">Lessons</th>
                 <th scope="col">Duration</th>
                 <th scope="col" className="assessor-table__num">Assessments</th>
-                <th scope="col">Credentials</th>
+                <th scope="col">Certificates</th>
                 <th scope="col">Last activity</th>
                 <th scope="col">
                   <span className="assessor-sr-only">Open class</span>

@@ -10,6 +10,8 @@ import {
 } from "../lib/suspension.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { idNumberMatch, readIdNumber } from "../auth/identifier.js";
+import { checkEmail, checkName } from "../lib/fieldRules.js";
+import generator from "generate-password";
 
 /**
  * The student and assessor accounts this console manages.
@@ -68,18 +70,6 @@ const article = (word) => (/^[aeiou]/i.test(word) ? "an" : "a");
 function emailTakenMessage(collectionName) {
   const role = collectionName.toLowerCase();
   return `That email already belongs to ${article(role)} ${role} account.`;
-}
-
-/**
- * Enough of an email to be a working address rather than a typo.
- *
- * Deliberately loose: the full grammar accepts things no mail server does and
- * rejects things they accept, and an account is not verified by this field
- * anyway. It catches the mistake worth catching — a name typed into the email
- * box.
- */
-function looksLikeEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 /**
@@ -162,6 +152,62 @@ async function ensureAccountIndexes(name, numberField) {
 }
 
 /**
+ * New ID numbers count up per role. The letters live here in the code and only
+ * the number part grows: STU2023300026, then STU2023300027; ASS017, then ASS018.
+ */
+const ID_PATTERNS = {
+  [STUDENTS_COLLECTION]: { field: "student_id", prefix: "STU2023300", digits: 3 },
+  [ASSESSORS_COLLECTION]: { field: "assessor_id", prefix: "ASS", digits: 3 }
+};
+
+/** The highest number already used with this role's prefix, plus one. */
+async function nextIdNumber(collectionName) {
+  const { field, prefix, digits } = ID_PATTERNS[collectionName];
+  const pattern = new RegExp(`^${prefix}([0-9]+)$`);
+
+  const rows = await collection(collectionName)
+    .find({ [field]: { $regex: pattern } }, { projection: { [field]: 1 } })
+    .toArray();
+  const highest = Math.max(0, ...rows.map((row) => Number(pattern.exec(row[field])[1])));
+
+  return prefix + String(highest + 1).padStart(digits, "0");
+}
+
+/** A random password from the generate-password package (crypto-based). */
+function newPassword() {
+  return generator.generate({
+    length: 12,
+    numbers: true,
+    uppercase: true,
+    lowercase: true,
+    symbols: false,
+    // No look-alikes such as l, 1, O and 0, so it can be read out and typed.
+    excludeSimilarCharacters: true,
+    strict: true
+  });
+}
+
+/**
+ * getStudent and getAssessor write the reply. This adds the new password to it,
+ * so the admin can see it once. It is never stored unhashed or sent again.
+ */
+function addPasswordToReply(response, password) {
+  const send = response.json.bind(response);
+  response.json = (body) => send({ ...body, password });
+}
+
+/** Checks each name field with the shared name rule. */
+function nameError(body, nameFields) {
+  for (const key of Object.values(nameFields)) {
+    if (!(key in (body ?? {}))) continue;
+    const label = { firstName: "First name", lastName: "Last name" }[key] ?? "Name";
+    const error = checkName(body[key], label);
+    if (error) return error;
+  }
+  return null;
+}
+
+/**
  * Applies only the fields a request actually sent, so a form that edits one
  * value cannot blank the others by leaving them out.
  *
@@ -175,6 +221,12 @@ async function buildAccountUpdates(body, fields) {
   for (const [field, key] of Object.entries(fields)) {
     if (!(key in (body ?? {}))) continue;
     updates[field] = text(body[key]);
+  }
+
+  if (body?.resetPassword === true) {
+    const password = newPassword();
+    updates.password = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    return { updates, newPassword: password };
   }
 
   if (text(body?.password)) {
@@ -199,40 +251,36 @@ export async function updateStudent(request, response) {
 
   await ensureAccountIndexes(STUDENTS_COLLECTION, "student_id");
 
-  const { updates, error } = await buildAccountUpdates(request.body, {
+  const badName = nameError(request.body, { first_name: "firstName", last_name: "lastName" });
+  if (badName) return badRequest(response, badName);
+
+  const { updates, error, newPassword: resetTo } = await buildAccountUpdates(request.body, {
     first_name: "firstName",
     last_name: "lastName",
-    email: "email",
-    student_id: "studentNumber"
+    email: "email"
+    // No student_id: an ID number is made once and can't be changed.
   });
   if (error) return badRequest(response, error);
 
   if (Object.keys(updates).length === 0) {
     return badRequest(
       response,
-      "Send at least one of firstName, lastName, email, studentNumber or password."
+      "Send at least one of firstName, lastName, email or resetPassword."
     );
   }
 
   if ("email" in updates) {
     updates.email = updates.email.toLowerCase();
-    if (!looksLikeEmail(updates.email)) return badRequest(response, "Enter a valid email address.");
+    const emailError = checkEmail(updates.email);
+    if (emailError) return badRequest(response, emailError);
 
     const takenBy = await emailTaken(updates.email, student._id);
     if (takenBy) return badRequest(response, emailTakenMessage(takenBy));
   }
 
-  if ("student_id" in updates) {
-    // Blank is refused rather than stored: it is what they sign in with.
-    updates.student_id = readIdNumber(updates.student_id);
-    if (!updates.student_id) return badRequest(response, "An ID number is required.");
-
-    const takenBy = await idNumberTaken(updates.student_id, student._id);
-    if (takenBy) return badRequest(response, idNumberTakenMessage(takenBy));
-  }
-
   await collection(STUDENTS_COLLECTION).updateOne({ _id: student._id }, { $set: updates });
 
+  if (resetTo) addPasswordToReply(response, resetTo);
   return getStudent(request, response);
 }
 
@@ -305,35 +353,32 @@ export async function updateAssessor(request, response) {
 
   await ensureAccountIndexes(ASSESSORS_COLLECTION, "assessor_id");
 
-  const { updates, error } = await buildAccountUpdates(request.body, {
+  const badName = nameError(request.body, { full_name: "name" });
+  if (badName) return badRequest(response, badName);
+
+  const { updates, error, newPassword: resetTo } = await buildAccountUpdates(request.body, {
     full_name: "name",
-    email: "email",
-    assessor_id: "assessorNumber"
+    email: "email"
+    // No assessor_id: an ID number is made once and can't be changed.
   });
   if (error) return badRequest(response, error);
 
   if (Object.keys(updates).length === 0) {
-    return badRequest(response, "Send at least one of name, email, assessorNumber or password.");
+    return badRequest(response, "Send at least one of name, email or resetPassword.");
   }
 
   if ("email" in updates) {
     updates.email = updates.email.toLowerCase();
-    if (!looksLikeEmail(updates.email)) return badRequest(response, "Enter a valid email address.");
+    const emailError = checkEmail(updates.email);
+    if (emailError) return badRequest(response, emailError);
 
     const takenBy = await emailTaken(updates.email, assessor._id);
     if (takenBy) return badRequest(response, emailTakenMessage(takenBy));
   }
 
-  if ("assessor_id" in updates) {
-    updates.assessor_id = readIdNumber(updates.assessor_id);
-    if (!updates.assessor_id) return badRequest(response, "An ID number is required.");
-
-    const takenBy = await idNumberTaken(updates.assessor_id, assessor._id);
-    if (takenBy) return badRequest(response, idNumberTakenMessage(takenBy));
-  }
-
   await collection(ASSESSORS_COLLECTION).updateOne({ _id: assessor._id }, { $set: updates });
 
+  if (resetTo) addPasswordToReply(response, resetTo);
   return getAssessor(request, response);
 }
 
@@ -369,43 +414,45 @@ export async function setAssessorSuspension(request, response) {
 /**
  * The fields a new account needs, checked once for both kinds.
  *
- * A password is required here in a way it is not on an edit: there is no
- * existing one to leave alone, and an account without one is an account
- * nobody can sign into.
+ * The create form sends only names and email: the ID number and the password
+ * are made here. The student Import still sends its own ID and password from
+ * the spreadsheet, and those are used as they are.
  */
-async function newAccountFields(body, { numberField, numberKey, nameFields }) {
-  const email = text(body?.email).toLowerCase();
-  if (!email) return { error: "An email address is required." };
-  if (!looksLikeEmail(email)) return { error: "Enter a valid email address." };
+async function newAccountFields(body, { numberKey, nameFields }) {
+  const badName = nameError(body, nameFields);
+  if (badName) return { error: badName };
+  const names = {};
+  for (const [field, key] of Object.entries(nameFields)) {
+    if (!text(body?.[key])) return { error: "A name is required." };
+    names[field] = text(body[key]);
+  }
+
+  const emailError = checkEmail(body?.email);
+  if (emailError) return { error: emailError };
+  const email = text(body.email).toLowerCase();
 
   const takenBy = await emailTaken(email);
   if (takenBy) return { error: emailTakenMessage(takenBy) };
 
-  const password = String(body?.password ?? "");
-  if (!password) return { error: "A password is required." };
-  if (password.length < MIN_PASSWORD_LENGTH) {
+  // From the spreadsheet, or made here.
+  const given = String(body?.password ?? "");
+  if (given && given.length < MIN_PASSWORD_LENGTH) {
     return { error: `The password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
   }
+  const password = given || newPassword();
 
-  // Required, so the account can sign in with either its ID number or its email.
   const number = readIdNumber(body?.[numberKey]);
-  if (!number) return { error: "An ID number is required." };
-
-  const numberTakenBy = await idNumberTaken(number);
-  if (numberTakenBy) return { error: idNumberTakenMessage(numberTakenBy) };
-
-  const names = {};
-  for (const [field, key] of Object.entries(nameFields)) {
-    const value = text(body?.[key]);
-    if (!value) return { error: "A name is required." };
-    names[field] = value;
+  if (number) {
+    const numberTakenBy = await idNumberTaken(number);
+    if (numberTakenBy) return { error: idNumberTakenMessage(numberTakenBy) };
   }
 
   return {
+    givenNumber: number || null,
+    password: given ? null : password, // only a made-up one is shown back
     document: {
       ...names,
       email,
-      [numberField]: number,
       password: await bcrypt.hash(password, BCRYPT_ROUNDS),
       suspended: false,
       createdAt: new Date()
@@ -413,48 +460,84 @@ async function newAccountFields(body, { numberField, numberKey, nameFields }) {
   };
 }
 
-/** POST /api/admin/students — { firstName, lastName, email, studentNumber, password } */
+/**
+ * Inserts the new account. With no ID number given, it takes the next one; if
+ * two admins save at the same moment and both get the same number, the unique
+ * index refuses the second, and it simply tries the next number.
+ */
+async function insertAccount(collectionName, document, givenNumber) {
+  const { field } = ID_PATTERNS[collectionName];
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const number = givenNumber ?? (await nextIdNumber(collectionName));
+    try {
+      return await collection(collectionName).insertOne({ ...document, [field]: number });
+    } catch (error) {
+      const duplicateId = error?.code === 11000 && String(error.message).includes(field);
+      if (!duplicateId || givenNumber) throw error;
+    }
+  }
+  throw new Error("Couldn't find a free ID number. Try again.");
+}
+
+/**
+ * GET /api/admin/students/next-id and /api/admin/assessors/next-id — the
+ * number a new account would get, for the create form to show. Another admin
+ * saving first can take it; the saved account then gets the one after.
+ */
+export async function getNextStudentId(_request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+  return response.json({ idNumber: await nextIdNumber(STUDENTS_COLLECTION) });
+}
+
+export async function getNextAssessorId(_request, response) {
+  if (!databaseReady()) return serviceUnavailable(response);
+  return response.json({ idNumber: await nextIdNumber(ASSESSORS_COLLECTION) });
+}
+
+/** POST /api/admin/students — { firstName, lastName, email } (+ studentNumber, password from Import) */
 export async function createStudent(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   await ensureAccountIndexes(STUDENTS_COLLECTION, "student_id");
 
-  const { document, error } = await newAccountFields(request.body, {
-    numberField: "student_id",
-    numberKey: "studentNumber",
-    nameFields: { first_name: "firstName", last_name: "lastName" }
-  });
+  const { document, givenNumber, password, error } = await newAccountFields(
+    request.body,
+    { numberKey: "studentNumber", nameFields: { first_name: "firstName", last_name: "lastName" } }
+  );
   if (error) return badRequest(response, error);
 
   // Enrolment is Classes Management's job, so a new student starts on nothing.
-  const inserted = await collection(STUDENTS_COLLECTION).insertOne({
-    ...document,
-    enrolledCourses: []
-  });
+  const inserted = await insertAccount(
+    STUDENTS_COLLECTION,
+    { ...document, enrolledCourses: [] },
+    givenNumber
+  );
 
+  if (password) addPasswordToReply(response, password);
   request.params = { ...request.params, id: asId(inserted.insertedId) };
   return getStudent(request, response);
 }
 
-/** POST /api/admin/assessors — { name, email, assessorNumber, password } */
+/** POST /api/admin/assessors — { name, email } */
 export async function createAssessor(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
   await ensureAccountIndexes(ASSESSORS_COLLECTION, "assessor_id");
 
-  const { document, error } = await newAccountFields(request.body, {
-    numberField: "assessor_id",
-    numberKey: "assessorNumber",
-    nameFields: { full_name: "name" }
-  });
+  const { document, givenNumber, password, error } = await newAccountFields(
+    request.body,
+    { numberKey: "assessorNumber", nameFields: { full_name: "name" } }
+  );
   if (error) return badRequest(response, error);
 
-  const inserted = await collection(ASSESSORS_COLLECTION).insertOne({
-    ...document,
-    assigned_courses: [],
-    assigned_students: []
-  });
+  const inserted = await insertAccount(
+    ASSESSORS_COLLECTION,
+    { ...document, assigned_courses: [], assigned_students: [] },
+    givenNumber
+  );
 
+  if (password) addPasswordToReply(response, password);
   request.params = { ...request.params, id: asId(inserted.insertedId) };
   return getAssessor(request, response);
 }

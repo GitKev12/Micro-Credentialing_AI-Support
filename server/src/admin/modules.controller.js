@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
+import { checkCourseCode, checkCourseTitle } from "../lib/fieldRules.js";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
-import { readCourseDates, toIsoDay } from "../lib/courseDates.js";
+import { readCourseDates, startsInPast, toIsoDay } from "../lib/courseDates.js";
 import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
 import { publishStanding } from "../lib/standingEvents.js";
 
@@ -378,8 +379,8 @@ export async function createCourse(request, response) {
   const code = String(body.code ?? "").trim();
   const title = String(body.title ?? "").trim();
 
-  if (!code) return response.status(400).json({ message: "A course code is required." });
-  if (!title) return response.status(400).json({ message: "A course title is required." });
+  const fieldError = checkCourseCode(code) ?? checkCourseTitle(title);
+  if (fieldError) return response.status(400).json({ message: fieldError });
 
   // Codes are how modules, blueprints and badges find their course when they
   // were not stored with an id, so two courses sharing one would quietly pull
@@ -393,6 +394,9 @@ export async function createCourse(request, response) {
 
   const { dates, error } = readCourseDates(body, {}, { required: true });
   if (error) return response.status(400).json({ message: error });
+  if (startsInPast(dates.startsOn)) {
+    return response.status(400).json({ message: "A new course can't start on a past date." });
+  }
 
   const document = {
     courseCode: code,
@@ -424,7 +428,8 @@ export async function updateCourse(request, response) {
 
   if ("title" in body) {
     const title = String(body.title ?? "").trim();
-    if (!title) return response.status(400).json({ message: "A course title is required." });
+    const titleError = checkCourseTitle(title);
+    if (titleError) return response.status(400).json({ message: titleError });
     updates.courseName = title;
   }
 
@@ -438,9 +443,12 @@ export async function updateCourse(request, response) {
 
   if ("code" in body) {
     const code = String(body.code ?? "").trim();
-    if (!code) return response.status(400).json({ message: "A course code is required." });
 
     if (code !== courseCode(course)) {
+      // Checked only when it changes, so an older code can still be saved as is.
+      const codeError = checkCourseCode(code);
+      if (codeError) return response.status(400).json({ message: codeError });
+
       const clash = await collection(COURSES_COLLECTION).findOne({
         _id: { $ne: course._id },
         $or: [{ courseCode: code }, { code }]

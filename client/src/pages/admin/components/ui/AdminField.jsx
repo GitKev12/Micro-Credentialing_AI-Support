@@ -1,5 +1,7 @@
 import { useId } from "react";
 
+import { LockIcon } from "../icons";
+
 /**
  * Tag-style multi-select: pick many from a dropdown, each shown as a removable
  * chip. Built on top of `AdminSelect` rather than beside it — the dropdown is
@@ -18,6 +20,8 @@ export function AdminField({
   type = "text",
   placeholder,
   hint,
+  error,
+  locked = false,
   disabled = false,
   required = false,
   autoComplete = "off",
@@ -31,23 +35,41 @@ export function AdminField({
   // scrolls its own beginning out of sight.
   const Control = multiline ? "textarea" : "input";
 
+  // `locked`: shown but not editable, with a padlock saying so (an ID number).
   return (
-    <div className="admin-field">
+    <div className={`admin-field${locked ? " admin-field--locked" : ""}`}>
       <label className="admin-field__label" htmlFor={id}>
         {label}
-        {required ? <span className="admin-field__required"> *</span> : null}
+        {required && !locked ? <span className="admin-field__required"> *</span> : null}
       </label>
-      <Control
-        id={id}
-        className={`admin-input${multiline ? " admin-input--multiline" : ""}`}
-        {...(multiline ? { rows } : { type })}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete={autoComplete}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {hint ? <p className="admin-field__hint">{hint}</p> : null}
+      <span className="admin-field__box">
+        <Control
+          id={id}
+          className={`admin-input${multiline ? " admin-input--multiline" : ""}`}
+          {...(multiline ? { rows } : { type })}
+          value={value}
+          placeholder={placeholder}
+          disabled={disabled}
+          readOnly={locked}
+          autoComplete={autoComplete}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        {locked ? (
+          <span className="admin-field__lock" aria-hidden="true">
+            <LockIcon />
+          </span>
+        ) : null}
+      </span>
+      {/* A rule the value breaks wins over the hint. */}
+      {error ? (
+        <p className="admin-field__hint admin-field__hint--error" id={`${id}-error`}>
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="admin-field__hint">{hint}</p>
+      ) : null}
     </div>
   );
 }

@@ -23,7 +23,8 @@ import {
   accountStatusOf,
   useListFilter,
   Pagination,
-  usePagination
+  usePagination,
+  NewPasswordModal
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import StudentDetail from "./components/students/StudentDetail";
@@ -64,6 +65,8 @@ function StudentsManagement() {
   // The student whose details are being corrected, if any.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
+  // The new ID number and password, shown once after saving.
+  const [newLogin, setNewLogin] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -109,7 +112,7 @@ function StudentsManagement() {
     setFormError(null);
     try {
       if (form === "new") {
-        const created = await createStudent(values);
+        const { student: created, password } = await createStudent(values);
         // Re-read rather than append: the list is sorted by surname on the
         // server, so an appended row sits at the bottom until the next load
         // and then jumps. Refetching also gives the new row the same shape the
@@ -117,8 +120,12 @@ function StudentsManagement() {
         // which carries no activity figures.
         setStudents(await fetchStudents());
         setNotice({ tone: "ok", text: `${created.name} was added.` });
+        setNewLogin({ title: "Student created", name: created.name, idNumber: created.studentNumber, password });
       } else {
-        const saved = await updateStudent(form.id, values);
+        const { student: saved, password } = await updateStudent(form.id, values);
+        if (password) {
+          setNewLogin({ title: "New password", name: saved.name, idNumber: saved.studentNumber, password });
+        }
         setStudents((list) => list.map((s) => (s.id === saved.id ? { ...s, ...saved } : s)));
         setSelected((student) => (student ? { ...student, ...saved } : student));
         setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
@@ -537,6 +544,8 @@ function StudentsManagement() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Students" />
+
+      {newLogin ? <NewPasswordModal {...newLogin} onClose={() => setNewLogin(null)} /> : null}
 
       {form ? (
         <StudentForm

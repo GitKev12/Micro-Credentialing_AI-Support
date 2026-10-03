@@ -62,15 +62,6 @@ const defaultClasses = () => [
 jest.unstable_mockModule("../src/services/classes.js", () => ({
   fetchClasses: async () => [...classes],
   fetchClass: async (id) => classes.find((row) => row.id === id),
-  fetchPathwayImpact: async (_id, mode) => ({
-    from: mode === "assessOnly" ? "taught" : "assessOnly",
-    to: mode,
-    students: 2,
-    badges: 3,
-    badgeHolders: 2,
-    finalsTaken: 0,
-    quizzes: 4
-  }),
   createClass: async () => ({ name: "New class" }),
   updateClass: async () => ({ name: "Saved" }),
   setClassActive: async () => ({}),
@@ -88,7 +79,7 @@ const ASSESSORS = [
 ];
 
 jest.unstable_mockModule("../src/services/admin.js", () => ({
-  MIN_PASSWORD_LENGTH: 8,
+  fetchNextIdNumber: async () => "",
   fetchCourses: async () => COURSES,
   fetchStudents: async () => [],
   fetchAssessors: async () => ({ assessors: ASSESSORS, coverage: {} })

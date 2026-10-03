@@ -5,7 +5,6 @@ import {
   createClass,
   fetchClass,
   fetchClasses,
-  fetchPathwayImpact,
   setClassActive,
   setClassArchived,
   updateClass
@@ -17,7 +16,6 @@ import {
   AdminButton,
   AdminModal,
   chosenOption,
-  ConfirmDeleteModal,
   pathwayLabel,
   FILTER_ALL,
   ListFilter,
@@ -29,12 +27,7 @@ import {
   usePagination
 } from "./components/ui";
 import ClassForm from "./components/classes/ClassForm";
-import {
-  classTitle,
-  pathwayKeeps,
-  pathwayLosses,
-  scheduleSummary
-} from "./components/classes/classText";
+import { classTitle, scheduleSummary } from "./components/classes/classText";
 import { errorMessage } from "./lib/format";
 import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 
@@ -72,8 +65,6 @@ function ClassesManagement() {
 
   // A pathway change waiting to be agreed to: which way it is going, its cost
   // once the server has counted it, and what to run if the admin says yes.
-  const [switching, setSwitching] = useState(null);
-  const [switchImpact, setSwitchImpact] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -179,20 +170,6 @@ function ClassesManagement() {
    * deletion's is: agreeing to a change whose cost has not arrived is agreeing
    * to nothing in particular.
    */
-  const askToSwitch = (mode, apply) => {
-    setSwitching({ mode, apply });
-    setSwitchImpact(null);
-    fetchPathwayImpact(form.id, mode)
-      .then(setSwitchImpact)
-      .catch(() => setSwitchImpact({ unknown: true, to: mode }));
-  };
-
-  const closeSwitch = () => {
-    setSwitching(null);
-    setSwitchImpact(null);
-  };
-
-
   // Archive a class, or restore it, from the Danger Zone in its form.
   const changeArchived = async (cls, archived) => {
     setBusy(true);
@@ -557,41 +534,12 @@ function ClassesManagement() {
           students={pickable(students, form)}
           busy={busy}
           error={formError}
-          confirming={Boolean(switching)}
           onCancel={() => setForm(null)}
           onArchive={(archived) => changeArchived(form, archived)}
-          onModeChange={askToSwitch}
           onSave={saveClass}
         />
       ) : null}
 
-      {switching ? (
-        <ConfirmDeleteModal
-          title={
-            switching.mode === "assessOnly"
-              ? "Switch this class to assess-only?"
-              : "Switch this class back to taught and assessed?"
-          }
-          subject={form === "new" ? null : classTitle(form)}
-          losses={pathwayLosses(switchImpact)}
-          keeps={pathwayKeeps(switchImpact)}
-          busy={busy}
-          lead="What this changes for its candidates:"
-          emptyLead="Nobody in this class has done anything this would change."
-          note="Switching back later does not undo it."
-          checkingLabel="Checking what this would change…"
-          confirmLabel="Switch pathway"
-          busyLabel="Switching…"
-          onCancel={closeSwitch}
-          onConfirm={() => {
-            // The form holds the field; this only agrees to it. Nothing is
-            // written until the admin saves, which is the promise every other
-            // field on this form makes.
-            switching.apply();
-            closeSwitch();
-          }}
-        />
-      ) : null}
     </div>
   );
 }

@@ -8,7 +8,7 @@ globalThis.TextDecoder ??= TextDecoder;
 // The edit forms are the only children that reach for the API module, and they
 // are mounted only while editing — which none of these tests do.
 jest.unstable_mockModule("../src/services/admin.js", () => ({
-  MIN_PASSWORD_LENGTH: 8,
+  fetchNextIdNumber: async () => "",
   // Used by the Import tab of the student form.
   createStudent: jest.fn()
 }));

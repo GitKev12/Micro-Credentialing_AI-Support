@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { MIN_PASSWORD_LENGTH } from "../../../../services/admin";
-import { AdminButton, AdminField, AdminModal } from "../ui";
+import { checkEmail, checkName } from "../../../../lib/fieldRules";
+import { fetchNextIdNumber } from "../../../../services/admin";
+import { AdminButton, AdminField, AdminModal, NewPasswordChoice } from "../ui";
 
 /**
  * Add an assessor, or correct one who already exists.
  *
- * One form for both, as with students. The password is required on a new
- * account and optional on an existing one, where an empty box keeps the
- * current password rather than clearing it.
+ * One form for both, as with students. A new assessor gets their ID number
+ * and password from the server, so the form only asks for name and email.
+ * Editing can ask for a new password, which the server also makes.
  */
 function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
   const creating = !assessor;
@@ -16,11 +17,22 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
   const [name, setName] = useState(assessor?.name ?? "");
   const [email, setEmail] = useState(assessor?.email ?? "");
   const [assessorNumber, setAssessorNumber] = useState(assessor?.assessorNumber ?? "");
-  const [password, setPassword] = useState("");
+  const [resetPassword, setResetPassword] = useState(false);
 
-  const longEnough = password.length >= MIN_PASSWORD_LENGTH;
-  const passwordOk = creating ? longEnough : password === "" || longEnough;
-  const ready = name.trim() && email.trim() && assessorNumber.trim() && passwordOk;
+  // A new account shows the ID it will most likely get. The server picks the
+  // final one when saving, so this is only a preview.
+  useEffect(() => {
+    if (!creating) return;
+    fetchNextIdNumber("assessors")
+      .then(setAssessorNumber)
+      .catch(() => setAssessorNumber(""));
+  }, [creating]);
+
+  // A message shows only once something is typed; an empty box just keeps
+  // the button off.
+  const nameError = name ? checkName(name, "Full name") : null;
+  const emailError = email ? checkEmail(email) : null;
+  const ready = !checkName(name) && !checkEmail(email);
 
   return (
     <AdminModal
@@ -44,8 +56,7 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
               onSave({
                 name: name.trim(),
                 email: email.trim(),
-                assessorNumber: assessorNumber.trim(),
-                ...(password ? { password } : {})
+                ...(resetPassword ? { resetPassword: true } : {})
               })
             }
           >
@@ -60,40 +71,30 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
         </p>
       ) : null}
 
-      <AdminField label="Full name" value={name} onChange={setName} required />
+      <AdminField label="Full name" value={name} onChange={setName} error={nameError} required />
       <AdminField
         label="Email"
         type="email"
         value={email}
         onChange={setEmail}
+        error={emailError}
         required
       />
-      {/* Required, so the assessor can sign in with it as well as their email. */}
       <AdminField
         label="ID number"
         value={assessorNumber}
         onChange={setAssessorNumber}
-        placeholder="e.g. ASS007"
-        required
-      />
-      <AdminField
-        label={creating ? "Password" : "New password"}
-        type="password"
-        value={password}
-        onChange={setPassword}
-        autoComplete="new-password"
-        required={creating}
-        placeholder={
-          creating
-            ? `At least ${MIN_PASSWORD_LENGTH} characters`
-            : "Leave blank to keep the current one"
-        }
+        placeholder={creating ? "Loading…" : undefined}
         hint={
-          password && !longEnough
-            ? `The password must be at least ${MIN_PASSWORD_LENGTH} characters.`
-            : undefined
+          creating
+            ? "Assigned automatically when you save. It can't be changed."
+            : "Assigned automatically. It can't be changed."
         }
+        locked
       />
+      {creating ? null : (
+        <NewPasswordChoice checked={resetPassword} onChange={setResetPassword} />
+      )}
     </AdminModal>
   );
 }

@@ -1,4 +1,3 @@
-import { plural } from "../../lib/format";
 
 /**
  * The sections a class may be, and the list the form offers.
@@ -42,60 +41,3 @@ export function scheduleSummary(schedule) {
   return parts.join(" · ");
 }
 
-/**
- * What switching a class's pathway costs, in the figures the server counted.
- *
- * Both directions take something that cannot be handed back, and neither shows
- * up as a deleted record — which is exactly why it has to be spelled out. A
- * class going assess-only strands the badges its candidates have earned: the
- * submissions stay, but the pathway those badges were progress towards is no
- * longer the one they are on. A class going back to taught re-locks the
- * examination behind every lesson and every quiz, including for anyone who has
- * it open right now.
- */
-export function pathwayLosses(impact) {
-  if (!impact) return null;
-  if (impact.unknown) return ["what this class's candidates have done so far"];
-
-  const toAssessOnly = impact.to === "assessOnly";
-
-  const lines = toAssessOnly
-    ? [
-        // The lessons close with the switch. Its candidates are examined on
-        // competence they already hold, and the course material is the taught
-        // section's — so they are refused it, not merely ungated by it.
-        "the lessons — closed to this class, not just no longer a gate",
-        impact.badges
-          ? `${plural(impact.badges, "badge")} held by ${plural(
-              impact.badgeHolders,
-              "candidate"
-            )} — no longer part of this pathway`
-          : "",
-        impact.quizzes
-          ? `${plural(impact.quizzes, "lesson exam")} — no longer taken by this class`
-          : ""
-      ]
-    : [
-        `the examination re-locks behind every lesson and lesson exam for ${plural(
-          impact.students,
-          "candidate"
-        )}`,
-        impact.finalsTaken
-          ? `already taken by ${plural(impact.finalsTaken, "candidate")}`
-          : ""
-      ];
-
-  return lines.filter(Boolean);
-}
-
-/** What the switch leaves alone — the half that reads as destroyed and is not. */
-export function pathwayKeeps(impact) {
-  if (!impact || impact.unknown) return [];
-  return [
-    "every submission and mark on record",
-    "the roster — nobody is enrolled or unenrolled by this",
-    impact.to === "assessOnly"
-      ? "the lessons themselves — nothing is deleted, the class simply loses access"
-      : "the examination already written for this class"
-  ];
-}

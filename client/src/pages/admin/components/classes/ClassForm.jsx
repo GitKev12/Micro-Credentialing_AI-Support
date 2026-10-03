@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArchiveIcon, StudentsIcon } from "../icons";
+import { ArchiveIcon, LockIcon, StudentsIcon } from "../icons";
 import { AdminButton, AdminField, AdminModal, AdminSelect, PathwayChoice } from "../ui";
 import { classTitle, sectionOptions } from "./classText";
 import ClassRoster from "./ClassRoster";
@@ -29,24 +29,17 @@ import PeoplePicker from "./PeoplePicker";
  * The same assessor may still hold another section, of this course or any
  * other, so every assessor is offered here and none are held back.
  *
- * The pathway sits directly under the course, because it is the next most
- * consequential answer on the form: the course says which subject the class is
- * for, and the pathway says what being in it involves. Changing it on a class
- * that already holds people is handed up to the screen above (`onModeChange`),
- * which reads the cost from the server and asks — it strands the badges its
- * candidates earned one way, and re-locks an examination they may have open the
- * other, and neither should happen on a silent click.
+ * The pathway sits directly under the course: the course says which subject
+ * the class is for, and the pathway says what being in it involves.
+ *
+ * Once a class is created, only its assessor, students and schedule can
+ * change. The section, course and pathway are shown locked on the edit form.
  *
  * Deleting lives at the bottom of the edit form rather than on the list row.
  * On the row it sat one careless click from a roster, beside a Manage that did
  * something ordinary; here it is somewhere the admin arrived deliberately,
  * under everything the class holds — which is the thing being weighed. It is
  * absent while creating: there is nothing yet to destroy.
- *
- * `confirming` is true while the confirmation it opens is on screen. The form
- * stops answering Escape and backdrop clicks for as long as that is up, so one
- * press cannot dismiss both dialogs and leave the admin wondering which of
- * them it answered.
  */
 function ClassForm({
   klass,
@@ -55,10 +48,8 @@ function ClassForm({
   students,
   busy,
   error,
-  confirming = false,
   onCancel,
   onArchive,
-  onModeChange,
   onSave
 }) {
   const editing = Boolean(klass);
@@ -73,6 +64,14 @@ function ClassForm({
     room: klass?.schedule?.room ?? ""
   });
   const setField = (key) => (value) => setSchedule((current) => ({ ...current, [key]: value }));
+  // The schedule is optional. It starts ticked only when the class has one.
+  const [hasSchedule, setHasSchedule] = useState(
+    Boolean(klass?.schedule?.days || klass?.schedule?.time || klass?.schedule?.room)
+  );
+  // Unticked saves an empty schedule, which clears an old one.
+  const cleanSchedule = hasSchedule
+    ? { days: schedule.days.trim(), time: schedule.time.trim(), room: schedule.room.trim() }
+    : { days: "", time: "", room: "" };
   // Whether the student panel is open, and whether it is on its way out —
   // which it stays mounted for.
   const [picking, setPicking] = useState(false);
@@ -119,7 +118,7 @@ function ClassForm({
       // Dropped the moment the panel starts leaving, so the form travels back
       // alongside it rather than after it.
       tone={picking && !closingPicker ? "admin-modal__panel--paired" : ""}
-      onClose={picking || confirming ? () => {} : onCancel}
+      onClose={picking ? () => {} : onCancel}
       footer={
         <>
           <button
@@ -134,21 +133,21 @@ function ClassForm({
             variant="admin-btn--compact"
             disabled={busy || !ready}
             onClick={() =>
-              onSave({
-                name: name.trim(),
-                courseId,
-                // Still sent as a list, because the field it is stored in is
-                // one. Save is closed until it holds a name, so it is never
-                // empty by the time it gets here.
-                assessorIds: [assessorId],
-                mode,
-                studentIds,
-                schedule: {
-                  days: schedule.days.trim(),
-                  time: schedule.time.trim(),
-                  room: schedule.room.trim()
-                }
-              })
+              onSave(
+                // An edit sends only what can still change.
+                editing
+                  ? { assessorIds: [assessorId], studentIds, schedule: cleanSchedule }
+                  : {
+                      name: name.trim(),
+                      courseId,
+                      // Still sent as a list, because the field it is stored in
+                      // is one. Save is closed until it holds a name.
+                      assessorIds: [assessorId],
+                      mode,
+                      studentIds,
+                      schedule: cleanSchedule
+                    }
+              )
             }
           >
             {busy ? "Saving…" : editing ? "Save changes" : "Create class"}
@@ -162,10 +161,17 @@ function ClassForm({
         </p>
       ) : null}
 
+      {editing ? (
+        <p className="admin-notice admin-class-locked">
+          <LockIcon /> Only the assessor, students and schedule can be changed after a class is created.
+        </p>
+      ) : null}
+
       <div className="admin-field">
         <div className="admin-field__label">Section</div>
         <AdminSelect
           value={name}
+          disabled={editing}
           onChange={setName}
           options={sectionOptions}
           label="Section"
@@ -179,6 +185,7 @@ function ClassForm({
         </div>
         <AdminSelect
           value={courseId}
+          disabled={editing}
           onChange={setCourseId}
           options={courseOptions}
           label="Course"
@@ -186,17 +193,7 @@ function ClassForm({
         />
       </div>
 
-      <PathwayChoice
-        value={mode}
-        disabled={busy}
-        onChange={(next) => {
-          if (next === mode) return;
-          // An unsaved class has nobody in it yet, so there is nothing to
-          // weigh and nothing to ask about.
-          if (!editing || !onModeChange) return setMode(next);
-          onModeChange(next, () => setMode(next));
-        }}
-      />
+      <PathwayChoice value={mode} disabled={busy || editing} onChange={setMode} />
 
       <div className="admin-field">
         <div className="admin-field__label">
@@ -225,14 +222,37 @@ function ClassForm({
         hint="Choose a course first."
       />
 
-      <div className="admin-field">
-        <div className="admin-field__label">Schedule</div>
+      <label className="admin-check">
+        <input
+          type="checkbox"
+          checked={hasSchedule}
+          onChange={(event) => setHasSchedule(event.target.checked)}
+        />
+        Add a schedule
+      </label>
+
+      {hasSchedule ? (
         <div className="admin-form-grid">
-          <AdminField label="Days" value={schedule.days} onChange={setField("days")} placeholder="e.g. MWF" />
-          <AdminField label="Time" value={schedule.time} onChange={setField("time")} placeholder="e.g. 09:00–10:00" />
-          <AdminField label="Room" value={schedule.room} onChange={setField("room")} placeholder="e.g. Lab 201" />
+          <AdminField
+            label="Days"
+            value={schedule.days}
+            onChange={setField("days")}
+            placeholder="e.g. MWF"
+          />
+          <AdminField
+            label="Time"
+            value={schedule.time}
+            onChange={setField("time")}
+            placeholder="e.g. 09:00–10:00"
+          />
+          <AdminField
+            label="Room"
+            value={schedule.room}
+            onChange={setField("room")}
+            placeholder="e.g. Lab 201"
+          />
         </div>
-      </div>
+      ) : null}
 
       {/* Archiving switches the class off and hides it; restoring brings it back. */}
       {editing && onArchive ? (

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { MIN_PASSWORD_LENGTH } from "../../../../services/admin";
+import { checkEmail, checkName } from "../../../../lib/fieldRules";
+import { fetchNextIdNumber } from "../../../../services/admin";
 import { plural } from "../../lib/format";
-import { AdminButton, AdminField, AdminModal } from "../ui";
+import { AdminButton, AdminField, AdminModal, NewPasswordChoice } from "../ui";
 import { readStudentsFile } from "./importStudents";
 import StudentImport from "./StudentImport";
 
@@ -13,11 +14,9 @@ import StudentImport from "./StudentImport";
  * and the only difference is whether it opens empty, so a second near-copy
  * would just be a second place to fix when a field is added.
  *
- * The password is the one field that behaves differently between the two. On a
- * new account it is required — there is nothing to fall back on. On an existing
- * one an empty box means "keep the current one" rather than "clear it", and
- * says so: a form that silently blanked a password because a name was being
- * fixed would lock someone out without ever saying it had.
+ * A new student gets their ID number and password from the server, so the
+ * form only asks for names and email. Editing can ask for a new password,
+ * which the server also makes.
  */
 function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
   const creating = !student;
@@ -32,12 +31,26 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
   const [lastName, setLastName] = useState(student?.name?.split(" ").slice(1).join(" ") ?? "");
   const [email, setEmail] = useState(student?.email ?? "");
   const [studentNumber, setStudentNumber] = useState(student?.studentNumber ?? "");
-  const [password, setPassword] = useState("");
+  const [resetPassword, setResetPassword] = useState(false);
 
-  const longEnough = password.length >= MIN_PASSWORD_LENGTH;
-  const passwordOk = creating ? longEnough : password === "" || longEnough;
+  // A new account shows the ID it will most likely get. The server picks the
+  // final one when saving, so this is only a preview.
+  useEffect(() => {
+    if (!creating) return;
+    fetchNextIdNumber("students")
+      .then(setStudentNumber)
+      .catch(() => setStudentNumber(""));
+  }, [creating]);
+
+  // A message shows only once something is typed; an empty box just keeps
+  // the button off.
+  const firstNameError = firstName ? checkName(firstName, "First name") : null;
+  const lastNameError = lastName ? checkName(lastName, "Last name") : null;
+  const emailError = email ? checkEmail(email) : null;
   const ready =
-    firstName.trim() && lastName.trim() && email.trim() && studentNumber.trim() && passwordOk;
+    !checkName(firstName) &&
+    !checkName(lastName) &&
+    !checkEmail(email);
 
   const chooseFile = async (file) => {
     if (!file) return;
@@ -93,8 +106,7 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
                   firstName: firstName.trim(),
                   lastName: lastName.trim(),
                   email: email.trim(),
-                  studentNumber: studentNumber.trim(),
-                  ...(password ? { password } : {})
+                  ...(resetPassword ? { resetPassword: true } : {})
                 })
               }
             >
@@ -144,37 +156,45 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
         />
       ) : (
         <>
-          <AdminField label="First name" value={firstName} onChange={setFirstName} required />
-          <AdminField label="Last name" value={lastName} onChange={setLastName} required />
-          <AdminField label="Email" type="email" value={email} onChange={setEmail} required />
-          {/* Required, so the student can sign in with it as well as their email. */}
           <AdminField
-            label="ID number"
-            value={studentNumber}
-            onChange={setStudentNumber}
-            placeholder="e.g. 202300007"
+            label="First name"
+            value={firstName}
+            onChange={setFirstName}
+            error={firstNameError}
+            required
+          />
+          <AdminField
+            label="Last name"
+            value={lastName}
+            onChange={setLastName}
+            error={lastNameError}
+            required
+          />
+          <AdminField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={setEmail}
+            error={emailError}
             required
           />
           {/* No program or year. A degree batch is not what a micro-credential is
               awarded against, so the form does not collect one. */}
           <AdminField
-            label={creating ? "Password" : "New password"}
-            type="password"
-            value={password}
-            onChange={setPassword}
-            autoComplete="new-password"
-            required={creating}
-            placeholder={
-              creating
-                ? `At least ${MIN_PASSWORD_LENGTH} characters`
-                : "Leave blank to keep the current one"
-            }
+            label="ID number"
+            value={studentNumber}
+            onChange={setStudentNumber}
+            placeholder={creating ? "Loading…" : undefined}
             hint={
-              password && !longEnough
-                ? `The password must be at least ${MIN_PASSWORD_LENGTH} characters.`
-                : undefined
+              creating
+                ? "Assigned automatically when you save. It can't be changed."
+                : "Assigned automatically. It can't be changed."
             }
+            locked
           />
+          {creating ? null : (
+            <NewPasswordChoice checked={resetPassword} onChange={setResetPassword} />
+          )}
         </>
       )}
     </AdminModal>

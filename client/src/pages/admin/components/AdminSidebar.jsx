@@ -53,13 +53,11 @@ function AdminSidebar({ name, idNumber }) {
   const drawer = useDrawer("Admin menu");
   const folded = collapsed && !drawer.isDrawer;
   const here = NAV_ITEMS.find(({ to }) => location.pathname.startsWith(to));
-  // The active pill glides between nav items, login-toggle style. It re-measures
-  // when the route changes or the rail changes width — folding, or becoming
-  // the drawer — since any of those moves the active item.
+  // The active pill glides between nav items, login-toggle style, when the
+  // route changes. Folding the rail or turning it into the drawer is followed
+  // by the hook itself, since the nav changes size.
   const { pillRef, pillStyle } = useGlidingPill(".admin-nav-item.is-active", [
-    location.pathname,
-    folded,
-    drawer.isDrawer
+    location.pathname
   ]);
   // Shares the app-wide theme switch with the student and assessor interfaces.
   const [theme, setTheme] = useState(getStoredTheme);
