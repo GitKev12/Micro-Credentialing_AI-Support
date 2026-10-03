@@ -167,10 +167,8 @@ function CourseManagement() {
       );
       setNotice({ tone: "ok", text: "The course picture was updated." });
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: errorMessage(error, "Couldn't upload that picture. Try again.")
-      });
+      // Shown inside Edit Course, where the picture is changed.
+      setFormError(errorMessage(error, "Couldn't upload that picture. Try again."));
     } finally {
       setImageBusy(false);
       setImageProgress(0);
@@ -193,10 +191,8 @@ function CourseManagement() {
       );
       setNotice({ tone: "ok", text: "The course picture was removed." });
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: errorMessage(error, "Couldn't remove that picture. Try again.")
-      });
+      // Shown inside Edit Course, where the picture is changed.
+      setFormError(errorMessage(error, "Couldn't remove that picture. Try again."));
     } finally {
       setImageBusy(false);
     }
@@ -436,38 +432,23 @@ function CourseManagement() {
           </p>
         ) : null}
 
-        {/* Two columns: the modules on the left, the course image on the right. */}
-        <div className="admin-grid-detail">
-          <ModuleList
-            key={selected.id}
-            modules={modules}
-            detailStatus={detailStatus}
-            busy={busy}
-            confirming={confirming}
-            impact={impact}
-            onPreview={setPreview}
-            onAskRemove={askToRemove}
-            onRemove={removeModule}
-            onCancelRemove={() => {
-              setConfirming(null);
-              setImpact(null);
-            }}
-            progress={progress}
-            onAdd={addModules}
-          />
-
-          {detailStatus === "ready" ? (
-            <div className="admin-stack">
-              <CourseImageForm
-                course={selected}
-                busy={imageBusy}
-                progress={imageProgress}
-                onUpload={setCourseImage}
-                onRemove={clearCourseImage}
-              />
-            </div>
-          ) : null}
-        </div>
+        <ModuleList
+          key={selected.id}
+          modules={modules}
+          detailStatus={detailStatus}
+          busy={busy}
+          confirming={confirming}
+          impact={impact}
+          onPreview={setPreview}
+          onAskRemove={askToRemove}
+          onRemove={removeModule}
+          onCancelRemove={() => {
+            setConfirming(null);
+            setImpact(null);
+          }}
+          progress={progress}
+          onAdd={addModules}
+        />
 
         {preview ? <ModulePreview module={preview} onClose={() => setPreview(null)} /> : null}
 
@@ -478,7 +459,16 @@ function CourseManagement() {
             error={formError}
             onCancel={() => setCourseForm(null)}
             onSave={saveCourse}
-          />
+          >
+            {/* Uses the live course, so a new picture shows straight away. */}
+            <CourseImageForm
+              course={selected}
+              busy={imageBusy}
+              progress={imageProgress}
+              onUpload={setCourseImage}
+              onRemove={clearCourseImage}
+            />
+          </CourseForm>
         ) : null}
 
       </div>

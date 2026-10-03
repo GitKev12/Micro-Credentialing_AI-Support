@@ -1405,18 +1405,6 @@
   margin-top: 1.25rem;
 }
 
-.admin-grid-detail {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 1.125rem;
-  align-items: start;
-}
-
-/* The upload panel's stacked-layout top margin is for when it sits *below* the
-   list; as the right column its top must line up with the module card's. */
-.admin-grid-detail>.admin-card--stacked {
-  margin-top: 0;
-}
 
 
 .admin-card {
@@ -3929,10 +3917,7 @@
   transition: width 0.2s ease;
 }
 
-/* The course picture, at the student card's 16:9 crop, as its own drop
-   target. Empty, it is a sunken frame with the prompt in the middle; with a
-   picture, the prompt shrinks to a strip along the bottom so the picture
-   stays the thing being looked at. */
+/* The course picture, at the student card's 16:9 crop, as its own drop target. */
 .admin-picture {
   position: relative;
   display: grid;
@@ -3963,57 +3948,9 @@
   object-fit: cover;
 }
 
-.admin-picture__prompt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.admin-picture.has-image .admin-picture__prompt {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  flex-direction: row;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1.5rem 0.75rem 0.625rem;
-  background: linear-gradient(to top, rgba(16, 24, 40, 0.78), rgba(16, 24, 40, 0));
-  color: #fff;
-  transition: padding 0.18s ease;
-}
-
-.admin-picture.has-image:hover .admin-picture__prompt,
-.admin-picture.has-image.is-dragging .admin-picture__prompt {
-  padding-bottom: 0.875rem;
-}
-
-.admin-picture.has-image .admin-dropzone__icon {
-  width: 1.75rem;
-  height: 1.75rem;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
-
-.admin-picture.has-image .admin-dropzone__link {
-  color: #fff;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-}
-
-.admin-picture__foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 0.75rem;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .admin-dropzone,
   .admin-picture,
-  .admin-picture__prompt,
   .admin-dropzone__bar > span {
     transition: none;
   }
@@ -4657,8 +4594,7 @@
 
 @media (max-width: 68rem) {
 
-  .admin-grid-2,
-  .admin-grid-detail {
+  .admin-grid-2 {
     grid-template-columns: 1fr;
   }
 }
@@ -5551,4 +5487,31 @@
   .admin-pagination__page {
     transition: none;
   }
+}
+
+/* ── Course picture inside Edit Course ─────────────────── */
+/* A small 16:9 thumbnail beside its buttons. */
+.admin-picture-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.admin-picture.admin-picture--compact {
+  flex-shrink: 0;
+  width: 7.5rem;
+  margin-bottom: 0;
+}
+
+.admin-picture-row__side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.admin-picture-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
 }

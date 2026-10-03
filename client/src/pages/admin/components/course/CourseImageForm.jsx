@@ -2,17 +2,12 @@ import { useRef, useState } from "react";
 
 import { MAX_COURSE_IMAGE_BYTES } from "../../../../services/admin";
 import { courseImageUrl } from "../../../../services/courses";
-import { ImageIcon, UploadIcon } from "../icons";
-import { SectionTitle } from "../ui";
+import { ImageIcon } from "../icons";
 import { fileSizeLabel } from "../../lib/format";
 
 /**
- * The picture behind the course's card on the student's dashboard.
- *
- * One picture per course, so this is a replace rather than a list: choosing a
- * file uploads it immediately — there is no second field to fill in and no
- * reason to make the admin press Save for a decision they have already made by
- * picking the file.
+ * The course picture, as a small row inside Edit Course.
+ * Picking a file uploads it straight away; it doesn't wait for Save.
  */
 function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
   const [dragging, setDragging] = useState(false);
@@ -34,62 +29,78 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
   };
 
   return (
-    <section className="admin-card admin-card--stacked">
-      <SectionTitle icon={ImageIcon}>Course Picture</SectionTitle>
+    <div className="admin-field">
+      <div className="admin-field__label">Course picture</div>
+
+      <div className="admin-picture-row">
+        {/* The thumbnail is also a drop target. */}
+        <button
+          type="button"
+          className={`admin-picture admin-picture--compact${course.hasImage ? " has-image" : ""}${
+            dragging ? " is-dragging" : ""
+          }`}
+          disabled={busy}
+          aria-label={course.hasImage ? "Replace the course picture" : "Upload a course picture"}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            takeFile(event.dataTransfer.files?.[0]);
+          }}
+        >
+          {course.hasImage ? (
+            <img
+              className="admin-picture__img"
+              src={courseImageUrl(course.id, course.imageUpdatedAt)}
+              alt=""
+            />
+          ) : (
+            <ImageIcon size={20} />
+          )}
+          {busy ? (
+            <span className="admin-dropzone__bar" aria-hidden="true">
+              <span style={{ width: `${progress}%` }} />
+            </span>
+          ) : null}
+        </button>
+
+        <div className="admin-picture-row__side">
+          <span className="admin-dropzone__file">
+            {busy ? `Uploading… ${progress}%` : "PNG, JPEG, WebP or GIF, up to 5 MB"}
+          </span>
+          <div className="admin-picture-row__actions">
+            <button
+              type="button"
+              className="admin-chip-btn"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              {course.hasImage ? "Replace" : "Upload"}
+            </button>
+            {course.hasImage ? (
+              <button
+                type="button"
+                className="admin-chip-btn admin-chip-btn--quiet"
+                disabled={busy}
+                onClick={onRemove}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       {error ? (
-        <p className="admin-notice admin-notice--error" role="status">
+        <p className="admin-field__hint admin-field__hint--error" role="status">
           {error}
         </p>
       ) : null}
-
-      {/* The picture is its own drop target, at the crop the student's card
-          uses, so what is approved here is what the dashboard shows. */}
-      <button
-        type="button"
-        className={`admin-picture${course.hasImage ? " has-image" : ""}${
-          dragging ? " is-dragging" : ""
-        }`}
-        disabled={busy}
-        aria-label={course.hasImage ? "Replace the course picture" : "Upload a course picture"}
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragging(false);
-          takeFile(event.dataTransfer.files?.[0]);
-        }}
-      >
-        {course.hasImage ? (
-          <img
-            className="admin-picture__img"
-            src={courseImageUrl(course.id, course.imageUpdatedAt)}
-            alt=""
-          />
-        ) : null}
-        <span className="admin-picture__prompt">
-          <span className="admin-dropzone__icon">
-            <UploadIcon size={course.hasImage ? 16 : 22} />
-          </span>
-          <span className="admin-dropzone__text">
-            {busy
-              ? `Uploading… ${progress}%`
-              : course.hasImage
-                ? "Drop a replacement, or "
-                : "Drag a picture here, or "}
-            {busy ? null : <span className="admin-dropzone__link">browse</span>}
-          </span>
-        </span>
-        {busy ? (
-          <span className="admin-dropzone__bar" aria-hidden="true">
-            <span style={{ width: `${progress}%` }} />
-          </span>
-        ) : null}
-      </button>
 
       <input
         ref={inputRef}
@@ -99,21 +110,7 @@ function CourseImageForm({ course, busy, progress, onUpload, onRemove }) {
         tabIndex={-1}
         onChange={(event) => takeFile(event.target.files?.[0])}
       />
-
-      <div className="admin-picture__foot">
-        <span className="admin-dropzone__file">PNG, JPEG, WebP or GIF, up to 5 MB</span>
-        {course.hasImage ? (
-          <button
-            type="button"
-            className="admin-chip-btn admin-chip-btn--quiet"
-            disabled={busy}
-            onClick={onRemove}
-          >
-            Remove picture
-          </button>
-        ) : null}
-      </div>
-    </section>
+    </div>
   );
 }
 

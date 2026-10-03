@@ -19,7 +19,7 @@ function todayKey() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function CourseForm({ course, busy, error, onCancel, onSave }) {
+function CourseForm({ course, busy, error, onCancel, onSave, children }) {
   const editing = Boolean(course);
   const [code, setCode] = useState(course?.code ?? "");
   const [title, setTitle] = useState(course?.title ?? "");
@@ -115,6 +115,9 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         multiline
         rows={5}
       />
+
+      {/* Extra fields from the page, e.g. the course picture when editing. */}
+      {children}
 
       {/* One field, because the two dates are one fact: the run. As a pair of
           native date inputs they were picked in separate browser popups that
