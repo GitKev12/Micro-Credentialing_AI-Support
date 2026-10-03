@@ -62,6 +62,8 @@ const defaultClasses = () => [
 jest.unstable_mockModule("../src/services/classes.js", () => ({
   fetchClasses: async () => [...classes],
   fetchClass: async (id) => classes.find((row) => row.id === id),
+  fetchClassImpact: async () => ({ unenroll: 0, unassign: 0 }),
+  deleteClass: async () => ({}),
   createClass: async () => ({ name: "New class" }),
   updateClass: async () => ({ name: "Saved" }),
   setClassActive: async () => ({}),

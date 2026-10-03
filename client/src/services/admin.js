@@ -45,6 +45,18 @@ export async function setCourseStatus(courseId, status) {
   return data.course;
 }
 
+// What deleting a course would take with it (asked before the confirm).
+export async function fetchCourseImpact(courseId) {
+  const { data } = await api.get(`/admin/courses/${courseId}/impact`);
+  return data.impact ?? {};
+}
+
+// Delete an archived course.
+export async function deleteCourse(courseId) {
+  const { data } = await api.delete(`/admin/courses/${courseId}`);
+  return data.removed ?? {};
+}
+
 /* ---- Learning modules ---- */
 
 // Mirrors MAX_MODULE_BYTES on the server, so an oversized file is refused here
@@ -274,4 +286,28 @@ export async function setStudentStatus(studentId, status) {
 export async function setAssessorStatus(assessorId, status) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}/status`, { status });
   return data.assessor;
+}
+
+// What deleting a student would take with them.
+export async function fetchStudentImpact(studentId) {
+  const { data } = await api.get(`/admin/students/${studentId}/impact`);
+  return data.impact ?? {};
+}
+
+// Delete an archived student.
+export async function deleteStudent(studentId) {
+  const { data } = await api.delete(`/admin/students/${studentId}`);
+  return data;
+}
+
+// What deleting an assessor would take, and what stays.
+export async function fetchAssessorImpact(assessorId) {
+  const { data } = await api.get(`/admin/assessors/${assessorId}/impact`);
+  return data.impact ?? {};
+}
+
+// Delete an archived assessor.
+export async function deleteAssessor(assessorId) {
+  const { data } = await api.delete(`/admin/assessors/${assessorId}`);
+  return data;
 }

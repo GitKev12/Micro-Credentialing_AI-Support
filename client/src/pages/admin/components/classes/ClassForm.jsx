@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArchiveIcon, LockIcon, StudentsIcon } from "../icons";
+import { ArchiveIcon, LockIcon, StudentsIcon, TrashIcon } from "../icons";
 import { AdminButton, AdminField, AdminModal, AdminSelect, PathwayChoice } from "../ui";
 import { classTitle, sectionOptions } from "./classText";
 import ClassRoster from "./ClassRoster";
@@ -50,6 +50,7 @@ function ClassForm({
   error,
   onCancel,
   onArchive,
+  onDelete,
   onSave
 }) {
   const editing = Boolean(klass);
@@ -254,19 +255,33 @@ function ClassForm({
         </div>
       ) : null}
 
-      {/* Archiving switches the class off and hides it; restoring brings it back. */}
+      {/* Archiving switches the class off and hides it; restoring brings it back.
+          Delete only shows once the class is archived. */}
       {editing && onArchive ? (
         <section className="admin-danger">
           <h3 className="admin-danger__title">Danger Zone</h3>
-          <button
-            type="button"
-            className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
-            disabled={busy}
-            onClick={() => onArchive(!klass.archived)}
-          >
-            <ArchiveIcon size={14} />
-            {klass.archived ? "Restore class" : "Archive class"}
-          </button>
+          <div className="admin-danger__actions">
+            <button
+              type="button"
+              className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
+              disabled={busy}
+              onClick={() => onArchive(!klass.archived)}
+            >
+              <ArchiveIcon size={14} />
+              {klass.archived ? "Restore class" : "Archive class"}
+            </button>
+            {klass.archived && onDelete ? (
+              <button
+                type="button"
+                className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
+                disabled={busy}
+                onClick={onDelete}
+              >
+                <TrashIcon size={14} />
+                Delete class
+              </button>
+            ) : null}
+          </div>
         </section>
       ) : null}
 

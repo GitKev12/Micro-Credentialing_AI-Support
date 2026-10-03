@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createCourse,
   createCourseModule,
+  deleteCourse,
   deleteCourseModule,
   fetchCourse,
+  fetchCourseImpact,
   fetchCourses,
   fetchModuleImpact,
   removeCourseImage,
@@ -38,6 +40,7 @@ import { courseMark } from "./components/course/impact";
 import { errorMessage, plural } from "./lib/format";
 import { SkeletonTable } from "../../components/Skeleton";
 import { useLatestRequest } from "../../lib/useLatestRequest";
+import { courseKeeps, courseLosses } from "./lib/deleteText";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 
 function CourseManagement() {
@@ -54,6 +57,11 @@ function CourseManagement() {
   // "yes, remove", and whether an add or remove is currently in flight.
   const [preview, setPreview] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // The archived course being deleted, what it would remove, and any refusal.
+  const [deleting, setDeleting] = useState(null);
+  const [courseImpact, setCourseImpact] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+  const courseImpactRequest = useLatestRequest();
   // What that module's removal would destroy, fetched when the confirm opens.
   // Null while it is still loading, so the confirm can hold its tongue rather
   // than claim there is nothing to lose before it has looked.
@@ -303,6 +311,46 @@ function CourseManagement() {
         tone: "error",
         text: errorMessage(error, "Couldn't remove the module. Try again.")
       });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Open the delete dialog, and count what it would remove.
+  const askToDeleteCourse = (course) => {
+    const token = courseImpactRequest.next();
+    setDeleting(course);
+    setCourseImpact(null);
+    setDeleteError(null);
+    fetchCourseImpact(course.id)
+      .then((data) => {
+        if (courseImpactRequest.isCurrent(token)) setCourseImpact(data);
+      })
+      .catch(() => {
+        if (courseImpactRequest.isCurrent(token)) setCourseImpact({ unknown: true });
+      });
+  };
+
+  const closeDelete = () => {
+    setDeleting(null);
+    setCourseImpact(null);
+    setDeleteError(null);
+  };
+
+  const removeCourse = async () => {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      const removed = await deleteCourse(deleting.id);
+      setCourses((list) => list.filter((c) => c.id !== deleting.id));
+      closeDelete();
+      setNotice({
+        tone: "ok",
+        text: `“${removed.title || deleting.title}” was deleted, along with ${plural(removed.modules ?? 0, "lesson")}.`
+      });
+    } catch (error) {
+      // The dialog stays open with the reason in it.
+      setDeleteError(errorMessage(error, "Couldn't delete this course."));
     } finally {
       setBusy(false);
     }
@@ -574,6 +622,7 @@ function CourseManagement() {
                         status={course.status}
                         busy={busy}
                         onChange={(next) => changeStatus(course, next)}
+                        onDelete={() => askToDeleteCourse(course)}
                       />
                     </td>
                   </tr>
@@ -599,6 +648,21 @@ function CourseManagement() {
           error={formError}
           onCancel={() => setCourseForm(null)}
           onSave={saveCourse}
+        />
+      ) : null}
+
+      {deleting ? (
+        <ConfirmDeleteModal
+          title="Delete this course?"
+          subject={[deleting.code, deleting.title].filter(Boolean).join(" · ")}
+          losses={courseLosses(courseImpact)}
+          keeps={courseKeeps(courseImpact)}
+          busy={busy}
+          confirmLabel="Delete course"
+          confirmWord="CONFIRM"
+          error={deleteError}
+          onCancel={closeDelete}
+          onConfirm={removeCourse}
         />
       ) : null}
     </div>

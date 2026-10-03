@@ -14,8 +14,12 @@ import {
 import {
   createAssessor,
   createStudent,
+  deleteAssessor,
+  deleteStudent,
+  getAssessorImpact,
   getNextAssessorId,
   getNextStudentId,
+  getStudentImpact,
   setAssessorStatus,
   setAssessorSuspension,
   setStudentStatus,
@@ -26,7 +30,9 @@ import {
 import {
   createCourse,
   createCourseModule,
+  deleteCourse,
   deleteCourseModule,
+  getCourseImpact,
   getModuleImpact,
   removeCourseImage,
   setCourseImage,
@@ -37,7 +43,9 @@ import {
 } from "./modules.controller.js";
 import {
   createClass,
+  deleteClass,
   getClass,
+  getClassImpact,
   listClasses,
   updateClass
 } from "./classes.controller.js";
@@ -50,6 +58,8 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/courses/:id                      — course detail + modules
 //   PATCH  /api/admin/courses/:id                      — edit     { code?, title?, description?, startsOn?, endsOn? }
 //   PATCH  /api/admin/courses/:id/status               — { status: active | inactive | archived }
+//   GET    /api/admin/courses/:id/impact               — what deleting it would take
+//   DELETE /api/admin/courses/:id                      — delete an archived course
 //   PUT    /api/admin/courses/:id/image                — set the card picture (image body)
 //   DELETE /api/admin/courses/:id/image                — back to the placeholder
 //   POST   /api/admin/courses/:id/modules              — add a lesson (PDF body)
@@ -62,6 +72,8 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   PATCH  /api/admin/students/:id                     — edit     { names, email, studentNumber, password }
 //   PATCH  /api/admin/students/:id/suspension          — lock/unlock { suspended }
 //   PATCH  /api/admin/students/:id/status              — { status: active | inactive | archived }
+//   GET    /api/admin/students/:id/impact              — what deleting them would take
+//   DELETE /api/admin/students/:id                     — delete an archived student
 //   GET    /api/admin/assessors                        — list
 //   POST   /api/admin/assessors                        — create   { name, email, assessorNumber?, password }
 //   GET    /api/admin/assessors/next-id                — the ID a new assessor would get
@@ -69,10 +81,14 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   PATCH  /api/admin/assessors/:id                    — edit     { name, email, assessorNumber, password }
 //   PATCH  /api/admin/assessors/:id/suspension         — lock/unlock { suspended }
 //   PATCH  /api/admin/assessors/:id/status             — { status: active | inactive | archived }
+//   GET    /api/admin/assessors/:id/impact             — what deleting them would take
+//   DELETE /api/admin/assessors/:id                    — delete an archived assessor
 //   GET    /api/admin/classes                          — list, joined to course + assessors
 //   POST   /api/admin/classes                          — create   { name, courseId, assessorIds, studentIds, schedule }
 //   GET    /api/admin/classes/:id                      — detail (full assessor + student lists)
-//   PATCH  /api/admin/classes/:id                      — edit     { assessorIds?, studentIds?, active?, archived? }
+//   PATCH  /api/admin/classes/:id                      — edit     { assessorIds?, studentIds?, schedule?, active?, archived? }
+//   GET    /api/admin/classes/:id/impact               — what deleting it would unenrol
+//   DELETE /api/admin/classes/:id                      — delete an archived class
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
 //   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
 //   POST   /api/admin/assessments/final                — assemble the final { courseId, dryRun? }
@@ -128,6 +144,8 @@ router.post("/courses", createCourse);
 router.get("/courses/:id", getCourse);
 router.patch("/courses/:id", updateCourse);
 router.patch("/courses/:id/status", setCourseStatus);
+router.get("/courses/:id/impact", getCourseImpact);
+router.delete("/courses/:id", deleteCourse);
 // Every destructive route has an /impact twin. What a delete costs has to be
 // readable before it is agreed to — reporting it afterwards is not consent.
 router.put("/courses/:id/image", readCourseImage, setCourseImage);
@@ -136,7 +154,7 @@ router.post("/courses/:id/modules", readLessonFile, createCourseModule);
 router.get("/modules/:moduleId/impact", getModuleImpact);
 router.delete("/modules/:moduleId", deleteCourseModule);
 
-// No delete for either roster: an account is archived instead (see /status).
+// Delete only works on an archived account (see /status).
 // Who is enrolled or assigned is settled by the class, below.
 router.get("/students", listStudents);
 router.post("/students", createStudent);
@@ -146,6 +164,8 @@ router.get("/students/:id", getStudent);
 router.patch("/students/:id", updateStudent);
 router.patch("/students/:id/suspension", setStudentSuspension);
 router.patch("/students/:id/status", setStudentStatus);
+router.get("/students/:id/impact", getStudentImpact);
+router.delete("/students/:id", deleteStudent);
 
 router.get("/assessors", listAssessors);
 router.get("/assessors/next-id", getNextAssessorId);
@@ -154,6 +174,8 @@ router.get("/assessors/:id", getAssessor);
 router.patch("/assessors/:id", updateAssessor);
 router.patch("/assessors/:id/suspension", setAssessorSuspension);
 router.patch("/assessors/:id/status", setAssessorStatus);
+router.get("/assessors/:id/impact", getAssessorImpact);
+router.delete("/assessors/:id", deleteAssessor);
 
 // A class ties a course to its assessors and students in one place, instead of
 // enrolling students on one screen and assigning assessors on another. It writes
@@ -166,7 +188,8 @@ router.get("/classes", listClasses);
 router.post("/classes", createClass);
 router.get("/classes/:id", getClass);
 router.patch("/classes/:id", updateClass);
-// A change nobody can undo says what it costs before it is agreed to.
+router.get("/classes/:id/impact", getClassImpact);
+router.delete("/classes/:id", deleteClass);
 
 /**
  * Authoring, not scheduling — and deliberately not on a screen.

@@ -78,6 +78,8 @@ let detail = null;
 
 jest.unstable_mockModule("../src/services/admin.js", () => ({
   fetchNextIdNumber: async () => "ASS017",
+  fetchAssessorImpact: async () => ({ classes: 0, assigned: 0, graded: 0 }),
+  deleteAssessor: async () => ({ assessor: { name: "Deleted" } }),
   // A fresh array each call, as the real API gives: returning the same
   // reference would let React skip the re-render and hide a real change.
   fetchAssessors: async () => ({ assessors: [...assessors], coverage }),

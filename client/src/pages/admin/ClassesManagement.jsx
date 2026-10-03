@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useNotice } from "../../lib/useNotice";
 import {
   createClass,
+  deleteClass,
   fetchClass,
+  fetchClassImpact,
   fetchClasses,
   setClassActive,
   setClassArchived,
@@ -15,6 +17,7 @@ import {
   AccountStatusPill,
   AdminButton,
   AdminModal,
+  ConfirmDeleteModal,
   chosenOption,
   pathwayLabel,
   FILTER_ALL,
@@ -28,7 +31,8 @@ import {
 } from "./components/ui";
 import ClassForm from "./components/classes/ClassForm";
 import { classTitle, scheduleSummary } from "./components/classes/classText";
-import { errorMessage } from "./lib/format";
+import { errorMessage, plural } from "./lib/format";
+import { classKeeps, classLosses } from "./lib/deleteText";
 import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 
 // The option that means "the ones with none of it" - no course, no assessor.
@@ -62,6 +66,10 @@ function ClassesManagement() {
   // The form is "new", a loaded class object being edited, or null.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
+  // The archived class being deleted, who it would unenrol, and any refusal.
+  const [deleting, setDeleting] = useState(null);
+  const [impact, setImpact] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
   // A pathway change waiting to be agreed to: which way it is going, its cost
   // once the server has counted it, and what to run if the admin says yes.
@@ -161,15 +169,45 @@ function ClassesManagement() {
     }
   };
 
-  /**
-   * Ask before moving a class between pathways.
-   *
-   * The form has already decided this is worth asking about — it only calls
-   * here for a class that exists, because a class still being created holds
-   * nobody. What it costs is read from the server first, the same way a
-   * deletion's is: agreeing to a change whose cost has not arrived is agreeing
-   * to nothing in particular.
-   */
+  // Open the delete dialog, and count who it would unenrol.
+  const askToDelete = (cls) => {
+    setDeleting(cls);
+    setImpact(null);
+    setDeleteError(null);
+    fetchClassImpact(cls.id)
+      .then(setImpact)
+      .catch(() => setImpact({ unknown: true }));
+  };
+
+  const closeDelete = () => {
+    setDeleting(null);
+    setImpact(null);
+    setDeleteError(null);
+  };
+
+  const removeClass = async () => {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteClass(deleting.id);
+      setClasses((list) => list.filter((cls) => cls.id !== deleting.id));
+      const unenrolled = impact?.unenroll ?? 0;
+      const unassigned = impact?.unassign ?? 0;
+      setNotice({
+        tone: "ok",
+        text: `“${classTitle(deleting)}” was deleted. ${plural(unenrolled, "student")} unenrolled, ${plural(unassigned, "assessor")} unassigned.`
+      });
+      closeDelete();
+      // The class it was editing has gone with it.
+      setForm(null);
+    } catch (error) {
+      // The dialog stays open with the reason in it.
+      setDeleteError(errorMessage(error, "Couldn't delete this class."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Archive a class, or restore it, from the Danger Zone in its form.
   const changeArchived = async (cls, archived) => {
     setBusy(true);
@@ -536,10 +574,25 @@ function ClassesManagement() {
           error={formError}
           onCancel={() => setForm(null)}
           onArchive={(archived) => changeArchived(form, archived)}
+          onDelete={() => askToDelete(form)}
           onSave={saveClass}
         />
       ) : null}
 
+      {deleting ? (
+        <ConfirmDeleteModal
+          title="Delete this class?"
+          subject={classTitle(deleting)}
+          losses={classLosses(impact)}
+          keeps={classKeeps(impact)}
+          busy={busy}
+          confirmLabel="Delete class"
+          confirmWord="CONFIRM"
+          error={deleteError}
+          onCancel={closeDelete}
+          onConfirm={removeClass}
+        />
+      ) : null}
     </div>
   );
 }

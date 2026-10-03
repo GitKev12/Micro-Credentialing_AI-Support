@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   createAssessor,
+  deleteAssessor,
   fetchAssessor,
+  fetchAssessorImpact,
   fetchAssessors,
   fetchCourses,
   setAssessorStatus,
@@ -24,7 +26,8 @@ import {
   useListFilter,
   Pagination,
   usePagination,
-  NewPasswordModal
+  NewPasswordModal,
+  ConfirmDeleteModal
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import AssessorDetail from "./components/assessors/AssessorDetail";
@@ -35,6 +38,7 @@ import {
 } from "./components/assessors/assessorText";
 import { formatDate } from "./lib/format";
 import { useLatestRequest } from "../../lib/useLatestRequest";
+import { assessorKeeps, assessorLosses } from "./lib/deleteText";
 import { useNotice } from "../../lib/useNotice";
 
 // The course option that is not a course: everyone holding none at all.
@@ -61,6 +65,11 @@ function AssessorsManagement() {
   const [formError, setFormError] = useState(null);
   // The new ID number and password, shown once after saving.
   const [newLogin, setNewLogin] = useState(null);
+  // The archived assessor being deleted, what it would remove, and any refusal.
+  const [deleting, setDeleting] = useState(null);
+  const [impact, setImpact] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+  const impactRequest = useLatestRequest();
 
   useEffect(() => {
     let active = true;
@@ -185,7 +194,44 @@ function AssessorsManagement() {
    * Every course is offered whether or not anyone holds it — that nobody does
    * is the answer to a question this screen is opened with.
    */
-  // Set a assessor to active, inactive or archived from the 3-dots menu.
+  // Open the delete dialog, and count what it would remove.
+  const askToDelete = (assessor) => {
+    const token = impactRequest.next();
+    setDeleting(assessor);
+    setImpact(null);
+    setDeleteError(null);
+    fetchAssessorImpact(assessor.id)
+      .then((data) => {
+        if (impactRequest.isCurrent(token)) setImpact(data);
+      })
+      .catch(() => {
+        if (impactRequest.isCurrent(token)) setImpact({ unknown: true });
+      });
+  };
+
+  const closeDelete = () => {
+    setDeleting(null);
+    setImpact(null);
+    setDeleteError(null);
+  };
+
+  const removeAssessor = async () => {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      const { assessor } = await deleteAssessor(deleting.id);
+      setAssessors((list) => list.filter((row) => row.id !== deleting.id));
+      closeDelete();
+      setNotice({ tone: "ok", text: `${assessor.name} was deleted.` });
+    } catch (error) {
+      // The dialog stays open with the reason in it.
+      setDeleteError(error?.response?.data?.message || "Couldn't delete this assessor.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Set an assessor to active, inactive or archived from the 3-dots menu.
   const changeStatus = async (assessor, status) => {
     setBusy(true);
     setNotice(null);
@@ -486,6 +532,7 @@ function AssessorsManagement() {
                         status={statusOf(assessor)}
                         busy={busy}
                         onChange={(status) => changeStatus(assessor, status)}
+                        onDelete={() => askToDelete(assessor)}
                       />
                     </td>
                   </tr>
@@ -512,6 +559,21 @@ function AssessorsManagement() {
       <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Assessors" />
 
       {newLogin ? <NewPasswordModal {...newLogin} onClose={() => setNewLogin(null)} /> : null}
+
+      {deleting ? (
+        <ConfirmDeleteModal
+          title="Delete this assessor?"
+          subject={`${deleting.name}${deleting.assessorNumber ? ` · ${deleting.assessorNumber}` : ""}`}
+          losses={assessorLosses(impact)}
+          keeps={assessorKeeps(impact)}
+          busy={busy}
+          confirmLabel="Delete assessor"
+          confirmWord="CONFIRM"
+          error={deleteError}
+          onCancel={closeDelete}
+          onConfirm={removeAssessor}
+        />
+      ) : null}
 
       {form ? (
         <AssessorForm
