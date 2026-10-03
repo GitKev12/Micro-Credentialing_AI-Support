@@ -121,7 +121,9 @@ export default function RangeCalendar({
   label = "Course duration",
   placeholder = "Choose the course duration",
   required = false,
-  disabled = false
+  disabled = false,
+  // "YYYY-MM-DD". Days before it are greyed out and can't be picked.
+  minDate = ""
 }) {
   const id = useId();
   const rootRef = useRef(null);
@@ -204,7 +206,13 @@ export default function RangeCalendar({
     setClaimFocus(true);
   };
 
+  // Keys are "YYYY-MM-DD", so comparing them as text compares the dates.
+  const isPast = (key) => Boolean(minDate) && key < minDate;
+  // The month of minDate is the earliest one there is any point paging to.
+  const atFirstMonth = Boolean(minDate) && view <= startOfMonth(fromKey(minDate));
+
   const pick = (key) => {
+    if (isPast(key)) return;
     setHoverKey(null);
     const run = nextRange({ startsOn, endsOn }, key);
     onChange(run);
@@ -329,6 +337,7 @@ export default function RangeCalendar({
                 type="button"
                 className="admin-cal__page"
                 aria-label="Previous month"
+                disabled={atFirstMonth}
                 onClick={() => setView(shiftMonths(view, -1))}
               >
                 <Chevron direction="left" />
@@ -391,6 +400,7 @@ export default function RangeCalendar({
                           data-day={key}
                           tabIndex={key === focusKey ? 0 : -1}
                           aria-selected={isStart || isEnd}
+                          aria-disabled={isPast(key) ? "true" : undefined}
                           aria-current={key === today ? "date" : undefined}
                           className={[
                             "admin-cal__day",
@@ -399,7 +409,8 @@ export default function RangeCalendar({
                             isStart ? "is-start" : "",
                             isEnd ? "is-end" : "",
                             isBetween ? "is-between" : "",
-                            pending ? "is-pending" : ""
+                            pending ? "is-pending" : "",
+                            isPast(key) ? "is-past" : ""
                           ]
                             .filter(Boolean)
                             .join(" ")}
@@ -408,7 +419,7 @@ export default function RangeCalendar({
                             setView(startOfMonth(time));
                             pick(key);
                           }}
-                          onMouseEnter={() => setHoverKey(key)}
+                          onMouseEnter={() => setHoverKey(isPast(key) ? null : key)}
                           onFocus={() => setFocusKey(key)}
                         >
                           <span className="admin-visually-hidden">{dayLabel(time)}</span>

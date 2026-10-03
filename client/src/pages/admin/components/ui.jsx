@@ -23,3 +23,4 @@ export { PathwayChoice, PATHWAYS, pathwayLabel } from "./ui/PathwayChoice";
 export { StatusMenu } from "./ui/StatusMenu";
 export { AccountStatusPill, accountStatusOf } from "./ui/AccountStatus";
 export { Pagination, usePagination } from "./ui/Pagination";
+export { NewPasswordChoice, NewPasswordModal } from "./ui/NewPasswordModal";

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { isRunInOrder, toDateInput } from "../../../../lib/courseDuration";
+import { checkCourseCode, checkCourseTitle } from "../../../../lib/fieldRules";
 import RangeCalendar from "../RangeCalendar";
 import { AdminButton, AdminField, AdminModal } from "../ui";
 
@@ -11,6 +12,13 @@ import { AdminButton, AdminField, AdminModal } from "../ui";
  * whether it opens empty, so two nearly-identical components would be two
  * places to fix the next time a field is added.
  */
+/** Today on the admin's own calendar, as "YYYY-MM-DD". */
+function todayKey() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 function CourseForm({ course, busy, error, onCancel, onSave }) {
   const editing = Boolean(course);
   const [code, setCode] = useState(course?.code ?? "");
@@ -27,7 +35,20 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
   // enforces, not a message about what was just typed.
   const orderedRun = isRunInOrder(startsOn, endsOn);
   const wholeRun = Boolean(startsOn && endsOn);
-  const ready = code.trim() && title.trim() && wholeRun && orderedRun;
+  // A new course can't start in the past. Editing an existing one is left
+  // alone, since a course already running started on a past day.
+  const earliest = editing ? "" : todayKey();
+  const notPast = !earliest || startsOn >= earliest;
+  // An unchanged code is not checked again, so an older one can still be saved.
+  const codeChanged = !editing || code.trim() !== course.code;
+  const codeError = code && codeChanged ? checkCourseCode(code) : null;
+  const titleError = title ? checkCourseTitle(title) : null;
+  const ready =
+    (codeChanged ? !checkCourseCode(code) : true) &&
+    !checkCourseTitle(title) &&
+    wholeRun &&
+    orderedRun &&
+    notPast;
 
   return (
     <AdminModal
@@ -75,6 +96,7 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         value={code}
         onChange={setCode}
         placeholder="e.g. CC2"
+        error={codeError}
         required
       />
       <AdminField
@@ -82,6 +104,7 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         value={title}
         onChange={setTitle}
         placeholder="e.g. Computer Programming 2"
+        error={titleError}
         required
       />
       <AdminField
@@ -102,6 +125,7 @@ function CourseForm({ course, busy, error, onCancel, onSave }) {
         startsOn={startsOn}
         endsOn={endsOn}
         required
+        minDate={earliest}
         onChange={(run) => {
           setStartsOn(run.startsOn);
           setEndsOn(run.endsOn);

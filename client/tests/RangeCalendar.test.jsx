@@ -312,3 +312,26 @@ describe("RangeCalendar — the dropdown", () => {
     expect(screen.queryByText("Clear")).toBeNull();
   });
 });
+
+describe("an earliest allowed day", () => {
+  // Opens on August 2026 (the run's month), with the 10th as the earliest day.
+  it("fades the days before it, and won't pick them", () => {
+    const picked = [];
+    const { container } = draw({ minDate: "2026-08-10", onChange: (run) => picked.push(run) });
+
+    expect(day(container, "2026-08-09").getAttribute("aria-disabled")).toBe("true");
+    expect(day(container, "2026-08-09").className).toContain("is-past");
+    fireEvent.click(day(container, "2026-08-09"));
+    expect(picked).toEqual([]);
+
+    expect(day(container, "2026-08-10").getAttribute("aria-disabled")).toBeNull();
+    fireEvent.click(day(container, "2026-08-10"));
+    expect(picked).toHaveLength(1);
+  });
+
+  it("can't page back to an earlier month", () => {
+    draw({ minDate: "2026-08-10" });
+    expect(screen.getByRole("button", { name: "Previous month" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Next month" }).disabled).toBe(false);
+  });
+});

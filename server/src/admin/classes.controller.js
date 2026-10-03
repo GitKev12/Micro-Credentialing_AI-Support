@@ -3,10 +3,7 @@ import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
 import { publishStanding } from "../lib/standingEvents.js";
-import { ASSESS_ONLY, classMode, toClassMode } from "../lib/classMode.js";
-import { papersForClass } from "../assessments/classPapers.js";
-import { toAssessmentSummary } from "../assessments/assessments.format.js";
-import { passedFromResults } from "../badges/badges.service.js";
+import { classMode, toClassMode } from "../lib/classMode.js";
 
 /**
  * Classes — one row tying a course to the assessors and students in it, plus a
@@ -309,109 +306,6 @@ export async function getClass(request, response) {
   return respondWithClass(request.params.id, response);
 }
 
-/**
- * What changing this class's pathway would cost, read before the confirm.
- *
- * The two directions cost different things, and neither is recoverable by
- * switching back:
- *
- *   to assess-only — the lesson quizzes stop being this class's papers, so the
- *     badges its candidates earned stop being part of what they are working
- *     through. The submissions stay; the pathway they counted towards does not.
- *
- *   to taught — the final re-locks behind every lesson and every quiz. A
- *     candidate who has the examination open right now loses it until they
- *     have finished a course they were never asked to take.
- *
- * Both are counted against the students actually in the class, because a
- * figure for the whole course would be answering about people this change does
- * not touch.
- */
-export async function getClassPathwayImpact(request, response) {
-  if (!databaseReady()) return serviceUnavailable(response);
-
-  const cls = await collection(CLASSES_COLLECTION).findOne({
-    _id: { $in: idCandidates(request.params.id) }
-  });
-  if (!cls) return response.status(404).json({ message: "Class not found." });
-
-  const from = classMode(cls);
-  const to = toClassMode(request.query.mode);
-  const studentIds = cls.studentIds ?? [];
-
-  const empty = {
-    from,
-    to,
-    students: studentIds.length,
-    badges: 0,
-    badgeHolders: 0,
-    finalsTaken: 0,
-    quizzes: 0
-  };
-
-  if (from === to || studentIds.length === 0) return response.json({ impact: empty });
-  if (!(await collectionExists(RESULTS_COLLECTION))) return response.json({ impact: empty });
-
-  const studentKeys = studentIds.flatMap((id) => idCandidates(id));
-  const results = await collection(RESULTS_COLLECTION)
-    .find({ studentId: { $in: studentKeys }, superseded: { $ne: true } })
-    .toArray();
-
-  const assessments = (await collectionExists(ASSESSMENTS_COLLECTION))
-    ? await collection(ASSESSMENTS_COLLECTION)
-        .find({ courseId: { $in: idCandidates(cls.courseId) } })
-        .toArray()
-    : [];
-
-  // This class's papers only, read the way it stands *now* — the switch has
-  // not happened yet. Another section's quiz is not one these candidates could
-  // have passed, and counting it would overstate the cost.
-  const mine = papersForClass(assessments, asId(cls._id), {
-    assessOnly: from === ASSESS_ONLY
-  });
-  const byId = new Map(mine.map((doc) => [asId(doc._id), doc]));
-
-  // Submissions against papers that are not this class's are not this
-  // change's business — a student who moved sections keeps the old mark, and
-  // it is not what the pathway is about to take away.
-  const relevant = results.filter((result) => byId.has(asId(result.assessmentId)));
-
-  // Badges, counted by the one rule the badge wall and the admin list share.
-  const badgesPerStudent = new Map();
-  for (const result of relevant) {
-    const key = asId(result.studentId);
-    if (!badgesPerStudent.has(key)) badgesPerStudent.set(key, []);
-    badgesPerStudent.get(key).push(result);
-  }
-
-  let badges = 0;
-  let badgeHolders = 0;
-  for (const rows of badgesPerStudent.values()) {
-    const earned = passedFromResults(rows, byId).size;
-    badges += earned;
-    if (earned > 0) badgeHolders += 1;
-  }
-
-  const finalIds = new Set(
-    mine.filter((doc) => toAssessmentSummary(doc)?.scope === "final").map((doc) => asId(doc._id))
-  );
-  const finalsTaken = new Set(
-    relevant
-      .filter((result) => finalIds.has(asId(result.assessmentId)))
-      .map((result) => asId(result.studentId))
-  ).size;
-
-  return response.json({
-    impact: {
-      ...empty,
-      badges,
-      badgeHolders,
-      finalsTaken,
-      quizzes: mine.filter((doc) => toAssessmentSummary(doc)?.scope === "lesson").length
-    }
-  });
-}
-
 /* ─────────────────────────────── Writes ────────────────────────────── */
 
 export async function createClass(request, response) {
@@ -468,15 +362,13 @@ export async function updateClass(request, response) {
   const body = request.body ?? {};
   const updates = {};
 
-  // Sent empty, the section is cleared rather than refused — dropping back to
-  // no section is an ordinary edit, not a mistake.
-  if ("name" in body) updates.name = String(body.name ?? "").trim();
-
-  let newCourse = null;
-  if ("courseId" in body) {
-    newCourse = await resolveCourse(body.courseId);
-    if (!newCourse) return response.status(400).json({ message: "Choose a course for this class." });
-    updates.courseId = newCourse._id;
+  // Once a class exists, only its assessor, students and schedule (plus the
+  // status switch and archive) can change. The rest was fixed when it was created.
+  const fixed = ["name", "courseId", "mode"].filter((key) => key in body);
+  if (fixed.length > 0) {
+    return response.status(400).json({
+      message: "Only the assessor, students and schedule can be changed after a class is created."
+    });
   }
 
   if ("assessorIds" in body) {
@@ -502,10 +394,8 @@ export async function updateClass(request, response) {
   } else if (updates.active === true) {
     updates.archived = false; // switching a class on takes it out of the archive
   }
-  if ("mode" in body) updates.mode = toClassMode(body.mode);
 
-  const oldCourseId = cls.courseId;
-  const newCourseId = updates.courseId ?? cls.courseId;
+  const courseId = cls.courseId;
   const oldStudents = cls.studentIds ?? [];
   const newStudents = updates.studentIds ?? oldStudents;
   const oldAssessors = cls.assessorIds ?? [];
@@ -514,16 +404,13 @@ export async function updateClass(request, response) {
   /*
    * Only what this edit actually touches is judged. A class written before
    * these rules existed may break them, and re-checking untouched fields would
-   * leave it unrenameable and unswitchable — the edit that fixes it would be
-   * refused along with every other. Sending a roster is what gets it checked;
-   * moving the class to another course counts, because its students land among
-   * that course's sections and may already be in one.
+   * leave it unswitchable — the edit that fixes it would be refused along with
+   * every other. Sending a roster is what gets it checked.
    */
-  const movingCourse = asId(oldCourseId) !== asId(newCourseId);
   const refusal = await rosterRefusal({
-    courseId: newCourseId,
+    courseId,
     assessorIds: "assessorIds" in body ? newAssessors : null,
-    studentIds: "studentIds" in body || movingCourse ? newStudents : null,
+    studentIds: "studentIds" in body ? newStudents : null,
     exceptClassId: cls._id
   });
   if (refusal) return response.status(400).json({ message: refusal });
@@ -539,23 +426,13 @@ export async function updateClass(request, response) {
     for (const studentId of newStudents) publishStanding(studentId);
   }
 
-  if (movingCourse) {
-    // The whole class leaves the old course and joins the new one.
-    await unlinkFromCourse(STUDENTS_COLLECTION, "enrolledCourses", oldStudents, oldCourseId, "studentIds", cls._id);
-    await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", oldAssessors, oldCourseId, "assessorIds", cls._id);
-    await linkToCourse(STUDENTS_COLLECTION, "enrolledCourses", newStudents, newCourseId);
-    await linkToCourse(ASSESSORS_COLLECTION, "assigned_courses", newAssessors, newCourseId);
-    await syncAssessorsForCourse(oldCourseId);
-    await syncAssessorsForCourse(newCourseId);
-  } else {
-    const students = diffIds(oldStudents, newStudents);
-    const assessors = diffIds(oldAssessors, newAssessors);
-    await unlinkFromCourse(STUDENTS_COLLECTION, "enrolledCourses", students.removed, newCourseId, "studentIds", cls._id);
-    await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", assessors.removed, newCourseId, "assessorIds", cls._id);
-    await linkToCourse(STUDENTS_COLLECTION, "enrolledCourses", students.added, newCourseId);
-    await linkToCourse(ASSESSORS_COLLECTION, "assigned_courses", assessors.added, newCourseId);
-    await syncAssessorsForCourse(newCourseId);
-  }
+  const students = diffIds(oldStudents, newStudents);
+  const assessors = diffIds(oldAssessors, newAssessors);
+  await unlinkFromCourse(STUDENTS_COLLECTION, "enrolledCourses", students.removed, courseId, "studentIds", cls._id);
+  await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", assessors.removed, courseId, "assessorIds", cls._id);
+  await linkToCourse(STUDENTS_COLLECTION, "enrolledCourses", students.added, courseId);
+  await linkToCourse(ASSESSORS_COLLECTION, "assigned_courses", assessors.added, courseId);
+  await syncAssessorsForCourse(courseId);
 
   return respondWithClass(cls._id, response);
 }

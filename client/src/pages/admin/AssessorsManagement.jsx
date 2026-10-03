@@ -23,7 +23,8 @@ import {
   accountStatusOf,
   useListFilter,
   Pagination,
-  usePagination
+  usePagination,
+  NewPasswordModal
 } from "./components/ui";
 import { SkeletonTable } from "../../components/Skeleton";
 import AssessorDetail from "./components/assessors/AssessorDetail";
@@ -58,6 +59,8 @@ function AssessorsManagement() {
   // The assessor whose details are being corrected, if any.
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState(null);
+  // The new ID number and password, shown once after saving.
+  const [newLogin, setNewLogin] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -103,15 +106,19 @@ function AssessorsManagement() {
     setFormError(null);
     try {
       if (form === "new") {
-        const created = await createAssessor(values);
+        const { assessor: created, password } = await createAssessor(values);
         // Re-read rather than append: the list is sorted by name on the server,
         // so an appended row sits at the bottom until the next load and then
         // jumps.
         const fresh = await fetchAssessors();
         setAssessors(fresh.assessors);
         setNotice({ tone: "ok", text: `${created.name} was added.` });
+        setNewLogin({ title: "Assessor created", name: created.name, idNumber: created.assessorNumber, password });
       } else {
-        const saved = await updateAssessor(form.id, values);
+        const { assessor: saved, password } = await updateAssessor(form.id, values);
+        if (password) {
+          setNewLogin({ title: "New password", name: saved.name, idNumber: saved.assessorNumber, password });
+        }
         setAssessors((list) => list.map((a) => (a.id === saved.id ? { ...a, ...saved } : a)));
         setSelected((assessor) => (assessor ? { ...assessor, ...saved } : assessor));
         setNotice({ tone: "ok", text: `${saved.name}'s details were updated.` });
@@ -503,6 +510,8 @@ function AssessorsManagement() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Assessors" />
+
+      {newLogin ? <NewPasswordModal {...newLogin} onClose={() => setNewLogin(null)} /> : null}
 
       {form ? (
         <AssessorForm

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { readCourseDate, readCourseDates, toIsoDay } from "../src/lib/courseDates.js";
+import { readCourseDate, readCourseDates, startsInPast, toIsoDay } from "../src/lib/courseDates.js";
 
 describe("readCourseDate", () => {
   it("reads a date-input value as the day it names, in UTC", () => {
@@ -85,5 +85,21 @@ describe("toIsoDay", () => {
     expect(toIsoDay(null)).toBeNull();
     expect(toIsoDay(undefined)).toBeNull();
     expect(toIsoDay("whenever")).toBeNull();
+  });
+});
+
+describe("a new course's start date", () => {
+  const now = new Date("2026-10-03T05:00:00.000Z");
+  const day = (text) => new Date(`${text}T00:00:00.000Z`);
+
+  it("refuses a day in an earlier month or year", () => {
+    expect(startsInPast(day("2026-09-30"), now)).toBe(true);
+    expect(startsInPast(day("2025-12-31"), now)).toBe(true);
+  });
+
+  it("accepts today and later, with a day of slack for time zones ahead of UTC", () => {
+    expect(startsInPast(day("2026-10-02"), now)).toBe(false);
+    expect(startsInPast(day("2026-10-03"), now)).toBe(false);
+    expect(startsInPast(day("2027-01-10"), now)).toBe(false);
   });
 });

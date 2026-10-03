@@ -144,30 +144,37 @@ export async function fetchStudent(studentId) {
   return data.student;
 }
 
-// The shortest password the API will store. Mirrors MIN_PASSWORD_LENGTH on the
-// server, so a too-short one is refused here rather than after a round trip.
-export const MIN_PASSWORD_LENGTH = 8;
-
 /**
- * Patches names, email, student number or password. Send only the fields being
- * changed; an omitted or empty password is left alone.
+ * Patches names, email or student number. Send only the fields being changed.
+ * `resetPassword: true` makes the server generate a new password.
  *
+ * Resolves to { student, password }. `password` is the new one, or null when
+ * it was not reset; it is only ever sent back this once.
  */
 export async function updateStudent(studentId, changes) {
   const { data } = await api.patch(`/admin/students/${studentId}`, changes);
-  return data.student;
+  return { student: data.student, password: data.password ?? null };
 }
 
 /**
- * Add a student to the roster.
+ * The ID number a new student or assessor would get, for the create form to
+ * show. `kind` is "students" or "assessors".
+ */
+export async function fetchNextIdNumber(kind) {
+  const { data } = await api.get(`/admin/${kind}/next-id`);
+  return data.idNumber;
+}
+
+/**
+ * Add a student to the roster. Send names and email; the server makes the ID
+ * number and the password. (Import still sends its own from the spreadsheet.)
+ * Enrolment is not sent — Classes Management is where students are put on a course.
  *
- * A password is required here in a way it is not on an edit: there is no
- * existing one to leave alone. Enrolment is not sent — a new student starts on
- * no courses, and Classes Management is where they are put on one.
+ * Resolves to { student, password }, the password shown to the admin once.
  */
 export async function createStudent(details) {
   const { data } = await api.post("/admin/students", details);
-  return data.student;
+  return { student: data.student, password: data.password ?? null };
 }
 
 /**
@@ -224,21 +231,24 @@ export async function fetchAssessor(assessorId) {
   return data.assessor;
 }
 
-/** Patches name, email, ID number or password. Send only what is changing. */
 /**
- * Add an assessor to the roster.
+ * Add an assessor to the roster. Send name and email; the server makes the ID
+ * number and the password. Assignment is not sent — Classes Management does that.
  *
- * Assignment is not sent: a new assessor starts on no courses, and Classes
- * Management is where they are put on one.
+ * Resolves to { assessor, password }, the password shown to the admin once.
  */
 export async function createAssessor(details) {
   const { data } = await api.post("/admin/assessors", details);
-  return data.assessor;
+  return { assessor: data.assessor, password: data.password ?? null };
 }
 
+/**
+ * Patches name, email or ID number. `resetPassword: true` makes a new password.
+ * Resolves to { assessor, password }; `password` is null when not reset.
+ */
 export async function updateAssessor(assessorId, changes) {
   const { data } = await api.patch(`/admin/assessors/${assessorId}`, changes);
-  return data.assessor;
+  return { assessor: data.assessor, password: data.password ?? null };
 }
 
 /**

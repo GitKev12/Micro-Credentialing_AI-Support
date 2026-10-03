@@ -77,7 +77,7 @@ const defaultDetail = () => ({
 let detail = null;
 
 jest.unstable_mockModule("../src/services/admin.js", () => ({
-  MIN_PASSWORD_LENGTH: 8,
+  fetchNextIdNumber: async () => "ASS017",
   // A fresh array each call, as the real API gives: returning the same
   // reference would let React skip the re-render and hide a real change.
   fetchAssessors: async () => ({ assessors: [...assessors], coverage }),
@@ -98,7 +98,7 @@ jest.unstable_mockModule("../src/services/admin.js", () => ({
     const made = { ...assessors[0], id: "a3", name: details.name, assigned: [] };
     assessors.splice(0, 0, made);
     assessors.sort((a, b) => a.name.localeCompare(b.name));
-    return made;
+    return { assessor: { ...made, assessorNumber: "ASS017" }, password: "Xk4mPq7Rt2Wz" };
   }
 }));
 
@@ -400,8 +400,6 @@ describe("AssessorsManagement — a new account lands in order", () => {
       target: { value: "Aaron Bautista" }
     });
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ab@example.com" } });
-    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "ASS007" } });
-    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
     fireEvent.click(screen.getByRole("button", { name: "Create assessor" }));
     await flush();
 
@@ -425,14 +423,17 @@ describe("AssessorsManagement — a new account lands in order", () => {
       target: { value: "Aaron Bautista" }
     });
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "ab@example.com" } });
-    fireEvent.change(screen.getByLabelText(/ID number/), { target: { value: "ASS007" } });
-    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
     fireEvent.click(screen.getByRole("button", { name: "Create assessor" }));
     await flush();
 
     const notice = container.querySelector(".admin-notice--inline");
     expect(notice.textContent).toContain("Aaron Bautista was added.");
     expect(notice.closest(".admin-search")).toBeTruthy();
+
+    // The server's new ID number and password are shown once.
+    expect(screen.getByRole("heading", { name: "Assessor created" })).toBeTruthy();
+    expect(screen.getByText("ASS017")).toBeTruthy();
+    expect(screen.getByText("Xk4mPq7Rt2Wz")).toBeTruthy();
 
     const made = assessors.findIndex((a) => a.id === "a3");
     if (made >= 0) assessors.splice(made, 1);

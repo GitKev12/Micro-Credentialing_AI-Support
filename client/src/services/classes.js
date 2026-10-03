@@ -48,16 +48,3 @@ export async function setClassArchived(classId, archived) {
   const { data } = await api.patch(`/admin/classes/${classId}`, { archived });
   return data.class;
 }
-
-/**
- * What switching a class's pathway would cost — `{ from, to, students, badges,
- * badgeHolders, finalsTaken, quizzes }`. Nothing is deleted by the switch, and
- * nothing it takes can be handed back by switching again, which is why it is
- * read before the confirmation will agree to it.
- */
-export async function fetchPathwayImpact(classId, mode) {
-  const { data } = await api.get(`/admin/classes/${classId}/pathway-impact`, {
-    params: { mode }
-  });
-  return data.impact ?? {};
-}

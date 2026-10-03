@@ -90,6 +90,17 @@ export function readCourseDates(body = {}, current = {}, { required = false } = 
   return { dates };
 }
 
+/**
+ * A new course must not start in the past. The server's clock is UTC while the
+ * admin may be ahead of it (the Philippines is UTC+8), so one day of slack is
+ * allowed; the form itself already blocks every day before the admin's today.
+ */
+export function startsInPast(startsOn, now = new Date()) {
+  if (!startsOn) return false;
+  const yesterday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1);
+  return startsOn.getTime() < yesterday;
+}
+
 /** Whatever the document holds, as a Date — or null if it holds nothing usable. */
 export function toDate(value) {
   if (isBlank(value)) return null;

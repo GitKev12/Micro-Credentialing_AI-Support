@@ -14,6 +14,8 @@ import {
 import {
   createAssessor,
   createStudent,
+  getNextAssessorId,
+  getNextStudentId,
   setAssessorStatus,
   setAssessorSuspension,
   setStudentStatus,
@@ -36,7 +38,6 @@ import {
 import {
   createClass,
   getClass,
-  getClassPathwayImpact,
   listClasses,
   updateClass
 } from "./classes.controller.js";
@@ -56,12 +57,14 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   DELETE /api/admin/modules/:moduleId                — remove a lesson
 //   GET    /api/admin/students                         — list
 //   POST   /api/admin/students                         — create   { firstName, lastName, email, studentNumber?, password }
+//   GET    /api/admin/students/next-id                 — the ID a new student would get
 //   GET    /api/admin/students/:id                     — detail + progress
 //   PATCH  /api/admin/students/:id                     — edit     { names, email, studentNumber, password }
 //   PATCH  /api/admin/students/:id/suspension          — lock/unlock { suspended }
 //   PATCH  /api/admin/students/:id/status              — { status: active | inactive | archived }
 //   GET    /api/admin/assessors                        — list
 //   POST   /api/admin/assessors                        — create   { name, email, assessorNumber?, password }
+//   GET    /api/admin/assessors/next-id                — the ID a new assessor would get
 //   GET    /api/admin/assessors/:id                    — detail
 //   PATCH  /api/admin/assessors/:id                    — edit     { name, email, assessorNumber, password }
 //   PATCH  /api/admin/assessors/:id/suspension         — lock/unlock { suspended }
@@ -69,8 +72,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   GET    /api/admin/classes                          — list, joined to course + assessors
 //   POST   /api/admin/classes                          — create   { name, courseId, assessorIds, studentIds, schedule }
 //   GET    /api/admin/classes/:id                      — detail (full assessor + student lists)
-//   PATCH  /api/admin/classes/:id                      — edit     { name?, courseId?, assessorIds?, studentIds?, schedule? }
-//   GET    /api/admin/classes/:id/pathway-impact       — what switching its pathway would cost
+//   PATCH  /api/admin/classes/:id                      — edit     { assessorIds?, studentIds?, active?, archived? }
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
 //   POST   /api/admin/assessments/generate             — write quizzes  { courseId, moduleId?, dryRun? }
 //   POST   /api/admin/assessments/final                — assemble the final { courseId, dryRun? }
@@ -138,12 +140,15 @@ router.delete("/modules/:moduleId", deleteCourseModule);
 // Who is enrolled or assigned is settled by the class, below.
 router.get("/students", listStudents);
 router.post("/students", createStudent);
+// Before "/students/:id", so "next-id" isn't read as an id.
+router.get("/students/next-id", getNextStudentId);
 router.get("/students/:id", getStudent);
 router.patch("/students/:id", updateStudent);
 router.patch("/students/:id/suspension", setStudentSuspension);
 router.patch("/students/:id/status", setStudentStatus);
 
 router.get("/assessors", listAssessors);
+router.get("/assessors/next-id", getNextAssessorId);
 router.post("/assessors", createAssessor);
 router.get("/assessors/:id", getAssessor);
 router.patch("/assessors/:id", updateAssessor);
@@ -162,7 +167,6 @@ router.post("/classes", createClass);
 router.get("/classes/:id", getClass);
 router.patch("/classes/:id", updateClass);
 // A change nobody can undo says what it costs before it is agreed to.
-router.get("/classes/:id/pathway-impact", getClassPathwayImpact);
 
 /**
  * Authoring, not scheduling — and deliberately not on a screen.
