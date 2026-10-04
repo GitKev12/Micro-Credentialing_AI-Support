@@ -370,10 +370,15 @@ function LearningModules() {
     selected?.type === "assessment" ? selected.item.id : null;
   const lessonText = selectedLessonId ? textByModule[selectedLessonId] : null;
 
+  // Why a lesson is still shut (the exam before it isn't passed), or null.
+  const lockFor = (moduleId) =>
+    modules.find((module) => String(module.id) === String(moduleId))?.lockReason ?? null;
+  const selectedLock = selectedLessonId ? lockFor(selectedLessonId) : null;
+
   // Fetch the extracted text once per module (the server caches too, so
   // repeat visits are instant).
   useEffect(() => {
-    if (!selectedLessonId || textByModule[selectedLessonId]) {
+    if (!selectedLessonId || selectedLock || textByModule[selectedLessonId]) {
       return undefined;
     }
 
@@ -393,7 +398,7 @@ function LearningModules() {
     return () => {
       active = false;
     };
-  }, [selectedLessonId, textByModule, textRetry]);
+  }, [selectedLessonId, selectedLock, textByModule, textRetry]);
 
   // Once the target lesson's text is rendered, jump to the chosen section.
   useEffect(() => {
@@ -641,14 +646,16 @@ function LearningModules() {
   // so their section lists are loaded up front.
   useEffect(() => {
     preAssessments.forEach((pre) => {
-      if (!sectionsByModule[pre.moduleId]) loadSections(pre.moduleId);
+      if (!sectionsByModule[pre.moduleId] && !lockFor(pre.moduleId)) loadSections(pre.moduleId);
     });
-    // Only when the Pre-Assessments arrive.
+    // Only when the Pre-Assessments arrive, or a lesson opens up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preAssessments.length]);
+  }, [preAssessments.length, modules]);
 
   const toggleSections = (module) => {
     const moduleId = module.id;
+    // A locked lesson has nothing to list yet.
+    if (lockFor(moduleId)) return;
     setExpandedId((current) => (current === moduleId ? null : moduleId));
 
     if (!sectionsByModule[moduleId]) {
@@ -680,6 +687,10 @@ function LearningModules() {
     );
 
   const openSection = (module, section) => {
+    if (lockFor(module.id)) {
+      openLesson(module);
+      return;
+    }
     setSelected({ type: "lesson", item: module });
     setPendingSection({ moduleId: module.id, sectionId: section.id });
     setActiveSection({ moduleId: module.id, sectionId: section.id });
@@ -726,6 +737,10 @@ function LearningModules() {
         setAssessments(rail.assessments);
         setAssessOnly(rail.assessOnly);
       })
+      .catch(() => {});
+    // Passing a quiz opens the next lesson, so the lesson locks are re-read too.
+    fetchCourseModules(courseId)
+      .then((lessons) => setModules(lessons.modules))
       .catch(() => {});
   };
 
@@ -1103,7 +1118,12 @@ function LearningModules() {
                 aria-label={`${selected.item.title} lesson content`}
                 onScroll={handleReaderScroll}
               >
-                {!lessonText && textStatus === "loading" ? (
+                {selectedLock ? (
+                  <div className="module-viewer__text-status module-viewer__locked">
+                    <LockIcon size={18} />
+                    <p className="student-courses__status">{selectedLock}</p>
+                  </div>
+                ) : !lessonText && textStatus === "loading" ? (
                   <p className="student-courses__status">Extracting text…</p>
                 ) : !lessonText && textStatus === "error" ? (
                   <div className="module-viewer__text-status">

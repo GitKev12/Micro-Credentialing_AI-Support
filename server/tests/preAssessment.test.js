@@ -18,6 +18,11 @@ jest.unstable_mockModule("../src/lib/courseAccess.js", () => ({
   refuseRestrictedCourse: (response) => response.status(423).json({ message: "Closed." })
 }));
 
+let lock;
+jest.unstable_mockModule("../src/lib/lessonLocks.js", () => ({
+  lessonLockFor: async () => lock
+}));
+
 const { cleanItems, scoreAnswers, submitPreAssessment } = await import(
   "../src/preAssessments/preAssessments.controller.js"
 );
@@ -70,6 +75,7 @@ describe("taking it", () => {
   beforeEach(() => {
     held = { id: "k1", mode: "taught" };
     restriction = null;
+    lock = null;
     attempt = null;
     inserted = [];
     Object.defineProperty(mongoose.connection, "readyState", { value: 1, configurable: true });
@@ -77,7 +83,9 @@ describe("taking it", () => {
       findOne: async () =>
         name === "PreAssessment"
           ? { _id: "pa1", moduleId: "m1", courseId: "c1", active: true, items: cleanItems([mc, tf]).items }
-          : attempt,
+          : name === "LearningModule"
+            ? { _id: "m1", courseId: "c1" }
+            : attempt,
       insertOne: async (doc) => inserted.push(doc)
     });
   });
@@ -106,5 +114,12 @@ describe("taking it", () => {
     held = { id: "k1", mode: "assessOnly" };
     const res = await submit({ p1: "a" });
     expect(res.code).toBe(404);
+  });
+
+  it("is refused while its lesson is still locked", async () => {
+    lock = 'Pass the exam for "Arrays" to open this lesson.';
+    const res = await submit({ p1: "a", p2: "true" });
+    expect(res.code).toBe(423);
+    expect(inserted).toHaveLength(0);
   });
 });

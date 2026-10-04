@@ -18,6 +18,7 @@ import {
   insertFigureBlocks
 } from "./modules.format.js";
 import { sortLessons } from "../lib/lessonOrder.js";
+import { lessonLockFor, loadLessonLocks } from "../lib/lessonLocks.js";
 
 /**
  * Learning modules (lessons) and assessments for a course.
@@ -157,6 +158,12 @@ async function refuseLesson(request, response, module) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
+  // Lessons open one at a time: the previous lesson's exam must be passed.
+  if (request.session?.role === "student") {
+    const reason = await lessonLockFor(request.session.id, module);
+    if (reason) return response.status(423).json({ message: reason, locked: true });
+  }
+
   return null;
 }
 
@@ -192,7 +199,19 @@ export async function getCourseModules(request, response) {
 
   sortLessons(modules);
 
-  return response.json({ course, modules: modules.map(toPublicModule) });
+  // For a student, each lesson says whether it is open yet and why not.
+  const locks =
+    request.session?.role === "student"
+      ? await loadLessonLocks(request.session.id, found ?? courseId, modules)
+      : new Map();
+
+  return response.json({
+    course,
+    modules: modules.map((module) => {
+      const reason = locks.get(String(module._id)) ?? null;
+      return { ...toPublicModule(module), locked: Boolean(reason), lockReason: reason };
+    })
+  });
 }
 
 export async function getCourseAssessments(request, response) {
@@ -592,6 +611,10 @@ export async function markModuleComplete(request, response) {
   if (await lessonsHiddenFromStudent(request.params.studentId, module.courseId ?? module.courseCode)) {
     return response.status(404).json({ message: "Learning module not found." });
   }
+
+  // A lesson still locked behind the previous exam can't be finished either.
+  const lockReason = await lessonLockFor(request.params.studentId, module);
+  if (lockReason) return response.status(423).json({ message: lockReason, locked: true });
 
   const record = {
     studentId: String(request.params.studentId),

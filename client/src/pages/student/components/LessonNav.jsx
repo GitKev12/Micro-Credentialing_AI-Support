@@ -65,12 +65,16 @@ function LessonNav({
         const read = lessonProgressFor?.(module.id) ?? 0;
         // The whole lesson, both halves of it. Only this fills the bullet in.
         const finished = read >= 100;
+        // Shut until the exam of the lesson before it is passed.
+        const locked = Boolean(module.locked);
 
-        const state = finished ? "done" : current ? "current" : "todo";
+        const state = finished ? "done" : current ? "current" : locked ? "locked" : "todo";
 
         return (
           <li
-            className={`sd-lesson${expanded ? " is-open" : ""}${current ? " is-current" : ""}`}
+            className={`sd-lesson${expanded ? " is-open" : ""}${current ? " is-current" : ""}${
+              locked ? " is-locked" : ""
+            }`}
             key={module.id}
           >
             <div className="sd-lesson__row">
@@ -89,7 +93,13 @@ function LessonNav({
                   style={{ "--read": read }}
                   aria-hidden="true"
                 >
-                  {finished ? <CheckIcon size={13} /> : String(index + 1).padStart(2, "0")}
+                  {finished ? (
+                    <CheckIcon size={13} />
+                  ) : locked ? (
+                    <LockIcon size={12} />
+                  ) : (
+                    String(index + 1).padStart(2, "0")
+                  )}
                 </span>
 
                 <span className="sd-lesson__text">
@@ -106,13 +116,15 @@ function LessonNav({
                       row contradicting itself. */}
                   <span className="sd-lesson__meta">
                     <span className="sd-lesson__state">
-                      {current
-                        ? "Reading now"
-                        : finished
-                          ? "Completed"
-                          : read > 0
-                            ? "In progress"
-                            : "Not started"}
+                      {locked && !finished
+                        ? "Locked"
+                        : current
+                          ? "Reading now"
+                          : finished
+                            ? "Completed"
+                            : read > 0
+                              ? "In progress"
+                              : "Not started"}
                     </span>
                     <span className="sd-lesson__pct">{read}%</span>
                   </span>
@@ -123,6 +135,7 @@ function LessonNav({
                 type="button"
                 className="sd-lesson__toggle"
                 onClick={() => onToggleSections(module)}
+                disabled={locked}
                 aria-expanded={expanded}
                 aria-controls={panelId}
                 aria-label={`${expanded ? "Hide" : "Show"} contents of ${module.title}`}

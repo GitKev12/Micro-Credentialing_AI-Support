@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { classHolding, loadStudentRestriction, refuseRestrictedCourse } from "../lib/courseAccess.js";
 import { isAssessOnly } from "../lib/classMode.js";
+import { lessonLockFor } from "../lib/lessonLocks.js";
 
 /**
  * Pre-Assessments: 1–5 questions a student answers once before a lesson opens.
@@ -307,6 +308,11 @@ export async function submitPreAssessment(request, response) {
 
   const restriction = await loadStudentRestriction(studentId, doc.courseId);
   if (restriction) return refuseRestrictedCourse(response, restriction);
+
+  // Its lesson must be open: the previous lesson's exam passed.
+  const module = await collection(MODULES_COLLECTION).findOne({ _id: { $in: idCandidates(doc.moduleId) } });
+  const lockReason = module ? await lessonLockFor(studentId, module) : null;
+  if (lockReason) return response.status(423).json({ message: lockReason, locked: true });
 
   const taken = await collection(ATTEMPTS_COLLECTION).findOne({
     studentId: { $in: idCandidates(studentId) },
