@@ -104,11 +104,27 @@ function percentOf(course) {
 function pathOf(course) {
   const lessons = Math.max(0, Number(course.moduleCount) || 0);
   const read = Math.min(Math.max(0, Number(course.completedModules) || 0), lessons);
+
+  // The server now sends each part; use them as they are.
+  if (course.quizzesPassed !== undefined) {
+    const preTotal = Number(course.preTotal) || 0;
+    const preDone = Math.min(Number(course.preDone) || 0, preTotal);
+    return {
+      lessons,
+      read,
+      quizzes: Math.min(Number(course.quizzesPassed) || 0, lessons),
+      finalPassed: Boolean(course.finalPassed),
+      // The Lessons stretch counts each lesson's Pre-Assessment with it.
+      lessonDone: read + preDone,
+      lessonTotal: lessons + preTotal
+    };
+  }
+
   const passed = Math.max(0, tallyOf(course).done - read);
   const finalPassed = course.status === "completed" || (lessons > 0 && passed > lessons);
   const quizzes = Math.max(0, Math.min(finalPassed ? passed - 1 : passed, lessons));
 
-  return { lessons, read, quizzes, finalPassed };
+  return { lessons, read, quizzes, finalPassed, lessonDone: read, lessonTotal: lessons };
 }
 
 /** "12 days left", or null when the run has no end date or is already over. */
@@ -183,10 +199,10 @@ function CoursePath({ path }) {
       <div className="sd-path__stage">
         <span className="sd-path__label">Lessons</span>
         <span className="sd-path__track">
-          <span className="sd-path__fill" style={{ "--fill": share(path.read, path.lessons) }} />
+          <span className="sd-path__fill" style={{ "--fill": share(path.lessonDone, path.lessonTotal) }} />
         </span>
         <span className="sd-path__count">
-          {path.read} of {path.lessons}
+          {path.lessonDone} of {path.lessonTotal}
         </span>
       </div>
 
@@ -214,7 +230,7 @@ function MiniPath({ path }) {
   return (
     <span className="sd-minipath" aria-hidden="true">
       <span className="sd-minipath__track">
-        <span className="sd-minipath__fill" style={{ width: share(path.read, path.lessons) }} />
+        <span className="sd-minipath__fill" style={{ width: share(path.lessonDone, path.lessonTotal) }} />
       </span>
       <span className="sd-minipath__track">
         <span className="sd-minipath__fill" style={{ width: share(path.quizzes, path.lessons) }} />
@@ -281,7 +297,7 @@ function CourseRow({ course, onOpen }) {
         path.finalPassed ? "passed" : "not passed yet"
       }`
     : total
-      ? `${done} of ${total} done, ${path.read} of ${path.lessons} lessons, ${path.quizzes} of ${
+      ? `${done} of ${total} done, ${path.lessonDone} of ${path.lessonTotal} lesson parts, ${path.quizzes} of ${
           path.lessons
         } lesson exams, final exam ${path.finalPassed ? "passed" : "not passed yet"}`
       : "No lessons yet";

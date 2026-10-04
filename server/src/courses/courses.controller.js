@@ -124,6 +124,11 @@ export function progressSummary(
     // The whole course: its lessons, their quizzes, their Pre-Assessments, and the final.
     itemCount,
     completedItems,
+    // Each part on its own, so a screen can draw them without subtracting.
+    quizzesPassed: quizzesDone,
+    finalPassed: Boolean(finalPassed) && lessons > 0,
+    preTotal,
+    preDone,
     progress: itemCount ? Math.round((completedItems / itemCount) * 100) : 0,
     status:
       itemCount > 0 && completedItems >= itemCount

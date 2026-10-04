@@ -187,3 +187,14 @@ describe("Pre-Assessments in the course", () => {
     expect(summary(0, 0, 0, false, { total: 3, done: 0 }).itemCount).toBe(0);
   });
 });
+
+describe("each part, sent as it is", () => {
+  it("names quizzes, the final and Pre-Assessments separately", () => {
+    expect(summary(4, 2, 1, false, { total: 4, done: 3 })).toMatchObject({
+      quizzesPassed: 1,
+      finalPassed: false,
+      preTotal: 4,
+      preDone: 3
+    });
+  });
+});
