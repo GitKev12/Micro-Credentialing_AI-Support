@@ -4540,3 +4540,30 @@ body:has(.student-app) {
     background: var(--sd-surface);
   }
 }
+
+/* ── Pre-Assessment ────────────────────────────────────── */
+/* At the foot of the lesson, after its last section. */
+.sd-pre-section {
+  margin-top: var(--sd-4, 1rem);
+  padding-top: var(--sd-4, 1rem);
+  border-top: 1px solid var(--sd-border);
+}
+
+/* The questions all on one page, with room between them. */
+.sd-pre .sd-quiz__item + .sd-quiz__item {
+  margin-top: var(--sd-4, 1.5rem);
+}
+
+.sd-pre__result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-2);
+}
+
+.sd-pre__explain {
+  margin: var(--sd-2) 0 0;
+  color: var(--sd-muted);
+  font-size: var(--sd-fs-meta);
+}

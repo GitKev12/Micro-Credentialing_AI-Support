@@ -12,11 +12,14 @@ import {
 // Student-scoped rather than the course-wide list in learningModules: a quiz's
 // lock state and result only exist relative to who is asking.
 import { fetchCourseAssessments } from "../../services/assessments";
+import { fetchCoursePreAssessments } from "../../services/preAssessments";
 import { hasCourseEnded } from "../../lib/courseDuration";
 import { useCourseSuspension } from "../../lib/useStanding";
 import {
   lessonPercent,
   lessonShare,
+  nextSectionNumeral,
+  readingWithPre,
   mergeReading,
   readStoredReading,
   sectionPercents,
@@ -24,6 +27,7 @@ import {
 } from "./lessonProgress";
 import LessonNav from "./components/LessonNav";
 import QuizRunner from "./components/QuizRunner";
+import PreAssessmentRunner from "./components/PreAssessmentRunner";
 import BadgeToast from "./components/BadgeToast";
 import { BackIcon, BookIcon, LockIcon, QuizIcon } from "./components/icons";
 import { shortDuration } from "./assessmentClock";
@@ -243,6 +247,8 @@ function LearningModules() {
   const [activeSection, setActiveSection] = useState(null);
   // The badge a quiz was just passed for, shown in the corner for five seconds.
   const [earnedBadge, setEarnedBadge] = useState(null);
+  // The course's Pre-Assessments, each with this student's attempt (or null).
+  const [preAssessments, setPreAssessments] = useState([]);
   // Bumped when a closed course opens again under the student, to send the
   // page back for everything it was refused while it was shut.
   const [reopened, setReopened] = useState(0);
@@ -301,9 +307,10 @@ function LearningModules() {
         assessments: [],
         assessOnly: false
       })),
-      fetchCourseProgress(studentId, courseId).catch(() => [])
+      fetchCourseProgress(studentId, courseId).catch(() => []),
+      fetchCoursePreAssessments(studentId, courseId).catch(() => [])
     ])
-      .then(([lessons, rail, completedList]) => {
+      .then(([lessons, rail, completedList, preList]) => {
         if (!active) return;
         const moduleList = lessons.modules;
         const assessmentList = rail.assessments;
@@ -312,6 +319,7 @@ function LearningModules() {
         setAssessments(assessmentList);
         setAssessOnly(rail.assessOnly);
         setCompletedIds(completedList.map(String));
+        setPreAssessments(preList);
         // Open the first lesson by default so the viewer isn't empty. Falling
         // back to a quiz, only one that can actually be opened: the list
         // includes locked placeholders for papers the assessor has not posted,
@@ -535,8 +543,9 @@ function LearningModules() {
   /**
    * How far through the course, counting everything the rail holds.
    *
-   * A course is its lessons, a quiz for each of them and one final — the same
-   * three things this rail lists — so the bar counts all three. Reading alone
+   * A course is its lessons, a quiz for each of them, each lesson's
+   * Pre-Assessment and one final — the things this rail lists — so the bar
+   * counts them all. Reading alone
    * put a student at 100% with every paper still to sit.
    *
    * The denominator is what the course *owes* rather than what has been posted:
@@ -561,10 +570,14 @@ function LearningModules() {
 
   const finalPassed = assessments.some((row) => row.scope === "final" && row.result?.passed);
 
+  // Each lesson's Pre-Assessment is one more item, when it has one.
+  const preTotal = Math.min(preAssessments.length, modules.length);
+  const preDone = Math.min(preAssessments.filter((pre) => pre.attempt).length, preTotal);
+
   // A course with no lessons owes nothing yet — not even a final.
-  const courseItems = modules.length ? modules.length * 2 + 1 : 0;
+  const courseItems = modules.length ? modules.length * 2 + preTotal + 1 : 0;
   const completedCount = Math.min(
-    lessonsDone + Math.min(quizzesPassed, modules.length) + (finalPassed ? 1 : 0),
+    lessonsDone + Math.min(quizzesPassed, modules.length) + preDone + (finalPassed ? 1 : 0),
     courseItems
   );
   const progressPercent = courseItems
@@ -609,11 +622,30 @@ function LearningModules() {
    */
   const lessonProgressFor = (moduleId) => {
     const read = isCompleted(moduleId) ? 100 : (reading[String(moduleId)]?.percent ?? 0);
-    return lessonShare(read, quizPassedFor(moduleId));
+    // A Pre-Assessment counts as one more section of the reading half.
+    const pre = preFor(moduleId);
+    const reread = readingWithPre(read, sectionsByModule[moduleId]?.length, Boolean(pre?.attempt), Boolean(pre));
+    return lessonShare(reread, quizPassedFor(moduleId));
   };
 
   const sectionProgressFor = (moduleId, sectionId) =>
     isCompleted(moduleId) ? 100 : (reading[String(moduleId)]?.sections?.[sectionId] ?? 0);
+
+  // Fetches a lesson's section list once and keeps it.
+  const loadSections = (moduleId) =>
+    fetchModuleSections(moduleId)
+      .then((sections) => setSectionsByModule((cache) => ({ ...cache, [moduleId]: sections })))
+      .catch(() => setSectionsByModule((cache) => ({ ...cache, [moduleId]: [] })));
+
+  // Lessons with a Pre-Assessment need their section count for the percentage,
+  // so their section lists are loaded up front.
+  useEffect(() => {
+    preAssessments.forEach((pre) => {
+      if (!sectionsByModule[pre.moduleId]) loadSections(pre.moduleId);
+    });
+    // Only when the Pre-Assessments arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preAssessments.length]);
 
   const toggleSections = (module) => {
     const moduleId = module.id;
@@ -633,6 +665,19 @@ function LearningModules() {
         );
     }
   };
+
+  // A lesson's Pre-Assessment, if it has one.
+  const preFor = (moduleId) =>
+    preAssessments.find((pre) => String(pre.moduleId) === String(moduleId)) ?? null;
+
+  // The Pre-Assessment sits at the bottom of the lesson: open the lesson and scroll to it.
+  const openPreAssessment = (module) => openSection(module, { id: "pre" });
+
+  // Keeps the attempt, so the lesson opens and the rail shows the score.
+  const notePreAttempt = (preAssessmentId, attempt) =>
+    setPreAssessments((list) =>
+      list.map((pre) => (pre.id === preAssessmentId ? { ...pre, attempt } : pre))
+    );
 
   const openSection = (module, section) => {
     setSelected({ type: "lesson", item: module });
@@ -935,6 +980,8 @@ function LearningModules() {
                 onToggleSections={toggleSections}
                 onOpenSection={openSection}
                 onOpenAssessment={openAssessment}
+                preAssessmentFor={preFor}
+                onOpenPreAssessment={openPreAssessment}
               />
             )}
           </div>
@@ -1114,6 +1161,21 @@ function LearningModules() {
                       ))
                     )}
                   </div>
+                ) : null}
+
+                {/* The lesson's Pre-Assessment, after its last section. */}
+                {lessonText && preFor(selectedLessonId) ? (
+                  <section id="lesson-section-pre" className="lesson-reader__section sd-pre-section">
+                    <h2 className="lesson-reader__h2">
+                      {nextSectionNumeral(lessonText.sections)}. Pre-Assessment
+                    </h2>
+                    <PreAssessmentRunner
+                      key={selectedLessonId}
+                      studentId={studentId}
+                      preAssessment={preFor(selectedLessonId)}
+                      onSubmitted={notePreAttempt}
+                    />
+                  </section>
                 ) : null}
               </div>
             </div>

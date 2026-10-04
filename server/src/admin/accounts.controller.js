@@ -611,6 +611,7 @@ export async function deleteStudent(request, response) {
 
   const submissions = await removeFrom(RESULTS_COLLECTION, { studentId: { $in: keys } });
   const completions = await removeFrom(PROGRESS_COLLECTION, { studentId: { $in: keys } });
+  await removeFrom("PreAssessmentAttempt", { studentId: { $in: keys } });
   // Through the certificates service, so the PDF file goes with the record.
   const certificates = await removeIssuedCertificatesFor(asId(student._id));
 

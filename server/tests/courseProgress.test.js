@@ -164,3 +164,26 @@ describe("whether the final has been passed", () => {
     expect(finalPassedFrom([sitting("a-missing", 10)], papers)).toBe(false);
   });
 });
+
+describe("Pre-Assessments in the course", () => {
+  it("adds one item per lesson that has one", () => {
+    // 4 lessons, 3 with a Pre-Assessment -> 4 + 4 + 3 + 1.
+    expect(summary(4, 0, 0, false, { total: 3, done: 0 }).itemCount).toBe(12);
+  });
+
+  it("counts the ones taken", () => {
+    const course = summary(4, 4, 4, true, { total: 4, done: 2 });
+    // 4 read + 4 quizzes + 2 Pre-Assessments + the final, out of 13.
+    expect(course.completedItems).toBe(11);
+    expect(course.status).toBe("in-progress");
+    expect(summary(4, 4, 4, true, { total: 4, done: 4 }).status).toBe("completed");
+  });
+
+  it("can never count more than there are lessons", () => {
+    expect(summary(2, 0, 0, false, { total: 5, done: 5 }).itemCount).toBe(7);
+  });
+
+  it("adds nothing to a course with no lessons", () => {
+    expect(summary(0, 0, 0, false, { total: 3, done: 0 }).itemCount).toBe(0);
+  });
+});

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { loadPreProgress } from "../preAssessments/preAssessments.controller.js";
 import { idCandidates } from "../lib/mongo.js";
 import {
   DEFAULT_POINTS_PER_ITEM,
@@ -578,6 +579,11 @@ export async function getRoster(request, response) {
     credsByStudent.set(key, (credsByStudent.get(key) ?? 0) + 1);
   });
 
+  const preProgress = await loadPreProgress(
+    students.map((student) => student._id),
+    [course._id]
+  );
+
   const courseProgressFor = (student) => {
     const key = asId(student._id);
     const mine = resultsByStudent.get(key) ?? [];
@@ -589,7 +595,8 @@ export async function getRoster(request, response) {
       totalModules,
       doneByStudent.get(key) ?? 0,
       quizzes,
-      finalPassedFrom(mine, assessmentById)
+      finalPassedFrom(mine, assessmentById),
+      preProgress(student._id, course._id)
     );
 
     return {
@@ -1084,7 +1091,8 @@ export async function getStudentDetail(request, response) {
     modules.length,
     [...readAtByModule.keys()].filter((moduleId) => moduleIds.has(moduleId)).length,
     passedLessons.length,
-    finalPassed
+    finalPassed,
+    (await loadPreProgress([student._id], [course._id]))(student._id, course._id)
   );
 
   // The badges themselves, from the catalog: this course's artwork, one badge

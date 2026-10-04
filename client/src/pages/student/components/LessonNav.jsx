@@ -1,5 +1,6 @@
 import { CheckIcon, ChevronDownIcon, ClockIcon, LockIcon, QuizIcon } from "./icons";
 import { shortDuration } from "../assessmentClock";
+import { nextSectionNumeral } from "../lessonProgress";
 
 /**
  * The lesson list in the learning-modules rail.
@@ -40,7 +41,9 @@ function LessonNav({
   onSelectLesson,
   onToggleSections,
   onOpenSection,
-  onOpenAssessment
+  onOpenAssessment,
+  preAssessmentFor,
+  onOpenPreAssessment
 }) {
   return (
     <ul className="sd-lesson-nav">
@@ -55,6 +58,9 @@ function LessonNav({
         const loading = !sections && sectionsLoadingId === module.id;
         const quizzes = assessmentsByModule[module.id] ?? [];
         const panelId = `lesson-sections-${module.id}`;
+        // The lesson's Pre-Assessment, listed at the bottom of its sections.
+        const pre = preAssessmentFor?.(module.id) ?? null;
+        const preHere = activeSection?.moduleId === module.id && activeSection?.sectionId === "pre";
         // Reading and quiz together — half each, see lessonProgress.js.
         const read = lessonProgressFor?.(module.id) ?? 0;
         // The whole lesson, both halves of it. Only this fills the bullet in.
@@ -137,11 +143,11 @@ function LessonNav({
                       </li>
                     ))}
                   </ul>
-                ) : !sections || sections.length === 0 ? (
+                ) : (!sections || sections.length === 0) && !pre ? (
                   <p className="sd-lesson__note">No sections detected in this module.</p>
                 ) : (
                   <ul className="sd-sections">
-                    {sections.map((section) => {
+                    {(sections ?? []).map((section) => {
                       const here =
                         activeSection?.moduleId === module.id &&
                         activeSection?.sectionId === section.id;
@@ -183,8 +189,40 @@ function LessonNav({
                         </li>
                       );
                     })}
+
+                    {/* The Pre-Assessment, as the lesson's last section. */}
+                    {pre ? (
+                      <li
+                        className={`sd-sections__item${preHere ? " is-here" : ""}`}
+                        data-state={pre.attempt ? "done" : "todo"}
+                      >
+                        <button
+                          type="button"
+                          className="sd-sections__btn"
+                          onClick={() => onOpenPreAssessment(module)}
+                          aria-current={preHere ? "true" : undefined}
+                        >
+                          <span
+                            className="sd-sections__node"
+                            style={{ "--read": pre.attempt ? 100 : 0 }}
+                            aria-hidden="true"
+                          >
+                            {pre.attempt ? <CheckIcon size={9} /> : null}
+                          </span>
+                          <span className="sd-sections__body">
+                            <span className="sd-sections__head">
+                              <span className="sd-sections__title">
+                                {nextSectionNumeral(sections)}. Pre-Assessment
+                              </span>
+                              <span className="sd-sections__pct">{pre.attempt ? 100 : 0}%</span>
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ) : null}
                   </ul>
                 )}
+
               </div>
             ) : null}
 

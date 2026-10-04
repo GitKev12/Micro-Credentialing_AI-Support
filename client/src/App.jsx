@@ -6,6 +6,7 @@ import CourseManagement from "./pages/admin/CourseManagement";
 import StudentsManagement from "./pages/admin/StudentsManagement";
 import AssessorsManagement from "./pages/admin/AssessorsManagement";
 import ClassesManagement from "./pages/admin/ClassesManagement";
+import PreAssessmentPage from "./pages/admin/PreAssessmentPage";
 import StudentLayout from "./pages/student/StudentLayout";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import AchievementsPage from "./pages/student/AchievementsPage";
@@ -105,6 +106,10 @@ function App() {
         >
           <Route index element={<Navigate to="/admin/courses" replace />} />
           <Route path="courses" element={<CourseManagement />} />
+          <Route
+            path="courses/:courseId/lessons/:moduleId/pre-assessment"
+            element={<PreAssessmentPage />}
+          />
           <Route path="classes" element={<ClassesManagement />} />
           <Route path="students" element={<StudentsManagement />} />
           <Route path="assessors" element={<AssessorsManagement />} />

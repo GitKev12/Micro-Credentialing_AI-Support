@@ -87,6 +87,52 @@ export function lessonShare(readPercent, quizPassed) {
 }
 
 /**
+ * The reading half when the lesson has a Pre-Assessment: it counts as one
+ * more section beside the lesson's own. `sectionCount` is how many sections
+ * the lesson has (at least 1). Without a Pre-Assessment, reading is unchanged.
+ */
+export function readingWithPre(readPercent, sectionCount, preDone, hasPre = true) {
+  const read = Number.isFinite(readPercent) ? Math.max(0, Math.min(100, readPercent)) : 0;
+  if (!hasPre) return read;
+  const sections = Math.max(1, Number(sectionCount) || 1);
+  return Math.floor((read * sections + (preDone ? 100 : 0)) / (sections + 1));
+}
+
+/** The Roman numeral that comes after a lesson's last numbered section ("IV. …" → "V"). */
+const ROMAN = [["M", 1000], ["CM", 900], ["D", 500], ["CD", 400], ["C", 100], ["XC", 90], ["L", 50], ["XL", 40], ["X", 10], ["IX", 9], ["V", 5], ["IV", 4], ["I", 1]];
+
+const toRoman = (number) =>
+  ROMAN.reduce((text, [mark, value]) => {
+    let out = text;
+    while (number >= value) {
+      out += mark;
+      number -= value;
+    }
+    return out;
+  }, "");
+
+const fromRoman = (text) => {
+  let total = 0;
+  let rest = text;
+  for (const [mark, value] of ROMAN) {
+    while (rest.startsWith(mark)) {
+      total += value;
+      rest = rest.slice(mark.length);
+    }
+  }
+  return rest ? 0 : total;
+};
+
+export function nextSectionNumeral(sections) {
+  const highest = (sections ?? []).reduce((max, section) => {
+    const match = /^([IVXLCDM]+)\.\s/.exec(String(section?.title ?? "").trim());
+    return match ? Math.max(max, fromRoman(match[1])) : max;
+  }, 0);
+  // No numbered sections: number it after however many there are.
+  return toRoman((highest || (sections ?? []).length) + 1);
+}
+
+/**
  * Folds a fresh measurement into what was already known, keeping the highest
  * figure for the lesson and for each of its sections.
  *
