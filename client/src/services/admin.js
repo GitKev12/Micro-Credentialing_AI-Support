@@ -126,6 +126,24 @@ export async function deleteModuleBadge(moduleId) {
   await api.delete(`/admin/modules/${moduleId}/badge`);
 }
 
+/* ---- Lesson pre-assessments ---- */
+
+/** Resolves to `{ module, preAssessment }`; preAssessment is null when the lesson has none. */
+export async function fetchModulePreAssessment(moduleId) {
+  const { data } = await api.get(`/admin/modules/${moduleId}/pre-assessment`);
+  return data;
+}
+
+/** Saves `{ items, active }` for the lesson. */
+export async function saveModulePreAssessment(moduleId, preAssessment) {
+  const { data } = await api.put(`/admin/modules/${moduleId}/pre-assessment`, preAssessment);
+  return data.preAssessment;
+}
+
+export async function deleteModulePreAssessment(moduleId) {
+  await api.delete(`/admin/modules/${moduleId}/pre-assessment`);
+}
+
 /**
  * What deleting a module would take with it — `{ assessments, completions,
  * figures }` — read before the confirmation rather than reported after it.

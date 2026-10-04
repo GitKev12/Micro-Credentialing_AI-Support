@@ -181,6 +181,11 @@ const AGREEMENT_HEADING = /\bAGREEMENTS?\b/;
 // TEST alternatives require the PRE-/POST- prefix.
 const EVALUATION_HEADING = /\b(EVALUATION|POST[-\s]?TEST|PRE[-\s]?TEST|ASSESSMENT|QUIZ)\b/;
 
+// The lesson's own assignment/homework part ("ASSIGNMENT", "VI. ASSIGNMENT",
+// "HOMEWORK", "TAKE-HOME ACTIVITY"). The whole heading must be that word, so a
+// topic like "ASSIGNMENT OPERATORS" in a Java lesson stays.
+const ASSIGNMENT_HEADING = /^(ASSIGNMENTS?|HOMEWORKS?|TAKE[-\s]?HOME( (ACTIVITY|ACTIVITIES|TASKS?|WORK))?)( ?\/.*)?$/;
+
 // Chapter number banners ("CHAPTER 1", "CHAPTER II", "CHAPTER #", "CHAPTER
 // # 3") — dropped along with whatever sits under them until the next heading.
 const CHAPTER_HEADING = /^CHAPTER\s*#?\s*(\d{1,3}|[IVXL]{1,7})?$/;
@@ -196,6 +201,7 @@ function isBoilerplateHeading(text) {
   return (
     AGREEMENT_HEADING.test(normalized) ||
     EVALUATION_HEADING.test(normalized) ||
+    ASSIGNMENT_HEADING.test(normalized) ||
     CHAPTER_HEADING.test(normalized) ||
     BOILERPLATE_SECTIONS.includes(normalized) ||
     BOILERPLATE_PREFIXES.some((prefix) => normalized.startsWith(prefix))

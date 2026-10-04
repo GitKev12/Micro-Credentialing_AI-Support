@@ -22,6 +22,7 @@ import {
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 import { publicBadge } from "./badges.controller.js";
+import { loadPreProgress, preAssessmentSummaries } from "../preAssessments/preAssessments.controller.js";
 
 /**
  * Admin console endpoints — courses, students, assessors and the Table of
@@ -194,6 +195,7 @@ export async function getCourse(request, response) {
         .toArray()
     : [];
   const badgeByModule = new Map(badges.map((badge) => [asId(badge.moduleId), badge]));
+  const preByModule = await preAssessmentSummaries(modules.map((module) => module._id));
 
   return response.json({
     course: {
@@ -212,7 +214,8 @@ export async function getCourse(request, response) {
         fileName: module.fileName ?? "",
         fileSize: module.fileSize ?? null,
         uploadDate: module.uploadDate ?? null,
-        badge: publicBadge(badgeByModule.get(asId(module._id)))
+        badge: publicBadge(badgeByModule.get(asId(module._id))),
+        preAssessment: preByModule.get(asId(module._id)) ?? null
       }))
     }
   });
@@ -289,6 +292,8 @@ async function progressForStudent(student, courses) {
     noteDate(asId(result.courseId ?? paper?.courseId ?? ""), result.submittedAt);
   });
 
+  const preProgress = await loadPreProgress([student._id], enrolled);
+
   const rows = [];
   for (const courseId of enrolled) {
     const key = asId(courseId);
@@ -307,7 +312,8 @@ async function progressForStudent(student, courses) {
       total,
       done,
       passedFromResults(mine, assessmentById).size,
-      finalPassedFrom(mine, assessmentById)
+      finalPassedFrom(mine, assessmentById),
+      preProgress(student._id, key)
     );
 
     rows.push({

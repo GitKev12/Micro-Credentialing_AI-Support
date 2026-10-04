@@ -8,6 +8,7 @@ import certificateRoutes from "./certificates/certificates.routes.js";
 import courseRoutes from "./courses/courses.routes.js";
 import healthRoutes from "./health/health.routes.js";
 import moduleRoutes from "./modules/modules.routes.js";
+import preAssessmentRoutes from "./preAssessments/preAssessments.routes.js";
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/assessors", assessorRoutes);
 app.use("/api", certificateRoutes);
 app.use("/api", moduleRoutes);
 app.use("/api", assessmentRoutes);
+app.use("/api", preAssessmentRoutes);
 
 /**
  * An unknown /api path is a JSON 404, not Express's HTML one.

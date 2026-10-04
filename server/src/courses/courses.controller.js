@@ -13,6 +13,7 @@ import {
   toCourseAccess
 } from "../lib/courseAccess.js";
 import { ASSESS_ONLY, TAUGHT } from "../lib/classMode.js";
+import { loadPreProgress } from "../preAssessments/preAssessments.controller.js";
 
 /**
  * "Abang" — lookout endpoints that wait for their collections.
@@ -93,24 +94,41 @@ function toPublicCourse(course, progress, suspension = null, mode = TAUGHT) {
  * The student's rail runs this same sum on its own copy of the data (see
  * LearningModules.jsx). They must agree; change them together.
  */
-export function progressSummary(moduleCount, completedModules, passedQuizzes = 0, finalPassed = false) {
+export function progressSummary(
+  moduleCount,
+  completedModules,
+  passedQuizzes = 0,
+  finalPassed = false,
+  pre = { total: 0, done: 0 }
+) {
   const lessons = Math.max(0, moduleCount);
   const lessonsDone = Math.max(0, Math.min(completedModules, lessons));
   // One quiz per lesson, so no more of them can be passed than there are.
   const quizzesDone = Math.max(0, Math.min(passedQuizzes, lessons));
+  // Each lesson's Pre-Assessment is one more item, when the lesson has one.
+  const preTotal = lessons ? Math.max(0, Math.min(pre?.total ?? 0, lessons)) : 0;
+  const preDone = Math.max(0, Math.min(pre?.done ?? 0, preTotal));
 
   // A course with no lessons owes nothing yet — not even a final.
-  const itemCount = lessons ? lessons * 2 + 1 : 0;
-  const completedItems = Math.min(lessonsDone + quizzesDone + (finalPassed ? 1 : 0), itemCount);
+  const itemCount = lessons ? lessons * 2 + preTotal + 1 : 0;
+  const completedItems = Math.min(
+    lessonsDone + quizzesDone + preDone + (finalPassed ? 1 : 0),
+    itemCount
+  );
 
   return {
     // The lessons on their own, still, for anything that counts reading rather
     // than progress through the course.
     moduleCount: lessons,
     completedModules: lessonsDone,
-    // The whole course: its lessons, their quizzes, and the final.
+    // The whole course: its lessons, their quizzes, their Pre-Assessments, and the final.
     itemCount,
     completedItems,
+    // Each part on its own, so a screen can draw them without subtracting.
+    quizzesPassed: quizzesDone,
+    finalPassed: Boolean(finalPassed) && lessons > 0,
+    preTotal,
+    preDone,
     progress: itemCount ? Math.round((completedItems / itemCount) * 100) : 0,
     status:
       itemCount > 0 && completedItems >= itemCount
@@ -331,6 +349,10 @@ export async function getStudentCourses(request, response) {
   if (courses.length === 0) return response.json({ courses: [] });
 
   const { index, owner } = await buildProgressIndex(studentId, student, courses);
+  const preProgress = await loadPreProgress(
+    [studentId, student?._id].filter(Boolean),
+    courses.map((course) => course._id)
+  );
   const passes = await buildPassIndex(studentId, student, courses, owner);
   // Classes hold the student by their Mongo _id; the route may have been given
   // their student number instead, so ask with the id the class would have used.
@@ -354,7 +376,13 @@ export async function getStudentCourses(request, response) {
         // candidate who has done nothing wrong as nought per cent.
         mode === ASSESS_ONLY
           ? progressSummary(0, 0, 0, passed.final)
-          : progressSummary(total, completed, passed.quizzes.size, passed.final),
+          : progressSummary(
+              total,
+              completed,
+              passed.quizzes.size,
+              passed.final,
+              preProgress(studentId, key, student?._id)
+            ),
         suspensions.get(key) ?? null,
         mode
       );

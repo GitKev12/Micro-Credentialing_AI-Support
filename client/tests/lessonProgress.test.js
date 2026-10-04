@@ -3,6 +3,8 @@ import {
   lessonPercent,
   lessonShare,
   mergeReading,
+  nextSectionNumeral,
+  readingWithPre,
   readStoredReading,
   sectionPercent,
   sectionPercents,
@@ -201,5 +203,25 @@ describe("lessonShare", () => {
     expect(lessonShare(150, true)).toBe(100);
     expect(lessonShare(-20, false)).toBe(0);
     expect(lessonShare(Number.NaN, true)).toBe(50);
+  });
+});
+
+describe("a Pre-Assessment counts as one more section", () => {
+  it("leaves reading alone when the lesson has none", () => {
+    expect(readingWithPre(60, 4, false, false)).toBe(60);
+  });
+
+  it("holds a fully read lesson short of 100 until it is taken", () => {
+    expect(readingWithPre(100, 4, false)).toBe(80);
+    expect(readingWithPre(100, 4, true)).toBe(100);
+  });
+
+  it("gives its share on its own, before any reading", () => {
+    expect(readingWithPre(0, 4, true)).toBe(20);
+  });
+
+  it("is numbered after the last numbered section", () => {
+    expect(nextSectionNumeral([{ title: "Module Overview" }, { title: "I. RATIONALE" }, { title: "IV. SYNTHESIS" }])).toBe("V");
+    expect(nextSectionNumeral([{ title: "What Java is" }, { title: "Arrays" }])).toBe("III");
   });
 });

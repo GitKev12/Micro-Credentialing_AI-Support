@@ -18,6 +18,7 @@ import {
   insertFigureBlocks
 } from "./modules.format.js";
 import { sortLessons } from "../lib/lessonOrder.js";
+import { lessonLockFor, loadLessonLocks } from "../lib/lessonLocks.js";
 
 /**
  * Learning modules (lessons) and assessments for a course.
@@ -50,7 +51,8 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 // anchor to their "Figure N" caption text when present (geometry is only the
 // fallback), since the reflowed text makes raw position unreliable. v26:
 // full-page covers/scans are skipped and over-tall merges are split, so a
-// figure is never a whole page or a stack of unrelated diagrams. v27: five
+// figure is never a whole page or a stack of unrelated diagrams. v28: the
+// lesson's Assignment/Homework part is dropped too. v27: five
 // numbering and placement fixes — a marker stranded on its own line is
 // rejoined to its step, a blank line between steps no longer ends the run, a
 // split run says which number it resumes at, a numbered section title is a
@@ -61,7 +63,7 @@ const COURSE_IMAGES_BUCKET = "CourseImage";
 const MODULE_TEXT_COLLECTION = "ModuleText";
 // Bumping this is what re-extracts every cached module. The fixes above only
 // reach a lesson whose cache entry is older than the version that made them.
-const TEXT_FORMAT_VERSION = 27;
+const TEXT_FORMAT_VERSION = 28;
 
 // Cropped figure images (PNG) are stored here, one GridFS file per figure,
 // tagged with metadata.moduleId so a re-extraction can replace them.
@@ -157,6 +159,12 @@ async function refuseLesson(request, response, module) {
     return response.status(404).json({ message: "Learning module not found." });
   }
 
+  // Lessons open one at a time: the previous lesson's exam must be passed.
+  if (request.session?.role === "student") {
+    const reason = await lessonLockFor(request.session.id, module);
+    if (reason) return response.status(423).json({ message: reason, locked: true });
+  }
+
   return null;
 }
 
@@ -192,7 +200,19 @@ export async function getCourseModules(request, response) {
 
   sortLessons(modules);
 
-  return response.json({ course, modules: modules.map(toPublicModule) });
+  // For a student, each lesson says whether it is open yet and why not.
+  const locks =
+    request.session?.role === "student"
+      ? await loadLessonLocks(request.session.id, found ?? courseId, modules)
+      : new Map();
+
+  return response.json({
+    course,
+    modules: modules.map((module) => {
+      const reason = locks.get(String(module._id)) ?? null;
+      return { ...toPublicModule(module), locked: Boolean(reason), lockReason: reason };
+    })
+  });
 }
 
 export async function getCourseAssessments(request, response) {
@@ -592,6 +612,10 @@ export async function markModuleComplete(request, response) {
   if (await lessonsHiddenFromStudent(request.params.studentId, module.courseId ?? module.courseCode)) {
     return response.status(404).json({ message: "Learning module not found." });
   }
+
+  // A lesson still locked behind the previous exam can't be finished either.
+  const lockReason = await lessonLockFor(request.params.studentId, module);
+  if (lockReason) return response.status(423).json({ message: lockReason, locked: true });
 
   const record = {
     studentId: String(request.params.studentId),

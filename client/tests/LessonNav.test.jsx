@@ -268,3 +268,26 @@ describe("LessonNav — a locked quiz", () => {
     expect(screen.queryByText("Locked")).not.toBeInTheDocument();
   });
 });
+
+describe("the Pre-Assessment row", () => {
+  const pre = { id: "pa1", moduleId: "m1", items: [], attempt: null };
+
+  it("sits last in the section list, numbered after the sections", () => {
+    const onOpenPreAssessment = jest.fn();
+    draw({ preAssessmentFor: (id) => (id === "m1" ? pre : null), onOpenPreAssessment });
+
+    const rows = screen.getAllByRole("listitem").filter((row) => row.classList.contains("sd-sections__item"));
+    expect(within(rows[rows.length - 1]).getByText("IV. Pre-Assessment")).toBeTruthy();
+    expect(within(rows[rows.length - 1]).getByText("0%")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("IV. Pre-Assessment"));
+    expect(onOpenPreAssessment).toHaveBeenCalledWith(MODULES[0]);
+  });
+
+  it("reads 100% once taken", () => {
+    draw({ preAssessmentFor: () => ({ ...pre, attempt: { score: 4, total: 5 } }) });
+    const row = screen.getByText("IV. Pre-Assessment").closest("li");
+    expect(row.dataset.state).toBe("done");
+    expect(within(row).getByText("100%")).toBeTruthy();
+  });
+});

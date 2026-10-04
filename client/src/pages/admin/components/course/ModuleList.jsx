@@ -23,6 +23,7 @@ export default function ModuleList({
   impact,
   onPreview,
   onBadge,
+  onPreAssessment,
   onAskRemove,
   onRemove,
   onCancelRemove,
@@ -137,6 +138,24 @@ export default function ModuleList({
                   </div>
                 ) : (
                   <div className="admin-lesson__actions">
+                    {/* Shows its question count once it has one; quiet while switched off. */}
+                    <button
+                      type="button"
+                      className={`admin-chip-btn admin-lesson__pre${
+                        module.preAssessment?.active ? "" : " admin-chip-btn--quiet"
+                      }`}
+                      onClick={() => onPreAssessment(module)}
+                      aria-label={`Pre-Assessment for ${module.title}`}
+                      title={
+                        module.preAssessment
+                          ? module.preAssessment.active
+                            ? "Pre-Assessment"
+                            : "Pre-Assessment (not enabled)"
+                          : "Add a Pre-Assessment"
+                      }
+                    >
+                      {module.preAssessment ? `Pre-Assessment · ${module.preAssessment.count}` : "+ Pre-Assessment"}
+                    </button>
                     <button
                       type="button"
                       className="admin-chip-btn admin-chip-btn--quiet"

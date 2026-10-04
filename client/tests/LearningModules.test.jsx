@@ -77,6 +77,12 @@ jest.unstable_mockModule("../src/services/assessments.js", () => ({
   submitAssessment: jest.fn()
 }));
 
+// No lesson here has a Pre-Assessment.
+jest.unstable_mockModule("../src/services/preAssessments.js", () => ({
+  fetchCoursePreAssessments: async () => [],
+  submitPreAssessment: jest.fn()
+}));
+
 let LearningModules, MemoryRouter, Routes, Route;
 // The live standing store, written to here the way the watcher writes to it.
 let reportCourseStanding, clearStanding;

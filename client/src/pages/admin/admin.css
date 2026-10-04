@@ -5614,3 +5614,85 @@
   font-size: 0.875rem;
   color: var(--text-body);
 }
+
+/* ── Pre-Assessment page ───────────────────────────────── */
+.admin-pre-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-pre-item__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.admin-pre-item__num {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+.admin-pre-item__type {
+  min-width: 11rem;
+  margin-left: auto;
+}
+
+.admin-pre-choices {
+  margin: 0 0 0.875rem;
+  padding: 0;
+  border: 0;
+}
+
+.admin-pre-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-pre-choice input[type="radio"] {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--brand);
+}
+
+.admin-pre-choice .admin-input {
+  flex: 1;
+}
+
+.admin-pre-choice__text {
+  font-size: 0.9375rem;
+  color: var(--text-body);
+}
+
+.admin-pre-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Enable on the left, Delete and Save on the right. */
+.admin-pre-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-pre-foot__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-lesson__pre {
+  white-space: nowrap;
+}

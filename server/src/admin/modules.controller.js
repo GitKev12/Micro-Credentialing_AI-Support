@@ -5,6 +5,7 @@ import { readCourseDates, startsInPast, toIsoDay } from "../lib/courseDates.js";
 import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { syncAllAssessors } from "./enrollment.sync.js";
+import { removePreAssessmentsFor } from "../preAssessments/preAssessments.controller.js";
 
 /**
  * Adding and removing a course's learning modules.
@@ -316,6 +317,8 @@ async function purgeModule(module) {
   const completions = await collection(PROGRESS_COLLECTION).deleteMany(byModule);
   // Its badge has no lesson to be earned from any more.
   await collection(BADGES_COLLECTION).deleteMany(byModule);
+  // And its pre-assessment, with every student's attempt at it.
+  await removePreAssessmentsFor(module._id);
 
   await collection(MODULES_COLLECTION).deleteOne({ _id: module._id });
 

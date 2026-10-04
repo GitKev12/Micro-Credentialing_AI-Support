@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   createCourse,
   createCourseModule,
@@ -46,6 +47,8 @@ import { courseKeeps, courseLosses } from "./lib/deleteText";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 
 function CourseManagement() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
@@ -123,6 +126,17 @@ function CourseManagement() {
         if (detailRequest.isCurrent(token)) setDetailStatus("error");
       });
   };
+
+  // Coming back from a lesson's Pre-Assessment page: open that course again.
+  const returnTo = location.state?.openCourseId;
+  useEffect(() => {
+    if (returnTo) openCourse(returnTo);
+    // Only when the page is opened with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnTo]);
+
+  const openPreAssessment = (module) =>
+    navigate(`/admin/courses/${selected.id}/lessons/${module.id}/pre-assessment`);
 
   const closeCourse = () => {
     setSelected(null);
@@ -497,6 +511,7 @@ function CourseManagement() {
           impact={impact}
           onPreview={setPreview}
           onBadge={openBadge}
+          onPreAssessment={openPreAssessment}
           onAskRemove={askToRemove}
           onRemove={removeModule}
           onCancelRemove={() => {
