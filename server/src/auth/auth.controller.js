@@ -69,6 +69,11 @@ function getStoredPassword(account) {
  * bcrypt.compare returns false rather than throwing on a malformed hash, so a
  * bad row fails the login instead of failing the request.
  */
+/** A password is plain text; anything else counts as empty. */
+function readPassword(value) {
+  return typeof value === "string" ? value : "";
+}
+
 async function isPasswordValid(password, storedPassword) {
   if (!storedPassword) return false;
   return bcrypt.compare(String(password), storedPassword);
@@ -134,7 +139,7 @@ export async function findLoginAccount(identifier) {
 
 export async function loginUser(request, response) {
   const identifier = readIdentifier(request.body?.identifier);
-  const password = request.body?.password;
+  const password = readPassword(request.body?.password);
 
   if (!identifier || !password) {
     return response
@@ -295,7 +300,9 @@ export async function streamStanding(request, response) {
 }
 
 export async function loginAdmin(request, response) {
-  const { identifier, password } = request.body ?? {};
+  // Read the same way as the student sign-in, so `{ "$ne": null }` is empty.
+  const identifier = readIdentifier(request.body?.identifier);
+  const password = readPassword(request.body?.password);
 
   if (!identifier || !password) {
     return response.status(400).json({ message: "Admin email and password are required." });
