@@ -49,6 +49,7 @@ import {
   listClasses,
   updateClass
 } from "./classes.controller.js";
+import { deleteModuleBadge, saveModuleBadge } from "./badges.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 // Mounted at /api/admin, so these resolve to:
@@ -65,6 +66,8 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   POST   /api/admin/courses/:id/modules              — add a lesson (PDF body)
 //   GET    /api/admin/modules/:moduleId/impact         — what deleting it would take
 //   DELETE /api/admin/modules/:moduleId                — remove a lesson
+//   PUT    /api/admin/modules/:moduleId/badge          — add or edit its badge { title, description, icon?, active }
+//   DELETE /api/admin/modules/:moduleId/badge          — remove its badge
 //   GET    /api/admin/students                         — list
 //   POST   /api/admin/students                         — create   { firstName, lastName, email, studentNumber?, password }
 //   GET    /api/admin/students/next-id                 — the ID a new student would get
@@ -153,6 +156,8 @@ router.delete("/courses/:id/image", removeCourseImage);
 router.post("/courses/:id/modules", readLessonFile, createCourseModule);
 router.get("/modules/:moduleId/impact", getModuleImpact);
 router.delete("/modules/:moduleId", deleteCourseModule);
+router.put("/modules/:moduleId/badge", saveModuleBadge);
+router.delete("/modules/:moduleId/badge", deleteModuleBadge);
 
 // Delete only works on an archived account (see /status).
 // Who is enrolled or assigned is settled by the class, below.

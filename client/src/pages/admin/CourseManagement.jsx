@@ -4,11 +4,13 @@ import {
   createCourseModule,
   deleteCourse,
   deleteCourseModule,
+  deleteModuleBadge,
   fetchCourse,
   fetchCourseImpact,
   fetchCourses,
   fetchModuleImpact,
   removeCourseImage,
+  saveModuleBadge,
   setCourseStatus,
   updateCourse,
   uploadCourseImage,
@@ -30,6 +32,7 @@ import {
   Pagination,
   usePagination
 } from "./components/ui";
+import BadgeForm from "./components/course/BadgeForm";
 import CourseForm from "./components/course/CourseForm";
 import CourseHeader from "./components/course/CourseHeader";
 import CourseImageForm from "./components/course/CourseImageForm";
@@ -75,6 +78,10 @@ function CourseManagement() {
   const [imageBusy, setImageBusy] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
   const [courseForm, setCourseForm] = useState(null);
+  // The lesson whose badge is being added or edited.
+  const [badgeFor, setBadgeFor] = useState(null);
+  const [badgeBusy, setBadgeBusy] = useState(false);
+  const [badgeError, setBadgeError] = useState(null);
   const [formError, setFormError] = useState(null);
 
   useEffect(() => {
@@ -120,6 +127,7 @@ function CourseManagement() {
   const closeCourse = () => {
     setSelected(null);
     setPreview(null);
+    setBadgeFor(null);
     setConfirming(null);
     setNotice(null);
   };
@@ -195,6 +203,54 @@ function CourseManagement() {
       setFormError(errorMessage(error, "Couldn't remove that picture. Try again."));
     } finally {
       setImageBusy(false);
+    }
+  };
+
+  const openBadge = (module) => {
+    setBadgeError(null);
+    setBadgeFor(module);
+  };
+
+  // Puts the lesson's new badge (or null) on its row.
+  const setModuleBadge = (moduleId, badge) =>
+    setSelected((course) =>
+      course
+        ? {
+            ...course,
+            modules: (course.modules ?? []).map((entry) =>
+              entry.id === moduleId ? { ...entry, badge } : entry
+            )
+          }
+        : course
+    );
+
+  const saveBadge = async (values) => {
+    setBadgeBusy(true);
+    setBadgeError(null);
+    try {
+      const badge = await saveModuleBadge(badgeFor.id, values);
+      setModuleBadge(badgeFor.id, badge);
+      setNotice({ tone: "ok", text: `The badge “${badge.title}” was saved.` });
+      setBadgeFor(null);
+    } catch (error) {
+      setBadgeError(errorMessage(error, "Couldn't save this badge. Try again."));
+    } finally {
+      setBadgeBusy(false);
+    }
+  };
+
+  const removeBadge = async () => {
+    setBadgeBusy(true);
+    setBadgeError(null);
+    try {
+      await deleteModuleBadge(badgeFor.id);
+      setModuleBadge(badgeFor.id, null);
+      setNotice({ tone: "ok", text: `The badge for “${badgeFor.title}” was deleted.` });
+      setBadgeFor(null);
+    } catch (error) {
+      setBadgeError(errorMessage(error, "Couldn't delete this badge. Try again."));
+    } finally {
+      setBadgeBusy(false);
     }
   };
 
@@ -440,6 +496,7 @@ function CourseManagement() {
           confirming={confirming}
           impact={impact}
           onPreview={setPreview}
+          onBadge={openBadge}
           onAskRemove={askToRemove}
           onRemove={removeModule}
           onCancelRemove={() => {
@@ -451,6 +508,17 @@ function CourseManagement() {
         />
 
         {preview ? <ModulePreview module={preview} onClose={() => setPreview(null)} /> : null}
+
+        {badgeFor ? (
+          <BadgeForm
+            module={badgeFor}
+            busy={badgeBusy}
+            error={badgeError}
+            onCancel={() => setBadgeFor(null)}
+            onSave={saveBadge}
+            onDelete={removeBadge}
+          />
+        ) : null}
 
         {courseForm ? (
           <CourseForm

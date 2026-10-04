@@ -32,6 +32,7 @@ import { syncAllAssessors } from "./enrollment.sync.js";
 
 const ASSESSMENTS_COLLECTION = "Assessment";
 const ASSESSORS_COLLECTION = "Assessor";
+const BADGES_COLLECTION = "Badge";
 const CLASSES_COLLECTION = "Class";
 const COURSES_COLLECTION = "Course";
 const MODULES_COLLECTION = "LearningModule";
@@ -313,6 +314,8 @@ async function purgeModule(module) {
 
   const quizzes = await collection(ASSESSMENTS_COLLECTION).deleteMany(byModule);
   const completions = await collection(PROGRESS_COLLECTION).deleteMany(byModule);
+  // Its badge has no lesson to be earned from any more.
+  await collection(BADGES_COLLECTION).deleteMany(byModule);
 
   await collection(MODULES_COLLECTION).deleteOne({ _id: module._id });
 

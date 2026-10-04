@@ -21,6 +21,7 @@ import {
 } from "../lib/courseAccess.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { sortLessons } from "../lib/lessonOrder.js";
+import { publicBadge } from "./badges.controller.js";
 
 /**
  * Admin console endpoints — courses, students, assessors and the Table of
@@ -186,6 +187,14 @@ export async function getCourse(request, response) {
       .toArray()
   );
 
+  // Each lesson's badge, if it has one.
+  const badges = (await collectionExists(BADGES_COLLECTION))
+    ? await collection(BADGES_COLLECTION)
+        .find({ moduleId: { $in: modules.flatMap((module) => idCandidates(module._id)) } })
+        .toArray()
+    : [];
+  const badgeByModule = new Map(badges.map((badge) => [asId(badge.moduleId), badge]));
+
   return response.json({
     course: {
       id: asId(course._id),
@@ -202,7 +211,8 @@ export async function getCourse(request, response) {
         title: module.title ?? module.fileName ?? "Untitled module",
         fileName: module.fileName ?? "",
         fileSize: module.fileSize ?? null,
-        uploadDate: module.uploadDate ?? null
+        uploadDate: module.uploadDate ?? null,
+        badge: publicBadge(badgeByModule.get(asId(module._id)))
       }))
     }
   });

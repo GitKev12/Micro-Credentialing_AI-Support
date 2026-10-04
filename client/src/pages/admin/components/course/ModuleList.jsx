@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { ModulesIcon, PlusIcon, TrashIcon } from "../icons";
+import { BadgeIcon, ModulesIcon, PlusIcon, TrashIcon } from "../icons";
 import { SectionTitle } from "../ui";
 import ModuleDrafts from "./ModuleDrafts";
 import { SkeletonText } from "../../../../components/Skeleton";
@@ -22,6 +22,7 @@ export default function ModuleList({
   confirming,
   impact,
   onPreview,
+  onBadge,
   onAskRemove,
   onRemove,
   onCancelRemove,
@@ -96,6 +97,21 @@ export default function ModuleList({
                     <span className="admin-lesson__meta">{moduleMeta(module)}</span>
                   )}
                 </div>
+
+                {/* The badge column, last on the row so every badge lines up.
+                    Faded while access is off; a dashed slot when there is none. */}
+                <button
+                  type="button"
+                  className={`admin-lesson__badge${module.badge ? "" : " is-empty"}${
+                    module.badge && !module.badge.active ? " is-off" : ""
+                  }`}
+                  disabled={asking}
+                  onClick={() => onBadge(module)}
+                  aria-label={module.badge ? `Edit badge for ${module.title}` : `Add badge to ${module.title}`}
+                  title={module.badge ? (module.badge.active ? "Badge" : "Badge (not enabled)") : "Add badge"}
+                >
+                  {module.badge?.icon ? <img src={module.badge.icon} alt="" /> : <BadgeIcon size={16} />}
+                </button>
 
                 {asking ? (
                   <div className="admin-lesson__actions">
