@@ -30,6 +30,9 @@ app.use(
     credentials: true
   })
 );
+// A badge carries its picture in the JSON body, so its route takes more than
+// the 100 KB default. Must come before the general parser below.
+app.use("/api/admin/modules", express.json({ limit: "200kb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

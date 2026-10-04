@@ -111,6 +111,21 @@ export async function removeCourseImage(courseId) {
   return data.image;
 }
 
+/* ---- Lesson badges ---- */
+
+// Mirrors MAX_BADGE_ICON_BYTES on the server.
+export const MAX_BADGE_ICON_BYTES = 100 * 1024;
+
+/** Adds or edits a lesson's badge. `icon` is a "data:…" picture, sent only when it changed. */
+export async function saveModuleBadge(moduleId, badge) {
+  const { data } = await api.put(`/admin/modules/${moduleId}/badge`, badge);
+  return data.badge;
+}
+
+export async function deleteModuleBadge(moduleId) {
+  await api.delete(`/admin/modules/${moduleId}/badge`);
+}
+
 /**
  * What deleting a module would take with it — `{ assessments, completions,
  * figures }` — read before the confirmation rather than reported after it.
