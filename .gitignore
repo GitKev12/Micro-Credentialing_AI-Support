@@ -53,3 +53,6 @@ CLAUDE.md
 # course's papers to one class. A rollback for one run on one machine's
 # database: set classId back to null on the ids it holds.
 paper-class-backup-*.json
+
+# One-time local scripts (seeding, uploads). Kept on the machine, never committed.
+tmp-*.mjs
