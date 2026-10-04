@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { checkCourseCode, checkCourseTitle } from "../lib/fieldRules.js";
+import { MAX_LENGTH, checkCourseCode, checkCourseTitle, checkLength } from "../lib/fieldRules.js";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { readCourseDates, startsInPast, toIsoDay } from "../lib/courseDates.js";
 import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
@@ -189,6 +189,8 @@ export async function createCourseModule(request, response) {
 
   const fileName = safeFileName(request.query.fileName, "module.pdf");
   const title = String(request.query.title ?? "").trim() || fileName.replace(/\.pdf$/i, "");
+  const titleTooLong = checkLength(title, "A lesson title", MAX_LENGTH.lessonTitle);
+  if (titleTooLong) return response.status(400).json({ message: titleTooLong });
 
   const duplicate = await collection(MODULES_COLLECTION).findOne({
     ...courseModuleFilter(course),
@@ -386,7 +388,10 @@ export async function createCourse(request, response) {
   const code = String(body.code ?? "").trim();
   const title = String(body.title ?? "").trim();
 
-  const fieldError = checkCourseCode(code) ?? checkCourseTitle(title);
+  const fieldError =
+    checkCourseCode(code) ??
+    checkCourseTitle(title) ??
+    checkLength(body.description, "The description", MAX_LENGTH.courseDescription);
   if (fieldError) return response.status(400).json({ message: fieldError });
 
   // Codes are how modules, blueprints and badges find their course when they
@@ -440,7 +445,11 @@ export async function updateCourse(request, response) {
     updates.courseName = title;
   }
 
-  if ("description" in body) updates.description = String(body.description ?? "").trim();
+  if ("description" in body) {
+    const descriptionError = checkLength(body.description, "The description", MAX_LENGTH.courseDescription);
+    if (descriptionError) return response.status(400).json({ message: descriptionError });
+    updates.description = String(body.description ?? "").trim();
+  }
 
   // Checked against the stored course, not just against each other: a request
   // that moves only the end date still has to clear the start date on file.

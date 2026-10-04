@@ -3,15 +3,9 @@ import { useId } from "react";
 import { LockIcon } from "../icons";
 
 /**
- * Tag-style multi-select: pick many from a dropdown, each shown as a removable
- * chip. Built on top of `AdminSelect` rather than beside it — the dropdown is
- * one AdminSelect whose options are only the values not yet chosen, so it keeps
- * the same listbox, keyboard model and rich two-line rows for free. Choosing an
- * option adds a chip and drops it from the list; the trigger always shows its
- * placeholder because it holds no single "value".
- *
- * `values` is an array of chosen option values; `options` are { value, label,
- * meta? }, the same shape AdminSelect takes.
+ * A labelled text box for the admin forms: one line, or a paragraph box with
+ * `multiline`. Shows the rule the value breaks (`error`) or else the `hint`.
+ * `maxLength` stops typing at the same limit the server checks.
  */
 export function AdminField({
   label,
@@ -26,7 +20,8 @@ export function AdminField({
   required = false,
   autoComplete = "off",
   multiline = false,
-  rows = 4
+  rows = 4,
+  maxLength
 }) {
   const id = useId();
 
@@ -52,6 +47,7 @@ export function AdminField({
           disabled={disabled}
           readOnly={locked}
           autoComplete={autoComplete}
+          maxLength={maxLength}
           aria-invalid={error ? "true" : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}

@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { getStoredSession, login, loginAdmin, saveAuthSession } from "../services/authService";
+import { MAX_LENGTH } from "../../lib/fieldRules";
 
 const PARALLAX_SHIFT = 18;
 const prefersReducedMotion = () =>
@@ -128,6 +129,7 @@ function LoginPage() {
               autoComplete={isAdmin ? "email" : "username"}
               autoCapitalize="none"
               spellCheck={false}
+              maxLength={MAX_LENGTH.email}
               onChange={(event) => setIdentifier(event.target.value)}
             />
           </label>
@@ -138,6 +140,7 @@ function LoginPage() {
               type="password"
               value={password}
               autoComplete="current-password"
+              maxLength={MAX_LENGTH.password}
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>

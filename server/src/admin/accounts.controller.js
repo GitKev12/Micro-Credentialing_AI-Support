@@ -12,7 +12,7 @@ import {
 } from "../lib/suspension.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { idNumberMatch, readIdNumber } from "../auth/identifier.js";
-import { checkEmail, checkName } from "../lib/fieldRules.js";
+import { MAX_LENGTH, checkEmail, checkLength, checkName } from "../lib/fieldRules.js";
 import generator from "generate-password";
 
 /**
@@ -236,6 +236,8 @@ async function buildAccountUpdates(body, fields) {
     if (password.length < MIN_PASSWORD_LENGTH) {
       return { error: `The password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
     }
+    const tooLong = checkLength(password, "The password", MAX_LENGTH.password);
+    if (tooLong) return { error: tooLong };
     updates.password = await bcrypt.hash(password, BCRYPT_ROUNDS);
   }
 
@@ -441,9 +443,13 @@ async function newAccountFields(body, { numberKey, nameFields }) {
   if (given && given.length < MIN_PASSWORD_LENGTH) {
     return { error: `The password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
   }
+  const passwordTooLong = checkLength(given, "The password", MAX_LENGTH.password);
+  if (passwordTooLong) return { error: passwordTooLong };
   const password = given || newPassword();
 
   const number = readIdNumber(body?.[numberKey]);
+  const numberTooLong = checkLength(number, "The ID number", MAX_LENGTH.idNumber);
+  if (numberTooLong) return { error: numberTooLong };
   if (number) {
     const numberTakenBy = await idNumberTaken(number);
     if (numberTakenBy) return { error: idNumberTakenMessage(numberTakenBy) };

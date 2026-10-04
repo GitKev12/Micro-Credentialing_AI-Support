@@ -4,6 +4,7 @@ import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { classMode, toClassMode } from "../lib/classMode.js";
+import { MAX_LENGTH, checkLength } from "../lib/fieldRules.js";
 
 /**
  * Classes — one row tying a course to the assessors and students in it, plus a
@@ -105,6 +106,17 @@ function cleanSchedule(schedule) {
     time: field(source.time),
     room: field(source.room)
   };
+}
+
+/** An error when the class name or a schedule field is too long, else null. */
+function classTextError(name, schedule) {
+  const source = schedule ?? {};
+  return (
+    checkLength(name, "The class name", MAX_LENGTH.className) ??
+    checkLength(source.days, "Days", MAX_LENGTH.schedule) ??
+    checkLength(source.time, "Time", MAX_LENGTH.schedule) ??
+    checkLength(source.room, "Room", MAX_LENGTH.schedule)
+  );
 }
 
 /** Set difference by string id, keeping the original id values on each side. */
@@ -316,6 +328,8 @@ export async function createClass(request, response) {
   // a class without one is listed under its course code. The course and the
   // assessor are what a class cannot be without.
   const name = String(body.name ?? "").trim();
+  const textError = classTextError(name, body.schedule);
+  if (textError) return response.status(400).json({ message: textError });
 
   const course = await resolveCourse(body.courseId);
   if (!course) return response.status(400).json({ message: "Choose a course for this class." });
@@ -385,7 +399,11 @@ export async function updateClass(request, response) {
       staying.has(asId(id))
     );
   }
-  if ("schedule" in body) updates.schedule = cleanSchedule(body.schedule);
+  if ("schedule" in body) {
+    const scheduleError = classTextError("", body.schedule);
+    if (scheduleError) return response.status(400).json({ message: scheduleError });
+    updates.schedule = cleanSchedule(body.schedule);
+  }
   if ("active" in body) updates.active = body.active !== false;
   // Archiving also switches the class off; restoring switches it back on.
   if ("archived" in body) {

@@ -98,7 +98,7 @@ function BadgeForm({ module, busy, error, onCancel, onSave, onDelete }) {
         </p>
       ) : null}
 
-      <AdminField label="Badge name" value={title} onChange={setTitle} required />
+      <AdminField label="Badge name" value={title} onChange={setTitle} maxLength={120} required />
 
       <div className="admin-field">
         <div className="admin-field__label">Badge picture</div>
@@ -146,6 +146,7 @@ function BadgeForm({ module, busy, error, onCancel, onSave, onDelete }) {
 
       <AdminField
         label="Description"
+        maxLength={500}
         value={description}
         onChange={setDescription}
         multiline

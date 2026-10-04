@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { checkEmail, checkName } from "../../../../lib/fieldRules";
+import { MAX_LENGTH, checkEmail, checkName } from "../../../../lib/fieldRules";
 import { fetchNextIdNumber } from "../../../../services/admin";
 import { AdminButton, AdminField, AdminModal, NewPasswordChoice } from "../ui";
 
@@ -71,9 +71,17 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
         </p>
       ) : null}
 
-      <AdminField label="Full name" value={name} onChange={setName} error={nameError} required />
+      <AdminField
+        label="Full name"
+        maxLength={MAX_LENGTH.name}
+        value={name}
+        onChange={setName}
+        error={nameError}
+        required
+      />
       <AdminField
         label="Email"
+        maxLength={MAX_LENGTH.email}
         type="email"
         value={email}
         onChange={setEmail}
@@ -82,6 +90,7 @@ function AssessorForm({ assessor, busy, error, onCancel, onSave }) {
       />
       <AdminField
         label="ID number"
+        maxLength={MAX_LENGTH.idNumber}
         value={assessorNumber}
         onChange={setAssessorNumber}
         placeholder={creating ? "Loading…" : undefined}

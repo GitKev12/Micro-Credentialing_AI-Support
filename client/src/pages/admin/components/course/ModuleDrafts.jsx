@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 
 import { CloseIcon, UploadIcon } from "../icons";
 import { fileSizeLabel } from "../../lib/format";
+import { MAX_LENGTH } from "../../../../lib/fieldRules";
 
 // True for a PDF, by type or by name.
 const isPdf = (file) => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
@@ -41,6 +42,7 @@ function DraftRow({ draft, number, busy, uploading, progress, onChange, onUpload
           className="admin-lesson__title-input"
           type="text"
           value={draft.title}
+          maxLength={MAX_LENGTH.lessonTitle}
           placeholder="Module title"
           aria-label={`Lesson ${number} title`}
           disabled={uploading}
