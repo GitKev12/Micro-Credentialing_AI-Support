@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { checkEmail, checkName } from "../../../../lib/fieldRules";
+import { MAX_LENGTH, checkEmail, checkName } from "../../../../lib/fieldRules";
 import { fetchNextIdNumber } from "../../../../services/admin";
 import { plural } from "../../lib/format";
 import { AdminButton, AdminField, AdminModal, NewPasswordChoice } from "../ui";
@@ -158,6 +158,7 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
         <>
           <AdminField
             label="First name"
+            maxLength={MAX_LENGTH.name}
             value={firstName}
             onChange={setFirstName}
             error={firstNameError}
@@ -165,6 +166,7 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
           />
           <AdminField
             label="Last name"
+            maxLength={MAX_LENGTH.name}
             value={lastName}
             onChange={setLastName}
             error={lastNameError}
@@ -172,6 +174,7 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
           />
           <AdminField
             label="Email"
+            maxLength={MAX_LENGTH.email}
             type="email"
             value={email}
             onChange={setEmail}
@@ -182,6 +185,7 @@ function StudentForm({ student, busy, error, onCancel, onSave, onImport }) {
               awarded against, so the form does not collect one. */}
           <AdminField
             label="ID number"
+            maxLength={MAX_LENGTH.idNumber}
             value={studentNumber}
             onChange={setStudentNumber}
             placeholder={creating ? "Loading…" : undefined}

@@ -12,6 +12,10 @@ import preAssessmentRoutes from "./preAssessments/preAssessments.routes.js";
 
 const app = express();
 
+// Render puts one proxy in front of this server. Trusting it lets request.ip be
+// the real visitor's address, which the sign-in limit counts by.
+app.set("trust proxy", 1);
+
 /**
  * In production the client is a separate Render service, so its origin has to
  * be named explicitly — `cors()` with no arguments answers every origin, which

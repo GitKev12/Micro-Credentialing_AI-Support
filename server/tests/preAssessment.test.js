@@ -61,6 +61,20 @@ describe("checking the admin's questions", () => {
   });
 });
 
+describe("question length", () => {
+  it("refuses a question, choice or explanation past its limit", () => {
+    expect(cleanItems([{ ...mc, q: "x".repeat(501) }]).error).toBe(
+      "Question 1: the question can be at most 500 characters."
+    );
+    expect(cleanItems([{ ...mc, choices: [{ text: "0" }, { text: "y".repeat(201) }] }]).error).toBe(
+      "Question 1: each choice can be at most 200 characters."
+    );
+    expect(cleanItems([{ ...tf, explanation: "z".repeat(1001) }]).error).toBe(
+      "Question 1: the explanation can be at most 1000 characters."
+    );
+  });
+});
+
 describe("marking", () => {
   it("counts the right answers", () => {
     const { items } = cleanItems([mc, tf]);

@@ -6,6 +6,26 @@ import isEmail from "validator/lib/isEmail.js";
  * client/src/lib/fieldRules.js has the same rules, so the form can warn first.
  */
 
+// The longest each field may be. Real values are far shorter; these stop a
+// pasted wall of text from being saved.
+export const MAX_LENGTH = {
+  name: 60,
+  email: 254,
+  courseCode: 20,
+  courseTitle: 120,
+  courseDescription: 2000,
+  lessonTitle: 150,
+  className: 50,
+  schedule: 50,
+  idNumber: 30,
+  password: 72
+};
+
+/** "<label> can be at most N characters.", or null when it fits. */
+export function checkLength(value, label, max) {
+  return String(value ?? "").trim().length > max ? `${label} can be at most ${max} characters.` : null;
+}
+
 // Letters (including ñ and accents), spaces, hyphens, apostrophes and periods:
 // "Maria Clara", "De Guzman", "O'Neil", "Jr.".
 const NAME_PATTERN = /^[\p{L}][\p{L} .'-]*$/u;
@@ -13,6 +33,7 @@ const NAME_PATTERN = /^[\p{L}][\p{L} .'-]*$/u;
 export function checkName(value, label = "Name") {
   const name = String(value ?? "").trim();
   if (!name) return `${label} is required.`;
+  if (name.length > MAX_LENGTH.name) return `${label} can be at most ${MAX_LENGTH.name} characters.`;
   if (!NAME_PATTERN.test(name)) {
     return `${label} can only have letters, spaces, hyphens (-), apostrophes (') and periods.`;
   }
@@ -24,6 +45,7 @@ export function checkName(value, label = "Name") {
 export function checkEmail(value) {
   const email = String(value ?? "").trim();
   if (!email) return "An email address is required.";
+  if (email.length > MAX_LENGTH.email) return `Email can be at most ${MAX_LENGTH.email} characters.`;
   // validator requires a real domain ending, so "s@g.c" is refused.
   if (!isEmail(email)) return "Enter a valid email address, like juan@student.edu.ph.";
   return null;
@@ -33,6 +55,7 @@ export function checkEmail(value) {
 export function checkCourseCode(value) {
   const code = String(value ?? "").trim();
   if (!code) return "A course code is required.";
+  if (code.length > MAX_LENGTH.courseCode) return `Course code can be at most ${MAX_LENGTH.courseCode} characters.`;
   if (!/^[A-Za-z0-9][A-Za-z0-9 -]*$/.test(code)) {
     return "Course code can only have letters, numbers, spaces and hyphens.";
   }
@@ -45,6 +68,7 @@ export function checkCourseCode(value) {
 export function checkCourseTitle(value) {
   const title = String(value ?? "").trim();
   if (!title) return "A course title is required.";
+  if (title.length > MAX_LENGTH.courseTitle) return `Course title can be at most ${MAX_LENGTH.courseTitle} characters.`;
   if (!/^[\p{L}0-9][\p{L}0-9 .,:;&()'/-]*$/u.test(title)) {
     return "Course title can only have letters, numbers, spaces and . , : ; & ( ) ' / -";
   }

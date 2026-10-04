@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "node --watch src/index.js",
     "start": "node src/index.js"
   },
   "dependencies": {
@@ -21,8 +21,5 @@
     "pdfjs-dist": "^4.10.38",
     "tesseract.js": "^6.0.1",
     "validator": "^13.15.35"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
   }
 }

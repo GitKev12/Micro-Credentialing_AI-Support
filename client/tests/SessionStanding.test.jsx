@@ -36,7 +36,8 @@ jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
 
 jest.unstable_mockModule("../src/auth/services/session.js", () => ({
   clearAuthSession,
-  getAuthToken: () => "t0ken"
+  getAuthToken: () => "t0ken",
+  goToSignIn: () => assign("/login")
 }));
 
 // The real module reads a build-time setting jsdom does not have, and only its
@@ -48,14 +49,11 @@ jest.unstable_mockModule("../src/services/api.js", () => ({
 
 let SessionStanding, reportAccountSuspension, clearStanding, currentStanding;
 
-// jsdom cannot navigate, and signing out asks it to. Stubbed so the test can
-// read where it was sent rather than jsdom's complaint about being asked.
+// jsdom cannot navigate, and signing out asks it to. The redirect helper is
+// stubbed so the test can read where it was sent.
 const assign = jest.fn();
 
 beforeAll(async () => {
-  delete window.location;
-  window.location = { pathname: "/student", assign };
-
   ({ default: SessionStanding } = await import("../src/auth/components/SessionStanding.jsx"));
   ({ reportAccountSuspension, clearStanding, currentStanding } = await import(
     "../src/auth/services/standing.js"

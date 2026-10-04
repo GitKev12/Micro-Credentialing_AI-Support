@@ -5,6 +5,7 @@ import { loadStudentSuspensions } from "../lib/courseAccess.js";
 import { loadAccountSuspension } from "../lib/suspension.js";
 import { onStandingChange } from "../lib/standingEvents.js";
 import { loginFilter, readIdentifier } from "./identifier.js";
+import { noteFailure, noteSuccess, refuseIfLocked } from "./loginLimit.js";
 
 const roleCollections = {
   student: "Student",
@@ -54,6 +55,11 @@ function getStoredPassword(account) {
     if (account?.[field]) return String(account[field]);
   }
   return "";
+}
+
+/** A password is plain text; anything else counts as empty. */
+function readPassword(value) {
+  return typeof value === "string" ? value : "";
 }
 
 /**
@@ -134,7 +140,7 @@ export async function findLoginAccount(identifier) {
 
 export async function loginUser(request, response) {
   const identifier = readIdentifier(request.body?.identifier);
-  const password = request.body?.password;
+  const password = readPassword(request.body?.password);
 
   if (!identifier || !password) {
     return response
@@ -142,14 +148,19 @@ export async function loginUser(request, response) {
       .json({ message: "Enter your ID number or email, and your password." });
   }
 
+  // Too many wrong passwords for this account from here: wait.
+  if (refuseIfLocked(request, response, identifier)) return null;
+
   if (!ensureDatabaseReady(response)) return null;
 
   const result = await findLoginAccount(identifier);
   const storedPassword = getStoredPassword(result?.account);
 
   if (!result || !(await isPasswordValid(password, storedPassword))) {
+    noteFailure(request, identifier);
     return response.status(401).json({ message: "Invalid ID number, email, or password." });
   }
+  noteSuccess(request, identifier);
 
   // Checked after the password, not before: answering "suspended" to a wrong
   // password would tell an outsider the account exists.
@@ -295,11 +306,15 @@ export async function streamStanding(request, response) {
 }
 
 export async function loginAdmin(request, response) {
-  const { identifier, password } = request.body ?? {};
+  // Read the same way as the student sign-in, so `{ "$ne": null }` is empty.
+  const identifier = readIdentifier(request.body?.identifier);
+  const password = readPassword(request.body?.password);
 
   if (!identifier || !password) {
     return response.status(400).json({ message: "Admin email and password are required." });
   }
+
+  if (refuseIfLocked(request, response, identifier)) return null;
 
   if (!ensureDatabaseReady(response)) return null;
 
@@ -307,8 +322,10 @@ export async function loginAdmin(request, response) {
   const storedPassword = getStoredPassword(account);
 
   if (!account || !(await isPasswordValid(password, storedPassword))) {
+    noteFailure(request, identifier);
     return response.status(401).json({ message: "Invalid admin login credentials." });
   }
+  noteSuccess(request, identifier);
 
   return response.json({
     message: "Login successful.",

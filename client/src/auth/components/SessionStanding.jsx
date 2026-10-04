@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import api, { withAuthToken } from "../../services/api";
 import { fetchStanding, getStoredSession } from "../services/authService";
-import { clearAuthSession } from "../services/session";
+import { clearAuthSession, goToSignIn } from "../services/session";
 import { clearStanding, currentStanding, reportAccountSuspension, reportCourseStanding } from "../services/standing";
 import { useAccountSuspension } from "../../lib/useStanding";
 
@@ -119,7 +119,7 @@ function AccountSuspended({ message }) {
     clearAuthSession();
     // A whole reload, not a route change: every screen behind this is holding
     // data belonging to a session that is over.
-    window.location.assign("/login");
+    goToSignIn();
   };
 
   return (

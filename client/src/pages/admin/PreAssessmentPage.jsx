@@ -174,6 +174,7 @@ function PreAssessmentPage() {
 
                   <AdminField
                     label="Question"
+                    maxLength={500}
                     value={item.q}
                     onChange={(q) => changeItem(index, { q })}
                     multiline
@@ -202,6 +203,7 @@ function PreAssessmentPage() {
                               className="admin-input"
                               type="text"
                               value={choice.text}
+                              maxLength={200}
                               placeholder={`Choice ${id.toUpperCase()}`}
                               aria-label={`Question ${index + 1} choice ${id.toUpperCase()}`}
                               onChange={(event) => changeChoice(index, choiceIndex, event.target.value)}
@@ -214,6 +216,7 @@ function PreAssessmentPage() {
 
                   <AdminField
                     label="Explanation"
+                    maxLength={1000}
                     value={item.explanation}
                     onChange={(explanation) => changeItem(index, { explanation })}
                     placeholder="Shown to the student after they answer"

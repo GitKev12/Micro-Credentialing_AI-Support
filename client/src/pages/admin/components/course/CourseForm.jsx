@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { isRunInOrder, toDateInput } from "../../../../lib/courseDuration";
-import { checkCourseCode, checkCourseTitle } from "../../../../lib/fieldRules";
+import { MAX_LENGTH, checkCourseCode, checkCourseTitle } from "../../../../lib/fieldRules";
 import RangeCalendar from "../RangeCalendar";
 import { AdminButton, AdminField, AdminModal } from "../ui";
 
@@ -93,6 +93,7 @@ function CourseForm({ course, busy, error, onCancel, onSave, children }) {
 
       <AdminField
         label="Course code"
+        maxLength={MAX_LENGTH.courseCode}
         value={code}
         onChange={setCode}
         placeholder="e.g. CC2"
@@ -101,6 +102,7 @@ function CourseForm({ course, busy, error, onCancel, onSave, children }) {
       />
       <AdminField
         label="Course title"
+        maxLength={MAX_LENGTH.courseTitle}
         value={title}
         onChange={setTitle}
         placeholder="e.g. Computer Programming 2"
@@ -109,6 +111,7 @@ function CourseForm({ course, busy, error, onCancel, onSave, children }) {
       />
       <AdminField
         label="Description"
+        maxLength={MAX_LENGTH.courseDescription}
         value={description}
         onChange={setDescription}
         placeholder="What this course covers"

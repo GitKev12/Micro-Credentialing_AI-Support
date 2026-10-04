@@ -24,6 +24,10 @@ const MODULES_COLLECTION = "LearningModule";
 const COURSES_COLLECTION = "Course";
 
 export const MAX_PRE_ITEMS = 5;
+// Longest question, choice and explanation, in characters.
+const MAX_QUESTION = 500;
+const MAX_CHOICE = 200;
+const MAX_EXPLANATION = 1000;
 const TYPES = ["multiple-choice", "true-false"];
 const TRUE_FALSE = [
   { id: "true", text: "True" },
@@ -64,6 +68,7 @@ export function cleanItems(items) {
     const q = String(item?.q ?? "").trim();
     if (!type) return { error: `${label}: choose multiple choice or true/false.` };
     if (!q) return { error: `${label}: write the question.` };
+    if (q.length > MAX_QUESTION) return { error: `${label}: the question can be at most ${MAX_QUESTION} characters.` };
 
     let choices = TRUE_FALSE;
     if (type === "multiple-choice") {
@@ -78,6 +83,14 @@ export function cleanItems(items) {
       if (choices.length < 2 || choices.length > 6) {
         return { error: `${label}: give 2 to 6 choices.` };
       }
+      if (choices.some((choice) => choice.text.length > MAX_CHOICE)) {
+        return { error: `${label}: each choice can be at most ${MAX_CHOICE} characters.` };
+      }
+    }
+
+    const explanation = String(item?.explanation ?? "").trim();
+    if (explanation.length > MAX_EXPLANATION) {
+      return { error: `${label}: the explanation can be at most ${MAX_EXPLANATION} characters.` };
     }
 
     const key = String(item?.key ?? "");
@@ -91,7 +104,7 @@ export function cleanItems(items) {
       q,
       choices,
       key,
-      explanation: String(item?.explanation ?? "").trim()
+      explanation
     });
   }
 

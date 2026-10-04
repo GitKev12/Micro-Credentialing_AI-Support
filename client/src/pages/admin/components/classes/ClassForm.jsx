@@ -4,6 +4,7 @@ import { AdminButton, AdminField, AdminModal, AdminSelect, PathwayChoice } from 
 import { classTitle, sectionOptions } from "./classText";
 import ClassRoster from "./ClassRoster";
 import PeoplePicker from "./PeoplePicker";
+import { MAX_LENGTH } from "../../../../lib/fieldRules";
 
 /**
  * Create or edit a class.
@@ -236,18 +237,21 @@ function ClassForm({
         <div className="admin-form-grid">
           <AdminField
             label="Days"
+            maxLength={MAX_LENGTH.schedule}
             value={schedule.days}
             onChange={setField("days")}
             placeholder="e.g. MWF"
           />
           <AdminField
             label="Time"
+            maxLength={MAX_LENGTH.schedule}
             value={schedule.time}
             onChange={setField("time")}
             placeholder="e.g. 09:00–10:00"
           />
           <AdminField
             label="Room"
+            maxLength={MAX_LENGTH.schedule}
             value={schedule.room}
             onChange={setField("room")}
             placeholder="e.g. Lab 201"
