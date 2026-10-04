@@ -39,3 +39,8 @@ export function clearAuthSession() {
 export function getAuthToken() {
   return getStoredSession()?.token ?? "";
 }
+
+/** A full page load to the sign-in screen, dropping everything the app holds. */
+export function goToSignIn() {
+  window.location.assign("/login");
+}

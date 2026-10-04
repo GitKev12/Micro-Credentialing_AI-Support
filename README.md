@@ -15,7 +15,7 @@ Three actors: **Student**, **Assessor**, and **Admin**.
 | Server   | Node.js, Express 5                  |
 | Database | MongoDB (via Mongoose 8)            |
 | AI       | OpenAI SDK (`responses` API)        |
-| Tooling  | npm workspaces, `concurrently`, `nodemon` |
+| Tooling  | npm workspaces, `concurrently`, `node --watch` |
 
 ## Getting Started
 
@@ -65,7 +65,7 @@ Run from the project root:
 | -------------------- | ---------------------------------------------- |
 | `npm run dev`        | Start the client and server together            |
 | `npm run dev:client` | Start only the Vite dev server                  |
-| `npm run dev:server` | Start only the Express server (with `nodemon`)  |
+| `npm run dev:server` | Start only the Express server (with `node --watch`)  |
 | `npm run build`      | Build the client for production                 |
 | `npm run start`      | Run the server in production mode               |
 
