@@ -430,3 +430,40 @@ describe("shapes from the real modules", () => {
     expect(kinds(blocks)).not.toContain("term");
   });
 });
+
+describe("the lesson's assignment part", () => {
+  const headings = (blocks) =>
+    blocks.filter((block) => block.type === "heading").map((block) => block.text);
+  const text = (blocks) => blocks.map((block) => block.text ?? "").join(" ");
+
+  it("drops an ASSIGNMENT section and what is under it", () => {
+    const blocks = buildLessonBlocks([
+      page(
+        "LOOPING\nA loop repeats statements.\nASSIGNMENT\n" +
+          "Answer and explain in detail your answers to the following questions.\n" +
+          "SUMMARY\nLoops repeat work."
+      )
+    ]);
+
+    expect(headings(blocks)).not.toContain("ASSIGNMENT");
+    expect(text(blocks)).not.toContain("Answer and explain");
+    expect(text(blocks)).toContain("Loops repeat work.");
+  });
+
+  it("drops a numbered one and a homework one too", () => {
+    const blocks = buildLessonBlocks([
+      page("VI. ASSIGNMENT\nDo the exercise.\nHOMEWORK\nRead chapter 2.\nSUMMARY\nDone.")
+    ]);
+
+    expect(text(blocks)).not.toContain("Do the exercise.");
+    expect(text(blocks)).not.toContain("Read chapter 2.");
+  });
+
+  it("keeps a Java topic that only starts with the word", () => {
+    const blocks = buildLessonBlocks([
+      page("ASSIGNMENT OPERATORS\nThe = sign stores a value in a variable.")
+    ]);
+
+    expect(text(blocks)).toContain("The = sign stores a value");
+  });
+});
