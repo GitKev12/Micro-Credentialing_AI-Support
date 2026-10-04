@@ -12,11 +12,12 @@ import preAssessmentRoutes from "./preAssessments/preAssessments.routes.js";
 
 const app = express();
 
-// Render puts 3 proxies in front of this server. Trusting exactly those 3 lets
+// Render puts 2 proxies in front of this server. Trusting exactly those 2 lets
 // request.ip be the real visitor's address, which the sign-in limit counts by.
-// Checked live 2026-10-04: with 1, the address changed on every request, so
-// the limit never triggered. Too many would let a visitor fake their address.
-app.set("trust proxy", 3);
+// Checked live 2026-10-04: with 1 the address changed on every request, so the
+// limit never triggered; with 3 a visitor could fake their address with an
+// X-Forwarded-For header and dodge the limit.
+app.set("trust proxy", 2);
 
 /**
  * In production the client is a separate Render service, so its origin has to
