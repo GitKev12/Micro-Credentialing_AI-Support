@@ -73,6 +73,17 @@ export const ITEM_SCHEMA = {
 // this client correct no matter what any other tool sets machine-wide.
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
+// A failed call is tried once more, no further: every try is paid for.
+const MAX_RETRIES = 1;
+
+/**
+ * How long one call may take. Measured 2026-10-04: 10 questions took 47 s
+ * (about 5 s each), so this allows about double, plus room to read the lesson.
+ */
+export function callTimeoutMs(itemCount) {
+  return (2 * 60 + 10 * Math.max(1, Number(itemCount) || 1)) * 1000;
+}
+
 function createOpenAiClient() {
   const { openAiApiKey } = getEnvironmentConfig();
 
@@ -80,7 +91,11 @@ function createOpenAiClient() {
     throw new Error("OPENAI_API_KEY is not configured.");
   }
 
-  return new OpenAI({ apiKey: openAiApiKey, baseURL: OPENAI_BASE_URL });
+  return new OpenAI({
+    apiKey: openAiApiKey,
+    baseURL: OPENAI_BASE_URL,
+    maxRetries: MAX_RETRIES
+  });
 }
 
 /**
@@ -196,6 +211,55 @@ ${sourceText}
 }
 
 /**
+ * A plain sentence for the assessor when the call to OpenAI itself failed.
+ * Exported for tests.
+ */
+export function describeOpenAiError(error) {
+  if (error instanceof OpenAI.APIConnectionTimeoutError) {
+    return "The AI took too long to answer. Try again, or ask for fewer questions.";
+  }
+  if (error instanceof OpenAI.APIConnectionError) {
+    return "The server couldn't reach OpenAI. Check the internet connection and try again.";
+  }
+  if (error instanceof OpenAI.AuthenticationError) {
+    return "OpenAI refused the API key. Check OPENAI_API_KEY on the server.";
+  }
+  if (error instanceof OpenAI.RateLimitError) {
+    return error.code === "insufficient_quota"
+      ? "The OpenAI account has run out of credit."
+      : "Too many requests to OpenAI right now. Wait a minute and try again.";
+  }
+  if (error instanceof OpenAI.APIError && error.status >= 500) {
+    return "OpenAI is having problems right now. Try again shortly.";
+  }
+  return error?.message || "The AI could not write the questions.";
+}
+
+/**
+ * Why a finished call has no usable answer, or null when it has one.
+ * Exported for tests.
+ */
+export function unusableAnswer(response) {
+  if (response?.status === "incomplete") {
+    const reason = response.incomplete_details?.reason;
+    if (reason === "max_output_tokens") {
+      return "The AI's answer was cut off before it finished. Try asking for fewer questions.";
+    }
+    if (reason === "content_filter") return "OpenAI's safety filter stopped the answer for this lesson.";
+    return "The AI's answer was incomplete. Try again.";
+  }
+
+  // The model can decline instead of answering; it says why.
+  const refusal = (response?.output ?? [])
+    .flatMap((part) => part?.content ?? [])
+    .find((content) => content?.type === "refusal");
+  if (refusal) return `The AI declined to write questions for this lesson: ${refusal.refusal}`;
+
+  if (!response?.output_text) return "The AI sent back an empty answer. Try again.";
+  return null;
+}
+
+/**
  * Returns the model's raw items plus what the call cost. Neither is trusted —
  * the caller maps and validates before anything reaches the database.
  */
@@ -211,25 +275,33 @@ export async function generateAssessmentItems({
   const { openAiModel } = getEnvironmentConfig();
   const chosenModel = model || openAiModel;
 
-  const response = await client.responses.create({
-    model: chosenModel,
-    instructions: instructions(),
-    input: lessonPrompt({ courseTitle, moduleTitle, sourceText, itemCount, distribution }),
-    text: {
-      format: {
-        type: "json_schema",
-        name: "assessment_items",
-        schema: ITEM_SCHEMA,
-        strict: true
+  let response;
+  try {
+    response = await client.responses.create({
+      model: chosenModel,
+      instructions: instructions(),
+      input: lessonPrompt({ courseTitle, moduleTitle, sourceText, itemCount, distribution }),
+      text: {
+        format: {
+          type: "json_schema",
+          name: "assessment_items",
+          schema: ITEM_SCHEMA,
+          strict: true
+        }
       }
-    }
-  });
+    }, { timeout: callTimeoutMs(itemCount) });
+  } catch (error) {
+    throw new Error(describeOpenAiError(error));
+  }
+
+  const problem = unusableAnswer(response);
+  if (problem) throw new Error(problem);
 
   let parsed;
   try {
     parsed = JSON.parse(response.output_text);
   } catch (_error) {
-    throw new Error("The model did not return valid JSON.");
+    throw new Error("The AI's answer wasn't in the expected format. Try again.");
   }
 
   return {

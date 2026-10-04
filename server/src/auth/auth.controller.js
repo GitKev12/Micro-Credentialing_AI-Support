@@ -57,6 +57,11 @@ function getStoredPassword(account) {
   return "";
 }
 
+/** A password is plain text; anything else counts as empty. */
+function readPassword(value) {
+  return typeof value === "string" ? value : "";
+}
+
 /**
  * Bcrypt only.
  *
@@ -70,11 +75,6 @@ function getStoredPassword(account) {
  * bcrypt.compare returns false rather than throwing on a malformed hash, so a
  * bad row fails the login instead of failing the request.
  */
-/** A password is plain text; anything else counts as empty. */
-function readPassword(value) {
-  return typeof value === "string" ? value : "";
-}
-
 async function isPasswordValid(password, storedPassword) {
   if (!storedPassword) return false;
   return bcrypt.compare(String(password), storedPassword);

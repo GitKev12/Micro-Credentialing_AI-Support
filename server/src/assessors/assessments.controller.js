@@ -683,6 +683,8 @@ export async function generateCourseAssessment(request, response) {
     const message =
       (isFinal && assessOnly ? ASSESS_ONLY_REASONS[result.reason] : null) ??
       (isFinal ? FINAL_REASONS[result.reason] : null) ??
+      // A failed AI call carries its own plain reason (see openai.client.js).
+      (result.reason === "generation-failed" ? result.message : null) ??
       GENERATION_REASONS[result.reason] ??
       (result.status === "rejected"
         ? `The generated questions did not pass validation: ${(result.problems ?? []).join(" ")}`
