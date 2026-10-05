@@ -1,0 +1,161 @@
+import { describe, it, expect, jest, beforeAll, beforeEach } from "@jest/globals";
+import { TextDecoder, TextEncoder } from "node:util";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+globalThis.TextEncoder ??= TextEncoder;
+globalThis.TextDecoder ??= TextDecoder;
+
+const login = jest.fn();
+const signupStudent = jest.fn();
+const saveAuthSession = jest.fn();
+let storedSession = null;
+
+jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
+  login,
+  signupStudent,
+  saveAuthSession,
+  getStoredSession: () => storedSession
+}));
+
+let LoginPage, MemoryRouter, Routes, Route;
+
+beforeAll(async () => {
+  ({ MemoryRouter, Routes, Route } = await import("react-router-dom"));
+  ({ default: LoginPage } = await import("../src/auth/pages/LoginPage.jsx"));
+});
+
+beforeEach(() => {
+  signupStudent.mockReset();
+  storedSession = null;
+});
+
+const draw = () =>
+  render(
+    <MemoryRouter initialEntries={["/signup"]}>
+      <Routes>
+        <Route path="/signup" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/student" element={<p>Student End</p>} />
+      </Routes>
+    </MemoryRouter>
+  );
+
+const fillValidForm = () => {
+  fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Juan" } });
+  fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Dela Cruz" } });
+  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juan@student.edu.ph" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "longenough" } });
+  fireEvent.change(screen.getByLabelText("Confirm password"), {
+    target: { value: "longenough" }
+  });
+};
+
+const submit = () => {
+  const submitBtns = screen.getAllByRole("button", { name: /^(Sign in|Create account)$/ });
+  // Click the last one in the DOM (the submit button, not the toggle)
+  fireEvent.click(submitBtns[submitBtns.length - 1]);
+};
+
+describe("SignupPage", () => {
+  it("shows the student registration fields", () => {
+    draw();
+
+    expect(screen.getByLabelText("First name")).toBeTruthy();
+    expect(screen.getByLabelText("Last name")).toBeTruthy();
+    expect(screen.getByLabelText("Email")).toBeTruthy();
+    expect(screen.getByLabelText("Password")).toBeTruthy();
+    expect(screen.getByLabelText("Confirm password")).toBeTruthy();
+    expect(screen.queryByLabelText("Program")).toBeNull();
+    expect(screen.queryByLabelText("Year")).toBeNull();
+  });
+
+  it("rejects invalid names before calling the API", async () => {
+    draw();
+
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "J" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Dela Cruz" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juan@student.edu.ph" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "longenough" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "longenough" }
+    });
+    submit();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("First name must be at least 2 letters.");
+    expect(signupStudent).not.toHaveBeenCalled();
+  });
+
+  it("rejects mismatched passwords", async () => {
+    draw();
+    fillValidForm();
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "different" }
+    });
+    submit();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Passwords must match.");
+    expect(signupStudent).not.toHaveBeenCalled();
+  });
+
+  it("rejects passwords over 72 UTF-8 bytes", async () => {
+    draw();
+    fillValidForm();
+    const longUnicode = "ñ".repeat(37);
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: longUnicode } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: longUnicode } });
+    submit();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Password can be at most 72 bytes.");
+    expect(signupStudent).not.toHaveBeenCalled();
+  });
+
+  it("creates the account and returns to sign-in", async () => {
+    signupStudent.mockResolvedValue({ message: "Account created. You can now sign in." });
+    draw();
+    fillValidForm();
+    submit();
+
+    expect(await screen.findByText("Login")).toBeTruthy();
+    expect(signupStudent).toHaveBeenCalledWith({
+      firstName: "Juan",
+      lastName: "Dela Cruz",
+      email: "juan@student.edu.ph",
+      password: "longenough"
+    });
+  });
+
+  it("does not submit twice while creating the account", async () => {
+    let finish;
+    signupStudent.mockImplementation(
+      () => new Promise((resolve) => {
+        finish = () => resolve({ message: "Account created. You can now sign in." });
+      })
+    );
+    draw();
+    fillValidForm();
+
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Creating account..." }));
+
+    expect(signupStudent).toHaveBeenCalledTimes(1);
+    finish();
+    await screen.findByText("Sign in");
+  });
+
+  it("shows the server signup error", async () => {
+    signupStudent.mockRejectedValue({ response: { data: { message: "An account with these details already exists." } } });
+    draw();
+    fillValidForm();
+    submit();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("An account with these details already exists.");
+  });
+
+  it("sends a signed-in browser to its End", async () => {
+    storedSession = { token: "t", user: { role: "student" }, redirectTo: "/student" };
+    draw();
+
+    expect(await screen.findByText("Student End")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create account" })).toBeNull();
+  });
+});

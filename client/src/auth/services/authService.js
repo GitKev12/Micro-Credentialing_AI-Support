@@ -17,6 +17,11 @@ export async function loginAdmin(credentials) {
   return data;
 }
 
+export async function signupStudent(details) {
+  const { data } = await api.post("/auth/signup", details);
+  return data;
+}
+
 /**
  * What is closed for whoever is signed in, right now.
  *

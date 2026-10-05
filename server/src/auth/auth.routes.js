@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { getStanding, loginAdmin, loginUser, streamStanding } from "./auth.controller.js";
+import { signupStudent } from "./signup.controller.js";
 import { requireAuth, requireDownloadAuth } from "../middleware/auth.js";
 
 const router = Router();
 
 router.post("/login", loginUser);
 router.post("/admin/login", loginAdmin);
+router.post("/signup", signupStudent);
 
 // What is closed for whoever is signed in, asked again while a screen is open.
 // Guarded like everything else, which is the point of it: a suspended account

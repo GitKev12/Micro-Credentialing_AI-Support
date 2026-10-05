@@ -9,6 +9,16 @@
  * into a MongoDB filter, and a body sending `{ "$ne": "" }` would otherwise
  * match the first account in the collection.
  */
+// Keep the legacy Admin aliases available on both sign-in endpoints.
+export function adminLoginFilter(identifier) {
+  const typed = readIdentifier(identifier);
+  return {
+    $or: ["email", "admin_id", "employeeNumber", "adminNumber", "username"].map(
+      (field) => ({ [field]: { $in: [...new Set([typed, typed.toLowerCase()])] } })
+    )
+  };
+}
+
 export function readIdentifier(value) {
   if (typeof value !== "string" && typeof value !== "number") return "";
   return String(value).trim();

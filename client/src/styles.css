@@ -264,6 +264,53 @@ a {
   line-height: 1;
 }
 
+.login-toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-top: 1.25rem;
+  border-radius: 12px;
+  background: rgba(125, 31, 43, 0.08);
+}
+
+.login-toggle__pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 9px;
+  background: #7d1f2b;
+  box-shadow: 0 4px 12px rgba(125, 31, 43, 0.25);
+  transition: left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.login-toggle__btn {
+  position: relative;
+  z-index: 1;
+  padding: 0.55rem 0.5rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+
+.login-toggle__btn.is-active {
+  color: #fff8f8;
+}
+
+.login-toggle__btn:focus-visible {
+  outline: 2px solid #9a2838;
+  outline-offset: 1px;
+}
 
 .auth-form {
   display: grid;
@@ -325,58 +372,39 @@ a {
   opacity: 0.7;
 }
 
-/* The role picker on the login screen: which kind of account is signing in.
-   Drawn on the auth-card's own ground, so it reads as part of the form it
-   decides — a filled pill seat marks the active role, and the group itself
-   sits on the quiet hinge between the heading and the fields. */
-.login-toggle {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 12px;
-  background: rgba(125, 31, 43, 0.08);
-}
-
-/* The sliding indicator behind the active role. Positioned absolutely so it
-   can glide between the two options with a springy cubic-bezier transition.
-   The left and width are set by JS measuring the active button's offset. */
-.login-toggle__pill {
-  position: absolute;
-  top: 0.25rem;
-  bottom: 0.25rem;
-  border-radius: 9px;
-  background: #7d1f2b;
-  box-shadow: 0 4px 12px rgba(125, 31, 43, 0.25);
-  transition: left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
-              width 0.32s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.login-toggle__btn {
-  position: relative;
-  z-index: 1;
-  padding: 0.55rem 0.5rem;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
+.auth-switch {
+  margin: -0.2rem 0 0;
   color: var(--muted);
-  cursor: pointer;
-  transition: color 0.25s ease;
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
-.login-toggle__btn.is-active {
-  color: #fff8f8;
+.auth-switch a {
+  color: #7d1f2b;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
 }
 
-.login-toggle__btn:focus-visible {
+.auth-switch a:focus-visible {
   outline: 2px solid #9a2838;
-  outline-offset: 1px;
+  outline-offset: 3px;
+}
+
+.auth-success {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(43, 120, 77, 0.2);
+  border-radius: 8px;
+  background: rgba(237, 250, 242, 0.96);
+  color: #255a39;
+  line-height: 1.5;
+}
+
+.signup-card {
+  width: min(100%, 32rem);
+  max-height: min(46rem, calc(100vh - 2.5rem));
+  overflow-y: auto;
 }
 
 .auth-error {

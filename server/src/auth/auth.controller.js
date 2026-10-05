@@ -4,7 +4,7 @@ import { signAuthToken } from "./tokens.js";
 import { loadStudentSuspensions } from "../lib/courseAccess.js";
 import { loadAccountSuspension } from "../lib/suspension.js";
 import { onStandingChange } from "../lib/standingEvents.js";
-import { loginFilter, readIdentifier } from "./identifier.js";
+import { adminLoginFilter, loginFilter, readIdentifier } from "./identifier.js";
 import { noteFailure, noteSuccess, refuseIfLocked } from "./loginLimit.js";
 
 const roleCollections = {
@@ -19,36 +19,7 @@ const roleRoutes = {
   admin: "/admin"
 };
 
-// Admin signs in with an email. Students and assessors use their ID number or
-// their email — see findLoginAccount.
-const identifierFieldsByRole = {
-  admin: ["email", "admin_id", "employeeNumber", "adminNumber", "username"]
-};
-
-const idNumberFields = {
-  student: "student_id",
-  assessor: "assessor_id"
-};
-
 const passwordFields = ["password", "passwordHash", "hashedPassword"];
-
-function normalize(value) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function buildIdentifierQuery(identifier, role) {
-  const fields = identifierFieldsByRole[role] ?? [];
-  return {
-    $or: fields.flatMap((field) => {
-      const values = [{ [field]: identifier }];
-      const normalizedIdentifier = normalize(identifier);
-      if (normalizedIdentifier !== identifier) {
-        values.push({ [field]: normalizedIdentifier });
-      }
-      return values;
-    })
-  };
-}
 
 function getStoredPassword(account) {
   for (const field of passwordFields) {
@@ -115,27 +86,20 @@ function ensureDatabaseReady(response) {
   return false;
 }
 
-async function findAccountByRole(identifier, role) {
-  const collectionName = roleCollections[role];
-  if (!collectionName) return null;
-  return mongoose.connection.collection(collectionName).findOne(buildIdentifierQuery(identifier, role));
-}
-
-/**
- * The student or assessor holding this ID number or email.
- *
- * Student is searched first. The account console refuses an ID number or email
- * already used in either collection (see accounts.controller.js), so the order
- * never has to choose between two accounts.
- */
+// Resolve identity before checking the password. Never try another role's
+// password if an identifier belongs to more than one role.
 export async function findLoginAccount(identifier) {
-  for (const [role, field] of Object.entries(idNumberFields)) {
-    const account = await mongoose.connection
-      .collection(roleCollections[role])
-      .findOne(loginFilter(identifier, field));
-    if (account) return { account, role };
+  let match = null;
+  for (const [role, collectionName] of Object.entries(roleCollections)) {
+    const filter = role === "admin"
+      ? adminLoginFilter(identifier)
+      : loginFilter(identifier, role === "student" ? "student_id" : "assessor_id");
+    const account = await mongoose.connection.collection(collectionName).findOne(filter);
+    if (!account) continue;
+    if (match) return null;
+    match = { account, role };
   }
-  return null;
+  return match;
 }
 
 export async function loginUser(request, response) {
@@ -164,7 +128,7 @@ export async function loginUser(request, response) {
 
   // Checked after the password, not before: answering "suspended" to a wrong
   // password would tell an outsider the account exists.
-  if (result.account.suspended === true) {
+  if (result.account.suspended === true || result.account.archived === true) {
     return response.status(403).json({
       message: "This account is suspended. Contact your administrator."
     });
@@ -318,7 +282,7 @@ export async function loginAdmin(request, response) {
 
   if (!ensureDatabaseReady(response)) return null;
 
-  const account = await findAccountByRole(identifier, "admin");
+  const account = await mongoose.connection.collection("Admin").findOne(adminLoginFilter(identifier));
   const storedPassword = getStoredPassword(account);
 
   if (!account || !(await isPasswordValid(password, storedPassword))) {
@@ -326,6 +290,11 @@ export async function loginAdmin(request, response) {
     return response.status(401).json({ message: "Invalid admin login credentials." });
   }
   noteSuccess(request, identifier);
+  if (account.suspended === true || account.archived === true) {
+    return response.status(403).json({
+      message: "This account is suspended. Contact your administrator."
+    });
+  }
 
   return response.json({
     message: "Login successful.",
