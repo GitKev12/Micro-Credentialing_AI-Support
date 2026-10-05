@@ -7,12 +7,16 @@ globalThis.TextDecoder ??= TextDecoder;
 
 const login = jest.fn();
 const signupStudent = jest.fn();
+const sendSignupCode = jest.fn();
+const verifySignupCode = jest.fn();
 const saveAuthSession = jest.fn();
 let storedSession = null;
 
 jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
   login,
   signupStudent,
+  sendSignupCode,
+  verifySignupCode,
   saveAuthSession,
   getStoredSession: () => storedSession
 }));
@@ -40,14 +44,18 @@ const draw = () =>
     </MemoryRouter>
   );
 
-const fillValidForm = () => {
+const fillValidForm = async () => {
   fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Juan" } });
   fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Dela Cruz" } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juan@student.edu.ph" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "longenough" } });
-  fireEvent.change(screen.getByLabelText("Confirm password"), {
-    target: { value: "longenough" }
-  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+  const codeInput = await screen.findByLabelText("Verification code");
+  fireEvent.change(codeInput, { target: { value: "123456" } });
+  await screen.findByText("Verified");
+
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password123!" } });
+  fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Password123!" } });
 };
 
 const submit = () => {
@@ -111,8 +119,10 @@ describe("SignupPage", () => {
 
   it("creates the account and returns to sign-in", async () => {
     signupStudent.mockResolvedValue({ message: "Account created. You can now sign in." });
+    sendSignupCode.mockResolvedValue({ expiresAt: "2026-10-06T00:00:00Z" });
+    verifySignupCode.mockResolvedValue({ expiresAt: "2026-10-06T00:00:00Z" });
     draw();
-    fillValidForm();
+    await fillValidForm();
     submit();
 
     expect(await screen.findByText("Login")).toBeTruthy();
@@ -120,7 +130,8 @@ describe("SignupPage", () => {
       firstName: "Juan",
       lastName: "Dela Cruz",
       email: "juan@student.edu.ph",
-      password: "longenough"
+      password: "Password123!",
+      code: "123456"
     });
   });
 

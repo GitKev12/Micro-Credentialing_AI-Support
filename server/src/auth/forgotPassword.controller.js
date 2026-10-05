@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { checkEmail } from "../lib/fieldRules.js";
 import { sendOtpEmail } from "./mailer.js";
 import { noteSuccess } from "./loginLimit.js";
+import { passwordProblem } from "./passwordRule.js";
 import { refuseOtpRequestIfLimited, refuseResetIfLimited } from "./passwordResetLimit.js";
 
 export const OTP_MINUTES = 10;
@@ -105,11 +106,10 @@ export async function resetPasswordWithOtp(request, response) {
   if (!/^\d{6}$/.test(otp)) {
     return response.status(400).json({ message: "Enter the 6-digit OTP from the email." });
   }
-  // Same rule as signup. Not trimmed, and bcrypt ignores anything past 72 bytes.
+  // Same rule as signup.
   const password = body.newPassword;
-  if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
-    return response.status(400).json({ message: "The password must be at least 8 characters and at most 72 UTF-8 bytes." });
-  }
+  const weak = passwordProblem(password);
+  if (weak) return response.status(400).json({ message: weak });
   if (mongoose.connection.readyState !== 1) {
     return response.status(503).json({ message: UNAVAILABLE });
   }

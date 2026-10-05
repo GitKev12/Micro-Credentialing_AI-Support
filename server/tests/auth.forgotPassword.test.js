@@ -151,11 +151,11 @@ describe("asking for an OTP", () => {
 describe("resetting the password with the OTP", () => {
   it("sets the new bcrypt password and clears the OTP", async () => {
     const otp = await emailedOtp();
-    const res = await reset({ email: "ana@school.edu.ph", otp, newPassword: " new pass " });
+    const res = await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" });
 
     expect(res.code).toBe(200);
     expect(res.body).toEqual({ message: "Password changed. You can now sign in." });
-    expect(hash).toHaveBeenCalledWith(" new pass ", 12);
+    expect(hash).toHaveBeenCalledWith("New pass1!", 12);
     expect(ana().password).toBe("new-hash");
     for (const field of ["resetOtpHash", "resetOtpExpiresAt", "resetOtpTries", "resetOtpSentAt"]) {
       expect(ana()).not.toHaveProperty(field);
@@ -171,16 +171,16 @@ describe("resetting the password with the OTP", () => {
     expect(lockedMinutes(request, "ana@school.edu.ph")).toBeGreaterThan(0);
 
     const otp = await emailedOtp();
-    await reset({ email: "ana@school.edu.ph", otp, newPassword: "new password" });
+    await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" });
     expect(lockedMinutes(request, "ana@school.edu.ph")).toBe(0);
     expect(lockedMinutes(request, "STU2023300001")).toBe(0);
   });
 
   it("does not accept the same OTP twice", async () => {
     const otp = await emailedOtp();
-    await reset({ email: "ana@school.edu.ph", otp, newPassword: "new password" });
+    await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" });
     hash.mockClear();
-    const res = await reset({ email: "ana@school.edu.ph", otp, newPassword: "other password" });
+    const res = await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" });
     expect(res.code).toBe(400);
     expect(hash).not.toHaveBeenCalled();
   });
@@ -190,15 +190,15 @@ describe("resetting the password with the OTP", () => {
     const wrong = otp === "000000" ? "111111" : "000000";
 
     for (let i = 1; i <= 4; i += 1) {
-      const res = await reset({ email: "ana@school.edu.ph", otp: wrong, newPassword: "new password" });
+      const res = await reset({ email: "ana@school.edu.ph", otp: wrong, newPassword: "New pass1!" });
       expect(res.body).toEqual({ message: "That OTP is not right. Check the email and try again." });
       expect(ana().resetOtpTries).toBe(i);
     }
-    const fifth = await reset({ email: "ana@school.edu.ph", otp: wrong, newPassword: "new password" });
+    const fifth = await reset({ email: "ana@school.edu.ph", otp: wrong, newPassword: "New pass1!" });
     expect(fifth.body).toEqual({ message: "Too many wrong OTPs. Ask for a new one." });
     expect(ana().resetOtpHash).toBeUndefined();
 
-    const late = await reset({ email: "ana@school.edu.ph", otp, newPassword: "new password" });
+    const late = await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" });
     expect(late.code).toBe(400);
     expect(ana().password).toBe("old-hash");
   });
@@ -206,14 +206,14 @@ describe("resetting the password with the OTP", () => {
   it("refuses an expired OTP", async () => {
     const otp = await emailedOtp();
     ana().resetOtpExpiresAt = new Date(Date.now() - 1000);
-    const res = await reset({ email: "ana@school.edu.ph", otp, newPassword: "new password" });
+    const res = await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" });
     expect(res.code).toBe(400);
     expect(res.body.message).toMatch(/expired/);
     expect(ana().password).toBe("old-hash");
   });
 
   it("gives an email with no OTP the same answer as an expired one", async () => {
-    const res = await reset({ email: "someone@school.edu.ph", otp: "123456", newPassword: "new password" });
+    const res = await reset({ email: "someone@school.edu.ph", otp: "123456", newPassword: "New pass1!" });
     expect(res.code).toBe(400);
     expect(res.body.message).toMatch(/expired/);
   });
@@ -221,18 +221,18 @@ describe("resetting the password with the OTP", () => {
   it("refuses a suspended student even with the right OTP", async () => {
     const otp = await emailedOtp();
     ana().suspended = true;
-    expect((await reset({ email: "ana@school.edu.ph", otp, newPassword: "new password" })).code).toBe(400);
+    expect((await reset({ email: "ana@school.edu.ph", otp, newPassword: "New pass1!" })).code).toBe(400);
     expect(ana().password).toBe("old-hash");
   });
 
   it.each([
     undefined, [], { email: "ana@school.edu.ph", otp: "123456" },
-    { email: "ana@school.edu.ph", otp: 123456, newPassword: "new password" },
-    { email: { $ne: "" }, otp: "123456", newPassword: "new password" },
-    { email: "ana@school.edu.ph", otp: "123456", newPassword: "new password", role: "admin" },
-    { email: "bad", otp: "123456", newPassword: "new password" },
-    { email: "ana@school.edu.ph", otp: "12345", newPassword: "new password" },
-    { email: "ana@school.edu.ph", otp: "12345a", newPassword: "new password" },
+    { email: "ana@school.edu.ph", otp: 123456, newPassword: "New pass1!" },
+    { email: { $ne: "" }, otp: "123456", newPassword: "New pass1!" },
+    { email: "ana@school.edu.ph", otp: "123456", newPassword: "New pass1!", role: "admin" },
+    { email: "bad", otp: "123456", newPassword: "New pass1!" },
+    { email: "ana@school.edu.ph", otp: "12345", newPassword: "New pass1!" },
+    { email: "ana@school.edu.ph", otp: "12345a", newPassword: "New pass1!" },
     { email: "ana@school.edu.ph", otp: "123456", newPassword: "short12" },
     { email: "ana@school.edu.ph", otp: "123456", newPassword: "é".repeat(37) }
   ])("refuses a bad body before touching the database (%p)", async (body) => {
@@ -242,7 +242,7 @@ describe("resetting the password with the OTP", () => {
   });
 
   it(`allows ${MAX_RESET_TRIES} tries per IP in 15 minutes`, async () => {
-    const body = { email: "someone@school.edu.ph", otp: "123456", newPassword: "new password" };
+    const body = { email: "someone@school.edu.ph", otp: "123456", newPassword: "New pass1!" };
     for (let i = 0; i < MAX_RESET_TRIES; i += 1) expect((await reset(body)).code).toBe(400);
     expect((await reset(body)).code).toBe(429);
     expect((await reset(body, "2.2.2.2")).code).toBe(400);

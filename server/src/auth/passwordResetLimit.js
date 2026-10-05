@@ -32,10 +32,18 @@ function createIpLimit(max, message) {
 const otpRequests = createIpLimit(MAX_OTP_REQUESTS, "Too many OTP requests. Try again in 15 minutes.");
 const resetTries = createIpLimit(MAX_RESET_TRIES, "Too many tries. Try again in 15 minutes.");
 
+// Same limits for signup code verification: sending codes and verifying tries.
+const codeRequests = createIpLimit(MAX_OTP_REQUESTS, "Too many code requests. Try again in 15 minutes.");
+const codeVerifyTries = createIpLimit(MAX_RESET_TRIES, "Too many verification tries. Try again in 15 minutes.");
+
 export const refuseOtpRequestIfLimited = otpRequests.refuse;
 export const refuseResetIfLimited = resetTries.refuse;
+export const refuseCodeRequestIfLimited = codeRequests.refuse;
+export const refuseCodeVerifyIfLimited = codeVerifyTries.refuse;
 
 export function resetPasswordResetLimits() {
   otpRequests.clear();
   resetTries.clear();
+  codeRequests.clear();
+  codeVerifyTries.clear();
 }

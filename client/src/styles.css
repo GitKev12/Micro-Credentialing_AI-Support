@@ -227,8 +227,10 @@ a {
   background: #0f172a;
 }
 
+/* Fixed to the window, not the page: a taller form (Sign up) would otherwise
+   stretch this box and re-crop the photo, which looks like a zoom. */
 .login-screen__bg {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 0;
   background:
@@ -515,12 +517,130 @@ a {
   }
 }
 
-/* A code that came back refused. */
-.auth-code__input[aria-invalid="true"] ~ .auth-code__slots .auth-code__slot {
-  /* The ink of .auth-error below it, so the boxes and the sentence explaining
-     them are plainly the same thing. 3.7:1 against the tint. */
-  border-color: rgba(140, 52, 43, 0.7);
-  background: rgba(255, 242, 241, 0.94);
+/* ── Auth additions ─────────────────────────────────── */
+
+.auth-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.auth-input-wrap--email input {
+  padding-right: 6rem;
+}
+
+.auth-input-action {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  padding: 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.auth-input-action:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.auth-input-action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Room on the right so typed text never runs under the eye button. */
+.auth-input-wrap--password input {
+  padding-right: 3rem;
+}
+
+/* Edge draws its own eye in password boxes; ours replaces it. */
+.auth-input-wrap input::-ms-reveal,
+.auth-input-wrap input::-ms-clear {
+  display: none;
+}
+
+.auth-password-toggle {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 6px;
+}
+
+.auth-password-toggle svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.auth-input-action:focus-visible {
+  outline: 2px solid #9a2838;
+  outline-offset: 1px;
+}
+
+.auth-verified {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(43, 120, 77, 0.15);
+  color: #255a39;
+  font-weight: 700;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+/* Live password feedback, sitting inside its field under the box. */
+.auth-checklist {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.auth-checklist li,
+.auth-check-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.15s ease;
+}
+
+/* Darker than a bright green so the small text stays readable. */
+.auth-checklist li[data-met="true"],
+.auth-check-line[data-ok="true"] {
+  color: #255a39;
+}
+
+.auth-check-line {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.auth-check-line[data-ok="false"] {
+  color: #8c342b;
+}
+
+.auth-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.auth-verification-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

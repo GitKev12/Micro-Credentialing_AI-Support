@@ -13,15 +13,20 @@ globalThis.TextDecoder ??= TextDecoder;
  */
 
 const login = jest.fn();
+const signupStudent = jest.fn();
+const sendSignupCode = jest.fn();
+const verifySignupCode = jest.fn();
 const saveAuthSession = jest.fn();
 // Who this browser already has signed in, as localStorage would hand it back.
 let storedSession = null;
 
 jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
   login,
+  signupStudent,
+  sendSignupCode,
+  verifySignupCode,
   saveAuthSession,
-  getStoredSession: () => storedSession,
-  signupStudent: jest.fn()
+  getStoredSession: () => storedSession
 }));
 
 let LoginPage, MemoryRouter, Routes, Route;
