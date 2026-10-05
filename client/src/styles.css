@@ -401,10 +401,10 @@ a {
   line-height: 1.5;
 }
 
+/* No height cap: the card shows in full and the page grows around it,
+   so the background behind it grows too. */
 .signup-card {
   width: min(100%, 32rem);
-  max-height: min(46rem, calc(100vh - 2.5rem));
-  overflow-y: auto;
 }
 
 .auth-error {
