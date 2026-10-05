@@ -150,6 +150,19 @@ describe("LoginPage", () => {
     expect(password.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("says when no account uses the ID number or email", async () => {
+    login.mockRejectedValue({
+      response: { status: 404, data: { message: "No account found with that ID number or email." } }
+    });
+    draw();
+
+    fireEvent.change(screen.getByLabelText("ID Number or Email"), { target: { value: "nobody@school.edu.ph" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "longenough" } });
+    submit();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("No account found with that ID number or email.");
+  });
+
   it("shows the account-created message after signup", () => {
     draw([{ pathname: "/login", state: { message: "Account created. You can now sign in." } }]);
 
