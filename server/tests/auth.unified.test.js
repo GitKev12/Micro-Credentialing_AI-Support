@@ -74,6 +74,25 @@ describe("unified login", () => {
     expect(compare).not.toHaveBeenCalled();
   });
 
+  it.each(["nobody@example.com", "STU999"])("says no account uses %s, without checking a password", async (identifier) => {
+    const res = await login(identifier);
+    expect(res.code).toBe(404);
+    expect(res.body).toEqual({ message: "No account found with that ID number or email." });
+    expect(compare).not.toHaveBeenCalled();
+    expect(signAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("counts unknown accounts towards the existing login limiter", async () => {
+    for (let i = 0; i < MAX_FAILURES; i++) expect((await login("nobody@example.com")).code).toBe(404);
+    expect((await login("nobody@example.com")).code).toBe(429);
+  });
+
+  it("still says only 'invalid' for a wrong password on a real account", async () => {
+    const res = await login("student@example.com", "wrong password");
+    expect(res.code).toBe(401);
+    expect(res.body).toEqual({ message: "Invalid ID number, email, or password." });
+  });
+
   it("never searches another role's password after a mismatch", async () => {
     const res = await login("student@example.com", "wrong password");
     expect(res.code).toBe(401);

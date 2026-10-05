@@ -88,6 +88,7 @@ function ensureDatabaseReady(response) {
 
 // Resolve identity before checking the password. Never try another role's
 // password if an identifier belongs to more than one role.
+// Returns null when no account uses it, and { conflict: true } when two do.
 export async function findLoginAccount(identifier) {
   let match = null;
   for (const [role, collectionName] of Object.entries(roleCollections)) {
@@ -96,7 +97,7 @@ export async function findLoginAccount(identifier) {
       : loginFilter(identifier, role === "student" ? "student_id" : "assessor_id");
     const account = await mongoose.connection.collection(collectionName).findOne(filter);
     if (!account) continue;
-    if (match) return null;
+    if (match) return { conflict: true };
     match = { account, role };
   }
   return match;
@@ -118,16 +119,22 @@ export async function loginUser(request, response) {
   if (!ensureDatabaseReady(response)) return null;
 
   const result = await findLoginAccount(identifier);
-  const storedPassword = getStoredPassword(result?.account);
 
-  if (!result || !(await isPasswordValid(password, storedPassword))) {
+  // No student, assessor or admin uses what they typed. It still counts
+  // toward the lockout, like a wrong password.
+  if (!result) {
+    noteFailure(request, identifier);
+    return response.status(404).json({ message: "No account found with that ID number or email." });
+  }
+
+  if (result.conflict || !(await isPasswordValid(password, getStoredPassword(result.account)))) {
     noteFailure(request, identifier);
     return response.status(401).json({ message: "Invalid ID number, email, or password." });
   }
   noteSuccess(request, identifier);
 
-  // Checked after the password, not before: answering "suspended" to a wrong
-  // password would tell an outsider the account exists.
+  // Checked after the password, not before, so only the account's owner
+  // learns that it is suspended.
   if (result.account.suspended === true || result.account.archived === true) {
     return response.status(403).json({
       message: "This account is suspended. Contact your administrator."

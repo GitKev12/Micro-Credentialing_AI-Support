@@ -87,8 +87,10 @@ describe("too many wrong passwords", () => {
     return loginUser({ ip, body: { identifier, password: "wrong" } }, res).then(() => res);
   };
 
+  // The fake database here has no accounts, so each try is answered 404
+  // (no account found). Those count toward the lockout too.
   it("refuses the account from that address after the limit", async () => {
-    for (let i = 0; i < MAX_FAILURES; i += 1) expect((await signIn()).code).toBe(401);
+    for (let i = 0; i < MAX_FAILURES; i += 1) expect((await signIn()).code).toBe(404);
 
     const res = await signIn();
     expect(res.code).toBe(429);
@@ -98,8 +100,8 @@ describe("too many wrong passwords", () => {
   it("doesn't lock the same account from another address, or another account", async () => {
     for (let i = 0; i < MAX_FAILURES; i += 1) await signIn();
 
-    expect((await signIn("2.2.2.2")).code).toBe(401);
-    expect((await signIn("1.1.1.1", "ramon001@assessor.edu.ph")).code).toBe(401);
+    expect((await signIn("2.2.2.2")).code).toBe(404);
+    expect((await signIn("1.1.1.1", "ramon001@assessor.edu.ph")).code).toBe(404);
   });
 
   it("opens again once the window is over", () => {
