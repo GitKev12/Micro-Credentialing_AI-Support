@@ -2,27 +2,16 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { checkEmail, MAX_LENGTH } from "../../lib/fieldRules";
 import AuthScreen from "../components/AuthScreen";
+import CodeBoxes from "../components/CodeBoxes";
+import PasswordChecklist, { PasswordMatch } from "../components/PasswordChecklist";
+import PasswordInput from "../components/PasswordInput";
 import { passwordError } from "../passwordRules";
 import { getStoredSession, requestPasswordOtp, resetPasswordWithOtp } from "../services/authService";
 
 // The server sends at most one OTP a minute, so Resend waits that long.
 const RESEND_SECONDS = 60;
 
-// One box per digit of the OTP.
-const OTP_SLOTS = [0, 1, 2, 3, 4, 5];
-
 const serverMessage = (requestError, fallback) => requestError.response?.data?.message || fallback;
-
-// The digits show in the boxes, not in the input, so the caret has to stay at
-// the end — put anywhere else it would be typing into a box the reader cannot
-// see it in. The check stops this from setting off its own select event.
-const caretToEnd = (event) => {
-  const input = event.target;
-  const end = input.value.length;
-  if (input.selectionStart !== end || input.selectionEnd !== end) {
-    input.setSelectionRange(end, end);
-  }
-};
 
 function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -124,9 +113,10 @@ function ForgotPasswordPage() {
       {step === "email" ? (
         // noValidate: show our own email message instead of the browser's pop-up.
         <form className="auth-form" onSubmit={handleEmailSubmit} noValidate>
-          <label className="auth-field">
-            <span>Email</span>
+          <div className="auth-field">
+            <label htmlFor="forgot-email">Email</label>
             <input
+              id="forgot-email"
               value={email}
               type="email"
               autoComplete="email"
@@ -138,7 +128,7 @@ function ForgotPasswordPage() {
                 setEmail(event.target.value);
               }}
             />
-          </label>
+          </div>
 
           {error ? (
             <p className="auth-error" role="alert">
@@ -163,67 +153,51 @@ function ForgotPasswordPage() {
             it. It expires in 10 minutes.
           </p>
 
-          {/* The label is tied to the input by id rather than wrapped around
-              it, because the boxes carry the digits as text and a label that
-              held them would read as "OTP 1 2 3 4 5 6". */}
-          <span className="auth-field">
-            <label htmlFor="forgot-otp">OTP</label>
-            <span className="auth-code__box">
-              <input
-                id="forgot-otp"
-                className="auth-code__input"
-                value={otp}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={OTP_SLOTS.length}
-                aria-invalid={badOtp || undefined}
-                onFocus={caretToEnd}
-                onSelect={caretToEnd}
-                onChange={(event) => {
-                  setError("");
-                  setBadOtp(false);
-                  setOtp(event.target.value.replace(/\D/g, ""));
-                }}
-              />
-              <span className="auth-code__slots" aria-hidden="true">
-                {OTP_SLOTS.map((slot) => (
-                  <span
-                    key={slot}
-                    className="auth-code__slot"
-                    data-active={slot === Math.min(otp.length, OTP_SLOTS.length - 1) || undefined}
-                  >
-                    {otp[slot] ?? ""}
-                  </span>
-                ))}
-              </span>
-            </span>
-          </span>
+          <CodeBoxes
+            id="forgot-otp"
+            label="OTP"
+            value={otp}
+            invalid={badOtp}
+            onChange={(val) => {
+              setError("");
+              setBadOtp(false);
+              setOtp(val);
+            }}
+          />
 
-          <label className="auth-field">
-            <span>New password</span>
-            <input
+          <div className="auth-field">
+            <label htmlFor="forgot-new-password">New password</label>
+            <PasswordInput
+              id="forgot-new-password"
               value={newPassword}
-              type="password"
               autoComplete="new-password"
+              aria-describedby="forgot-password-checklist"
               onChange={(event) => {
                 setError("");
                 setNewPassword(event.target.value);
               }}
             />
-          </label>
+            <PasswordChecklist id="forgot-password-checklist" password={newPassword} />
+          </div>
 
-          <label className="auth-field">
-            <span>Confirm new password</span>
-            <input
+          <div className="auth-field">
+            <label htmlFor="forgot-confirm-password">Confirm new password</label>
+            <PasswordInput
+              id="forgot-confirm-password"
               value={confirmPassword}
-              type="password"
               autoComplete="new-password"
+              aria-describedby="forgot-password-match"
               onChange={(event) => {
                 setError("");
                 setConfirmPassword(event.target.value);
               }}
             />
-          </label>
+            <PasswordMatch
+              id="forgot-password-match"
+              password={newPassword}
+              confirmPassword={confirmPassword}
+            />
+          </div>
 
           {error ? (
             <p className="auth-error" role="alert">

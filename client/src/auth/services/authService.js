@@ -17,6 +17,16 @@ export async function loginAdmin(credentials) {
   return data;
 }
 
+export async function sendSignupCode(email) {
+  const { data } = await api.post("/auth/signup/send-code", { email });
+  return data;
+}
+
+export async function verifySignupCode(details) {
+  const { data } = await api.post("/auth/signup/verify-code", details);
+  return data;
+}
+
 export async function signupStudent(details) {
   const { data } = await api.post("/auth/signup", details);
   return data;

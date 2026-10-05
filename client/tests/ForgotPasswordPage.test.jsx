@@ -104,9 +104,9 @@ describe("ForgotPasswordPage", () => {
   });
 
   it.each([
-    ["12345", "new password", "new password", "Enter the 6-digit OTP from the email."],
-    ["123456", "short", "short", "Password must be at least 8 characters."],
-    ["123456", "new password", "other password", "Passwords must match."]
+    ["12345", "New pass1!", "New pass1!", "Enter the 6-digit OTP from the email."],
+    ["123456", "short", "short", "The password needs at least 8 characters, with an uppercase letter, a lowercase letter, a number and a symbol."],
+    ["123456", "New pass1!", "Other pass1!", "Passwords must match."]
   ])("checks OTP %s and the passwords before calling the API", async (otp, password, confirm, message) => {
     await reachOtpStep();
     type("OTP", otp);
@@ -121,13 +121,13 @@ describe("ForgotPasswordPage", () => {
     await reachOtpStep();
     resetPasswordWithOtp.mockResolvedValue({ message: "Password changed. You can now sign in." });
     type("OTP", "123456");
-    type("New password", "new password");
-    type("Confirm new password", "new password");
+    type("New password", "New pass1!");
+    type("Confirm new password", "New pass1!");
     click("Change password");
 
     expect(await screen.findByText("Login page: Password changed. You can now sign in.")).toBeTruthy();
     expect(resetPasswordWithOtp).toHaveBeenCalledWith({
-      email: "ana@school.edu.ph", otp: "123456", newPassword: "new password"
+      email: "ana@school.edu.ph", otp: "123456", newPassword: "New pass1!"
     });
   });
 
@@ -135,8 +135,8 @@ describe("ForgotPasswordPage", () => {
     await reachOtpStep();
     resetPasswordWithOtp.mockRejectedValue({ response: { data: { message: "That OTP is not right. Check the email and try again." } } });
     type("OTP", "000000");
-    type("New password", "new password");
-    type("Confirm new password", "new password");
+    type("New password", "New pass1!");
+    type("Confirm new password", "New pass1!");
     click("Change password");
     expect((await screen.findByRole("alert")).textContent).toBe("That OTP is not right. Check the email and try again.");
   });

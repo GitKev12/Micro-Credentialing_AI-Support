@@ -3,8 +3,10 @@ import mongoose from "mongoose";
 import { emailTaken, ensureAccountIndexes, insertAccount } from "./accountCreation.js";
 import { checkEmail, checkName } from "../lib/fieldRules.js";
 import { refuseSignupIfLimited } from "./signupLimit.js";
+import { consumeSignupCode } from "./emailVerification.controller.js";
+import { passwordProblem } from "./passwordRule.js";
 
-const FIELDS = ["firstName", "lastName", "email", "password"];
+const FIELDS = ["firstName", "lastName", "email", "password", "code"];
 const UNAVAILABLE = "Signup is temporarily unavailable. Try again later.";
 const DUPLICATE = "An account with these details already exists.";
 
@@ -15,14 +17,18 @@ export async function signupStudent(request, response) {
   if (!body || typeof body !== "object" || Array.isArray(body) ||
     Object.keys(body).some((key) => !FIELDS.includes(key)) ||
     FIELDS.some((key) => !Object.hasOwn(body, key) || typeof body[key] !== "string")) {
-    return response.status(400).json({ message: "Send only firstName, lastName, email and password as text." });
+    return response.status(400).json({ message: "Send only firstName, lastName, email, password and code as text." });
   }
   const error = checkName(body.firstName, "First name") ||
     checkName(body.lastName, "Last name") || checkEmail(body.email);
   if (error) return response.status(400).json({ message: error });
-  // Preserve whitespace. Bcrypt silently truncates anything above 72 bytes.
-  if (body.password.length < 8 || Buffer.byteLength(body.password, "utf8") > 72) {
-    return response.status(400).json({ message: "The password must be at least 8 characters and at most 72 UTF-8 bytes." });
+
+  // Check the same password rules as the reset form.
+  const weak = passwordProblem(body.password);
+  if (weak) return response.status(400).json({ message: weak });
+
+  if (!body.code || typeof body.code !== "string") {
+    return response.status(400).json({ message: "Verify your email first." });
   }
   if (mongoose.connection.readyState !== 1) {
     return response.status(503).json({ message: UNAVAILABLE });
@@ -36,6 +42,11 @@ export async function signupStudent(request, response) {
   try {
     const email = body.email.trim().toLowerCase();
     if (await emailTaken(email)) return response.status(409).json({ message: DUPLICATE });
+
+    // The code can only be used once, for this exact email address.
+    if (!await consumeSignupCode(email, body.code)) {
+      return response.status(400).json({ message: "Verify your email first." });
+    }
     await insertAccount("Student", {
       first_name: body.firstName.trim(),
       last_name: body.lastName.trim(),

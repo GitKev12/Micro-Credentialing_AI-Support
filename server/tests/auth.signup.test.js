@@ -5,13 +5,15 @@ const hash = jest.fn(async () => "bcrypt-hash");
 jest.unstable_mockModule("bcryptjs", () => ({ default: { hash } }));
 let exists = true;
 jest.unstable_mockModule("../src/lib/mongo.js", () => ({ collectionExists: async () => exists }));
+const consumeSignupCode = jest.fn(async () => true);
+jest.unstable_mockModule("../src/auth/emailVerification.controller.js", () => ({ consumeSignupCode }));
 const { signupStudent } = await import("../src/auth/signup.controller.js");
 const { ensureAccountIndexes } = await import("../src/auth/accountCreation.js");
 const { resetSignupLimit, refuseSignupIfLimited, SIGNUP_WINDOW_MS, MAX_SIGNUP_IPS } =
   await import("../src/auth/signupLimit.js");
 
 let rows, createIndex, insertOne, access;
-const valid = () => ({ firstName: " Ana ", lastName: " Reyes ", email: " ANA@School.edu.ph ", password: " password " });
+const valid = () => ({ firstName: " Ana ", lastName: " Reyes ", email: " ANA@School.edu.ph ", password: " Strong pass1! ", code: "123456" });
 const response = () => ({
   code: 200, body: null, set: jest.fn(),
   status(code) { this.code = code; return this; },
@@ -30,6 +32,8 @@ const signup = async (body = valid(), ip = "1.1.1.1") => {
 beforeEach(() => {
   resetSignupLimit();
   hash.mockClear();
+  consumeSignupCode.mockClear();
+  consumeSignupCode.mockResolvedValue(true);
   exists = true;
   rows = { Student: [], Assessor: [], Admin: [] };
   createIndex = jest.fn(async () => "index");
@@ -49,7 +53,8 @@ describe("public signup", () => {
     const res = await signup();
     expect(res.code).toBe(201);
     expect(res.body).toEqual({ message: "Account created. You can now sign in." });
-    expect(hash).toHaveBeenCalledWith(" password ", 12);
+    expect(hash).toHaveBeenCalledWith(" Strong pass1! ", 12);
+    expect(consumeSignupCode).toHaveBeenCalledWith("ana@school.edu.ph", "123456");
     expect(rows.Student[0]).toEqual({
       first_name: "Ana", last_name: "Reyes", email: "ana@school.edu.ph", password: "bcrypt-hash",
       suspended: false, archived: false, enrolledCourses: [], createdAt: expect.any(Date), student_id: "STU2023300001"
@@ -58,7 +63,7 @@ describe("public signup", () => {
 
   it.each([undefined, null, [], "text", 3, {}, { ...valid(), firstName: null },
     { ...valid(), lastName: ["Reyes"] }, { ...valid(), email: { $ne: "" } },
-    { ...valid(), password: 12345678 }, { ...valid(), password: ["password"] }])(
+    { ...valid(), password: 12345678 }, { ...valid(), password: ["Strong pass1!"] }])(
     "rejects missing and non-string fields without expensive work (%p)", async (body) => {
       const res = response();
       await signupStudent({ body, ip: "one" }, res);
@@ -67,7 +72,7 @@ describe("public signup", () => {
       expect(hash).not.toHaveBeenCalled();
     });
 
-  it.each(["firstName", "lastName", "email", "password"])("requires %s", async (key) => {
+  it.each(["firstName", "lastName", "email", "password", "code"])("requires %s", async (key) => {
     const body = valid(); delete body[key];
     expect((await signup(body)).code).toBe(400);
   });
@@ -93,8 +98,9 @@ describe("public signup", () => {
       expect(hash).not.toHaveBeenCalled();
     });
 
-  it.each(["12345678", "a".repeat(72), "é".repeat(36), "😀".repeat(18), "        "])(
-    "hashes valid password bytes without trimming (%p)", async (password) => {
+  // "Aa1!" makes each one strong; the middle three are exactly 72 bytes.
+  it.each(["Aa1!aaaa", "Aa1!" + "a".repeat(68), "Aa1!" + "é".repeat(34), "Aa1!" + "😀".repeat(17), "  Aa1!  "])(
+    "hashes strong valid password bytes without trimming (%p)", async (password) => {
       expect((await signup({ ...valid(), password })).code).toBe(201);
       expect(hash).toHaveBeenCalledWith(password, 12);
     });
@@ -132,6 +138,16 @@ describe("public signup", () => {
     expect((await signup()).body).toEqual({ message: "An account with these details already exists." });
     expect(hash).not.toHaveBeenCalled();
     expect(insertOne).not.toHaveBeenCalled();
+  });
+
+
+  it("does not insert when the signup code is invalid", async () => {
+    consumeSignupCode.mockResolvedValueOnce(false);
+    const res = await signup();
+    expect(res.code).toBe(400);
+    expect(res.body).toEqual({ message: "Verify your email first." });
+    expect(insertOne).not.toHaveBeenCalled();
+    expect(hash).not.toHaveBeenCalled();
   });
 
   it("handles a duplicate email race with generic 409 and no retry", async () => {

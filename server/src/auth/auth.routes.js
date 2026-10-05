@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getStanding, loginAdmin, loginUser, streamStanding } from "./auth.controller.js";
 import { signupStudent } from "./signup.controller.js";
+import { sendSignupCode, verifySignupCode } from "./emailVerification.controller.js";
 import { requestPasswordOtp, resetPasswordWithOtp } from "./forgotPassword.controller.js";
 import { requireAuth, requireDownloadAuth } from "../middleware/auth.js";
 
@@ -8,6 +9,9 @@ const router = Router();
 
 router.post("/login", loginUser);
 router.post("/admin/login", loginAdmin);
+// Signup: verify email first, then create account.
+router.post("/signup/send-code", sendSignupCode);
+router.post("/signup/verify-code", verifySignupCode);
 router.post("/signup", signupStudent);
 // Forgot password: email an OTP, then trade it for a new password.
 router.post("/forgot-password", requestPasswordOtp);

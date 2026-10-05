@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { checkEmail, checkName, MAX_LENGTH } from "../../lib/fieldRules";
+import { checkName, MAX_LENGTH } from "../../lib/fieldRules";
 import AuthScreen from "../components/AuthScreen";
+import EmailVerifyField from "../components/EmailVerifyField";
+import PasswordChecklist, { PasswordMatch } from "../components/PasswordChecklist";
+import PasswordInput from "../components/PasswordInput";
 import { passwordError } from "../passwordRules";
 import { getStoredSession, login, saveAuthSession, signupStudent } from "../services/authService";
 
@@ -22,8 +25,10 @@ function LoginPage() {
     lastName: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
+    code: ""
   });
+  const [emailVerified, setEmailVerified] = useState(false);
 
   const [pillStyle, setPillStyle] = useState({});
   const [error, setError] = useState("");
@@ -57,7 +62,7 @@ function LoginPage() {
   const validateSignup = () =>
     checkName(signupForm.firstName, "First name") ||
     checkName(signupForm.lastName, "Last name") ||
-    checkEmail(signupForm.email) ||
+    (!emailVerified ? "Verify your email first." : null) ||
     passwordError(signupForm.password, signupForm.confirmPassword);
 
   const handleLoginSubmit = async (event) => {
@@ -99,7 +104,8 @@ function LoginPage() {
         firstName: signupForm.firstName,
         lastName: signupForm.lastName,
         email: signupForm.email,
-        password: signupForm.password
+        password: signupForm.password,
+        code: signupForm.code
       });
       navigate("/login", {
         replace: true,
@@ -115,16 +121,12 @@ function LoginPage() {
     }
   };
 
-  // The session is in localStorage, so every tab shares it: a second tab
-  // opened on /login goes straight to the console the first one signed into.
   const session = getStoredSession();
   if (session?.user) {
     return <Navigate to={session.redirectTo || `/${session.user.role}`} replace />;
   }
 
-  // Set by signup or forgot password when they send the student back here.
   const statusMessage = location.state?.message;
-  // An email typed in the sign-in box is carried over to forgot password.
   const typedEmail = identifier.includes("@") ? identifier.trim() : "";
 
   return (
@@ -158,9 +160,10 @@ function LoginPage() {
 
       {isLogin ? (
         <form className="auth-form" onSubmit={handleLoginSubmit}>
-          <label className="auth-field">
-            <span>ID Number or Email</span>
+          <div className="auth-field">
+            <label htmlFor="login-identifier">ID Number or Email</label>
             <input
+              id="login-identifier"
               value={identifier}
               type="text"
               autoComplete="username"
@@ -169,18 +172,18 @@ function LoginPage() {
               maxLength={MAX_LENGTH.email}
               onChange={(event) => setIdentifier(event.target.value)}
             />
-          </label>
+          </div>
 
-          <label className="auth-field">
-            <span>Password</span>
-            <input
-              type="password"
+          <div className="auth-field">
+            <label htmlFor="login-password">Password</label>
+            <PasswordInput
+              id="login-password"
               value={loginPassword}
               autoComplete="current-password"
               maxLength={MAX_LENGTH.password}
               onChange={(event) => setLoginPassword(event.target.value)}
             />
-          </label>
+          </div>
 
           <div className="auth-forgot">
             <Link
@@ -204,60 +207,71 @@ function LoginPage() {
         </form>
       ) : (
         <form className="auth-form" onSubmit={handleSignupSubmit}>
-          <label className="auth-field">
-            <span>First name</span>
+          <div className="auth-field">
+            <label htmlFor="signup-firstname">First name</label>
             <input
+              id="signup-firstname"
               value={signupForm.firstName}
               type="text"
               autoComplete="given-name"
               maxLength={MAX_LENGTH.name}
               onChange={(event) => setSignupField("firstName", event.target.value)}
             />
-          </label>
+          </div>
 
-          <label className="auth-field">
-            <span>Last name</span>
+          <div className="auth-field">
+            <label htmlFor="signup-lastname">Last name</label>
             <input
+              id="signup-lastname"
               value={signupForm.lastName}
               type="text"
               autoComplete="family-name"
               maxLength={MAX_LENGTH.name}
               onChange={(event) => setSignupField("lastName", event.target.value)}
             />
-          </label>
+          </div>
 
-          <label className="auth-field">
-            <span>Email</span>
-            <input
-              value={signupForm.email}
-              type="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              spellCheck={false}
-              maxLength={MAX_LENGTH.email}
-              onChange={(event) => setSignupField("email", event.target.value)}
-            />
-          </label>
+          <EmailVerifyField
+            email={signupForm.email}
+            disabled={isSubmitting}
+            onEmailChange={(value) => {
+              setSignupField("email", value);
+              setSignupField("code", "");
+              setEmailVerified(false);
+            }}
+            onVerification={(codeVal, verified, expiresAt) => {
+              setSignupField("code", codeVal);
+              setEmailVerified(verified);
+            }}
+          />
 
-          <label className="auth-field">
-            <span>Password</span>
-            <input
+          <div className="auth-field">
+            <label htmlFor="signup-password">Password</label>
+            <PasswordInput
+              id="signup-password"
               value={signupForm.password}
-              type="password"
               autoComplete="new-password"
+              aria-describedby="signup-password-checklist"
               onChange={(event) => setSignupField("password", event.target.value)}
             />
-          </label>
+            <PasswordChecklist id="signup-password-checklist" password={signupForm.password} />
+          </div>
 
-          <label className="auth-field">
-            <span>Confirm password</span>
-            <input
+          <div className="auth-field">
+            <label htmlFor="signup-confirm-password">Confirm password</label>
+            <PasswordInput
+              id="signup-confirm-password"
               value={signupForm.confirmPassword}
-              type="password"
               autoComplete="new-password"
+              aria-describedby="signup-password-match"
               onChange={(event) => setSignupField("confirmPassword", event.target.value)}
             />
-          </label>
+            <PasswordMatch
+              id="signup-password-match"
+              password={signupForm.password}
+              confirmPassword={signupForm.confirmPassword}
+            />
+          </div>
 
           {error ? (
             <p className="auth-error" role="alert">
@@ -265,7 +279,7 @@ function LoginPage() {
             </p>
           ) : null}
 
-          <button className="primary-action" type="submit" disabled={isSubmitting}>
+          <button className="primary-action" type="submit" disabled={isSubmitting || !emailVerified}>
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>
         </form>

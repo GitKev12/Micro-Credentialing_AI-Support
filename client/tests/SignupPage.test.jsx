@@ -7,12 +7,16 @@ globalThis.TextDecoder ??= TextDecoder;
 
 const login = jest.fn();
 const signupStudent = jest.fn();
+const sendSignupCode = jest.fn();
+const verifySignupCode = jest.fn();
 const saveAuthSession = jest.fn();
 let storedSession = null;
 
 jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
   login,
   signupStudent,
+  sendSignupCode,
+  verifySignupCode,
   saveAuthSession,
   getStoredSession: () => storedSession
 }));
@@ -26,6 +30,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   signupStudent.mockReset();
+  // The email must be verified before Create account can be pressed.
+  // The code lasts 10 minutes, like the real server's.
+  const inTenMinutes = async () => ({ expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
+  sendSignupCode.mockImplementation(inTenMinutes);
+  verifySignupCode.mockImplementation(inTenMinutes);
   storedSession = null;
 });
 
@@ -40,14 +49,18 @@ const draw = () =>
     </MemoryRouter>
   );
 
-const fillValidForm = () => {
+const fillValidForm = async () => {
   fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Juan" } });
   fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Dela Cruz" } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juan@student.edu.ph" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "longenough" } });
-  fireEvent.change(screen.getByLabelText("Confirm password"), {
-    target: { value: "longenough" }
-  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+  const codeInput = await screen.findByLabelText("Verification code");
+  fireEvent.change(codeInput, { target: { value: "123456" } });
+  await screen.findByText("Verified");
+
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password123!" } });
+  fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Password123!" } });
 };
 
 const submit = () => {
@@ -71,14 +84,8 @@ describe("SignupPage", () => {
 
   it("rejects invalid names before calling the API", async () => {
     draw();
-
+    await fillValidForm();
     fireEvent.change(screen.getByLabelText("First name"), { target: { value: "J" } });
-    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Dela Cruz" } });
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juan@student.edu.ph" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "longenough" } });
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
-      target: { value: "longenough" }
-    });
     submit();
 
     expect((await screen.findByRole("alert")).textContent).toBe("First name must be at least 2 letters.");
@@ -87,7 +94,7 @@ describe("SignupPage", () => {
 
   it("rejects mismatched passwords", async () => {
     draw();
-    fillValidForm();
+    await fillValidForm();
     fireEvent.change(screen.getByLabelText("Confirm password"), {
       target: { value: "different" }
     });
@@ -99,7 +106,7 @@ describe("SignupPage", () => {
 
   it("rejects passwords over 72 UTF-8 bytes", async () => {
     draw();
-    fillValidForm();
+    await fillValidForm();
     const longUnicode = "ñ".repeat(37);
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: longUnicode } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: longUnicode } });
@@ -112,7 +119,7 @@ describe("SignupPage", () => {
   it("creates the account and returns to sign-in", async () => {
     signupStudent.mockResolvedValue({ message: "Account created. You can now sign in." });
     draw();
-    fillValidForm();
+    await fillValidForm();
     submit();
 
     expect(await screen.findByText("Login")).toBeTruthy();
@@ -120,7 +127,8 @@ describe("SignupPage", () => {
       firstName: "Juan",
       lastName: "Dela Cruz",
       email: "juan@student.edu.ph",
-      password: "longenough"
+      password: "Password123!",
+      code: "123456"
     });
   });
 
@@ -132,20 +140,20 @@ describe("SignupPage", () => {
       })
     );
     draw();
-    fillValidForm();
+    await fillValidForm();
 
     submit();
     fireEvent.click(await screen.findByRole("button", { name: "Creating account..." }));
 
     expect(signupStudent).toHaveBeenCalledTimes(1);
     finish();
-    await screen.findByText("Sign in");
+    expect(await screen.findByText("Login")).toBeTruthy();
   });
 
   it("shows the server signup error", async () => {
     signupStudent.mockRejectedValue({ response: { data: { message: "An account with these details already exists." } } });
     draw();
-    fillValidForm();
+    await fillValidForm();
     submit();
 
     expect((await screen.findByRole("alert")).textContent).toBe("An account with these details already exists.");

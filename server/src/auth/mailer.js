@@ -33,10 +33,11 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }
 
-export async function sendOtpEmail({ to, firstName, otp, minutes }) {
+async function send({ to, firstName, code, subject, intro, footer }) {
   if (!mailerReady()) {
-    // No SMTP settings (a local machine): print the OTP so the flow can still be tried.
-    console.log(`[mailer] SMTP is not set up, so nothing was emailed. OTP for ${to}: ${otp}`);
+    if (process.env.NODE_ENV === "production") throw new Error("SMTP is not configured.");
+    // No SMTP settings (a local machine): print the code so the flow can still be tried.
+    console.log(`[mailer] SMTP is not set up, so nothing was emailed. Code for ${to}: ${code}`);
     return;
   }
 
@@ -44,17 +45,18 @@ export async function sendOtpEmail({ to, firstName, otp, minutes }) {
   const text = [
     greeting,
     "",
-    `Your OTP to reset your password is: ${otp}`,
+    intro,
+    code,
     "",
-    `It expires in ${minutes} minutes. If you did not ask to reset your password, ignore this email. Your password stays the same.`
+    footer
   ].join("\n");
 
   const html = `
     <div style="font-family: Arial, sans-serif; color: #1d1712; max-width: 480px;">
       <p>${escapeHtml(greeting)}</p>
-      <p>Your OTP to reset your password is:</p>
-      <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #7d1f2b;">${otp}</p>
-      <p>It expires in ${minutes} minutes. If you did not ask to reset your password, ignore this email. Your password stays the same.</p>
+      <p>${escapeHtml(intro)}</p>
+      <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #7d1f2b;">${code}</p>
+      <p>${escapeHtml(footer)}</p>
     </div>`;
 
   await getTransporter().sendMail({
@@ -62,8 +64,32 @@ export async function sendOtpEmail({ to, firstName, otp, minutes }) {
     // so the address is SMTP_USER and EMAIL_FROM is the name people see.
     from: { name: process.env.EMAIL_FROM || "mcredentialingsys", address: process.env.SMTP_USER },
     to,
-    subject: "Your password reset OTP",
+    subject,
     text,
     html
+  });
+}
+
+export async function sendOtpEmail({ to, firstName, otp, minutes }) {
+  await send({
+    to,
+    firstName,
+    code: otp,
+    minutes,
+    subject: "Your password reset OTP",
+    intro: "Your OTP to reset your password is:",
+    footer: `It expires in ${minutes} minutes. If you did not ask to reset your password, ignore this email. Your password stays the same.`
+  });
+}
+
+export async function sendSignupCodeEmail({ to, code, minutes }) {
+  await send({
+    to,
+    firstName: "",
+    code,
+    minutes,
+    subject: "Your email verification code",
+    intro: "Your code to verify your email is:",
+    footer: `It expires in ${minutes} minutes. If you did not sign up, ignore this email.`
   });
 }
