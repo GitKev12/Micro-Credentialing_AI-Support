@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import ccsLogo from "../../assets/ccs-logo.png";
+import tsuLogo from "../../assets/tsu-logo.png";
 import { checkName, MAX_LENGTH } from "../../lib/fieldRules";
 import AuthScreen from "../components/AuthScreen";
 import EmailVerifyField, { useEmailVerification } from "../components/EmailVerifyField";
@@ -146,8 +148,16 @@ function LoginPage() {
 
   return (
     <AuthScreen>
-      <p className="entity-label">{isLogin ? "Login" : "Student signup"}</p>
-      <h1>{isLogin ? "Sign in" : "Register"}</h1>
+      <div className="auth-card-head">
+        <div>
+          <p className="entity-label">{isLogin ? "Login" : "Student signup"}</p>
+          <h1>{isLogin ? "Sign in" : "Register"}</h1>
+        </div>
+        <div className="auth-logos">
+          <img src={tsuLogo} alt="Tarlac State University" />
+          <img src={ccsLogo} alt="College of Computer Studies" />
+        </div>
+      </div>
 
       <div className="login-toggle" ref={toggleRef} role="group" aria-label="Authentication option">
         <div className="login-toggle__pill" style={pillStyle} aria-hidden="true" />

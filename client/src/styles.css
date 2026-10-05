@@ -278,6 +278,25 @@ a {
   }
 }
 
+/* Title on the left, the TSU and CCS seals in the top right corner. */
+.auth-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.auth-logos {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+
+.auth-logos img {
+  width: 3rem;
+  height: 3rem;
+}
+
 .login-card h1 {
   margin: 0;
   color: var(--ink);
@@ -671,8 +690,14 @@ a {
   border: 0;
 }
 
+/* Email, code boxes and messages, spaced like the rest of the form. */
+.auth-email-verify {
+  display: grid;
+  gap: 1rem;
+}
+
 .auth-verification-status {
-  margin: 0.5rem 0 0;
+  margin: 0;
   font-size: 0.85rem;
   color: var(--muted);
 }
