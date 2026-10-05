@@ -9,8 +9,12 @@ const expiryTime = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-// Every edit/resend advances the request ID, including edits from A -> B -> A.
-export default function EmailVerifyField({ email, onEmailChange, onVerification, disabled }) {
+/**
+ * Remembers the email check: code sent, the 60-second wait, and Verified.
+ * The page calls this, not the field, so switching to Sign in and back
+ * does not wipe it (the signup form, and the field with it, is removed then).
+ */
+export function useEmailVerification({ email, onEmailChange, onVerification, disabled }) {
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [status, setStatus] = useState("idle");
@@ -19,6 +23,7 @@ export default function EmailVerifyField({ email, onEmailChange, onVerification,
   const [expiresAt, setExpiresAt] = useState(0);
   const [resendAt, setResendAt] = useState(0);
   const [now, setNow] = useState(Date.now);
+  // Every edit/resend advances the request ID, including edits from A -> B -> A.
   const request = useRef(0);
   const alive = useRef(true);
   const notify = useRef(onVerification);
@@ -121,6 +126,29 @@ export default function EmailVerifyField({ email, onEmailChange, onVerification,
     }
   };
 
+  const changeEmail = (value) => {
+    request.current += 1;
+    setCode("");
+    setSent(false);
+    setStatus("idle");
+    setError("");
+    setBadCode(false);
+    setExpiresAt(0);
+    // resendAt is kept: the 60-second wait holds even for a new email.
+    onEmailChange(value);
+  };
+
+  return { email, disabled, code, sent, status, error, badCode, resendIn, send, changeCode, changeEmail };
+}
+
+/** Draws the email box, its Verify button and the code boxes from useEmailVerification. */
+export default function EmailVerifyField({ verification }) {
+  const { email, disabled, code, sent, status, error, badCode, resendIn, send, changeCode, changeEmail } =
+    verification;
+  // "Resend" for the same email, "Verify" once the email has been changed.
+  // The countdown says just "Wait 57s" so the email beside it is not cut off.
+  const buttonWord = sent ? "Resend" : "Verify";
+
   return (
     <div className="auth-email-verify">
       <div className="auth-field">
@@ -128,23 +156,13 @@ export default function EmailVerifyField({ email, onEmailChange, onVerification,
         <span className="auth-input-wrap auth-input-wrap--email">
           <input id="signup-email" value={email} type="email" autoComplete="email"
             autoCapitalize="none" spellCheck={false} maxLength={MAX_LENGTH.email}
-            disabled={disabled} onChange={(event) => {
-              request.current += 1;
-              setCode("");
-              setSent(false);
-              setStatus("idle");
-              setError("");
-              setBadCode(false);
-              setExpiresAt(0);
-              setResendAt(0);
-              onEmailChange(event.target.value);
-            }} />
+            disabled={disabled} onChange={(event) => changeEmail(event.target.value)} />
           {status === "verified" ? (
             <span className="auth-input-action auth-verified" role="status">Verified</span>
           ) : (
-            <button type="button" className="auth-input-action" onClick={send}
+            <button type="button" className="auth-input-action auth-verify-button" onClick={send}
               disabled={disabled || status === "sending" || resendIn > 0}>
-              {status === "sending" ? "Sending..." : resendIn > 0 ? `Resend in ${resendIn}s` : sent ? "Resend" : "Verify"}
+              {status === "sending" ? "Sending..." : resendIn > 0 ? `Wait ${resendIn}s` : buttonWord}
             </button>
           )}
         </span>

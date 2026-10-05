@@ -56,7 +56,7 @@ const draw = (entries = ["/login"]) =>
   );
 
 const submit = () => {
-  const submitBtns = screen.getAllByRole("button", { name: /^(Sign in|Create account)$/ });
+  const submitBtns = screen.getAllByRole("button", { name: /^(Sign in|Register)$/ });
   // Click the last one in the DOM (the submit button, not the toggle)
   fireEvent.click(submitBtns[submitBtns.length - 1]);
 };
@@ -92,7 +92,7 @@ describe("LoginPage", () => {
 
     expect(await screen.findByLabelText("First name")).toBeTruthy();
     expect(screen.getByLabelText("Last name")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create account" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Register" })).toBeTruthy();
   });
 
   it("signs in a student with the shared login request", async () => {

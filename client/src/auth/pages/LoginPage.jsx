@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { checkName, MAX_LENGTH } from "../../lib/fieldRules";
 import AuthScreen from "../components/AuthScreen";
-import EmailVerifyField from "../components/EmailVerifyField";
+import EmailVerifyField, { useEmailVerification } from "../components/EmailVerifyField";
 import PasswordChecklist, { PasswordMatch } from "../components/PasswordChecklist";
 import PasswordInput from "../components/PasswordInput";
 import { passwordError } from "../passwordRules";
@@ -58,6 +58,21 @@ function LoginPage() {
     setError("");
     setSignupForm((current) => ({ ...current, [field]: value }));
   };
+
+  // Kept here, not in the field, so Verified survives a trip to Sign in and back.
+  const emailVerification = useEmailVerification({
+    email: signupForm.email,
+    disabled: isSubmitting,
+    onEmailChange: (value) => {
+      setSignupField("email", value);
+      setSignupField("code", "");
+      setEmailVerified(false);
+    },
+    onVerification: (codeVal, verified) => {
+      setSignupField("code", codeVal);
+      setEmailVerified(verified);
+    }
+  });
 
   const validateSignup = () =>
     checkName(signupForm.firstName, "First name") ||
@@ -130,9 +145,9 @@ function LoginPage() {
   const typedEmail = identifier.includes("@") ? identifier.trim() : "";
 
   return (
-    <AuthScreen cardClassName={isLogin ? "" : "signup-card"}>
+    <AuthScreen>
       <p className="entity-label">{isLogin ? "Login" : "Student signup"}</p>
-      <h1>{isLogin ? "Sign in" : "Create account"}</h1>
+      <h1>{isLogin ? "Sign in" : "Register"}</h1>
 
       <div className="login-toggle" ref={toggleRef} role="group" aria-label="Authentication option">
         <div className="login-toggle__pill" style={pillStyle} aria-hidden="true" />
@@ -231,19 +246,7 @@ function LoginPage() {
             />
           </div>
 
-          <EmailVerifyField
-            email={signupForm.email}
-            disabled={isSubmitting}
-            onEmailChange={(value) => {
-              setSignupField("email", value);
-              setSignupField("code", "");
-              setEmailVerified(false);
-            }}
-            onVerification={(codeVal, verified, expiresAt) => {
-              setSignupField("code", codeVal);
-              setEmailVerified(verified);
-            }}
-          />
+          <EmailVerifyField verification={emailVerification} />
 
           <div className="auth-field">
             <label htmlFor="signup-password">Password</label>
@@ -280,7 +283,7 @@ function LoginPage() {
           ) : null}
 
           <button className="primary-action" type="submit" disabled={isSubmitting || !emailVerified}>
-            {isSubmitting ? "Creating account..." : "Create account"}
+            {isSubmitting ? "Registering..." : "Register"}
           </button>
         </form>
       )}

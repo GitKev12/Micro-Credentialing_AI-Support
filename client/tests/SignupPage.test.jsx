@@ -30,11 +30,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   signupStudent.mockReset();
-  // The email must be verified before Create account can be pressed.
+  // The email must be verified before Register can be pressed.
   // The code lasts 10 minutes, like the real server's.
   const inTenMinutes = async () => ({ expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
-  sendSignupCode.mockImplementation(inTenMinutes);
-  verifySignupCode.mockImplementation(inTenMinutes);
+  sendSignupCode.mockReset().mockImplementation(inTenMinutes);
+  verifySignupCode.mockReset().mockImplementation(inTenMinutes);
   storedSession = null;
 });
 
@@ -64,7 +64,7 @@ const fillValidForm = async () => {
 };
 
 const submit = () => {
-  const submitBtns = screen.getAllByRole("button", { name: /^(Sign in|Create account)$/ });
+  const submitBtns = screen.getAllByRole("button", { name: /^(Sign in|Register)$/ });
   // Click the last one in the DOM (the submit button, not the toggle)
   fireEvent.click(submitBtns[submitBtns.length - 1]);
 };
@@ -80,6 +80,33 @@ describe("SignupPage", () => {
     expect(screen.getByLabelText("Confirm password")).toBeTruthy();
     expect(screen.queryByLabelText("Program")).toBeNull();
     expect(screen.queryByLabelText("Year")).toBeNull();
+  });
+
+  it("waits 60 seconds before another code, even for a new email", async () => {
+    draw();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juan@student.edu.ph" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    expect((await screen.findByRole("button", { name: "Wait 60s" })).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "juana@student.edu.ph" } });
+    const button = screen.getByRole("button", { name: "Wait 60s" });
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(sendSignupCode).toHaveBeenCalledTimes(1);
+  });
+
+  it("still shows Verified after going to Sign in and back", async () => {
+    draw();
+    await fillValidForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByLabelText("ID Number or Email");
+    fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
+
+    expect(await screen.findByText("Verified")).toBeTruthy();
+    expect(screen.getByLabelText("Email").value).toBe("juan@student.edu.ph");
+    expect(screen.getByRole("button", { name: "Register" }).disabled).toBe(false);
+    expect(sendSignupCode).toHaveBeenCalledTimes(1);
   });
 
   it("rejects invalid names before calling the API", async () => {
@@ -143,7 +170,7 @@ describe("SignupPage", () => {
     await fillValidForm();
 
     submit();
-    fireEvent.click(await screen.findByRole("button", { name: "Creating account..." }));
+    fireEvent.click(await screen.findByRole("button", { name: "Registering..." }));
 
     expect(signupStudent).toHaveBeenCalledTimes(1);
     finish();
@@ -164,6 +191,6 @@ describe("SignupPage", () => {
     draw();
 
     expect(await screen.findByText("Student End")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Create account" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Register" })).toBeNull();
   });
 });
