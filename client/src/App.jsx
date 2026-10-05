@@ -15,6 +15,7 @@ import LearningModules from "./pages/student/LearningModules";
 import ProtectedRoute from "./auth/components/ProtectedRoute";
 import LoginPage from "./auth/pages/LoginPage";
 import SignupPage from "./auth/pages/SignupPage";
+import ForgotPasswordPage from "./auth/pages/ForgotPasswordPage";
 import { SkeletonText } from "./components/Skeleton";
 
 /**
@@ -61,6 +62,7 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         {/* One door for every role. /admin-login was its own page before the
             toggle moved admin onto the shared login; keep the path as a
             redirect so an old link or bookmark still lands on a sign-in. */}

@@ -22,6 +22,18 @@ export async function signupStudent(details) {
   return data;
 }
 
+/** Forgot password, step 1: email an OTP to this student. */
+export async function requestPasswordOtp(email) {
+  const { data } = await api.post("/auth/forgot-password", { email });
+  return data;
+}
+
+/** Forgot password, step 2: { email, otp, newPassword }. */
+export async function resetPasswordWithOtp(details) {
+  const { data } = await api.post("/auth/reset-password", details);
+  return data;
+}
+
 /**
  * What is closed for whoever is signed in, right now.
  *

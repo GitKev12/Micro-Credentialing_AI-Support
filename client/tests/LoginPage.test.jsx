@@ -140,6 +140,16 @@ describe("LoginPage", () => {
     expect((await screen.findByRole("alert")).textContent).toBe("Invalid ID number, email, or password.");
   });
 
+  it("has a Forgot password link under the Password field", () => {
+    draw();
+
+    const link = screen.getByRole("link", { name: "Forgot password?" });
+    expect(link.getAttribute("href")).toBe("/forgot-password");
+    // It comes after the Password box and before the Sign in button.
+    const password = screen.getByLabelText("Password");
+    expect(password.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("shows the account-created message after signup", () => {
     draw([{ pathname: "/login", state: { message: "Account created. You can now sign in." } }]);
 

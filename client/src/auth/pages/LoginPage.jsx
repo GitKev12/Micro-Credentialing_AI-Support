@@ -1,30 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { checkEmail, checkName, MAX_LENGTH } from "../../lib/fieldRules";
+import AuthScreen from "../components/AuthScreen";
+import { passwordError } from "../passwordRules";
 import { getStoredSession, login, saveAuthSession, signupStudent } from "../services/authService";
-
-const PARALLAX_SHIFT = 18;
-const MIN_PASSWORD_LENGTH = 8;
-const PASSWORD_TOO_LONG = "Password can be at most 72 bytes.";
-const prefersReducedMotion = () =>
-  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-
-function byteLength(value) {
-  return new TextEncoder().encode(value).length;
-}
-
-function passwordError(password, confirmPassword) {
-  if (!password) return "Password is required.";
-  if (password.length < MIN_PASSWORD_LENGTH) return "Password must be at least 8 characters.";
-  if (byteLength(password) > MAX_LENGTH.password) return PASSWORD_TOO_LONG;
-  if (password !== confirmPassword) return "Passwords must match.";
-  return null;
-}
 
 function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const backgroundRef = useRef(null);
   const toggleRef = useRef(null);
 
   const isLogin = location.pathname !== "/signup";
@@ -59,21 +42,6 @@ function LoginPage() {
       }
     }
   }, [isLogin]);
-
-  const moveBackground = (offsetX, offsetY) => {
-    const background = backgroundRef.current;
-    if (!background) return;
-    background.style.transform = `scale(1.12) translate3d(${offsetX}px, ${offsetY}px, 0)`;
-  };
-
-  const handlePointerMove = (event) => {
-    if (prefersReducedMotion()) return;
-    const x = (event.clientX / window.innerWidth - 0.5) * 2;
-    const y = (event.clientY / window.innerHeight - 0.5) * 2;
-    moveBackground(-x * PARALLAX_SHIFT, -y * PARALLAX_SHIFT);
-  };
-
-  const resetBackground = () => moveBackground(0, 0);
 
   const switchMode = (targetPath) => {
     if (targetPath === location.pathname) return;
@@ -154,149 +122,155 @@ function LoginPage() {
     return <Navigate to={session.redirectTo || `/${session.user.role}`} replace />;
   }
 
-  const signupMessage = location.state?.message;
+  // Set by signup or forgot password when they send the student back here.
+  const statusMessage = location.state?.message;
+  // An email typed in the sign-in box is carried over to forgot password.
+  const typedEmail = identifier.includes("@") ? identifier.trim() : "";
 
   return (
-    <section
-      className="login-screen"
-      onMouseMove={handlePointerMove}
-      onMouseLeave={resetBackground}
-    >
-      <div className="login-screen__bg" ref={backgroundRef} aria-hidden="true" />
-      <article className={`login-card${!isLogin ? " signup-card" : ""}`}>
-        <p className="entity-label">{isLogin ? "Login" : "Student signup"}</p>
-        <h1>{isLogin ? "Sign in" : "Create account"}</h1>
+    <AuthScreen cardClassName={isLogin ? "" : "signup-card"}>
+      <p className="entity-label">{isLogin ? "Login" : "Student signup"}</p>
+      <h1>{isLogin ? "Sign in" : "Create account"}</h1>
 
-        <div className="login-toggle" ref={toggleRef} role="group" aria-label="Authentication option">
-          <div className="login-toggle__pill" style={pillStyle} aria-hidden="true" />
-          <button
-            type="button"
-            className={`login-toggle__btn is-login${isLogin ? " is-active" : ""}`}
-            onClick={() => switchMode("/login")}
-          >
-            Sign in
+      <div className="login-toggle" ref={toggleRef} role="group" aria-label="Authentication option">
+        <div className="login-toggle__pill" style={pillStyle} aria-hidden="true" />
+        <button
+          type="button"
+          className={`login-toggle__btn is-login${isLogin ? " is-active" : ""}`}
+          onClick={() => switchMode("/login")}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          className={`login-toggle__btn is-signup${!isLogin ? " is-active" : ""}`}
+          onClick={() => switchMode("/signup")}
+        >
+          Sign up
+        </button>
+      </div>
+
+      {isLogin && statusMessage ? (
+        <p className="auth-success" role="status">
+          {statusMessage}
+        </p>
+      ) : null}
+
+      {isLogin ? (
+        <form className="auth-form" onSubmit={handleLoginSubmit}>
+          <label className="auth-field">
+            <span>ID Number or Email</span>
+            <input
+              value={identifier}
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={MAX_LENGTH.email}
+              onChange={(event) => setIdentifier(event.target.value)}
+            />
+          </label>
+
+          <label className="auth-field">
+            <span>Password</span>
+            <input
+              type="password"
+              value={loginPassword}
+              autoComplete="current-password"
+              maxLength={MAX_LENGTH.password}
+              onChange={(event) => setLoginPassword(event.target.value)}
+            />
+          </label>
+
+          <div className="auth-forgot">
+            <Link
+              className="auth-link"
+              to="/forgot-password"
+              state={typedEmail ? { email: typedEmail } : undefined}
+            >
+              Forgot password?
+            </Link>
+          </div>
+
+          {error ? (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <button className="primary-action" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
-          <button
-            type="button"
-            className={`login-toggle__btn is-signup${!isLogin ? " is-active" : ""}`}
-            onClick={() => switchMode("/signup")}
-          >
-            Sign up
+        </form>
+      ) : (
+        <form className="auth-form" onSubmit={handleSignupSubmit}>
+          <label className="auth-field">
+            <span>First name</span>
+            <input
+              value={signupForm.firstName}
+              type="text"
+              autoComplete="given-name"
+              maxLength={MAX_LENGTH.name}
+              onChange={(event) => setSignupField("firstName", event.target.value)}
+            />
+          </label>
+
+          <label className="auth-field">
+            <span>Last name</span>
+            <input
+              value={signupForm.lastName}
+              type="text"
+              autoComplete="family-name"
+              maxLength={MAX_LENGTH.name}
+              onChange={(event) => setSignupField("lastName", event.target.value)}
+            />
+          </label>
+
+          <label className="auth-field">
+            <span>Email</span>
+            <input
+              value={signupForm.email}
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={MAX_LENGTH.email}
+              onChange={(event) => setSignupField("email", event.target.value)}
+            />
+          </label>
+
+          <label className="auth-field">
+            <span>Password</span>
+            <input
+              value={signupForm.password}
+              type="password"
+              autoComplete="new-password"
+              onChange={(event) => setSignupField("password", event.target.value)}
+            />
+          </label>
+
+          <label className="auth-field">
+            <span>Confirm password</span>
+            <input
+              value={signupForm.confirmPassword}
+              type="password"
+              autoComplete="new-password"
+              onChange={(event) => setSignupField("confirmPassword", event.target.value)}
+            />
+          </label>
+
+          {error ? (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <button className="primary-action" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Creating account..." : "Create account"}
           </button>
-        </div>
-
-        {isLogin && signupMessage ? (
-          <p className="auth-success" role="status">
-            {signupMessage}
-          </p>
-        ) : null}
-
-        {isLogin ? (
-          <form className="auth-form" onSubmit={handleLoginSubmit}>
-            <label className="auth-field">
-              <span>ID Number or Email</span>
-              <input
-                value={identifier}
-                type="text"
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                maxLength={MAX_LENGTH.email}
-                onChange={(event) => setIdentifier(event.target.value)}
-              />
-            </label>
-
-            <label className="auth-field">
-              <span>Password</span>
-              <input
-                type="password"
-                value={loginPassword}
-                autoComplete="current-password"
-                maxLength={MAX_LENGTH.password}
-                onChange={(event) => setLoginPassword(event.target.value)}
-              />
-            </label>
-
-            {error ? (
-              <p className="auth-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-
-            <button className="primary-action" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
-        ) : (
-          <form className="auth-form" onSubmit={handleSignupSubmit}>
-            <label className="auth-field">
-              <span>First name</span>
-              <input
-                value={signupForm.firstName}
-                type="text"
-                autoComplete="given-name"
-                maxLength={MAX_LENGTH.name}
-                onChange={(event) => setSignupField("firstName", event.target.value)}
-              />
-            </label>
-
-            <label className="auth-field">
-              <span>Last name</span>
-              <input
-                value={signupForm.lastName}
-                type="text"
-                autoComplete="family-name"
-                maxLength={MAX_LENGTH.name}
-                onChange={(event) => setSignupField("lastName", event.target.value)}
-              />
-            </label>
-
-            <label className="auth-field">
-              <span>Email</span>
-              <input
-                value={signupForm.email}
-                type="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                spellCheck={false}
-                maxLength={MAX_LENGTH.email}
-                onChange={(event) => setSignupField("email", event.target.value)}
-              />
-            </label>
-
-            <label className="auth-field">
-              <span>Password</span>
-              <input
-                value={signupForm.password}
-                type="password"
-                autoComplete="new-password"
-                onChange={(event) => setSignupField("password", event.target.value)}
-              />
-            </label>
-
-            <label className="auth-field">
-              <span>Confirm password</span>
-              <input
-                value={signupForm.confirmPassword}
-                type="password"
-                autoComplete="new-password"
-                onChange={(event) => setSignupField("confirmPassword", event.target.value)}
-              />
-            </label>
-
-            {error ? (
-              <p className="auth-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-
-            <button className="primary-action" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Creating account..." : "Create account"}
-            </button>
-          </form>
-        )}
-      </article>
-    </section>
+        </form>
+      )}
+    </AuthScreen>
   );
 }
 

@@ -391,6 +391,56 @@ a {
   outline-offset: 3px;
 }
 
+/* "Forgot password?" sits right under the Password box, on the right. */
+.auth-forgot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.55rem;
+}
+
+/* The small links under a form: Back to sign in, Resend OTP, Change email. */
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+/* Used on both <a> and <button>, so it clears the button look. */
+.auth-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #7d1f2b;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.auth-link:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.auth-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid #9a2838;
+  outline-offset: 3px;
+}
+
+.auth-link:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.auth-field .auth-otp {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.45em;
+}
+
 .auth-success {
   margin: 1rem 0 0;
   padding: 0.85rem 1rem;
@@ -403,6 +453,11 @@ a {
 
 /* No height cap: the card shows in full and the page grows around it,
    so the background behind it grows too. */
+/* Inside a form the grid gap already spaces it. */
+.auth-form .auth-success {
+  margin: 0;
+}
+
 .signup-card {
   width: min(100%, 32rem);
 }
