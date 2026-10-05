@@ -1,11 +1,17 @@
 import { Router } from "express";
 import { getStanding, loginAdmin, loginUser, streamStanding } from "./auth.controller.js";
+import { signupStudent } from "./signup.controller.js";
+import { requestPasswordOtp, resetPasswordWithOtp } from "./forgotPassword.controller.js";
 import { requireAuth, requireDownloadAuth } from "../middleware/auth.js";
 
 const router = Router();
 
 router.post("/login", loginUser);
 router.post("/admin/login", loginAdmin);
+router.post("/signup", signupStudent);
+// Forgot password: email an OTP, then trade it for a new password.
+router.post("/forgot-password", requestPasswordOtp);
+router.post("/reset-password", resetPasswordWithOtp);
 
 // What is closed for whoever is signed in, asked again while a screen is open.
 // Guarded like everything else, which is the point of it: a suspended account

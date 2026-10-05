@@ -16,6 +16,7 @@
     "generate-password": "^1.7.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.14.2",
+    "nodemailer": "^10.0.14",
     "openai": "^6.42.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",

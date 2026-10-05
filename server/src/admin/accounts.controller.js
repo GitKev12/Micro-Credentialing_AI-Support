@@ -1,6 +1,16 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
+import {
+  emailTaken,
+  emailTakenMessage,
+  ensureAccountIndexes,
+  insertAccount,
+  nameError,
+  newPassword,
+  newAccountFields,
+  nextIdNumber
+} from "../auth/accountCreation.js";
 import { getAssessor, getStudent } from "./admin.controller.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
 import { removeIssuedCertificatesFor } from "../certificates/certificates.service.js";
@@ -11,9 +21,7 @@ import {
   setAccountSuspension
 } from "../lib/suspension.js";
 import { publishStanding } from "../lib/standingEvents.js";
-import { idNumberMatch, readIdNumber } from "../auth/identifier.js";
-import { MAX_LENGTH, checkEmail, checkLength, checkName } from "../lib/fieldRules.js";
-import generator from "generate-password";
+import { MAX_LENGTH, checkEmail, checkLength } from "../lib/fieldRules.js";
 
 /**
  * The student and assessor accounts this console manages.
@@ -31,15 +39,10 @@ import generator from "generate-password";
  * hash is all that is stored. An empty password field means "leave it alone"
  * rather than "clear it", so an edit to a name cannot silently lock someone out.
  *
- * An ID number may be claimed once across students and assessors, because it is
- * what both sign in with. Login searches Student then Assessor for it, so two
- * accounts sharing one do not compete — the first one found simply wins, and
- * the other can never sign in at all. Refusing the duplicate is the only
- * version of this that has an answer. Emails are held to the same rule across
- * every account collection.
+ * ID numbers and emails must not collide across account collections.
+ * Unified sign-in refuses ambiguous identities rather than choosing a role.
  */
 
-const ADMINS_COLLECTION = "Admin";
 const ASSESSORS_COLLECTION = "Assessor";
 const STUDENTS_COLLECTION = "Student";
 
@@ -66,129 +69,6 @@ function badRequest(response, message) {
   return response.status(400).json({ message });
 }
 
-/** "a student", "an assessor" — the collection names decide which. */
-const article = (word) => (/^[aeiou]/i.test(word) ? "an" : "a");
-
-function emailTakenMessage(collectionName) {
-  const role = collectionName.toLowerCase();
-  return `That email already belongs to ${article(role)} ${role} account.`;
-}
-
-/**
- * Whether this address already belongs to somebody.
- *
- * `exceptId` is the account being edited, so saving a record without changing
- * its email does not collide with itself.
- */
-async function emailTaken(email, exceptId = null) {
-  const lowered = email.toLowerCase();
-
-  for (const name of [STUDENTS_COLLECTION, ASSESSORS_COLLECTION, ADMINS_COLLECTION]) {
-    if (!(await collectionExists(name))) continue;
-
-    const rows = await collection(name).find({}, { projection: { email: 1 } }).toArray();
-    const clash = rows.find(
-      (row) =>
-        text(row.email).toLowerCase() === lowered &&
-        (!exceptId || asId(row._id) !== asId(exceptId))
-    );
-    if (clash) return name;
-  }
-
-  return null;
-}
-
-/**
- * Which collection, if any, already holds this ID number.
- *
- * Both, not just the one being written: an assessor sharing a student's number
- * could never sign in with it. `exceptId` is the account being edited.
- */
-async function idNumberTaken(idNumber, exceptId = null) {
-  for (const [name, field] of [
-    [STUDENTS_COLLECTION, "student_id"],
-    [ASSESSORS_COLLECTION, "assessor_id"]
-  ]) {
-    if (!(await collectionExists(name))) continue;
-
-    const existing = await collection(name).findOne({ [field]: idNumberMatch(idNumber) });
-    if (existing && (!exceptId || asId(existing._id) !== asId(exceptId))) return name;
-  }
-
-  return null;
-}
-
-function idNumberTakenMessage(collectionName) {
-  const role = collectionName.toLowerCase();
-  return `That ID number already belongs to ${article(role)} ${role} account.`;
-}
-
-/**
- * The uniqueness the application checks, restated to the database.
- *
- * The checks above lose a race between two simultaneous edits; an index does
- * not. Best-effort because the collections predate it — if duplicates are
- * already stored the index cannot be built, and an admin must still be able to
- * work. The application check stands on its own either way.
- */
-const indexedCollections = new Set();
-
-async function ensureAccountIndexes(name, numberField) {
-  if (indexedCollections.has(name)) return;
-  if (!(await collectionExists(name))) return;
-
-  const build = async (key, indexName) => {
-    try {
-      // Sparse: documents seeded without the field must not all collide on null.
-      await collection(name).createIndex(key, { unique: true, sparse: true, name: indexName });
-    } catch (_error) {
-      // Duplicates already stored. Reported nowhere on purpose — it must not
-      // break a page load, and the application check still refuses new ones.
-    }
-  };
-
-  await build({ email: 1 }, `${name.toLowerCase()}_email_unique`);
-  await build({ [numberField]: 1 }, `${name.toLowerCase()}_number_unique`);
-
-  indexedCollections.add(name);
-}
-
-/**
- * New ID numbers count up per role. The letters live here in the code and only
- * the number part grows: STU2023300026, then STU2023300027; ASS017, then ASS018.
- */
-const ID_PATTERNS = {
-  [STUDENTS_COLLECTION]: { field: "student_id", prefix: "STU2023300", digits: 3 },
-  [ASSESSORS_COLLECTION]: { field: "assessor_id", prefix: "ASS", digits: 3 }
-};
-
-/** The highest number already used with this role's prefix, plus one. */
-async function nextIdNumber(collectionName) {
-  const { field, prefix, digits } = ID_PATTERNS[collectionName];
-  const pattern = new RegExp(`^${prefix}([0-9]+)$`);
-
-  const rows = await collection(collectionName)
-    .find({ [field]: { $regex: pattern } }, { projection: { [field]: 1 } })
-    .toArray();
-  const highest = Math.max(0, ...rows.map((row) => Number(pattern.exec(row[field])[1])));
-
-  return prefix + String(highest + 1).padStart(digits, "0");
-}
-
-/** A random password from the generate-password package (crypto-based). */
-function newPassword() {
-  return generator.generate({
-    length: 12,
-    numbers: true,
-    uppercase: true,
-    lowercase: true,
-    symbols: false,
-    // No look-alikes such as l, 1, O and 0, so it can be read out and typed.
-    excludeSimilarCharacters: true,
-    strict: true
-  });
-}
-
 /**
  * getStudent and getAssessor write the reply. This adds the new password to it,
  * so the admin can see it once. It is never stored unhashed or sent again.
@@ -196,17 +76,6 @@ function newPassword() {
 function addPasswordToReply(response, password) {
   const send = response.json.bind(response);
   response.json = (body) => send({ ...body, password });
-}
-
-/** Checks each name field with the shared name rule. */
-function nameError(body, nameFields) {
-  for (const key of Object.values(nameFields)) {
-    if (!(key in (body ?? {}))) continue;
-    const label = { firstName: "First name", lastName: "Last name" }[key] ?? "Name";
-    const error = checkName(body[key], label);
-    if (error) return error;
-  }
-  return null;
 }
 
 /**
@@ -414,79 +283,6 @@ export async function setAssessorSuspension(request, response) {
 }
 
 /* ─────────────────── Creating accounts ─────────────────── */
-
-/**
- * The fields a new account needs, checked once for both kinds.
- *
- * The create form sends only names and email: the ID number and the password
- * are made here. The student Import still sends its own ID and password from
- * the spreadsheet, and those are used as they are.
- */
-async function newAccountFields(body, { numberKey, nameFields }) {
-  const badName = nameError(body, nameFields);
-  if (badName) return { error: badName };
-  const names = {};
-  for (const [field, key] of Object.entries(nameFields)) {
-    if (!text(body?.[key])) return { error: "A name is required." };
-    names[field] = text(body[key]);
-  }
-
-  const emailError = checkEmail(body?.email);
-  if (emailError) return { error: emailError };
-  const email = text(body.email).toLowerCase();
-
-  const takenBy = await emailTaken(email);
-  if (takenBy) return { error: emailTakenMessage(takenBy) };
-
-  // From the spreadsheet, or made here.
-  const given = String(body?.password ?? "");
-  if (given && given.length < MIN_PASSWORD_LENGTH) {
-    return { error: `The password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
-  }
-  const passwordTooLong = checkLength(given, "The password", MAX_LENGTH.password);
-  if (passwordTooLong) return { error: passwordTooLong };
-  const password = given || newPassword();
-
-  const number = readIdNumber(body?.[numberKey]);
-  const numberTooLong = checkLength(number, "The ID number", MAX_LENGTH.idNumber);
-  if (numberTooLong) return { error: numberTooLong };
-  if (number) {
-    const numberTakenBy = await idNumberTaken(number);
-    if (numberTakenBy) return { error: idNumberTakenMessage(numberTakenBy) };
-  }
-
-  return {
-    givenNumber: number || null,
-    password: given ? null : password, // only a made-up one is shown back
-    document: {
-      ...names,
-      email,
-      password: await bcrypt.hash(password, BCRYPT_ROUNDS),
-      suspended: false,
-      createdAt: new Date()
-    }
-  };
-}
-
-/**
- * Inserts the new account. With no ID number given, it takes the next one; if
- * two admins save at the same moment and both get the same number, the unique
- * index refuses the second, and it simply tries the next number.
- */
-async function insertAccount(collectionName, document, givenNumber) {
-  const { field } = ID_PATTERNS[collectionName];
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const number = givenNumber ?? (await nextIdNumber(collectionName));
-    try {
-      return await collection(collectionName).insertOne({ ...document, [field]: number });
-    } catch (error) {
-      const duplicateId = error?.code === 11000 && String(error.message).includes(field);
-      if (!duplicateId || givenNumber) throw error;
-    }
-  }
-  throw new Error("Couldn't find a free ID number. Try again.");
-}
 
 /**
  * GET /api/admin/students/next-id and /api/admin/assessors/next-id — the
