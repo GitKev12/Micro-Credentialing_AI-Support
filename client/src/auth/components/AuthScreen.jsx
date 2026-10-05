@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 const PARALLAX_SHIFT = 18;
 const prefersReducedMotion = () =>
@@ -8,8 +8,22 @@ const prefersReducedMotion = () =>
  * The campus photo with the white card on top, shared by sign in, sign up and
  * forgot password. The photo drifts a little against the mouse.
  */
-function AuthScreen({ cardClassName = "", children }) {
+function AuthScreen({ children }) {
   const backgroundRef = useRef(null);
+  const sizerRef = useRef(null);
+  const contentRef = useRef(null);
+
+  // The card copies its content's height so CSS can animate the change
+  // (Sign in <-> Sign up, code boxes, error messages). Skipped where the
+  // browser (or the test runner) has no ResizeObserver.
+  useEffect(() => {
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => {
+      sizerRef.current.style.height = `${contentRef.current.offsetHeight}px`;
+    });
+    observer.observe(contentRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const moveBackground = (offsetX, offsetY) => {
     const background = backgroundRef.current;
@@ -31,7 +45,13 @@ function AuthScreen({ cardClassName = "", children }) {
       onMouseLeave={() => moveBackground(0, 0)}
     >
       <div className="login-screen__bg" ref={backgroundRef} aria-hidden="true" />
-      <article className={`login-card ${cardClassName}`.trim()}>{children}</article>
+      <article className="login-card">
+        <div className="login-card__sizer" ref={sizerRef}>
+          <div className="login-card__content" ref={contentRef}>
+            {children}
+          </div>
+        </div>
+      </article>
     </section>
   );
 }

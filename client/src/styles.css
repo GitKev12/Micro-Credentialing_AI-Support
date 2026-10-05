@@ -259,6 +259,25 @@ a {
   box-shadow: 0 24px 60px rgba(58, 8, 18, 0.16);
 }
 
+/* Animates the card's height when its content changes, and clips the
+   content while the card is still growing so nothing spills out. The
+   -6px / 6px pair leaves room for focus rings at the edges. */
+.login-card__sizer {
+  margin: -6px;
+  overflow: hidden;
+  transition: height 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-card__content {
+  padding: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card__sizer {
+    transition: none;
+  }
+}
+
 .login-card h1 {
   margin: 0;
   color: var(--ink);
@@ -524,8 +543,9 @@ a {
   display: block;
 }
 
+/* Room for the widest button text, "Sending...". */
 .auth-input-wrap--email input {
-  padding-right: 6rem;
+  padding-right: 6.75rem;
 }
 
 .auth-input-action {
@@ -588,6 +608,20 @@ a {
   font-weight: 700;
   font-size: 0.8rem;
   pointer-events: none;
+}
+
+/* Verify / Resend inside the signup email box, in the app's red. */
+.auth-verify-button {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  background: #7d1f2b;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.auth-verify-button:hover:not(:disabled) {
+  background: #6b1a24;
+  color: #fff;
 }
 
 /* Live password feedback, sitting inside its field under the box. */
@@ -696,10 +730,6 @@ a {
 /* Inside a form the grid gap already spaces it. */
 .auth-form .auth-success {
   margin: 0;
-}
-
-.signup-card {
-  width: min(100%, 32rem);
 }
 
 .auth-error {
