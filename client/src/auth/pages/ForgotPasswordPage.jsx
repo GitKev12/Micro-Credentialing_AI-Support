@@ -8,7 +8,21 @@ import { getStoredSession, requestPasswordOtp, resetPasswordWithOtp } from "../s
 // The server sends at most one OTP a minute, so Resend waits that long.
 const RESEND_SECONDS = 60;
 
+// One box per digit of the OTP.
+const OTP_SLOTS = [0, 1, 2, 3, 4, 5];
+
 const serverMessage = (requestError, fallback) => requestError.response?.data?.message || fallback;
+
+// The digits show in the boxes, not in the input, so the caret has to stay at
+// the end — put anywhere else it would be typing into a box the reader cannot
+// see it in. The check stops this from setting off its own select event.
+const caretToEnd = (event) => {
+  const input = event.target;
+  const end = input.value.length;
+  if (input.selectionStart !== end || input.selectionEnd !== end) {
+    input.setSelectionRange(end, end);
+  }
+};
 
 function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -21,6 +35,9 @@ function ForgotPasswordPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  // Turns the boxes red. Separate from `error`, which also carries password
+  // and email trouble that has nothing to do with the code.
+  const [badOtp, setBadOtp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
@@ -57,11 +74,13 @@ function ForgotPasswordPage() {
 
   const handleResetSubmit = async (event) => {
     event.preventDefault();
-    const problem = /^\d{6}$/.test(otp)
-      ? passwordError(newPassword, confirmPassword)
-      : "Enter the 6-digit OTP from the email.";
+    const shortOtp = !/^\d{6}$/.test(otp);
+    const problem = shortOtp
+      ? "Enter the 6-digit OTP from the email."
+      : passwordError(newPassword, confirmPassword);
     if (problem) {
       setError(problem);
+      setBadOtp(shortOtp);
       return;
     }
 
@@ -75,6 +94,10 @@ function ForgotPasswordPage() {
       });
     } catch (requestError) {
       setError(serverMessage(requestError, "The password could not be changed. Try again later."));
+      // Every refusal the server has for this form is a 400 about the code —
+      // wrong, expired, or guessed at too often. 503 is the mail or database
+      // being down, which is nothing the reader can fix in these boxes.
+      setBadOtp(requestError.response?.status === 400);
     } finally {
       setIsSubmitting(false);
     }
@@ -84,6 +107,7 @@ function ForgotPasswordPage() {
     setStep("email");
     setOtp("");
     setError("");
+    setBadOtp(false);
   };
 
   // Somebody already signed in has no password to recover here.
@@ -134,25 +158,46 @@ function ForgotPasswordPage() {
         </form>
       ) : (
         <form className="auth-form" onSubmit={handleResetSubmit}>
-          <p className="auth-success" role="status">
-            If {email.trim()} is an active student account, an OTP was sent to it. It expires in
-            10 minutes.
+          <p className="auth-note" role="status">
+            If <strong>{email.trim()}</strong> is an active student account, an OTP was sent to
+            it. It expires in 10 minutes.
           </p>
 
-          <label className="auth-field">
-            <span>OTP</span>
-            <input
-              className="auth-otp"
-              value={otp}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              onChange={(event) => {
-                setError("");
-                setOtp(event.target.value.replace(/\D/g, ""));
-              }}
-            />
-          </label>
+          {/* The label is tied to the input by id rather than wrapped around
+              it, because the boxes carry the digits as text and a label that
+              held them would read as "OTP 1 2 3 4 5 6". */}
+          <span className="auth-field">
+            <label htmlFor="forgot-otp">OTP</label>
+            <span className="auth-code__box">
+              <input
+                id="forgot-otp"
+                className="auth-code__input"
+                value={otp}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={OTP_SLOTS.length}
+                aria-invalid={badOtp || undefined}
+                onFocus={caretToEnd}
+                onSelect={caretToEnd}
+                onChange={(event) => {
+                  setError("");
+                  setBadOtp(false);
+                  setOtp(event.target.value.replace(/\D/g, ""));
+                }}
+              />
+              <span className="auth-code__slots" aria-hidden="true">
+                {OTP_SLOTS.map((slot) => (
+                  <span
+                    key={slot}
+                    className="auth-code__slot"
+                    data-active={slot === Math.min(otp.length, OTP_SLOTS.length - 1) || undefined}
+                  >
+                    {otp[slot] ?? ""}
+                  </span>
+                ))}
+              </span>
+            </span>
+          </span>
 
           <label className="auth-field">
             <span>New password</span>
