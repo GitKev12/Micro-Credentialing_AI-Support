@@ -13,11 +13,11 @@ services:
   - type: web
     name: capstone-api
     runtime: node
-    # `free` sleeps after 15 minutes idle and caps memory at 512 MB. The OCR
-    # path (tesseract.js + pdfjs + canvas, rendering at ~180 DPI in-request)
-    # will very likely be OOM-killed there — move to `starter` before relying
-    # on module OCR in production. Certificates no longer use OCR.
-    plan: free
+    # `starter` (paid) since 2026-10-05: the free plan blocks the SMTP ports
+    # Gmail needs for the Forgot password OTP, and it also sleeps after 15
+    # minutes idle. Memory is still 512 MB, so heavy module OCR can still run
+    # out of memory. Certificates no longer use OCR.
+    plan: starter
     buildCommand: npm ci
     startCommand: npm --workspace server run start
     healthCheckPath: /api/health
@@ -38,13 +38,13 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-5-mini
-      # Forgot password OTP email, sent through Mailgun. Port 2525 because the
-      # free plan blocks 465 and 587. SMTP_USER and SMTP_PASS are the Mailgun
-      # domain's SMTP credentials.
+      # Forgot password OTP email, sent from a Gmail account. SMTP_USER is the
+      # Gmail address and SMTP_PASS its 16-letter App Password (not the normal
+      # password). Port 587 only works because the plan above is paid.
       - key: SMTP_HOST
-        value: smtp.mailgun.org
+        value: smtp.gmail.com
       - key: SMTP_PORT
-        value: "2525"
+        value: "587"
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS

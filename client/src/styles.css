@@ -435,10 +435,130 @@ a {
   cursor: default;
 }
 
-.auth-field .auth-otp {
+/* ── The OTP boxes ────────────────────────────────────── */
+
+/* Six boxes, one digit each, with one real input lying invisibly over them.
+   The input is the only control, so paste, backspace, arrow keys and the
+   phone's own one-time-code autofill keep working the way the browser already
+   makes them work — the boxes are only what the digits get drawn in. */
+.auth-code__box {
+  position: relative;
+  display: block;
+}
+
+.auth-code__slots {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+}
+
+.auth-code__slot {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 3.1rem;
+  /* --border, the card's own input edge, measures 1.25:1. An ordinary input
+     is found by its label and its fill as well; these six are told apart from
+     each other by their edges alone, so the edge carries the 3:1 that
+     WCAG 1.4.11 asks of a component boundary. Same hue, more of it. */
+  border: 1px solid rgba(60, 41, 24, 0.55);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ink);
   font-size: 1.35rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.45em;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* The input keeps the field's box and loses everything else. Its own text and
+   caret stay hidden, because both are drawn in the boxes underneath. */
+.auth-field .auth-code__input {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+}
+
+.auth-field .auth-code__input:focus {
+  border: 0;
+  outline: none;
+}
+
+/* Hidden text under a visible highlight reads as a smear. */
+.auth-code__input::selection {
+  background: transparent;
+}
+
+/* The ring sits on the box the next digit lands in, which is what tells the
+   reader where typing goes now that there is no caret to tell them. */
+.auth-code__box:focus-within .auth-code__slot[data-active="true"] {
+  border-color: #7d1f2b;
+  outline: 3px solid rgba(125, 31, 43, 0.14);
+}
+
+/* A caret of our own for the box still waiting on a digit. */
+.auth-code__box:focus-within .auth-code__slot[data-active="true"]:empty::after {
+  content: "";
+  width: 1px;
+  height: 1.4rem;
+  background: var(--ink);
+  animation: auth-code-caret 1.1s steps(2, start) infinite;
+}
+
+@keyframes auth-code-caret {
+  to {
+    opacity: 0;
+  }
+}
+
+/* A code that came back refused. */
+.auth-code__input[aria-invalid="true"] ~ .auth-code__slots .auth-code__slot {
+  /* The ink of .auth-error below it, so the boxes and the sentence explaining
+     them are plainly the same thing. 3.7:1 against the tint. */
+  border-color: rgba(140, 52, 43, 0.7);
+  background: rgba(255, 242, 241, 0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-code__slot {
+    transition: none;
+  }
+
+  .auth-code__box:focus-within .auth-code__slot[data-active="true"]:empty::after {
+    animation: none;
+  }
+}
+
+/* Six boxes and five gaps have to fit the card on a phone. */
+@media (max-width: 26rem) {
+  .auth-code__slots {
+    gap: 0.3rem;
+  }
+}
+
+/* Where the code went. The field below is the thing to act on, so this is
+   said as quietly as the step allows — .auth-success would shout it, and in
+   green, when nothing has succeeded yet. */
+.auth-note {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(125, 31, 43, 0.045);
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.auth-note strong {
+  color: var(--ink);
+  font-weight: 700;
+  /* An address long enough to pass the card's edge breaks instead. */
+  overflow-wrap: anywhere;
 }
 
 .auth-success {
