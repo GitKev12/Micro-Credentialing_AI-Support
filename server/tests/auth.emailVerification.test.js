@@ -22,6 +22,7 @@ const matches = (row, filter) => Object.entries(filter).every(([field, rule]) =>
   if (rule && typeof rule === "object" && "$ne" in rule) return row[field] !== rule.$ne;
   if (rule && typeof rule === "object" && "$lte" in rule) return row[field] <= rule.$lte;
   if (rule && typeof rule === "object" && "$gt" in rule) return row[field] > rule.$gt;
+  if (rule && typeof rule === "object" && "$lt" in rule) return row[field] < rule.$lt;
   return row[field] == rule;
 });
 

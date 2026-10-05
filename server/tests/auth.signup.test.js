@@ -98,7 +98,8 @@ describe("public signup", () => {
       expect(hash).not.toHaveBeenCalled();
     });
 
-  it.each(["12345678", "a".repeat(72), "é".repeat(36), "😀".repeat(18), "        "])(
+  // "Aa1!" makes each one strong; the middle three are exactly 72 bytes.
+  it.each(["Aa1!aaaa", "Aa1!" + "a".repeat(68), "Aa1!" + "é".repeat(34), "Aa1!" + "😀".repeat(17), "  Aa1!  "])(
     "hashes strong valid password bytes without trimming (%p)", async (password) => {
       expect((await signup({ ...valid(), password })).code).toBe(201);
       expect(hash).toHaveBeenCalledWith(password, 12);
