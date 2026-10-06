@@ -9,6 +9,7 @@ import ProfileAvatar from "./ProfileAvatar";
 import {
   CloseIcon,
   CoursesIcon,
+  DiscoverIcon,
   DashboardIcon,
   LogoutIcon,
   MenuIcon,
@@ -25,6 +26,7 @@ function firstName(displayName) {
 
 const NAV_ITEMS = [
   { to: "/student", label: "My Courses", Icon: CoursesIcon, end: true },
+  { to: "/student/discover", label: "Discover", Icon: DiscoverIcon, end: false },
   { to: "/student/dashboard", label: "Dashboard", Icon: DashboardIcon, end: false }
 ];
 

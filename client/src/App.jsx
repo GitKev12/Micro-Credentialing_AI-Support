@@ -1,3 +1,6 @@
+import DiscoverPage from "./pages/student/DiscoverPage";
+import DiscoverCourse from "./pages/student/DiscoverCourse";
+import DiscoverManagement from "./pages/admin/DiscoverManagement";
 import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
@@ -76,6 +79,8 @@ function App() {
           }
         >
           <Route index element={<StudentCourses />} />
+          <Route path="discover" element={<DiscoverPage />} />
+          <Route path="discover/:courseId" element={<DiscoverCourse />} />
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="certifications" element={<AchievementsPage view="certifications" />} />
           <Route path="badges" element={<AchievementsPage view="badges" />} />
@@ -115,6 +120,7 @@ function App() {
             element={<PreAssessmentPage />}
           />
           <Route path="classes" element={<ClassesManagement />} />
+          <Route path="discover" element={<DiscoverManagement />} />
           <Route path="students" element={<StudentsManagement />} />
           <Route path="assessors" element={<AssessorsManagement />} />
         </Route>

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
+import { dropRequests, linkToCourse } from "./classEnrollment.js";
 import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { classMode, toClassMode } from "../lib/classMode.js";
@@ -25,7 +26,11 @@ import { MAX_LENGTH, checkLength } from "../lib/fieldRules.js";
  *
  *   Class { _id, name, courseId, assessorIds[], studentIds[], active, mode,
  *           suspendedStudentIds[], schedule: { days, time, room },
+ *           posted, enrollment, requestedStudentIds[],
  *           createdAt, updatedAt }
+ *
+ * `posted`, `enrollment` and `requestedStudentIds` belong to Discover, where a
+ * student can join a posted class themselves — see classEnrollment.js.
  *
  * `mode` is the pathway the section runs — taught through its lessons, or
  * assessed on one examination with no lessons to finish first. It is a class
@@ -92,7 +97,7 @@ function courseCode(course) {
 }
 
 /** A person's display name, for either a student or an assessor document. */
-function personName(person) {
+export function personName(person) {
   const full = [person?.first_name, person?.last_name].filter(Boolean).join(" ").trim();
   return full || person?.full_name || person?.name || person?.email || "Unnamed";
 }
@@ -161,15 +166,6 @@ async function inAnotherClass(personId, courseId, exceptClassId, memberField) {
   };
   if (exceptClassId) query._id = { $nin: idCandidates(exceptClassId) };
   return (await collection(CLASSES_COLLECTION).countDocuments(query)) > 0;
-}
-
-/** Add the course to each person's course list. */
-async function linkToCourse(collectionName, field, personIds, courseId) {
-  if (personIds.length === 0) return;
-  await collection(collectionName).updateMany(
-    { _id: { $in: personIds.flatMap((id) => idCandidates(id)) } },
-    { $addToSet: { [field]: courseId } }
-  );
 }
 
 /**
@@ -360,6 +356,8 @@ export async function createClass(request, response) {
   // Write through: everyone in the class gains the course, then rosters rebuild.
   await linkToCourse(STUDENTS_COLLECTION, "enrolledCourses", studentIds, course._id);
   await linkToCourse(ASSESSORS_COLLECTION, "assigned_courses", assessorIds, course._id);
+  // Anyone added here no longer needs their Discover request on this course.
+  await dropRequests(course._id, studentIds);
   await syncAssessorsForCourse(course._id);
 
   return respondWithClass(insertedId, response);
@@ -409,6 +407,11 @@ export async function updateClass(request, response) {
   if ("archived" in body) {
     updates.archived = body.archived === true;
     updates.active = !updates.archived;
+    // An archived class comes off Discover, and its waiting requests go with it.
+    if (updates.archived) {
+      updates.posted = false;
+      updates.requestedStudentIds = [];
+    }
   } else if (updates.active === true) {
     updates.archived = false; // switching a class on takes it out of the archive
   }
@@ -450,6 +453,7 @@ export async function updateClass(request, response) {
   await unlinkFromCourse(ASSESSORS_COLLECTION, "assigned_courses", assessors.removed, courseId, "assessorIds", cls._id);
   await linkToCourse(STUDENTS_COLLECTION, "enrolledCourses", students.added, courseId);
   await linkToCourse(ASSESSORS_COLLECTION, "assigned_courses", assessors.added, courseId);
+  await dropRequests(courseId, students.added);
   await syncAssessorsForCourse(courseId);
 
   return respondWithClass(cls._id, response);

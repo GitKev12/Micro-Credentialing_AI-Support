@@ -417,11 +417,18 @@ export async function deleteStudent(request, response) {
   // Through the certificates service, so the PDF file goes with the record.
   const certificates = await removeIssuedCertificatesFor(asId(student._id));
 
-  // Taken off every class roster, so no class keeps counting them.
+  // Taken off every class roster and every Discover request, so no class keeps
+  // counting them.
   if (await collectionExists(CLASSES_COLLECTION)) {
     await collection(CLASSES_COLLECTION).updateMany(
-      { studentIds: { $in: keys } },
-      { $pull: { studentIds: { $in: keys }, suspendedStudentIds: { $in: keys } } }
+      { $or: [{ studentIds: { $in: keys } }, { requestedStudentIds: { $in: keys } }] },
+      {
+        $pull: {
+          studentIds: { $in: keys },
+          suspendedStudentIds: { $in: keys },
+          requestedStudentIds: { $in: keys }
+        }
+      }
     );
   }
 

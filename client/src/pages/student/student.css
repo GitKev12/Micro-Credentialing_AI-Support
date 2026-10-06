@@ -4578,3 +4578,620 @@ body:has(.student-app) {
   color: var(--sd-muted);
   font-size: var(--sd-fs-meta);
 }
+
+/* ===========================================================
+   Discover — the courses a student can join
+
+   Same family as My Courses, because a card here and a row there
+   are the same course: the code set large enough to be the
+   picture, bleeding off the cover's bottom-left corner, which is
+   the treatment .sd-feature__cover already gives the lead course.
+   Everything else stays quiet — no eyebrows, no meta strings, no
+   movement on hover.
+
+   Nothing on these two screens is a measured value, so nothing
+   wears the status palette except the state chip: whether the
+   student is in a class, or waiting on an answer, is their own
+   standing and reads as data.
+
+   Reduced motion is handled once for the whole area, by the
+   .student-app rule further up this file.
+   =========================================================== */
+
+.sd-discover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-6);
+}
+
+.sd-discover__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sd-1) var(--sd-4);
+}
+
+.sd-discover__title {
+  margin: 0;
+  font-size: var(--sd-fs-h1);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: -0.02em;
+  color: var(--sd-ink);
+}
+
+/* How many there are, as plain data. The page needs no subtitle to say what
+   it is for — the cards say it. */
+.sd-discover__count {
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* auto-fill rather than auto-fit: with three courses on a wide screen the
+   empty columns stay, so a card keeps its size instead of stretching across
+   a third of the row and turning into a banner. */
+.sd-discover__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr));
+  gap: var(--sd-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── A course card ──────────────────────────────────────────
+   Flat at rest: a grid of raised cards is a grid of things all
+   claiming to be first. The border and the shadow arrive on
+   hover, and the card does not move — a lift under the cursor
+   shifts the thing being read at the moment it is being read. */
+
+.sd-dcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sd-dcard:hover {
+  border-color: var(--sd-border-strong);
+  box-shadow: var(--sd-shadow-lift);
+}
+
+.sd-dcard__cover {
+  aspect-ratio: 16 / 9;
+}
+
+/* Bigger here than on the lead course's panel (40cqmin), because cqmin on a
+   16:9 box is its height and this is the shorter box — at 40 the code read
+   as a label sitting in a corner rather than as the picture. */
+.sd-dcard__cover .sd-cover__mark {
+  inset: auto auto -0.12em -0.06em;
+  align-items: flex-start;
+  font-size: 46cqmin;
+  line-height: 0.8;
+  letter-spacing: -0.055em;
+}
+
+.sd-dcard__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sd-1);
+  min-width: 0;
+  padding: var(--sd-4);
+}
+
+.sd-dcard__code {
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-brand-text);
+}
+
+/* Two lines, then cut. A title that runs to four pushes the section count
+   off the bottom of a card its neighbours have room for. */
+.sd-dcard__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.3;
+  color: var(--sd-ink);
+}
+
+/* The title is the link, and its ::after covers the card, so the card opens
+   from anywhere while the link still reads as the name of the course. */
+.sd-dcard__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sd-dcard__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* The ring goes round the card, not round the two words holding focus. */
+.student-app .sd-dcard__link:focus-visible {
+  outline: none;
+}
+
+.sd-dcard:has(.sd-dcard__link:focus-visible) {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: 2px;
+}
+
+.sd-dcard__when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sd-3);
+  margin-top: var(--sd-1);
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+/* Pushed to the foot by the body's own free space, so the counts line up
+   across a row of cards whose titles are one line and two. */
+.sd-dcard__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-2);
+  margin-top: auto;
+  padding-top: var(--sd-3);
+}
+
+.sd-dcard__sections {
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+}
+
+/* ── State chip ─────────────────────────────────────────────
+   Where the student stands in this course. The status palette,
+   tinted to a fill its -text step stays readable on: measured
+   5.6:1 enrolled and 4.9:1 pending in light, 5.4:1 and 8.1:1 in
+   dark. Both say it in words as well as in colour. */
+
+.sd-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-1);
+  padding: 2px 0.5rem;
+  border-radius: var(--sd-r-pill);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  white-space: nowrap;
+}
+
+.sd-state[data-state="enrolled"] {
+  background: color-mix(in srgb, var(--sd-good) 14%, var(--sd-surface));
+  color: var(--sd-good-text);
+}
+
+.sd-state[data-state="pending"] {
+  background: color-mix(in srgb, var(--sd-warn) 16%, var(--sd-surface));
+  color: var(--sd-warn-text);
+}
+
+/* ── Loading and trouble ────────────────────────────────────
+   A draft card keeps the real card's chrome and shape, so the
+   grid does not jump when the courses land. The cover block is
+   the card's own cover slot shimmering, which is why the bar
+   height below has to let it out. */
+
+.sd-dcard--skeleton {
+  pointer-events: none;
+}
+
+.sd-dcard--skeleton:hover {
+  border-color: var(--sd-border);
+  box-shadow: none;
+}
+
+.sd-dcard--skeleton .sd-skeleton:not(.sd-dcard__cover) {
+  height: 0.8125rem;
+  border-radius: var(--sd-r-sm);
+}
+
+/* Square-cornered: the card's own overflow is what rounds the top two. */
+.sd-dcard--skeleton .sd-dcard__cover {
+  border-radius: 0;
+}
+
+/* Roughly a loaded body — a code, a title and the foot — so the card is
+   about the height it will be once it has something in it. */
+.sd-dcard--skeleton .sd-dcard__body {
+  gap: var(--sd-3);
+  min-height: 8.75rem;
+}
+
+.sd-dcard--skeleton .sd-dcard__body .sd-skeleton:first-child {
+  width: 35%;
+}
+
+.sd-dcard--skeleton .sd-dcard__body .sd-skeleton:last-child {
+  width: 75%;
+}
+
+.sd-discover__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-3) var(--sd-4);
+  padding: var(--sd-5);
+  border: 1px solid var(--sd-border-strong);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-surface-2);
+  font-size: var(--sd-fs-body);
+  color: var(--sd-crit-text);
+}
+
+/* ===========================================================
+   Discover — one course
+
+   The facts a student needs to choose a section, and nothing
+   else. Lesson and badge counts only: an assess-only candidate
+   cannot read the modules at all, so naming them here would
+   advertise something the course may never hand over.
+   =========================================================== */
+
+.sd-dcourse {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-6);
+}
+
+/* Back is a small pill, not a full-width block. */
+.sd-dcourse .sd-btn--sm {
+  align-self: flex-start;
+}
+
+/* Two of these pills are links. Nothing in the student area underlines a
+   button, and the global rule only takes an anchor's colour. */
+.sd-dcourse .sd-btn {
+  text-decoration: none;
+}
+
+/* The line when a course has no sections to show. It has no class of its
+   own, and a bare <p> here would keep the browser's margins. */
+.sd-dcourse > p:not([class]) {
+  margin: 0;
+  font-size: var(--sd-fs-body);
+  color: var(--sd-muted);
+}
+
+/* The fill sits on the body rather than here, because the cover already
+   paints its own half — and because while this is loading it carries
+   .sd-skeleton, whose shimmer a fill of ours would cover up.
+
+   The height is set here rather than on the cover, which is where it looks
+   like it belongs. .sd-cover is a size container, and a container whose own
+   min-height is what makes the row tall is a container sized by itself:
+   Chrome resolves cqmin to 0 in that case and the code inside disappears.
+   Held by the row instead, the cover is always measured from something
+   outside it, and the mark is drawn at every body length. (16rem, shorter
+   than My Courses' 19rem lead panel, because this hero carries a description
+   under the dates and the picture should not out-run the words.) */
+.sd-dcourse__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  min-height: 16rem;
+  overflow: hidden;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-xl);
+  box-shadow: var(--sd-shadow);
+}
+
+.sd-dcourse__hero.sd-skeleton {
+  min-height: 18rem;
+}
+
+.sd-dcourse__cover .sd-cover__mark {
+  inset: auto auto -0.12em -0.06em;
+  align-items: flex-start;
+  font-size: 40cqmin;
+  line-height: 0.8;
+  letter-spacing: -0.055em;
+}
+
+.sd-dcourse__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--sd-8) var(--sd-8) var(--sd-8) var(--sd-10);
+  background: var(--sd-surface);
+}
+
+.sd-dcourse__code {
+  margin: 0 0 var(--sd-1);
+  font-size: var(--sd-fs-meta);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-brand-text);
+}
+
+.sd-dcourse__title {
+  max-width: 26ch;
+  margin: 0;
+  font-size: clamp(1.5rem, calc(1.05rem + 1.35 * var(--vw)), 2.125rem);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--sd-ink);
+  text-wrap: balance;
+}
+
+.sd-dcourse__when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sd-1) var(--sd-4);
+  margin: var(--sd-3) 0 0;
+  font-size: var(--sd-fs-body);
+  color: var(--sd-muted);
+}
+
+/* 65ch and 1.6: this is the one paragraph on either screen, and it is read
+   rather than scanned. */
+.sd-dcourse__desc {
+  max-width: 65ch;
+  margin: var(--sd-4) 0 0;
+  font-size: var(--sd-fs-body-lg);
+  line-height: 1.6;
+  color: var(--sd-ink-2);
+}
+
+/* ── The three facts ───────────────────────────────────────── */
+
+.sd-dcourse__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sd-5) var(--sd-10);
+  margin: 0;
+}
+
+.sd-dcourse__fact dt {
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
+}
+
+.sd-dcourse__fact dd {
+  margin: 2px 0 0;
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sits closer to the list it names than to the facts above it — the column's
+   own gap would otherwise leave the heading floating between the two. */
+.sd-dcourse__h2 {
+  margin: 0 0 calc(var(--sd-3) - var(--sd-6));
+  font-size: var(--sd-fs-h3);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+/* ── Sections ───────────────────────────────────────────────
+   One box with hairlines between the rows, like .sd-rows on My
+   Courses. Scoped under .sd-dcourse because .sd-sections is
+   already the lesson reader's section timeline — the names
+   collide, the screens never do. */
+
+.sd-dcourse .sd-sections {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow-sm);
+}
+
+.sd-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-3) var(--sd-5);
+  padding: var(--sd-4) var(--sd-5);
+}
+
+.sd-section + .sd-section {
+  border-top: 1px solid var(--sd-border);
+}
+
+/* The name and its pathway tag share the first line; the schedule and the
+   assessor each take one of their own, by claiming the full width. */
+.sd-section__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-1) var(--sd-2);
+  min-width: 0;
+}
+
+.sd-section__name {
+  margin: 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+/* Only the assess-only pathway is named, in the wash .sd-row__pathway uses on
+   My Courses — taught is what a section is unless it says otherwise. */
+.sd-section__tag {
+  padding: 1px 0.4375rem;
+  border-radius: 999px;
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  white-space: nowrap;
+}
+
+.sd-section__schedule {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 0 var(--sd-3);
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
+}
+
+/* A class with no schedule set leaves this behind as an empty line. */
+.sd-section__schedule:empty {
+  display: none;
+}
+
+.sd-section__assessor {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-ink-2);
+}
+
+.sd-section__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sd-3);
+  margin-left: auto;
+}
+
+/* 44px, which .sd-btn's padding comes a hair under — every control in this
+   list commits the student to something, and gets the full target. */
+.sd-section__action .sd-btn {
+  min-height: 2.75rem;
+}
+
+/* ── Enroll ─────────────────────────────────────────────────
+   The screen's primary, dressed as .sd-feature__go is, down to
+   the lift dark mode needs because its deep brand step is the
+   surface's own navy. */
+
+.sd-enroll {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 var(--sd-6);
+  border: 0;
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand);
+  color: var(--sd-on-brand);
+  font: inherit;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--sd-brand) 85%, transparent);
+  transition: background 0.15s ease;
+}
+
+.sd-enroll:hover:not(:disabled) {
+  background: var(--sd-brand-deep);
+}
+
+[data-theme="dark"] .sd-enroll:hover:not(:disabled) {
+  background: #395493;
+}
+
+.sd-enroll:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The press, answered in the row rather than in a dialog. The question takes
+   the whole first line, so Confirm and Cancel stay side by side under it. */
+.sd-section__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sd-2) var(--sd-3);
+  max-width: 26rem;
+}
+
+.sd-section__confirm p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  line-height: 1.5;
+  color: var(--sd-ink-2);
+  text-align: right;
+}
+
+/* Under the row it belongs to, inside the row's own box. */
+.sd-section__error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-crit-text);
+}
+
+/* What just happened — for the screen reader and for everyone else. Empty
+   between presses, and takes no room then. */
+.sd-dcourse__status {
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-ink-2);
+}
+
+.sd-dcourse__status:empty {
+  display: none;
+}
+
+/* ── Narrower ──────────────────────────────────────────────── */
+
+@media (max-width: 52rem) {
+  .sd-dcourse__hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sd-dcourse__hero.sd-skeleton {
+    min-height: 22rem;
+  }
+
+  .sd-dcourse__cover {
+    aspect-ratio: 16 / 7;
+  }
+
+  .sd-dcourse__body {
+    padding: var(--sd-6);
+  }
+}
+
+@media (max-width: 40rem) {
+  /* The action drops under the text it acts on and takes the width — two
+     pills and a question do not fit a phone beside the section's name. */
+  .sd-section__action,
+  .sd-section__confirm {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .sd-section__action .sd-btn,
+  .sd-section__action .sd-enroll {
+    flex: 1;
+  }
+
+  .sd-section__confirm p {
+    text-align: left;
+  }
+
+  .sd-dcourse__facts {
+    gap: var(--sd-4) var(--sd-6);
+  }
+}

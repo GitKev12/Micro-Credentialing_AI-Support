@@ -11,6 +11,7 @@ import {
   ClassesIcon,
   CloseIcon,
   CoursesIcon,
+  DiscoverIcon,
   MenuIcon,
   MoonIcon,
   SignOutIcon,
@@ -35,6 +36,7 @@ import {
 const NAV_ITEMS = [
   { to: "/admin/courses", label: "Courses", Icon: CoursesIcon },
   { to: "/admin/classes", label: "Classes", Icon: ClassesIcon },
+  { to: "/admin/discover", label: "Discover", Icon: DiscoverIcon },
   { to: "/admin/students", label: "Students", Icon: StudentsIcon },
   { to: "/admin/assessors", label: "Assessors", Icon: AssessorsIcon }
 ];
