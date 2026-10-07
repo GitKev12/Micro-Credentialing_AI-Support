@@ -49,7 +49,7 @@ import {
   listClasses,
   updateClass
 } from "./classes.controller.js";
-import { listDiscoverClasses, setClassDiscover, acceptEnrollRequest, declineEnrollRequest } from "./discover.controller.js";
+import { setClassDiscover, acceptEnrollRequest, declineEnrollRequest } from "./discover.controller.js";
 import { deleteModuleBadge, saveModuleBadge } from "./badges.controller.js";
 import {
   deleteModulePreAssessment,
@@ -101,7 +101,6 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 //   PATCH  /api/admin/classes/:id                      — edit     { assessorIds?, studentIds?, schedule?, active?, archived? }
 //   GET    /api/admin/classes/:id/impact               — what deleting it would unenrol
 //   DELETE /api/admin/classes/:id                      — delete an archived class
-//   GET    /api/admin/discover                         — classes with their Discover settings + requests
 //   PATCH  /api/admin/classes/:id/discover             — post / unpost  { posted?, enrollment? }
 //   POST   /api/admin/classes/:id/requests/:studentId/accept|decline — answer a request
 //   GET    /api/admin/assessments/status?courseId=     — what still needs a quiz
@@ -211,9 +210,9 @@ router.patch("/classes/:id", updateClass);
 router.get("/classes/:id/impact", getClassImpact);
 router.delete("/classes/:id", deleteClass);
 
-// Discover: the admin posts a class for students to find and join, and
-// accepts or declines their requests (see discover.controller.js).
-router.get("/discover", listDiscoverClasses);
+// Discover: the admin posts a class from the Classes table for students to
+// find and join, and accepts or declines their requests in its Edit window
+// (see discover.controller.js).
 router.patch("/classes/:id/discover", setClassDiscover);
 router.post("/classes/:id/requests/:studentId/accept", acceptEnrollRequest);
 router.post("/classes/:id/requests/:studentId/decline", declineEnrollRequest);

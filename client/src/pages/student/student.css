@@ -4604,30 +4604,6 @@ body:has(.student-app) {
   gap: var(--sd-6);
 }
 
-.sd-discover__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sd-1) var(--sd-4);
-}
-
-.sd-discover__title {
-  margin: 0;
-  font-size: var(--sd-fs-h1);
-  font-weight: var(--sd-fw-semibold);
-  letter-spacing: -0.02em;
-  color: var(--sd-ink);
-}
-
-/* How many there are, as plain data. The page needs no subtitle to say what
-   it is for — the cards say it. */
-.sd-discover__count {
-  font-size: var(--sd-fs-meta);
-  color: var(--sd-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 /* auto-fill rather than auto-fit: with three courses on a wide screen the
    empty columns stay, so a card keeps its size instead of stretching across
    a third of the row and turning into a banner. */

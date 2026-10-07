@@ -8,7 +8,7 @@ jest.unstable_mockModule("../src/lib/mongo.js", () => ({
 jest.unstable_mockModule("../src/lib/standingEvents.js", () => ({ publishStanding: jest.fn() }));
 jest.unstable_mockModule("../src/admin/enrollment.sync.js", () => ({ syncAssessorsForCourse: jest.fn() }));
 
-const { listDiscoverClasses, setClassDiscover, acceptEnrollRequest, declineEnrollRequest } = await import("../src/admin/discover.controller.js");
+const { setClassDiscover, acceptEnrollRequest, declineEnrollRequest } = await import("../src/admin/discover.controller.js");
 
 const reply = () => ({ code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } });
 let db, updates;
@@ -37,8 +37,8 @@ beforeEach(() => {
   Object.defineProperty(mongoose.connection, "readyState", { value: 1, configurable: true });
   updates = [];
   db = {
-    Class: [{ _id: "k1", name: "Section-A", courseId: "c1", assessorIds: ["a1"], studentIds: [], requestedStudentIds: ["s1"], posted: true, enrollment: "approval", active: true }],
-    Course: [{ _id: "c1", courseCode: "CC2", courseName: "Computer Programming 2", status: "active", endsOn: "2099-12-31" }],
+    Class: [{ _id: "k1", name: "Section-A", courseId: "c1", assessorIds: ["a1"], studentIds: [], requestedStudentIds: ["s1"], posted: true, enrollment: "approval", active: true, schedule: { days: "Mon Wed", time: "9:00-10:30", room: "Room 301" } }],
+    Course: [{ _id: "c1", courseCode: "CC2", courseName: "Computer Programming 2", status: "active", startsOn: "2026-09-01", endsOn: "2099-12-31" }],
     Assessor: [{ _id: "a1", first_name: "Ramon", last_name: "Velasco" }],
     Student: [{ _id: "s1", first_name: "Andrea", last_name: "Santiago", student_id: "STU001" }]
   };
@@ -46,10 +46,20 @@ beforeEach(() => {
 });
 
 describe("admin Discover", () => {
-  it("lists classes with requests", async () => {
-    const res = reply(); await listDiscoverClasses({}, res);
-    expect(res.body.classes[0]).toMatchObject({ name: "Section-A", enrollment: "approval", studentCount: 0 });
-    expect(res.body.classes[0].requests[0]).toMatchObject({ name: "Andrea Santiago", studentNumber: "STU001" });
+  it("posts a class and answers with its posting state", async () => {
+    db.Class[0].posted = false;
+    const res = reply(); await setClassDiscover({ params: { id: "k1" }, body: { posted: true } }, res);
+    expect(db.Class[0].posted).toBe(true);
+    expect(res.body.class).toMatchObject({ id: "k1", posted: true, enrollment: "approval", refusal: null });
+    expect(res.body.class.requests[0]).toMatchObject({ name: "Andrea Santiago", studentNumber: "STU001" });
+  });
+
+  it("won't post a class without an assessor, and says why", async () => {
+    Object.assign(db.Class[0], { posted: false, assessorIds: [] });
+    const res = reply(); await setClassDiscover({ params: { id: "k1" }, body: { posted: true } }, res);
+    expect(res.code).toBe(400);
+    expect(res.body.message).toBe("This class needs an assessor first.");
+    expect(db.Class[0].posted).toBe(false);
   });
 
   it("unposting clears requests", async () => {

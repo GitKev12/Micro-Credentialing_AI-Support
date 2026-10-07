@@ -44,7 +44,7 @@ describe("editing a class after it is created", () => {
   it("locks the section, course and pathway, and says so", () => {
     draw({ klass: KLASS });
 
-    expect(screen.getByText(/Only the assessor, students and schedule can be changed/)).toBeTruthy();
+    expect(screen.getByText(/Only the assessor, students, schedule and enrollment can be changed/)).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Section" }).disabled).toBe(true);
     expect(screen.getByRole("combobox", { name: "Course" }).disabled).toBe(true);
     expect(screen.getByRole("combobox", { name: "Assessor" }).disabled).toBe(false);
@@ -52,7 +52,7 @@ describe("editing a class after it is created", () => {
     expect(screen.getByLabelText("Room").readOnly).toBe(false);
   });
 
-  it("sends only the assessor, the students and the schedule", () => {
+  it("sends only the assessor, the students, the schedule and the enrollment", () => {
     const onSave = jest.fn();
     draw({ klass: KLASS, onSave });
 
@@ -61,7 +61,9 @@ describe("editing a class after it is created", () => {
     expect(onSave.mock.calls[0][0]).toEqual({
       assessorIds: ["a1"],
       studentIds: [],
-      schedule: { days: "MWF", time: "09:00–10:00", room: "Lab 305" }
+      schedule: { days: "MWF", time: "09:00–10:00", room: "Lab 305" },
+      // A class written before Discover reads as Needs approval.
+      enrollment: "approval"
     });
   });
 
@@ -78,7 +80,7 @@ describe("editing a class after it is created", () => {
   it("leaves everything open on a new class, with the schedule hidden until ticked", () => {
     draw({ klass: null });
 
-    expect(screen.queryByText(/Only the assessor, students and schedule can be changed/)).toBeNull();
+    expect(screen.queryByText(/Only the assessor, students, schedule and enrollment can be changed/)).toBeNull();
     expect(screen.getByRole("combobox", { name: "Course" }).disabled).toBe(false);
     expect(screen.queryByLabelText("Days")).toBeNull();
     fireEvent.click(screen.getByLabelText("Add a schedule"));

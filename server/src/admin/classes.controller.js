@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { syncAssessorsForCourse } from "./enrollment.sync.js";
-import { dropRequests, linkToCourse } from "./classEnrollment.js";
+import { ENROLLMENT_MODES, discoverRefusal, dropRequests, enrollmentOf, linkToCourse } from "./classEnrollment.js";
 import { assessorCountError, studentClashError, studentsHeldElsewhere } from "./class.rules.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { classMode, toClassMode } from "../lib/classMode.js";
@@ -228,12 +228,23 @@ async function rosterRefusal({ courseId, assessorIds, studentIds, exceptClassId 
   return studentClashError(clashes, (id) => nameById.get(id) ?? "A student");
 }
 
+/** Whether students can find the class on Discover, how they join, and why it can't be posted. */
+function discoverFields(cls, course) {
+  return {
+    posted: cls.posted === true,
+    enrollment: enrollmentOf(cls),
+    refusal: discoverRefusal(cls, course),
+    requestCount: (cls.requestedStudentIds ?? []).length
+  };
+}
+
 /** One class joined to its course, assessors and students, for the detail view. */
 async function buildClassDetail(cls) {
-  const [course, assessors, students] = await Promise.all([
+  const [course, assessors, students, requesters] = await Promise.all([
     resolveCourse(cls.courseId),
     resolveMany(ASSESSORS_COLLECTION, cls.assessorIds ?? []),
-    resolveMany(STUDENTS_COLLECTION, cls.studentIds ?? [])
+    resolveMany(STUDENTS_COLLECTION, cls.studentIds ?? []),
+    resolveMany(STUDENTS_COLLECTION, cls.requestedStudentIds ?? [])
   ]);
 
   const byName = (a, b) => personName(a).localeCompare(personName(b));
@@ -252,6 +263,13 @@ async function buildClassDetail(cls) {
     active: cls.active !== false,
     archived: cls.archived === true,
     mode: classMode(cls),
+    ...discoverFields(cls, course),
+    // Students waiting for the admin to accept them from Discover.
+    requests: requesters.sort(byName).map((s) => ({
+      studentId: asId(s._id),
+      name: personName(s),
+      studentNumber: s.student_id ?? null
+    })),
     createdAt: cls.createdAt ?? null,
     updatedAt: cls.updatedAt ?? null
   };
@@ -279,6 +297,7 @@ function publicClassRow(cls, { courseById, assessorById }) {
     active: cls.active !== false,
     archived: cls.archived === true,
     mode: classMode(cls),
+    ...discoverFields(cls, course),
     createdAt: cls.createdAt ?? null
   };
 }
@@ -326,6 +345,9 @@ export async function createClass(request, response) {
   const name = String(body.name ?? "").trim();
   const textError = classTextError(name, body.schedule);
   if (textError) return response.status(400).json({ message: textError });
+  if ("enrollment" in body && !ENROLLMENT_MODES.includes(body.enrollment)) {
+    return response.status(400).json({ message: "Choose Open or Needs approval." });
+  }
 
   const course = await resolveCourse(body.courseId);
   if (!course) return response.status(400).json({ message: "Choose a course for this class." });
@@ -347,6 +369,9 @@ export async function createClass(request, response) {
     schedule: cleanSchedule(body.schedule),
     active: body.active !== false,
     mode: toClassMode(body.mode),
+    // Posted from the Classes table later; how students join is chosen now.
+    posted: false,
+    enrollment: body.enrollment ?? "approval",
     createdAt: now,
     updatedAt: now
   };
@@ -374,12 +399,12 @@ export async function updateClass(request, response) {
   const body = request.body ?? {};
   const updates = {};
 
-  // Once a class exists, only its assessor, students and schedule (plus the
-  // status switch and archive) can change. The rest was fixed when it was created.
+  // Once a class exists, only its assessor, students, schedule and enrollment
+  // (plus the status switch and archive) can change. The rest was fixed when it was created.
   const fixed = ["name", "courseId", "mode"].filter((key) => key in body);
   if (fixed.length > 0) {
     return response.status(400).json({
-      message: "Only the assessor, students and schedule can be changed after a class is created."
+      message: "Only the assessor, students, schedule and enrollment can be changed after a class is created."
     });
   }
 
@@ -401,6 +426,12 @@ export async function updateClass(request, response) {
     const scheduleError = classTextError("", body.schedule);
     if (scheduleError) return response.status(400).json({ message: scheduleError });
     updates.schedule = cleanSchedule(body.schedule);
+  }
+  if ("enrollment" in body) {
+    if (!ENROLLMENT_MODES.includes(body.enrollment)) {
+      return response.status(400).json({ message: "Choose Open or Needs approval." });
+    }
+    updates.enrollment = body.enrollment;
   }
   if ("active" in body) updates.active = body.active !== false;
   // Archiving also switches the class off; restoring switches it back on.

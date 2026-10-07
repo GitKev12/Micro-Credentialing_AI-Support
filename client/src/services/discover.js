@@ -16,10 +16,6 @@ export async function cancelEnrollRequest(studentId, classId) {
   const { data } = await api.delete(`/students/${studentId}/classes/${classId}/request`);
   return data;
 }
-export async function fetchDiscoverClasses() {
-  const { data } = await api.get("/admin/discover");
-  return data.classes ?? [];
-}
 export async function setDiscoverSettings(classId, settings) {
   const { data } = await api.patch(`/admin/classes/${classId}/discover`, settings);
   return data.class;

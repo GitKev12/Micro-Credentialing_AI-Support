@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
-import { collectionExists, idCandidates } from "../lib/mongo.js";
+import { idCandidates } from "../lib/mongo.js";
 import { courseStatus } from "../lib/courseAccess.js";
+import { toIsoDay } from "../lib/courseDates.js";
 import { classMode } from "../lib/classMode.js";
 import { accountStatus } from "../lib/suspension.js";
 import { personName } from "./classes.controller.js";
@@ -29,9 +30,15 @@ async function rowsFor(classes) {
       id: String(cls._id), name: cls.name ?? "", mode: classMode(cls),
       course: course ? {
         id: String(course._id), code: course.courseCode ?? course.code ?? "",
-        title: course.courseName ?? course.title ?? course.name ?? "", status: courseStatus(course)
+        title: course.courseName ?? course.title ?? course.name ?? "", status: courseStatus(course),
+        startsOn: toIsoDay(course.startsOn), endsOn: toIsoDay(course.endsOn)
       } : null,
       assessor: assessor ? personName(assessor) : null,
+      schedule: {
+        days: String(cls.schedule?.days ?? "").trim(),
+        time: String(cls.schedule?.time ?? "").trim(),
+        room: String(cls.schedule?.room ?? "").trim()
+      },
       active: cls.active !== false, posted: cls.posted === true, enrollment: enrollmentOf(cls),
       studentCount: (cls.studentIds ?? []).length,
       refusal: discoverRefusal(cls, course),
@@ -45,13 +52,6 @@ async function rowsFor(classes) {
 async function respondWithClass(res, id) {
   const cls = await find("Class", id);
   return res.json({ class: (await rowsFor([cls]))[0] });
-}
-
-export async function listDiscoverClasses(_req, res) {
-  if (mongoose.connection.readyState !== 1) return notReady(res);
-  if (!(await collectionExists("Class"))) return res.json({ classes: [] });
-  const classes = await collection("Class").find({ archived: { $ne: true } }).toArray();
-  return res.json({ classes: (await rowsFor(classes)).sort((a, b) => a.name.localeCompare(b.name)) });
 }
 
 export async function setClassDiscover(req, res) {

@@ -24,10 +24,9 @@ export default function DiscoverPage() {
 
   return (
     <main className="sd-discover">
-      <header className="sd-discover__head">
-        <h1 className="sd-discover__title">Discover</h1>
-        {status === "ready" ? <span className="sd-discover__count">{courses.length} {courses.length === 1 ? "course" : "courses"}</span> : null}
-      </header>
+      {/* The rail already says where you are, so the heading is for screen
+          readers only — the page still needs one to sit under. */}
+      <h1 className="sd-sr-only">Discover</h1>
       {status === "loading" ? (
         <ul className="sd-discover__grid" aria-label="Loading courses" aria-busy="true">
           {Array.from({ length: 6 }, (_, i) => <li key={i} className="sd-dcard sd-dcard--skeleton" aria-hidden="true"><div className="sd-skeleton sd-dcard__cover" /><div className="sd-dcard__body"><div className="sd-skeleton" /><div className="sd-skeleton" /></div></li>)}

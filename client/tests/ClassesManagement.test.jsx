@@ -80,6 +80,12 @@ const ASSESSORS = [
   { id: "a3", name: "Rosa Delgado" }
 ];
 
+jest.unstable_mockModule("../src/services/discover.js", () => ({
+  setDiscoverSettings: async () => ({}),
+  acceptRequest: async () => ({}),
+  declineRequest: async () => ({})
+}));
+
 jest.unstable_mockModule("../src/services/admin.js", () => ({
   fetchNextIdNumber: async () => "",
   fetchCourses: async () => COURSES,

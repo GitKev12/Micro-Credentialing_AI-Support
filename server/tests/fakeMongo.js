@@ -3,7 +3,7 @@
  *
  * It understands only what the Discover code asks of Mongo: plain values,
  * $in / $nin / $ne (on single values and on arrays), $or, and the $set /
- * $addToSet / $pull updates. Every write is pushed onto `db.log`, so a test
+ * $addToSet / $pull updates, plus insertOne. Every write is pushed onto `db.log`, so a test
  * can check what was written and in what order.
  *
  * Not a test file itself (no ".test.js"), so Jest does not run it.
@@ -43,13 +43,23 @@ export function fakeCollections(db) {
     return {
       // Reads hand back copies, as the real driver does.
       findOne: async (filter) => structuredClone(rows().find((doc) => matches(doc, filter)) ?? null),
-      find: (filter) => ({
-        toArray: async () => {
-          const found = rows().filter((doc) => matches(doc, filter)).map((doc) => structuredClone(doc));
-          db.onFind?.(name);
-          return found;
-        }
-      }),
+      find: (filter) => {
+        const cursor = {
+          sort: () => cursor, // order is the order the test wrote them in
+          toArray: async () => {
+            const found = rows().filter((doc) => matches(doc, filter)).map((doc) => structuredClone(doc));
+            db.onFind?.(name);
+            return found;
+          }
+        };
+        return cursor;
+      },
+      insertOne: async (doc) => {
+        const insertedId = doc._id ?? `new${rows().length + 1}`;
+        db[name] = [...rows(), { ...structuredClone(doc), _id: insertedId }];
+        db.log.push({ op: "insertOne", name, doc });
+        return { insertedId };
+      },
       countDocuments: async (filter) => rows().filter((doc) => matches(doc, filter)).length,
       updateOne: async (filter, change) => {
         const doc = rows().find((row) => matches(row, filter));

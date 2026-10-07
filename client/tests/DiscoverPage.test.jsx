@@ -48,7 +48,6 @@ describe("Discover cards", () => {
     await show();
 
     expect(fetchDiscoverCourses).toHaveBeenCalledWith("stu-1");
-    expect(screen.getByText("3 courses")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Computer Programming 2" }).getAttribute("href")).toBe("/student/discover/c1");
     expect(screen.getByText("2 sections")).toBeTruthy();
     expect(screen.getAllByText("1 section")).toHaveLength(2);

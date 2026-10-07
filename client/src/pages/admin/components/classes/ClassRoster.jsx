@@ -30,7 +30,8 @@ function ClassRoster({
   onAdd,
   busy,
   disabled,
-  hint
+  hint,
+  extra = null
 }) {
   const chosen = ids.map((id) => people.find((person) => person.id === id)).filter(Boolean);
   const blocked = busy || disabled;
@@ -52,6 +53,7 @@ function ClassRoster({
             <PlusIcon size={18} />
           </span>
         </button>
+        {extra}
       </div>
     );
   }
@@ -102,6 +104,8 @@ function ClassRoster({
         <PlusIcon size={13} />
         {action}
       </button>
+      {/* Any other control that belongs to this roster, e.g. the class's Discover requests. */}
+      {extra}
     </div>
   );
 }
