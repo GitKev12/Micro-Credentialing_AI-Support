@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { isRunInOrder, toDateInput } from "../../../../lib/courseDuration";
-import { MAX_LENGTH, checkCourseCode, checkCourseTitle } from "../../../../lib/fieldRules";
+import { MAX_LENGTH, checkCourseCode, checkCourseHours, checkCourseTitle } from "../../../../lib/fieldRules";
 import RangeCalendar from "../RangeCalendar";
 import { AdminButton, AdminField, AdminModal } from "../ui";
 
@@ -19,11 +19,13 @@ function todayKey() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function CourseForm({ course, busy, error, onCancel, onSave, children }) {
+function CourseForm({ course, categories = [], busy, error, onCancel, onSave, children }) {
   const editing = Boolean(course);
   const [code, setCode] = useState(course?.code ?? "");
   const [title, setTitle] = useState(course?.title ?? "");
   const [description, setDescription] = useState(course?.description ?? "");
+  const [category, setCategory] = useState(course?.category ?? "");
+  const [courseHours, setCourseHours] = useState(course?.courseHours ? String(course.courseHours) : "");
   const [startsOn, setStartsOn] = useState(toDateInput(course?.startsOn));
   const [endsOn, setEndsOn] = useState(toDateInput(course?.endsOn));
 
@@ -43,9 +45,11 @@ function CourseForm({ course, busy, error, onCancel, onSave, children }) {
   const codeChanged = !editing || code.trim() !== course.code;
   const codeError = code && codeChanged ? checkCourseCode(code) : null;
   const titleError = title ? checkCourseTitle(title) : null;
+  const hoursError = checkCourseHours(courseHours);
   const ready =
     (codeChanged ? !checkCourseCode(code) : true) &&
     !checkCourseTitle(title) &&
+    !hoursError &&
     wholeRun &&
     orderedRun &&
     notPast;
@@ -73,6 +77,10 @@ function CourseForm({ course, busy, error, onCancel, onSave, children }) {
                 code: code.trim(),
                 title: title.trim(),
                 description: description.trim(),
+                category: category.trim(),
+                // Sent even when blank, the same as the dates: that is how
+                // the admin clears hours they set earlier.
+                courseHours: courseHours.trim(),
                 // Sent even when blank: an empty string is how the admin
                 // clears a date they set earlier.
                 startsOn,
@@ -108,6 +116,26 @@ function CourseForm({ course, busy, error, onCancel, onSave, children }) {
         placeholder="e.g. Computer Programming 2"
         error={titleError}
         required
+      />
+      {/* Typed, or picked from the ones other courses already use. Students
+          filter Discover by it. */}
+      <AdminField
+        label="Category"
+        maxLength={MAX_LENGTH.courseCategory}
+        value={category}
+        onChange={setCategory}
+        placeholder="e.g. Programming"
+        suggestions={categories}
+      />
+      {/* What the course takes to finish, the way a catalogue says "30 Hours".
+          Optional - a course with none set simply doesn't say. */}
+      <AdminField
+        label="Course hours"
+        type="number"
+        value={courseHours}
+        onChange={setCourseHours}
+        placeholder="e.g. 30"
+        error={hoursError}
       />
       <AdminField
         label="Description"

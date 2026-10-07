@@ -6,7 +6,7 @@ import {
 } from "./courses.controller.js";
 import {
   cancelEnrollRequest,
-  enrollInClass,
+  enrollInCourse,
   getDiscoverCourse,
   listDiscoverCourses
 } from "./discover.controller.js";
@@ -17,8 +17,8 @@ import { requireOwnStudent } from "../middleware/student.guard.js";
 //   GET /api/students/:id/courses      — course list (client fetchStudentCourses)
 //   GET /api/students/:id/skill-gap    — dashboard analytics (client fetchStudentSkillGap)
 //   GET /api/students/:id/achievements — certifications + badges
-//   GET /api/students/:id/discover (+ /:courseId), POST .../classes/:classId/enroll,
-//   DELETE .../classes/:classId/request — Discover (see discover.controller.js)
+//   GET /api/students/:id/discover (+ /:courseId), POST .../discover/:courseId/enroll,
+//   DELETE .../discover/:courseId/request — Discover (see discover.controller.js)
 const router = Router();
 
 // A student's own record, their assessor's, or anyone's if you are an admin —
@@ -29,12 +29,14 @@ router.get("/:id/courses", ownRecord, getStudentCourses);
 router.get("/:id/skill-gap", ownRecord, getStudentSkillGap);
 router.get("/:id/achievements", ownRecord, getStudentAchievements);
 
-// Joining a class is the student's own choice, so only the student may do it.
+// Joining a course is the student's own choice, so only the student may do it.
 const ownWrite = [requireAuth, requireRole("student"), requireOwnStudent("id")];
 
 router.get("/:id/discover", ownRecord, listDiscoverCourses);
 router.get("/:id/discover/:courseId", ownRecord, getDiscoverCourse);
-router.post("/:id/classes/:classId/enroll", ownWrite, enrollInClass);
-router.delete("/:id/classes/:classId/request", ownWrite, cancelEnrollRequest);
+// By course and pathway, not by class: the student never sees a section, so
+// there is no class id for them to send.
+router.post("/:id/discover/:courseId/enroll", ownWrite, enrollInCourse);
+router.delete("/:id/discover/:courseId/request", ownWrite, cancelEnrollRequest);
 
 export default router;

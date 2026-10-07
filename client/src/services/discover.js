@@ -8,12 +8,14 @@ export async function fetchDiscoverCourse(studentId, courseId) {
   const { data } = await api.get(`/students/${studentId}/discover/${courseId}`);
   return data;
 }
-export async function enrollInClass(studentId, classId) {
-  const { data } = await api.post(`/students/${studentId}/classes/${classId}/enroll`);
+// By course and pathway. A section is how the school sorts its students, so
+// the server picks one running the pathway the candidate chose.
+export async function enrollInCourse(studentId, courseId, mode) {
+  const { data } = await api.post(`/students/${studentId}/discover/${courseId}/enroll`, { mode });
   return data;
 }
-export async function cancelEnrollRequest(studentId, classId) {
-  const { data } = await api.delete(`/students/${studentId}/classes/${classId}/request`);
+export async function cancelEnrollRequest(studentId, courseId) {
+  const { data } = await api.delete(`/students/${studentId}/discover/${courseId}/request`);
   return data;
 }
 export async function setDiscoverSettings(classId, settings) {

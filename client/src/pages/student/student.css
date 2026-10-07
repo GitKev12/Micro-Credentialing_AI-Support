@@ -4598,10 +4598,400 @@ body:has(.student-app) {
    .student-app rule further up this file.
    =========================================================== */
 
+/* One stacking context for the whole screen, so the dropdowns inside it can
+   out-rank the cards without any of them out-ranking the top bar the search
+   bar slides out from. z-index 0, not 1 — it contains, it does not rise. */
 .sd-discover {
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
   gap: var(--sd-6);
+}
+
+/* ── Search and filter ──────────────────────────────────────
+   The bar arrives from under the top bar, which means the top
+   bar has to be the thing in front. A z-index makes it one, and
+   it carries its own menu, scrim and drawer up with it, which is
+   where all three already wanted to be. 45 clears .sd-tip (30),
+   the highest thing any student page puts in its content, and
+   stays under .sd-badge-toast (60) — which only ever shows on
+   the reader, where the top bar is not rendered at all.
+   ───────────────────────────────────────────────────────── */
+
+.sd-topbar {
+  position: relative;
+  z-index: 45;
+}
+
+/* The travel is the bar's own height plus the 1.75rem .student-page puts
+   between it and the top bar, so it starts tucked exactly behind the top
+   bar's bottom edge rather than halfway down the gap — which is the
+   difference between sliding out from under something and simply appearing
+   near it. `both` holds the first frame until the animation runs, so the bar
+   never shows in place first.
+
+   The curve is the one the nav pill already glides on. Under reduced motion
+   the whole thing resolves at once: the rule further up this file caps every
+   animation in .student-app at 0.001ms, and because the resting state here is
+   the element's own, cutting the animation simply leaves the bar in place. */
+/* The z-index here is not decoration, it is what keeps the dropdowns in
+   front of the cards. The animation below puts a transform on this element,
+   and `both` keeps that transform applied for good once it has run — which
+   makes the bar a stacking context permanently. Everything inside it is then
+   sealed in: the dropdowns' own z-index: 20 stops counting against anything
+   outside, and the bar itself was left at z-index auto, which paints in DOM
+   order — so the grid, which comes after it, covered them. Raising the bar
+   lifts what is inside it with it. */
+.sd-dbar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-2);
+  /* One step of inset, not two. At --sd-2 the bar stood 60px against the top
+     bar's 58px, so the thing the page is read through was the heaviest band
+     on it. The controls inside keep their tap height — the padding is the
+     only part of this that was not carrying a target. */
+  padding: var(--sd-1);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow);
+  animation: sd-dbar-drop 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes sd-dbar-drop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-100% - 1.75rem));
+  }
+}
+
+/* A well rather than a second bordered box: the bar is already a bordered
+   pill, and a field outlined inside it reads as two controls deep. */
+.sd-dbar__search {
+  display: flex;
+  flex: 1 1 14rem;
+  align-items: center;
+  gap: var(--sd-2);
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--sd-4);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-surface-2);
+}
+
+/* The ring belongs round the well, not the bare input inside it — the same
+   move .sd-dcard makes for its link. */
+.student-app .sd-dbar__input:focus-visible {
+  outline: none;
+}
+
+.sd-dbar__search:has(.sd-dbar__input:focus-visible) {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: 2px;
+}
+
+.sd-dbar__search-icon {
+  display: grid;
+  flex-shrink: 0;
+  color: var(--sd-muted);
+}
+
+.sd-dbar__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--sd-ink);
+  font: inherit;
+  font-size: var(--sd-fs-body-lg);
+}
+
+.sd-dbar__input::placeholder {
+  color: var(--sd-muted);
+}
+
+/* WebKit's own cross ignores the design system and Firefox draws none at all,
+   so the field would look different depending on the browser. Suppressed the
+   way the other two consoles suppress theirs. */
+.sd-dbar__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.sd-dbar__menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sd-dbar__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-2);
+  min-height: var(--tap);
+  padding: 0 var(--sd-4);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-surface);
+  color: var(--sd-ink-2);
+  font: inherit;
+  font-size: var(--sd-fs-body);
+  font-weight: var(--sd-fw-medium);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Open is a held hover: the dropdown below it is the rest of the control, so
+   the trigger should not fall back to resting while it is showing. */
+.sd-dbar__trigger:hover,
+.sd-dbar__trigger[aria-expanded="true"] {
+  border-color: var(--sd-border-strong);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+}
+
+.sd-dbar__trigger-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sd-dbar__caret {
+  display: grid;
+  flex-shrink: 0;
+  color: var(--sd-muted);
+  transition: transform 0.18s ease;
+}
+
+.sd-dbar__trigger[aria-expanded="true"] .sd-dbar__caret {
+  transform: rotate(180deg);
+}
+
+.sd-dbar__badge {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 var(--sd-1);
+  border-radius: var(--sd-r-pill);
+  background: var(--sd-brand);
+  color: var(--sd-on-brand);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The two dropdowns ──────────────────────────────────── */
+
+/* Right-aligned to the trigger, because both triggers sit at the right end of
+   the bar and a left-aligned panel would hang off the edge of the screen. */
+.sd-dbar__list,
+.sd-dbar__panel {
+  position: absolute;
+  top: calc(100% + var(--sd-2));
+  right: 0;
+  z-index: 20;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow-lift);
+}
+
+.sd-dbar__list {
+  min-width: 15rem;
+  max-height: 19rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--sd-2);
+  list-style: none;
+}
+
+.sd-dbar__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-4);
+  min-height: var(--tap);
+  padding: 0 var(--sd-3);
+  border-radius: var(--sd-r-sm);
+  color: var(--sd-ink-2);
+  font-size: var(--sd-fs-body);
+  cursor: pointer;
+}
+
+/* Hover is the neutral well and the chosen row is the brand tint, rather than
+   both being the tint — otherwise the row under the pointer and the row
+   already chosen are the same row to look at. */
+.sd-dbar__option:hover {
+  background: var(--sd-surface-2);
+}
+
+.sd-dbar__option[aria-selected="true"] {
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-weight: var(--sd-fw-semibold);
+}
+
+.sd-dbar__option-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sd-dbar__option-count {
+  flex-shrink: 0;
+  color: var(--sd-muted);
+  font-size: var(--sd-fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-dbar__panel {
+  width: 17rem;
+  padding: var(--sd-4);
+}
+
+.sd-dbar__group {
+  /* A fieldset's own minimum is its min-content width, which would stop it
+     shrinking with the panel on a phone. */
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sd-dbar__group + .sd-dbar__group {
+  margin-top: var(--sd-3);
+}
+
+/* The page's eyebrow, at the size the scale keeps for a legend. Full width
+   because a legend is shrink-to-fit, and the rule above it spans the panel. */
+.sd-dbar__legend {
+  width: 100%;
+  padding: 0;
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+}
+
+/* The rule between groups is drawn above the legend rather than on the
+   fieldset. A <legend> is painted over its own fieldset's top border — that
+   is the gap-in-the-box effect fieldsets are named for — so a border-top
+   there came out struck through the heading. The line has to belong to
+   something the legend is not sitting on, and the legend's own box is the
+   one thing in the group guaranteed to be above the checkboxes. */
+.sd-dbar__group + .sd-dbar__group .sd-dbar__legend::before {
+  content: "";
+  display: block;
+  margin-bottom: var(--sd-3);
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-dbar__check {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-3);
+  min-height: var(--tap);
+  color: var(--sd-ink-2);
+  font-size: var(--sd-fs-body);
+  cursor: pointer;
+}
+
+.sd-dbar__check input {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--sd-brand);
+}
+
+.sd-dbar__panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sd-3);
+  padding-top: var(--sd-3);
+  border-top: 1px solid var(--sd-border);
+}
+
+/* ── What the filtering came to ─────────────────────────── */
+
+.sd-discover__count {
+  margin: 0;
+  color: var(--sd-muted);
+  font-size: var(--sd-fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The same box as .sd-empty, because "nothing is open yet" and "nothing
+   matched" are the same kind of answer — this one just has a way out of it. */
+.sd-discover__none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sd-4);
+  padding: var(--sd-10) var(--sd-5);
+  text-align: center;
+  border: 1px dashed var(--sd-border-strong);
+  border-radius: var(--sd-r-md);
+  background: var(--sd-surface-2);
+}
+
+.sd-discover__none p {
+  margin: 0;
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+/* ── On a phone ─────────────────────────────────────────── */
+
+/* The search takes the row and the two menus share the one under it. The pill
+   radius goes with it: a two-row pill is a stadium with a lot of empty air in
+   its corners. */
+@media (max-width: 40rem) {
+  .sd-dbar {
+    border-radius: var(--sd-r-xl);
+  }
+
+  .sd-dbar__search {
+    flex: 1 1 100%;
+  }
+
+  .sd-dbar__menu {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .sd-dbar__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Both dropdowns hang off the bar down here, not off their own button. A
+     menu is half the row wide on a phone, so a panel pinned to one came out
+     about 163px across and broke "Taught and assessed" over two lines.
+     Standing the menu down hands them to the bar, which is positioned
+     already — and that also drops the panel below the whole bar rather than
+     below a button sitting in its second row. */
+  .sd-dbar__menu {
+    position: static;
+  }
+
+  .sd-dbar__list,
+  .sd-dbar__panel {
+    right: 0;
+    left: 0;
+    width: auto;
+    min-width: 0;
+  }
 }
 
 /* auto-fill rather than auto-fit: with three courses on a wide screen the
@@ -4726,7 +5116,14 @@ body:has(.student-app) {
   padding-top: var(--sd-3);
 }
 
-.sd-dcard__sections {
+/* The course's category. It stands where the section count used to: how many
+   sections a course is split into is how the school sorts its students, and
+   says nothing to a candidate choosing between courses. */
+.sd-dcard__category {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: var(--sd-fs-label);
   color: var(--sd-muted);
 }
@@ -4812,79 +5209,94 @@ body:has(.student-app) {
 }
 
 /* ===========================================================
-   Discover — one course
+   Discover - one course
 
-   The facts a student needs to choose a section, and nothing
-   else. Lesson and badge counts only: an assess-only candidate
-   cannot read the modules at all, so naming them here would
-   advertise something the course may never hand over.
+   A catalogue entry, not a list of classes: the course is what
+   is on offer, so it gets the page, and the way in is one card
+   inside it. Two columns on a desktop - what the course is and
+   how to join it on the left, what it amounts to on the right.
+
+   No section appears anywhere here. A section is how the school
+   sorts its students; the candidate chooses a pathway and the
+   server puts them in one running it. The schedule went with it.
+
+   The syllabus is titles only. An assess-only candidate never
+   opens the lessons, so this is the contents page and nothing
+   more - it gives away no more than a printed outline would.
    =========================================================== */
 
 .sd-dcourse {
   display: flex;
   flex-direction: column;
-  gap: var(--sd-6);
+  gap: var(--sd-5);
 }
 
-/* Back is a small pill, not a full-width block. */
-.sd-dcourse .sd-btn--sm {
-  align-self: flex-start;
+/* Still used by the loading state, which has one block to stand in for the
+   whole page rather than a skeleton of every part of it. */
+.sd-dcourse__hero.sd-skeleton {
+  min-height: 22rem;
+  border-radius: var(--sd-r-xl);
 }
 
-/* Two of these pills are links. Nothing in the student area underlines a
-   button, and the global rule only takes an anchor's colour. */
-.sd-dcourse .sd-btn {
+/* -- Breadcrumb ------------------------------------------- */
+
+.sd-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-1) var(--sd-2);
+  font-size: var(--sd-fs-meta);
+}
+
+.sd-crumbs__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sd-1);
+  color: var(--sd-brand-text);
+  font-weight: var(--sd-fw-medium);
   text-decoration: none;
 }
 
-/* The line when a course has no sections to show. It has no class of its
-   own, and a bare <p> here would keep the browser's margins. */
-.sd-dcourse > p:not([class]) {
-  margin: 0;
-  font-size: var(--sd-fs-body);
+.sd-crumbs__link:hover {
+  text-decoration: underline;
+}
+
+/* The page you are on, named rather than linked, after a divider the mark-up
+   does not have to carry. */
+.sd-crumbs__here {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--sd-muted);
 }
 
-/* The fill sits on the body rather than here, because the cover already
-   paints its own half — and because while this is loading it carries
-   .sd-skeleton, whose shimmer a fill of ours would cover up.
+.sd-crumbs__here::before {
+  content: "/";
+  margin-right: var(--sd-2);
+  color: var(--sd-border-strong);
+}
 
-   The height is set here rather than on the cover, which is where it looks
-   like it belongs. .sd-cover is a size container, and a container whose own
-   min-height is what makes the row tall is a container sized by itself:
-   Chrome resolves cqmin to 0 in that case and the code inside disappears.
-   Held by the row instead, the cover is always measured from something
-   outside it, and the mark is drawn at every body length. (16rem, shorter
-   than My Courses' 19rem lead panel, because this hero carries a description
-   under the dates and the picture should not out-run the words.) */
-.sd-dcourse__hero {
+/* -- The two columns -------------------------------------- */
+
+.sd-dcourse__grid {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  min-height: 16rem;
-  overflow: hidden;
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-r-xl);
-  box-shadow: var(--sd-shadow);
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  align-items: start;
+  gap: var(--sd-6) var(--sd-8);
 }
 
-.sd-dcourse__hero.sd-skeleton {
-  min-height: 18rem;
-}
-
-.sd-dcourse__cover .sd-cover__mark {
-  inset: auto auto -0.12em -0.06em;
-  align-items: flex-start;
-  font-size: 40cqmin;
-  line-height: 0.8;
-  letter-spacing: -0.055em;
-}
-
-.sd-dcourse__body {
+.sd-dcourse__main {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: var(--sd-8) var(--sd-8) var(--sd-8) var(--sd-10);
-  background: var(--sd-surface);
+}
+
+.sd-dcourse__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-5);
+  min-width: 0;
 }
 
 .sd-dcourse__code {
@@ -4905,17 +5317,7 @@ body:has(.student-app) {
   text-wrap: balance;
 }
 
-.sd-dcourse__when {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sd-1) var(--sd-4);
-  margin: var(--sd-3) 0 0;
-  font-size: var(--sd-fs-body);
-  color: var(--sd-muted);
-}
-
-/* 65ch and 1.6: this is the one paragraph on either screen, and it is read
+/* 65ch and 1.6: this is the one paragraph on the screen, and it is read
    rather than scanned. */
 .sd-dcourse__desc {
   max-width: 65ch;
@@ -4925,133 +5327,133 @@ body:has(.student-app) {
   color: var(--sd-ink-2);
 }
 
-/* ── The three facts ───────────────────────────────────────── */
+/* -- The way in -------------------------------------------
+   One card, whatever state the student is in: the choice, the
+   button, or what they are already holding. */
 
-.sd-dcourse__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sd-5) var(--sd-10);
-  margin: 0;
-}
-
-.sd-dcourse__fact dt {
-  font-size: var(--sd-fs-label);
-  color: var(--sd-muted);
-}
-
-.sd-dcourse__fact dd {
-  margin: 2px 0 0;
-  font-size: var(--sd-fs-title);
-  font-weight: var(--sd-fw-semibold);
-  color: var(--sd-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Sits closer to the list it names than to the facts above it — the column's
-   own gap would otherwise leave the heading floating between the two. */
-.sd-dcourse__h2 {
-  margin: 0 0 calc(var(--sd-3) - var(--sd-6));
-  font-size: var(--sd-fs-h3);
-  font-weight: var(--sd-fw-semibold);
-  color: var(--sd-ink);
-}
-
-/* ── Sections ───────────────────────────────────────────────
-   One box with hairlines between the rows, like .sd-rows on My
-   Courses. Scoped under .sd-dcourse because .sd-sections is
-   already the lesson reader's section timeline — the names
-   collide, the screens never do. */
-
-.sd-dcourse .sd-sections {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  list-style: none;
+.sd-join {
+  margin-top: var(--sd-6);
+  padding: var(--sd-5);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-lg);
   background: var(--sd-surface);
   box-shadow: var(--sd-shadow-sm);
 }
 
-.sd-section {
+.sd-join__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sd-3) var(--sd-5);
-  padding: var(--sd-4) var(--sd-5);
+  gap: var(--sd-3) var(--sd-4);
 }
 
-.sd-section + .sd-section {
-  border-top: 1px solid var(--sd-border);
+.sd-join__shut,
+.sd-join__count {
+  margin: 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-muted);
 }
 
-/* The name and its pathway tag share the first line; the schedule and the
-   assessor each take one of their own, by claiming the full width. */
-.sd-section__text {
+.sd-join__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The pathway choice. Cards rather than a dropdown, because the two are not
+   interchangeable settings - one of them never opens the lessons - and the
+   difference has to be readable before it is picked, not after. */
+.sd-join__choice {
+  display: grid;
+  gap: var(--sd-3);
+  margin-bottom: var(--sd-5);
+}
+
+.sd-join__option {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sd-1) var(--sd-2);
+  align-items: flex-start;
+  gap: var(--sd-3);
+  padding: var(--sd-4);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-md);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sd-join__option:hover {
+  border-color: var(--sd-border-strong);
+  background: var(--sd-surface-2);
+}
+
+.sd-join__option.is-chosen {
+  border-color: var(--sd-brand);
+  box-shadow: inset 0 0 0 1px var(--sd-brand);
+  background: var(--sd-brand-wash);
+}
+
+/* The native control carries the state and the keyboard; the ring beside it
+   is what gets drawn, so it can take the brand in both themes. */
+.sd-join__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.sd-join__mark {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 2px;
+  border: 2px solid var(--sd-border-strong);
+  border-radius: 50%;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sd-join__option.is-chosen .sd-join__mark {
+  border-color: var(--sd-brand);
+  background: radial-gradient(circle, var(--sd-brand) 0 42%, transparent 44%);
+}
+
+.sd-join__option:has(.sd-join__input:focus-visible) {
+  outline: 2px solid var(--sd-brand);
+  outline-offset: 2px;
+}
+
+.sd-join__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.sd-section__name {
-  margin: 0;
+.sd-join__name {
   font-size: var(--sd-fs-body-lg);
   font-weight: var(--sd-fw-semibold);
   color: var(--sd-ink);
 }
 
-/* Only the assess-only pathway is named, in the wash .sd-row__pathway uses on
-   My Courses — taught is what a section is unless it says otherwise. */
-.sd-section__tag {
-  padding: 1px 0.4375rem;
-  border-radius: 999px;
-  background: var(--sd-brand-wash);
-  color: var(--sd-brand-text);
-  font-size: var(--sd-fs-micro);
-  font-weight: var(--sd-fw-semibold);
-  white-space: nowrap;
-}
-
-.sd-section__schedule {
-  display: flex;
-  flex-wrap: wrap;
-  flex-basis: 100%;
-  gap: 0 var(--sd-3);
+.sd-join__detail {
   font-size: var(--sd-fs-meta);
+  line-height: 1.5;
   color: var(--sd-muted);
 }
 
-/* A class with no schedule set leaves this behind as an empty line. */
-.sd-section__schedule:empty {
-  display: none;
-}
-
-.sd-section__assessor {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: var(--sd-fs-meta);
+/* The press, answered in the card. The question takes its own line so the two
+   buttons stay side by side under it. */
+.sd-join__ask {
+  margin: 0 0 var(--sd-3);
+  max-width: 48ch;
+  font-size: var(--sd-fs-body);
+  line-height: 1.5;
   color: var(--sd-ink-2);
 }
 
-.sd-section__action {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--sd-3);
-  margin-left: auto;
+.sd-join__error {
+  margin: var(--sd-3) 0 0;
+  font-size: var(--sd-fs-meta);
+  color: var(--sd-crit-text);
 }
 
-/* 44px, which .sd-btn's padding comes a hair under — every control in this
-   list commits the student to something, and gets the full target. */
-.sd-section__action .sd-btn {
-  min-height: 2.75rem;
-}
-
-/* ── Enroll ─────────────────────────────────────────────────
+/* -- Enroll -----------------------------------------------
    The screen's primary, dressed as .sd-feature__go is, down to
    the lift dark mode needs because its deep brand step is the
    surface's own navy. */
@@ -5070,6 +5472,7 @@ body:has(.student-app) {
   font-size: var(--sd-fs-body-lg);
   font-weight: var(--sd-fw-semibold);
   white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
   box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--sd-brand) 85%, transparent);
   transition: background 0.15s ease;
@@ -5088,35 +5491,141 @@ body:has(.student-app) {
   cursor: default;
 }
 
-/* The press, answered in the row rather than in a dialog. The question takes
-   the whole first line, so Confirm and Cancel stay side by side under it. */
-.sd-section__confirm {
+/* 44px, matching the primary it stands next to: both of these commit the
+   student to something. */
+.sd-join .sd-btn {
+  min-height: 2.75rem;
+  text-decoration: none;
+}
+
+/* -- What you will learn ----------------------------------
+   A numbered contents page. Deliberately not the reference's
+   accordion: there, a row opens to reveal the topics inside a
+   module, and a lesson here holds one badge - a row that opens
+   to show a single line is a drawer with nothing in it. */
+
+.sd-syllabus {
+  margin-top: var(--sd-8);
+}
+
+.sd-dcourse__h2 {
+  margin: 0 0 var(--sd-4);
+  font-size: var(--sd-fs-h3);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+}
+
+.sd-syllabus__list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
+  box-shadow: var(--sd-shadow-sm);
+}
+
+.sd-syllabus__item {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--sd-2) var(--sd-3);
-  max-width: 26rem;
+  gap: var(--sd-4);
+  padding: var(--sd-4) var(--sd-5);
 }
 
-.sd-section__confirm p {
-  flex-basis: 100%;
+.sd-syllabus__item + .sd-syllabus__item {
+  border-top: 1px solid var(--sd-border);
+}
+
+/* The chapter number as a disc, which is what carries the sequence - the
+   titles here are topics ("Arrays", "Looping") and never say where they fall. */
+.sd-syllabus__n {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-syllabus__title {
+  min-width: 0;
+  font-size: var(--sd-fs-body-lg);
+  color: var(--sd-ink);
+}
+
+/* What passing this lesson's quiz is worth, at the far end of the row. */
+.sd-syllabus__badge {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 2px 0.5rem;
+  border-radius: 999px;
+  background: var(--sd-surface-2);
+  color: var(--sd-muted);
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-medium);
+}
+
+.sd-syllabus__item--final .sd-syllabus__title {
+  font-weight: var(--sd-fw-semibold);
+}
+
+.sd-syllabus__item--final .sd-syllabus__n {
+  background: var(--sd-brand);
+  color: var(--sd-on-brand);
+}
+
+/* -- The right-hand column -------------------------------- */
+
+.sd-dcourse__cover {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+}
+
+/* Smaller than the old half-width hero, so the code is set to the panel it is
+   now in rather than to the page. */
+.sd-dcourse__cover .sd-cover__mark {
+  inset: auto auto -0.1em -0.05em;
+  align-items: flex-start;
+  font-size: 34cqmin;
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+}
+
+/* Stacked label-over-value rows, the shape a rail of facts takes - the old
+   flex strip was built to run across the full width of the page. */
+.sd-dcourse__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sd-4) var(--sd-5);
   margin: 0;
-  font-size: var(--sd-fs-meta);
-  line-height: 1.5;
-  color: var(--sd-ink-2);
-  text-align: right;
+  padding: var(--sd-5);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-lg);
+  background: var(--sd-surface);
 }
 
-/* Under the row it belongs to, inside the row's own box. */
-.sd-section__error {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: var(--sd-fs-meta);
-  color: var(--sd-crit-text);
+.sd-dcourse__fact dt {
+  font-size: var(--sd-fs-label);
+  color: var(--sd-muted);
 }
 
-/* What just happened — for the screen reader and for everyone else. Empty
+.sd-dcourse__fact dd {
+  margin: 2px 0 0;
+  font-size: var(--sd-fs-body-lg);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What just happened - for the screen reader and for everyone else. Empty
    between presses, and takes no room then. */
 .sd-dcourse__status {
   margin: 0;
@@ -5128,46 +5637,62 @@ body:has(.student-app) {
   display: none;
 }
 
-/* ── Narrower ──────────────────────────────────────────────── */
+/* -- Narrower --------------------------------------------- */
 
-@media (max-width: 52rem) {
-  .sd-dcourse__hero {
+@media (max-width: 62rem) {
+  /* One column, and the picture leads it - the same way the card the student
+     pressed to get here leads with its cover. */
+  .sd-dcourse__grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .sd-dcourse__hero.sd-skeleton {
-    min-height: 22rem;
+  .sd-dcourse__side {
+    order: -1;
   }
 
   .sd-dcourse__cover {
-    aspect-ratio: 16 / 7;
+    aspect-ratio: 16 / 6;
   }
 
-  .sd-dcourse__body {
-    padding: var(--sd-6);
+  /* As many across as fit: hours is optional, so the panel holds three
+     facts or four. */
+  .sd-dcourse__facts {
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   }
 }
 
 @media (max-width: 40rem) {
-  /* The action drops under the text it acts on and takes the width — two
-     pills and a question do not fit a phone beside the section's name. */
-  .sd-section__action,
-  .sd-section__confirm {
-    width: 100%;
-    max-width: none;
-    margin-left: 0;
+  .sd-dcourse__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .sd-section__action .sd-btn,
-  .sd-section__action .sd-enroll {
+  .sd-dcourse__cover {
+    aspect-ratio: 16 / 9;
+  }
+
+  /* Both buttons take the row rather than sitting half-width beside each
+     other at the width of a phone. */
+  .sd-join__row .sd-enroll,
+  .sd-join__row .sd-btn {
     flex: 1;
   }
 
-  .sd-section__confirm p {
-    text-align: left;
+  /* The badge drops under the title instead of taking a third of the row
+     off it - squeezed to 152px a lesson name ran to four lines. Two
+     columns rather than a wrap, so the pill still hugs its text. */
+  .sd-syllabus__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--sd-2);
+    justify-items: start;
   }
 
-  .sd-dcourse__facts {
-    gap: var(--sd-4) var(--sd-6);
+  .sd-syllabus__title,
+  .sd-syllabus__badge {
+    grid-column: 2;
+  }
+
+  .sd-syllabus__badge {
+    margin-left: 0;
   }
 }

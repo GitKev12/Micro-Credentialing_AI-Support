@@ -9,7 +9,7 @@ jest.unstable_mockModule("../src/lib/mongo.js", () => ({
 jest.unstable_mockModule("../src/lib/standingEvents.js", () => ({ publishStanding: jest.fn() }));
 jest.unstable_mockModule("../src/admin/enrollment.sync.js", () => ({ syncAssessorsForCourse: jest.fn(async () => {}) }));
 
-const { cancelEnrollRequest, enrollInClass, getDiscoverCourse, listDiscoverCourses } = await import(
+const { cancelEnrollRequest, enrollInCourse, getDiscoverCourse, listDiscoverCourses } = await import(
   "../src/courses/discover.controller.js"
 );
 
@@ -20,9 +20,9 @@ const reply = () => ({
   json(body) { this.body = body; return this; }
 });
 
-async function call(handler, params) {
+async function call(handler, params, body) {
   const res = reply();
-  await handler({ params: { id: "s1", ...params } }, res);
+  await handler({ params: { id: "s1", ...params }, body }, res);
   return res;
 }
 
@@ -43,7 +43,7 @@ beforeEach(() => {
     Student: [{ _id: "s1", student_id: "STU001", enrolledCourses: [] }],
     Assessor: [{ _id: "a1", first_name: "Ramon", last_name: "Velasco" }],
     Course: [
-      course("c1", "CC2", "Computer Programming 2", { description: "Loops and arrays." }),
+      course("c1", "CC2", "Computer Programming 2", { description: "Loops and arrays.", category: " Programming ", courseHours: 30 }),
       course("c2", "EA", "Enterprise Architecture", { status: "inactive" }),
       course("c3", "OOP", "Object-Oriented Programming"),
       course("c4", "MCS", "Mobile Computing")
@@ -55,8 +55,15 @@ beforeEach(() => {
       section("k4", "OOP-A", "c3", { posted: false }),
       section("k5", "MCS-A", "c4", { assessorIds: [] })
     ],
-    LearningModule: [{ _id: "m1", courseId: "c1" }, { _id: "m2", courseId: "c1" }],
-    Badge: [{ _id: "b1", courseId: "c1" }, { _id: "b2", courseId: "c1", active: false }],
+    // Out of chapter order on purpose: the syllabus is sorted, not stored sorted.
+    LearningModule: [
+      { _id: "m2", courseId: "c1", title: "Arrays", fileName: "CC2-Chapter-2.pdf" },
+      { _id: "m1", courseId: "c1", title: "Looping", fileName: "CC2-Chapter-1.pdf" }
+    ],
+    Badge: [
+      { _id: "b1", courseId: "c1", moduleId: "m1", name: "Looping" },
+      { _id: "b2", courseId: "c1", moduleId: "m2", name: "Arrays", active: false }
+    ],
     Assessment: [{ _id: "f1", courseId: "c1", scope: "final", status: "posted" }]
   };
   mongoose.connection.collection = fakeCollections(db);
@@ -68,7 +75,36 @@ describe("Discover cards", () => {
 
     // EA is inactive, OOP is not posted, MCS has no assessor.
     expect(res.body.courses.map((card) => card.code)).toEqual(["CC2"]);
-    expect(res.body.courses[0]).toMatchObject({ sectionCount: 2, enrolled: false, pending: false });
+    expect(res.body.courses[0]).toMatchObject({ enrolled: false, pending: false });
+  });
+
+  it("never tells a card how many sections a course has", async () => {
+    const res = await call(listDiscoverCourses);
+    expect(res.body.courses[0].sectionCount).toBeUndefined();
+  });
+
+  it("gives each card what the search bar filters on", async () => {
+    const res = await call(listDiscoverCourses);
+    const [card] = res.body.courses;
+
+    expect(card.category).toBe("Programming");
+    // Section-A is open and taught, Section-B needs approval and is assess-only.
+    expect(card.openSections).toEqual([
+      { enrollment: "open", mode: "taught" },
+      { enrollment: "approval", mode: "assessOnly" }
+    ]);
+  });
+
+  it("reports each pathway's join the way the course page will, open first", async () => {
+    // A second taught section that needs approval: the student would still be
+    // put in the open one, so the card must not say the taught pathway needs approval.
+    db.Class.push(section("k6", "Section-C", "c1", { enrollment: "approval" }));
+
+    const res = await call(listDiscoverCourses);
+    expect(res.body.courses[0].openSections).toEqual([
+      { enrollment: "open", mode: "taught" },
+      { enrollment: "approval", mode: "assessOnly" }
+    ]);
   });
 
   it("keeps a course the student is already in, marked Enrolled", async () => {
@@ -76,23 +112,47 @@ describe("Discover cards", () => {
     cls("k4").studentIds = ["s1"];
 
     const res = await call(listDiscoverCourses);
-    const oop = res.body.courses.find((card) => card.code === "OOP");
-    expect(oop).toMatchObject({ sectionCount: 0, enrolled: true });
+    expect(res.body.courses.find((card) => card.code === "OOP")).toMatchObject({ enrolled: true });
   });
 });
 
 describe("Discover course view", () => {
-  it("gives counts and the open sections", async () => {
+  it("gives the counts, the pathways and the syllabus", async () => {
     const res = await call(getDiscoverCourse, { courseId: "c1" });
 
     expect(res.body.course).toMatchObject({
-      code: "CC2", description: "Loops and arrays.", lessonCount: 2, badgeCount: 1, hasFinalExam: true
+      code: "CC2", description: "Loops and arrays.", lessonCount: 2, badgeCount: 1, hasFinalExam: true, courseHours: 30
     });
-    expect(res.body.sections).toEqual([
-      expect.objectContaining({ id: "k1", enrollment: "open", mode: "taught", assessor: "Ramon Velasco", state: "none", open: true, hasFinalExam: true }),
-      // An assess-only section takes only its own final, and this course's is course-wide.
-      expect.objectContaining({ id: "k2", enrollment: "approval", mode: "assessOnly", state: "none", open: true, hasFinalExam: false })
+    expect(res.body.pathways).toEqual([
+      { mode: "taught", label: "Taught and assessed", enrollment: "open" },
+      { mode: "assessOnly", label: "Assess-only", enrollment: "approval" }
     ]);
+  });
+
+  it("names no section anywhere in what the student is sent", async () => {
+    const res = await call(getDiscoverCourse, { courseId: "c1" });
+
+    expect(res.body.sections).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain("Section-A");
+    expect(JSON.stringify(res.body)).not.toContain("schedule");
+  });
+
+  it("puts the syllabus in chapter order, with each lesson's badge", async () => {
+    const res = await call(getDiscoverCourse, { courseId: "c1" });
+
+    expect(res.body.curriculum).toEqual([
+      { id: "m1", title: "Looping", badge: "Looping" },
+      // b2 is switched off, so Arrays has no badge to earn.
+      { id: "m2", title: "Arrays", badge: null }
+    ]);
+  });
+
+  it("counts everyone on the course", async () => {
+    cls("k1").studentIds = ["s9"];
+    cls("k2").studentIds = ["s8", "s7"];
+
+    const res = await call(getDiscoverCourse, { courseId: "c1" });
+    expect(res.body.course.learnerCount).toBe(3);
   });
 
   it("is not found for an inactive course", async () => {
@@ -102,32 +162,52 @@ describe("Discover course view", () => {
 });
 
 describe("Enroll", () => {
-  it("joins an open section at once", async () => {
-    const res = await call(enrollInClass, { classId: "k1" });
+  it("joins an open pathway at once", async () => {
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "taught" });
 
     expect(res.code).toBe(200);
     expect(cls("k1").studentIds).toEqual(["s1"]);
     expect(student().enrolledCourses).toEqual(["c1"]);
-    expect(res.body.course.enrolled).toBe(true);
-    expect(res.body.sections.find((row) => row.id === "k1").state).toBe("enrolled");
+    expect(res.body.course).toMatchObject({ enrolled: true, myMode: "taught" });
   });
 
-  it("sends a request to a section that needs approval", async () => {
-    const res = await call(enrollInClass, { classId: "k2" });
+  it("sends a request when the pathway needs approval", async () => {
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "assessOnly" });
 
     expect(res.code).toBe(200);
     expect(cls("k2").requestedStudentIds).toEqual(["s1"]);
     expect(cls("k2").studentIds).toEqual([]);
     expect(student().enrolledCourses).toEqual([]);
-    expect(res.body.course.pending).toBe(true);
-    expect(res.body.sections.find((row) => row.id === "k2").state).toBe("pending");
+    expect(res.body.course).toMatchObject({ pending: true, myMode: "assessOnly" });
   });
 
-  it("refuses a second section on a course the student is in", async () => {
+  it("takes the open section over the gated one in the same pathway", async () => {
+    // A second taught section, needing approval and listed first.
+    db.Class.unshift(section("k0", "Section-0", "c1", { enrollment: "approval" }));
+
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "taught" });
+
+    expect(res.code).toBe(200);
+    expect(cls("k1").studentIds).toEqual(["s1"]);
+    expect(cls("k0").requestedStudentIds).toEqual([]);
+  });
+
+  it("takes the emptiest section when neither is more open than the other", async () => {
+    cls("k1").studentIds = ["s9", "s8"];
+    db.Class.push(section("k6", "Section-C", "c1", { enrollment: "open", studentIds: ["s7"] }));
+
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "taught" });
+
+    expect(res.code).toBe(200);
+    expect(cls("k6").studentIds).toEqual(["s7", "s1"]);
+    expect(cls("k1").studentIds).toEqual(["s9", "s8"]);
+  });
+
+  it("refuses a course the student is already in", async () => {
     student().enrolledCourses = ["c1"];
     cls("k1").studentIds = ["s1"];
 
-    const res = await call(enrollInClass, { classId: "k2" });
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "assessOnly" });
     expect(res.code).toBe(409);
     expect(res.body.message).toBe("You're already enrolled in this course.");
   });
@@ -135,23 +215,37 @@ describe("Enroll", () => {
   it("refuses while a request on the course is waiting", async () => {
     cls("k2").requestedStudentIds = ["s1"];
 
-    const res = await call(enrollInClass, { classId: "k1" });
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "taught" });
     expect(res.code).toBe(409);
-    expect(res.body.message).toBe("You already asked to join Section-B.");
+    // No section is named, because the student never saw one.
+    expect(res.body.message).toBe("You already asked to join this course.");
     expect(cls("k1").studentIds).toEqual([]);
   });
 
-  it("is not found for a section that is not posted", async () => {
-    const res = await call(enrollInClass, { classId: "k4" });
+  it("refuses a pathway nobody is running", async () => {
+    cls("k2").mode = "taught";
+
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "assessOnly" });
+    expect(res.code).toBe(404);
+    expect(res.body.message).toBe("Assess-only isn't open on this course.");
+  });
+
+  it("refuses a body that names no pathway", async () => {
+    const res = await call(enrollInCourse, { courseId: "c1" }, {});
+    expect(res.code).toBe(400);
+  });
+
+  it("is not found for a course with nothing posted", async () => {
+    const res = await call(enrollInCourse, { courseId: "c3" }, { mode: "taught" });
     expect(res.code).toBe(404);
     expect(cls("k4").studentIds).toEqual([]);
   });
 
-  it("takes back a pending request", async () => {
+  it("takes back a pending request, found by course", async () => {
     cls("k2").requestedStudentIds = ["s1"];
 
-    const res = await call(cancelEnrollRequest, { classId: "k2" });
+    const res = await call(cancelEnrollRequest, { courseId: "c1" });
     expect(cls("k2").requestedStudentIds).toEqual([]);
-    expect(res.body.sections.find((row) => row.id === "k2").state).toBe("none");
+    expect(res.body.course.pending).toBe(false);
   });
 });

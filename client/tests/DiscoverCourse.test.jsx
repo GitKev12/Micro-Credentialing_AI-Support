@@ -5,7 +5,7 @@ import { TextDecoder, TextEncoder } from "node:util";
 globalThis.TextEncoder ??= TextEncoder;
 globalThis.TextDecoder ??= TextDecoder;
 
-const { render, screen, act, fireEvent, within } = await import("@testing-library/react");
+const { render, screen, act, fireEvent } = await import("@testing-library/react");
 const { MemoryRouter, Route, Routes } = await import("react-router-dom");
 
 jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
@@ -14,33 +14,31 @@ jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
 jest.unstable_mockModule("../src/services/courses.js", () => ({ courseImageUrl: () => "" }));
 
 const fetchDiscoverCourse = jest.fn();
-const enrollInClass = jest.fn();
+const enrollInCourse = jest.fn();
 const cancelEnrollRequest = jest.fn();
 jest.unstable_mockModule("../src/services/discover.js", () => ({
   fetchDiscoverCourse,
-  enrollInClass,
+  enrollInCourse,
   cancelEnrollRequest
 }));
 
 const { default: DiscoverCourse } = await import("../src/pages/student/DiscoverCourse.jsx");
 
-const section = (extra) => ({
-  id: "k1", name: "Section-A", mode: "taught", enrollment: "open", assessor: "Ramon Velasco",
-  schedule: { days: "Mon Wed", time: "9:00-10:30", room: "Room 301" }, hasFinalExam: true,
-  state: "none", open: true, ...extra
-});
+const TAUGHT = { mode: "taught", label: "Taught and assessed", enrollment: "open" };
+const ASSESS = { mode: "assessOnly", label: "Assess-only", enrollment: "approval" };
 
-// The course view as the server sends it, with `sections` and course flags overridable.
-function detail({ sections, ...course } = {}) {
+// The course view as the server sends it: a course, its pathways, its syllabus.
+function detail({ pathways, curriculum, ...course } = {}) {
   return {
     course: {
       id: "c1", code: "CC2", title: "Computer Programming 2", startsOn: "2026-09-01", endsOn: "2026-12-31",
-      description: "Loops and arrays.", lessonCount: 12, badgeCount: 11, hasFinalExam: true,
-      enrolled: false, pending: false, ...course
+      description: "Loops and arrays.", lessonCount: 12, badgeCount: 11, hasFinalExam: true, courseHours: 30,
+      learnerCount: 42, enrolled: false, pending: false, myMode: null, ...course
     },
-    sections: sections ?? [
-      section(),
-      section({ id: "k2", name: "Section-B", mode: "assessOnly", enrollment: "approval", assessor: "Marivic Cortez" })
+    pathways: pathways ?? [TAUGHT, ASSESS],
+    curriculum: curriculum ?? [
+      { id: "m1", title: "Looping", badge: "Looping" },
+      { id: "m2", title: "Arrays", badge: null }
     ]
   };
 }
@@ -57,94 +55,141 @@ async function show() {
   });
 }
 
-const row = (name) => screen.getByRole("heading", { name }).closest("li");
-
 beforeEach(() => {
   fetchDiscoverCourse.mockReset();
-  enrollInClass.mockReset();
+  enrollInCourse.mockReset();
   cancelEnrollRequest.mockReset();
 });
 
 describe("Discover course view", () => {
-  it("shows the facts and one action per section", async () => {
+  it("shows the course, its syllabus and how many are on it", async () => {
     fetchDiscoverCourse.mockResolvedValue(detail());
     await show();
 
     expect(fetchDiscoverCourse).toHaveBeenCalledWith("stu-1", "c1");
-    expect(screen.getByRole("heading", { name: "Computer Programming 2" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Computer Programming 2" })).toBeTruthy();
     expect(screen.getByText("Loops and arrays.")).toBeTruthy();
     expect(screen.getByText("12")).toBeTruthy();
-    expect(screen.getByText("Posted")).toBeTruthy();
-    expect(within(row("Section-A")).getByRole("button", { name: "Enroll" })).toBeTruthy();
-    expect(within(row("Section-B")).getByRole("button", { name: "Request to enroll" })).toBeTruthy();
-    expect(within(row("Section-B")).getByText("Assessment only")).toBeTruthy();
+    expect(screen.getByText("42 already enrolled")).toBeTruthy();
+    // The lesson and the badge it earns share a name, so both show.
+    expect(screen.getAllByText("Looping")).toHaveLength(2);
+    expect(screen.getByText("Final exam")).toBeTruthy();
   });
 
-  it("asks before enrolling, then shows the place", async () => {
+  it("shows how many hours the course takes", async () => {
     fetchDiscoverCourse.mockResolvedValue(detail());
-    enrollInClass.mockResolvedValue(
-      detail({ enrolled: true, sections: [section({ state: "enrolled" }), section({ id: "k2", name: "Section-B", enrollment: "approval" })] })
-    );
     await show();
 
-    fireEvent.click(within(row("Section-A")).getByRole("button", { name: "Enroll" }));
-    expect(screen.getByText("Enroll in Section-A? Only an administrator can take you out of a class.")).toBeTruthy();
+    expect(screen.getByText("Hours")).toBeTruthy();
+    expect(screen.getByText("30")).toBeTruthy();
+  });
+
+  it("says nothing about hours on a course with none set", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ courseHours: null }));
+    await show();
+
+    expect(screen.queryByText("Hours")).toBeNull();
+  });
+
+  it("names no section and shows no schedule", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    await show();
+
+    expect(screen.queryByText(/Section-/)).toBeNull();
+    expect(screen.queryByText(/Room 301/)).toBeNull();
+    expect(screen.queryByText(/Mon Wed/)).toBeNull();
+  });
+
+  it("offers the two pathways and takes the chosen one", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    enrollInCourse.mockResolvedValue(detail({ pending: true, myMode: "assessOnly" }));
+    await show();
+
+    // Nothing is chosen for them when there are two, so the button waits.
+    expect(screen.getByRole("button", { name: "Enroll" }).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("radio", { name: /Assess-only/ }));
+    // The wording follows the pathway: this one is gated.
+    const ask = screen.getByRole("button", { name: "Request to enroll" });
+
+    fireEvent.click(ask);
     const confirm = screen.getByRole("button", { name: "Confirm" });
     expect(document.activeElement).toBe(confirm);
-    expect(enrollInClass).not.toHaveBeenCalled();
+    expect(enrollInCourse).not.toHaveBeenCalled();
 
     await act(async () => {
       fireEvent.click(confirm);
     });
 
-    expect(enrollInClass).toHaveBeenCalledWith("stu-1", "k1");
-    expect(within(row("Section-A")).getByText("Enrolled")).toBeTruthy();
-    expect(within(row("Section-A")).getByRole("link", { name: "Open course" }).getAttribute("href")).toBe("/student/courses/c1/modules");
-    // Once in a section, the others offer nothing.
-    expect(within(row("Section-B")).queryByRole("button")).toBeNull();
-    expect(screen.getByRole("status").textContent).toBe("Enrolled in Section-A.");
+    expect(enrollInCourse).toHaveBeenCalledWith("stu-1", "c1", "assessOnly");
+    expect(screen.getByText("Request pending")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Request sent. An administrator will review it.");
   });
 
-  it("goes back to the button when the student cancels", async () => {
-    fetchDiscoverCourse.mockResolvedValue(detail());
+  it("chooses for the student when only one pathway runs", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pathways: [TAUGHT] }));
+    enrollInCourse.mockResolvedValue(detail({ enrolled: true, myMode: "taught" }));
     await show();
 
-    fireEvent.click(within(row("Section-B")).getByRole("button", { name: "Request to enroll" }));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Enroll" }));
+    expect(screen.getByText("Enroll now? Only an administrator can take you out afterwards.")).toBeTruthy();
 
-    expect(within(row("Section-B")).getByRole("button", { name: "Request to enroll" })).toBeTruthy();
-    expect(enrollInClass).not.toHaveBeenCalled();
-  });
-
-  it("shows the server's refusal under the section", async () => {
-    fetchDiscoverCourse.mockResolvedValue(detail());
-    enrollInClass.mockRejectedValue({ response: { data: { message: "This class isn't open for enrollment." } } });
-    await show();
-
-    fireEvent.click(within(row("Section-A")).getByRole("button", { name: "Enroll" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     });
 
-    expect(within(row("Section-A")).getByRole("alert").textContent).toBe("This class isn't open for enrollment.");
-    // The confirm closes; a refused class won't take a second try.
+    expect(enrollInCourse).toHaveBeenCalledWith("stu-1", "c1", "taught");
+    expect(screen.getByText("Enrolled")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open course" }).getAttribute("href")).toBe("/student/courses/c1/modules");
+  });
+
+  it("goes back to the button when the student cancels", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pathways: [TAUGHT] }));
+    await show();
+
+    fireEvent.click(screen.getByRole("button", { name: "Enroll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByRole("button", { name: "Enroll" })).toBeTruthy();
+    expect(enrollInCourse).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's refusal in the card", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pathways: [TAUGHT] }));
+    enrollInCourse.mockRejectedValue({ response: { data: { message: "This course isn't open for enrollment." } } });
+    await show();
+
+    fireEvent.click(screen.getByRole("button", { name: "Enroll" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    });
+
+    expect(screen.getByRole("alert").textContent).toBe("This course isn't open for enrollment.");
+    // The confirm closes; a refused course won't take a second try.
     expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
-    expect(within(row("Section-A")).getByRole("button", { name: "Enroll" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enroll" })).toBeTruthy();
   });
 
   it("lets the student take back a pending request", async () => {
-    fetchDiscoverCourse.mockResolvedValue(
-      detail({ pending: true, sections: [section({ enrollment: "approval", state: "pending" })] })
-    );
-    cancelEnrollRequest.mockResolvedValue(detail({ sections: [section({ enrollment: "approval" })] }));
+    fetchDiscoverCourse.mockResolvedValue(detail({ pending: true, myMode: "taught" }));
+    cancelEnrollRequest.mockResolvedValue(detail({ pathways: [TAUGHT] }));
     await show();
 
-    expect(within(row("Section-A")).getByText("Request pending")).toBeTruthy();
+    expect(screen.getByText("Request pending")).toBeTruthy();
     await act(async () => {
-      fireEvent.click(within(row("Section-A")).getByRole("button", { name: "Cancel request" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel request" }));
     });
 
-    expect(cancelEnrollRequest).toHaveBeenCalledWith("stu-1", "k1");
-    expect(within(row("Section-A")).getByRole("button", { name: "Request to enroll" })).toBeTruthy();
+    expect(cancelEnrollRequest).toHaveBeenCalledWith("stu-1", "c1");
+    expect(screen.getByRole("button", { name: "Enroll" })).toBeTruthy();
+  });
+
+  it("says so when nothing is open", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pathways: [] }));
+    await show();
+
+    expect(screen.getByText("This course isn't open for enrollment right now.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Enroll" })).toBeNull();
   });
 });

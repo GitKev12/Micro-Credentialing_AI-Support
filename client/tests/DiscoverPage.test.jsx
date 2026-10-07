@@ -21,7 +21,7 @@ const { default: DiscoverPage } = await import("../src/pages/student/DiscoverPag
 
 const card = (extra) => ({
   id: "c1", code: "CC2", title: "Computer Programming 2", startsOn: "2026-09-01", endsOn: "2026-12-31",
-  hasImage: false, sectionCount: 2, enrolled: false, pending: false, ...extra
+  hasImage: false, category: "Programming", enrolled: false, pending: false, ...extra
 });
 
 async function show() {
@@ -42,15 +42,17 @@ describe("Discover cards", () => {
   it("shows one card per course, each opening its course view", async () => {
     fetchDiscoverCourses.mockResolvedValue([
       card(),
-      card({ id: "c2", code: "OOP", title: "Object-Oriented Programming", sectionCount: 1, enrolled: true }),
-      card({ id: "c3", code: "EA", title: "Enterprise Architecture", sectionCount: 1, pending: true })
+      card({ id: "c2", code: "OOP", title: "Object-Oriented Programming", category: "Programming", enrolled: true }),
+      card({ id: "c3", code: "EA", title: "Enterprise Architecture", category: "Enterprise Systems", pending: true })
     ]);
     await show();
 
     expect(fetchDiscoverCourses).toHaveBeenCalledWith("stu-1");
     expect(screen.getByRole("link", { name: "Computer Programming 2" }).getAttribute("href")).toBe("/student/discover/c1");
-    expect(screen.getByText("2 sections")).toBeTruthy();
-    expect(screen.getAllByText("1 section")).toHaveLength(2);
+    // The category, not a section count: sections are not the student's business.
+    expect(screen.getAllByText("Programming")).toHaveLength(2);
+    expect(screen.getByText("Enterprise Systems")).toBeTruthy();
+    expect(screen.queryByText(/section/i)).toBeNull();
     expect(screen.getByText("Enrolled")).toBeTruthy();
     expect(screen.getByText("Request pending")).toBeTruthy();
   });

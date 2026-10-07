@@ -14,6 +14,7 @@ export const MAX_LENGTH = {
   courseCode: 20,
   courseTitle: 120,
   courseDescription: 2000,
+  courseCategory: 40,
   lessonTitle: 150,
   className: 50,
   schedule: 50,
@@ -73,5 +74,21 @@ export function checkCourseTitle(value) {
     return "Course title can only have letters, numbers, spaces and . , : ; & ( ) ' / -";
   }
   if ((title.match(/\p{L}/gu) ?? []).length < 3) return "Course title must be at least 3 letters.";
+  return null;
+}
+
+// The most hours a course can be given. A long one runs a few hundred; this
+// only stops a typo like 30000 from being saved.
+export const MAX_COURSE_HOURS = 1000;
+
+// How long the course takes, in hours — the "30 Hours" a catalogue entry
+// carries. Optional: blank means nobody has set one yet.
+export function checkCourseHours(value) {
+  const hours = String(value ?? "").trim();
+  if (!hours) return null;
+  if (!/^\d+$/.test(hours)) return "Course hours must be a whole number.";
+  const number = Number(hours);
+  if (number < 1) return "Course hours must be at least 1.";
+  if (number > MAX_COURSE_HOURS) return `Course hours can be at most ${MAX_COURSE_HOURS}.`;
   return null;
 }

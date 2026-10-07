@@ -2,10 +2,10 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { courseStatus } from "../lib/courseAccess.js";
 import { toIsoDay } from "../lib/courseDates.js";
-import { classMode, isAssessOnly } from "../lib/classMode.js";
+import { classMode, isAssessOnly, CLASS_MODES, MODE_LABELS } from "../lib/classMode.js";
+import { sortLessons } from "../lib/lessonOrder.js";
 import { paperBelongsToClass } from "../assessments/classPapers.js";
 import { enrolledCourseIds } from "../middleware/student.guard.js";
-import { personName } from "../admin/classes.controller.js";
 import {
   addRequest,
   addStudentToClass,
@@ -16,14 +16,24 @@ import {
 import { loadEnrollment } from "./courses.controller.js";
 
 /**
- * Discover in the Student End: the courses a student can join, one course's
- * open sections, and the Enroll button behind them.
+ * Discover in the Student End: the courses a student can join, one course, and
+ * the Enroll button behind it.
  *
  * Mounted at /api/students:
- *   GET    /:id/discover                     the course cards
- *   GET    /:id/discover/:courseId           one course and its sections
- *   POST   /:id/classes/:classId/enroll      join (open) or ask to join (approval)
- *   DELETE /:id/classes/:classId/request     take back a pending request
+ *   GET    /:id/discover                      the course cards
+ *   GET    /:id/discover/:courseId            one course, its syllabus, its pathways
+ *   POST   /:id/discover/:courseId/enroll     join (open) or ask to join (approval)
+ *   DELETE /:id/discover/:courseId/request    take back a pending request
+ *
+ * Sections are not part of any of this. A section is how the school sorts its
+ * students, not something a candidate picks: they choose the *pathway* — taught
+ * and assessed, or assess-only — and the server puts them in a section running
+ * it. Which section they landed in is the admin's business, and the admin can
+ * move them afterwards without the student ever seeing a section name.
+ *
+ * The class is still what everything downstream is keyed on, so a request is
+ * still stored against one class and the admin still accepts it in the Edit
+ * class Requests panel. Only the Student End stopped naming it.
  */
 
 const collection = (name) => mongoose.connection.collection(name);
@@ -42,6 +52,7 @@ function courseCard(course) {
     id: asId(course._id),
     code: courseCode(course),
     title: courseTitle(course),
+    category: String(course.category ?? "").trim(),
     startsOn: toIsoDay(course.startsOn),
     endsOn: toIsoDay(course.endsOn),
     hasImage: Boolean(course.imageFileId),
@@ -61,6 +72,26 @@ function stateIn(cls, studentId) {
 async function classesOnCourses(filter = {}) {
   if (!(await collectionExists("Class"))) return [];
   return collection("Class").find({ ...filter, archived: { $ne: true } }).toArray();
+}
+
+/**
+ * The section a candidate choosing this pathway gets, or null when the pathway
+ * is not running.
+ *
+ * Open before approval: a student who could have walked in should not be made
+ * to ask because the alphabetically-first section happens to be the gated one.
+ * Then the emptiest, so sections fill evenly rather than the same one filling
+ * first. This is also what decides the button's wording, because the pathway
+ * reports the enrollment of the very class it would put them in — the label can
+ * never promise something different from what the press does.
+ */
+function pickClass(open, mode) {
+  return open
+    .filter((cls) => classMode(cls) === mode)
+    .sort((a, b) => {
+      const gated = (cls) => (enrollmentOf(cls) === "open" ? 0 : 1);
+      return gated(a) - gated(b) || (a.studentIds ?? []).length - (b.studentIds ?? []).length;
+    })[0] ?? null;
 }
 
 /** GET /api/students/:id/discover */
@@ -89,13 +120,24 @@ export async function listDiscoverCourses(request, response) {
     if (courseStatus(course) !== "active") continue;
 
     const onCourse = classesByCourse.get(asId(course._id)) ?? [];
-    const sectionCount = onCourse.filter((cls) => isOpenOnDiscover(cls, course, now)).length;
+    const open = onCourse.filter((cls) => isOpenOnDiscover(cls, course, now));
     const isEnrolled = enrolled.has(asId(course._id));
     const pending = onCourse.some((cls) => stateIn(cls, me) === "pending");
 
     // Only courses a student can join, plus the ones they are already in.
-    if (sectionCount === 0 && !isEnrolled && !pending) continue;
-    cards.push({ ...courseCard(course), sectionCount, enrolled: isEnrolled, pending });
+    if (open.length === 0 && !isEnrolled && !pending) continue;
+    cards.push({
+      ...courseCard(course),
+      // Each pathway the course runs and how it is joined, e.g.
+      // [{ enrollment: "open", mode: "taught" }]. Only the section the server
+      // would put the student in counts, so the "How to join" filter always
+      // agrees with the Enroll / Request to enroll button on the course page.
+      openSections: CLASS_MODES.map((mode) => pickClass(open, mode))
+        .filter(Boolean)
+        .map((cls) => ({ enrollment: enrollmentOf(cls), mode: classMode(cls) })),
+      enrolled: isEnrolled,
+      pending
+    });
   }
 
   cards.sort((a, b) => a.title.localeCompare(b.title));
@@ -103,9 +145,8 @@ export async function listDiscoverCourses(request, response) {
 }
 
 /**
- * One course with the sections this student can see: every open one, plus the
- * class they are in and any class holding their request (so a request on a
- * class that was switched off can still be taken back).
+ * One course as the course page shows it: what it is, what is in it, and the
+ * pathways it can be taken through.
  */
 async function buildDetail(student, courseId) {
   const course = await collection("Course").findOne({ _id: { $in: idCandidates(courseId) } });
@@ -114,56 +155,60 @@ async function buildDetail(student, courseId) {
   const me = asId(student._id);
   const now = new Date();
   const classes = await classesOnCourses({ courseId: { $in: idCandidates(course._id) } });
-  const shown = classes.filter((cls) => isOpenOnDiscover(cls, course, now) || stateIn(cls, me) !== "none");
+  const open = classes.filter((cls) => isOpenOnDiscover(cls, course, now));
+
+  // The class this student already holds a place or a request in. It is never
+  // named on screen; it is what the pathway chip and the cancel button act on.
+  const mine = classes.find((cls) => stateIn(cls, me) !== "none") ?? null;
 
   const code = courseCode(course);
   const byCourse = { $or: [{ courseId: { $in: idCandidates(course._id) } }, ...(code ? [{ courseCode: code }] : [])] };
-  const assessorIds = shown.flatMap((cls) => cls.assessorIds ?? []).flatMap((id) => idCandidates(id));
 
-  // Counts only: an assess-only candidate may not see the lessons themselves.
-  const [lessonCount, badgeCount, finals, assessors] = await Promise.all([
-    collection("LearningModule").countDocuments(byCourse),
-    collection("Badge").countDocuments({ ...byCourse, active: { $ne: false } }),
+  const [lessons, badges, finals] = await Promise.all([
+    collection("LearningModule").find(byCourse).toArray(),
+    collection("Badge").find({ ...byCourse, active: { $ne: false } }).toArray(),
     collection("Assessment")
       .find({ courseId: { $in: idCandidates(course._id) }, scope: "final", status: "posted" })
-      .toArray(),
-    assessorIds.length ? collection("Assessor").find({ _id: { $in: assessorIds } }).toArray() : []
+      .toArray()
   ]);
-  const assessorById = new Map(assessors.map((assessor) => [asId(assessor._id), assessor]));
 
-  const sections = shown
-    .map((cls) => {
-      const assessor = assessorById.get(asId((cls.assessorIds ?? [])[0]));
-      const schedule = cls.schedule ?? {};
-      return {
-        id: asId(cls._id),
-        name: cls.name || code,
-        mode: classMode(cls),
-        enrollment: enrollmentOf(cls),
-        schedule: {
-          days: String(schedule.days ?? "").trim(),
-          time: String(schedule.time ?? "").trim(),
-          room: String(schedule.room ?? "").trim()
-        },
-        assessor: assessor ? personName(assessor) : null,
-        hasFinalExam: finals.some((doc) => paperBelongsToClass(doc, cls._id, { assessOnly: isAssessOnly(cls) })),
-        state: stateIn(cls, me),
-        open: isOpenOnDiscover(cls, course, now)
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // The syllabus, in chapter order. Titles only — this is the course's contents
+  // page, not the lessons, so it gives an assess-only candidate nothing to read
+  // that the printed outline would not.
+  const badgeFor = new Map(badges.filter((b) => b.moduleId).map((b) => [asId(b.moduleId), b]));
+  const curriculum = sortLessons(lessons).map((lesson) => ({
+    id: asId(lesson._id),
+    title: lesson.title || lesson.fileName || "",
+    badge: badgeFor.get(asId(lesson._id))?.name ?? null
+  }));
 
+  const pathways = CLASS_MODES.map((mode) => {
+    const cls = pickClass(open, mode);
+    return cls && { mode, label: MODE_LABELS[mode], enrollment: enrollmentOf(cls) };
+  }).filter(Boolean);
+
+  const state = mine ? stateIn(mine, me) : "none";
   return {
     course: {
       ...courseCard(course),
       description: course.description ?? "",
-      lessonCount,
-      badgeCount,
+      // "30 Hours", the way a catalogue entry says how long it takes.
+      courseHours: course.courseHours ?? null,
+      lessonCount: lessons.length,
+      badgeCount: badges.length,
       hasFinalExam: finals.length > 0,
+      // Everyone on the course, the way a catalogue says how many are taking it.
+      learnerCount: classes.reduce((total, cls) => total + (cls.studentIds ?? []).length, 0),
       enrolled: enrolledCourseIds(student).map(asId).includes(asId(course._id)),
-      pending: sections.some((section) => section.state === "pending")
+      pending: state === "pending",
+      // Which pathway they are on, so the page can say so without a section.
+      myMode: mine ? classMode(mine) : null,
+      myFinalExam: mine
+        ? finals.some((doc) => paperBelongsToClass(doc, mine._id, { assessOnly: isAssessOnly(mine) }))
+        : false
     },
-    sections
+    pathways,
+    curriculum
   };
 }
 
@@ -182,34 +227,36 @@ export async function getDiscoverCourse(request, response) {
   return respondWithDetail(response, student, request.params.courseId);
 }
 
-async function findClass(classId) {
-  return collection("Class").findOne({ _id: { $in: idCandidates(classId) } });
-}
-
-/** POST /api/students/:id/classes/:classId/enroll */
-export async function enrollInClass(request, response) {
+/** POST /api/students/:id/discover/:courseId/enroll  body: { mode } */
+export async function enrollInCourse(request, response) {
   if (mongoose.connection.readyState !== 1) return notReady(response);
 
   const { student } = await loadEnrollment(request.params.id);
   if (!student) return response.status(404).json({ message: "Student not found." });
 
-  const closed = { message: "This class isn't open for enrollment." };
-  const cls = await findClass(request.params.classId);
-  if (!cls) return response.status(404).json(closed);
-  const course = await collection("Course").findOne({ _id: { $in: idCandidates(cls.courseId) } });
-  if (!isOpenOnDiscover(cls, course)) return response.status(404).json(closed);
+  const mode = request.body?.mode;
+  if (!CLASS_MODES.includes(mode)) {
+    return response.status(400).json({ message: "Choose how you want to take this course." });
+  }
+
+  const course = await collection("Course").findOne({ _id: { $in: idCandidates(request.params.courseId) } });
+  const closed = { message: "This course isn't open for enrollment." };
+  if (!course || courseStatus(course) !== "active") return response.status(404).json(closed);
 
   if (enrolledCourseIds(student).map(asId).includes(asId(course._id))) {
     return response.status(409).json({ message: "You're already enrolled in this course." });
   }
-  const waiting = await collection("Class").findOne({
-    courseId: { $in: idCandidates(course._id) },
-    requestedStudentIds: { $in: idCandidates(student._id) }
-  });
-  if (waiting) {
-    return response.status(409).json({ message: `You already asked to join ${waiting.name || courseCode(course)}.` });
+  const classes = await classesOnCourses({ courseId: { $in: idCandidates(course._id) } });
+  if (classes.some((cls) => stateIn(cls, asId(student._id)) === "pending")) {
+    return response.status(409).json({ message: "You already asked to join this course." });
   }
 
+  const cls = pickClass(classes.filter((c) => isOpenOnDiscover(c, course)), mode);
+  if (!cls) return response.status(404).json({ message: `${MODE_LABELS[mode]} isn't open on this course.` });
+
+  // Through the shared writes: they hold the one-class-per-course rule, the
+  // roll-back when two joins race, and the write-through to the student's
+  // course list, the assessor sync and the standing event.
   const refusal =
     enrollmentOf(cls) === "open" ? await addStudentToClass(cls, student) : await addRequest(cls, student);
   if (refusal) return response.status(409).json({ message: refusal });
@@ -219,16 +266,18 @@ export async function enrollInClass(request, response) {
   return respondWithDetail(response, updated ?? student, course._id);
 }
 
-/** DELETE /api/students/:id/classes/:classId/request */
+/** DELETE /api/students/:id/discover/:courseId/request */
 export async function cancelEnrollRequest(request, response) {
   if (mongoose.connection.readyState !== 1) return notReady(response);
 
   const { student } = await loadEnrollment(request.params.id);
   if (!student) return response.status(404).json({ message: "Student not found." });
 
-  const cls = await findClass(request.params.classId);
-  if (!cls) return response.status(404).json({ message: "Class not found." });
+  const me = asId(student._id);
+  const classes = await classesOnCourses({ courseId: { $in: idCandidates(request.params.courseId) } });
+  // Found by course, because the student never saw which class is holding it.
+  const held = classes.find((cls) => stateIn(cls, me) === "pending");
+  if (held) await removeRequest(held, student._id);
 
-  await removeRequest(cls, student._id);
-  return respondWithDetail(response, student, cls.courseId);
+  return respondWithDetail(response, student, request.params.courseId);
 }

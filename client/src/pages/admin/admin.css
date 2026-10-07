@@ -2969,6 +2969,43 @@
   color: var(--admin-ink);
 }
 
+/* A field with a <datalist> behind it — Course > Category is the only one so
+   far. Chrome is the one browser that says so, by drawing a solid black
+   triangle at the right end while the pointer is over the field; Firefox and
+   Safari draw nothing at all.
+
+   Kept rather than hidden, because it is the only sign that the categories
+   already in use can be picked instead of retyped. Redrawn as this console's
+   own chevron — the same path .admin-select__caret uses — and shown at rest
+   rather than on hover, so it reads as part of the field instead of
+   something that appeared under the cursor. The room for it is the room the
+   locked field already gives its padlock.
+
+   Masked rather than set as a background image: a data URI cannot read a
+   custom property, and masking lets the glyph take --gray-600 and follow the
+   dark theme with it. Safe to use unprefixed and prefixed here — the only
+   browser that renders this pseudo-element is the one both work in. */
+.admin-input[list] {
+  padding-right: 2.5rem;
+}
+
+.admin-input[list]::-webkit-calendar-picker-indicator {
+  width: 1rem;
+  height: 1rem;
+  /* Chrome lays the indicator out at the end of the input's content box,
+     which the padding above holds 2.5rem off the right edge — so left alone
+     it floated 40px in while the locked field's padlock sits at 14px. Pulled
+     back out to land exactly where that padlock lands: both glyphs are 1rem
+     wide and now both span 14px to 30px from the edge. */
+  margin: 0 -1.625rem 0 0;
+  padding: 0;
+  opacity: 1;
+  cursor: pointer;
+  background: var(--gray-600);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 /* The paragraph form of the field. Height comes from `rows`, so the caller
    decides how tall it opens; the reader can drag it between the two bounds
    below, but never sideways — a wider box than the dialog would break the

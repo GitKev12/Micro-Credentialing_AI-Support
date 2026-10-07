@@ -21,7 +21,8 @@ export function AdminField({
   autoComplete = "off",
   multiline = false,
   rows = 4,
-  maxLength
+  maxLength,
+  suggestions = null
 }) {
   const id = useId();
 
@@ -48,10 +49,18 @@ export function AdminField({
           readOnly={locked}
           autoComplete={autoComplete}
           maxLength={maxLength}
+          list={suggestions ? `${id}-list` : undefined}
           aria-invalid={error ? "true" : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}
         />
+        {suggestions ? (
+          <datalist id={`${id}-list`}>
+            {suggestions.map((option) => (
+              <option key={option} value={option} />
+            ))}
+          </datalist>
+        ) : null}
         {locked ? (
           <span className="admin-field__lock" aria-hidden="true">
             <LockIcon />
