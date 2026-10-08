@@ -137,7 +137,7 @@ function Badges({ badges = [] }) {
       <header className="sd-section-head">
         <div className="sd-section-head__text">
           <h2 className="sd-h3" id="sd-badges-title">
-            Lesson Badges
+            Your Badges
           </h2>
           {badges.length ? (
             <p className="sd-sub">{`${earned} of ${badges.length} earned`}</p>
