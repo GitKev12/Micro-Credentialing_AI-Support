@@ -2,7 +2,7 @@ node_modules/
 dist/
 .DS_Store
 *.log
-./AGENTS.md
+/AGENTS.md
 
 server/.env
 server/.cache/

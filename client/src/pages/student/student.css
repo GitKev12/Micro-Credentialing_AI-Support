@@ -973,11 +973,18 @@ body:has(.student-app) {
   align-items: center;
   justify-content: center;
   gap: var(--sd-2);
-  padding: var(--sd-3) var(--sd-5);
+  /* Narrower than it was, same height. The height stays because
+     .sd-btn--sm is already --sd-2 top and bottom, and taking this one
+     there as well would leave the two sizes all but identical. */
+  padding: var(--sd-3) var(--sd-4);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-pill);
   background: var(--sd-surface);
   color: var(--sd-ink-2);
+  /* A link wearing this is a button, so it carries no underline. The
+     hover and focus rules below never set one, so this holds in every
+     state. */
+  text-decoration: none;
   font: inherit;
   font-size: var(--sd-fs-body);
   font-weight: var(--sd-fw-semibold);
@@ -2400,7 +2407,7 @@ body:has(.student-app) {
   align-items: center;
   justify-content: center;
   gap: var(--sd-2);
-  padding: var(--sd-10) var(--sd-5);
+  padding: var(--sd-8) var(--sd-5);
   text-align: center;
   border: 1px dashed var(--sd-border-strong);
   border-radius: var(--sd-r-md);
@@ -2428,6 +2435,31 @@ body:has(.student-app) {
   font-size: var(--sd-fs-body);
   line-height: 1.55;
   color: var(--sd-muted);
+}
+
+/* -- Certifications: none earned yet -----------------------
+   The badge is .sd-cert__seal at hero scale - same rounded square, same
+   wash, same glyph, same ratio of icon to badge - so the empty tab shows
+   the shape of the thing it will hold. Earn one and the single large seal
+   gives way to a list of small ones. */
+.sd-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: var(--sd-2);
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-brand-wash);
+  color: var(--sd-brand-text);
+}
+
+/* .sd-empty's gap is set for a title above a line of text, so the action
+   takes its own room. Everything else the button needs it already has from
+   .sd-btn: the arrow sits beside the text on its inline-flex and gap, and
+   the focus ring comes from the rule every link in .student-app gets. */
+.sd-empty__action {
+  margin-top: var(--sd-5);
+  min-height: var(--tap);
 }
 
 .sd-skeleton {

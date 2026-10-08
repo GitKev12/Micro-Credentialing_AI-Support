@@ -7,6 +7,8 @@ import { resolveAvatarUrl } from "../../../services/avatar";
 import { THEMES, getStoredTheme, toggleTheme } from "../../../services/theme";
 import ProfileAvatar from "./ProfileAvatar";
 import {
+  BadgeIcon,
+  CertificateIcon,
   CloseIcon,
   CoursesIcon,
   DiscoverIcon,
@@ -28,6 +30,16 @@ const NAV_ITEMS = [
   { to: "/student", label: "My Courses", Icon: CoursesIcon, end: true },
   { to: "/student/discover", label: "Discover", Icon: DiscoverIcon, end: false },
   { to: "/student/dashboard", label: "Dashboard", Icon: DashboardIcon, end: false }
+];
+
+/* Only the rail on Dashboard and Achievements leads to these, so from
+   anywhere else there is no way in. The account menu is that way in. On
+   the desktop dropdown they are the whole list, because the bar behind
+   it already carries the three above. In the drawer the bar is hidden,
+   so the three come too or mobile loses them. */
+const ACHIEVEMENT_ITEMS = [
+  { to: "/student/certifications", label: "Certification", Icon: CertificateIcon, end: false },
+  { to: "/student/badges", label: "Badges", Icon: BadgeIcon, end: false }
 ];
 
 function CaretIcon() {
@@ -119,7 +131,7 @@ function StudentNavBar() {
         <p className="sd-menu__sub">{studentNumber}</p>
       </li>
 
-      {NAV_ITEMS.map((item) => (
+      {(asMenu ? ACHIEVEMENT_ITEMS : [...NAV_ITEMS, ...ACHIEVEMENT_ITEMS]).map((item) => (
         <li role={asMenu ? "none" : undefined} key={item.to}>
           <button
             type="button"

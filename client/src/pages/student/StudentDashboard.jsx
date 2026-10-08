@@ -4,7 +4,7 @@ import CoursePerformance from "./components/CoursePerformance";
 import CourseCard from "./components/CourseCard";
 import SkillGapAnalysis from "./components/SkillGapAnalysis";
 import RawComputation from "./components/RawComputation";
-import { BackIcon, BookIcon, SkillsIcon, TargetIcon } from "./components/icons";
+import { BackIcon, BookIcon, DashboardIcon, SkillsIcon, TargetIcon } from "./components/icons";
 import { BandChip, EmptyState, Meter, StatTile, TargetLegend } from "./components/ui";
 import {
   TARGET,
@@ -15,7 +15,6 @@ import {
 } from "./performance";
 import { getStoredSession } from "../../auth/services/authService";
 import { fetchStudentSkillGap } from "../../services/skillGap";
-import noCoursesImage from "../../assets/no-courses-student.png";
 
 const FOCUS_LIMIT = 5;
 
@@ -136,7 +135,9 @@ function StudentDashboard() {
           </>
         ) : courses.length === 0 ? (
           <section className="sd-card">
-            <EmptyState image={noCoursesImage} title="No course analytics yet" />
+            <EmptyState icon={<DashboardIcon size={28} />} title="No course analytics yet">
+              Enroll in a course to see your progress here.
+            </EmptyState>
           </section>
         ) : (
           <>

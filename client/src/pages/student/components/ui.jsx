@@ -91,12 +91,15 @@ export function StatTile({ icon, label, value, unit, note }) {
   );
 }
 
-export function EmptyState({ image, title, children }) {
+// `icon` shows in a round badge instead of a picture; `action` is a button or link under the text.
+export function EmptyState({ image, icon, title, children, action }) {
   return (
     <div className="sd-empty">
       {image ? <img className="sd-empty__img" src={image} alt="" aria-hidden="true" /> : null}
+      {icon ? <span className="sd-empty__icon" aria-hidden="true">{icon}</span> : null}
       <p className="sd-empty__title">{title}</p>
       {children ? <p className="sd-empty__text">{children}</p> : null}
+      {action ?? null}
     </div>
   );
 }
