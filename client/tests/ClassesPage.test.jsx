@@ -80,7 +80,7 @@ describe("ClassesPage", () => {
       "Course",
       "Students",
       "Lessons",
-      "Duration",
+      "Runs",
       "Assessments",
       "Certificates",
       "Last activity",

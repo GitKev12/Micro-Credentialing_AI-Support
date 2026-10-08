@@ -104,7 +104,7 @@ function ClassesPage() {
                 <th scope="col">Course</th>
                 <th scope="col" className="assessor-table__num">Students</th>
                 <th scope="col" className="assessor-table__num">Lessons</th>
-                <th scope="col">Duration</th>
+                <th scope="col">Runs</th>
                 <th scope="col" className="assessor-table__num">Assessments</th>
                 <th scope="col">Certificates</th>
                 <th scope="col">Last activity</th>

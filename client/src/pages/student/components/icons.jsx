@@ -249,6 +249,31 @@ export function BadgeIcon({ size = 16 }) {
   );
 }
 
+/* -- The course facts panel -------------------------------
+   The hours of work and the days a course runs sit next to each other
+   there, so the clock above is kept for the hours and the days get a
+   calendar of their own. */
+
+/** A head and shoulders, for the assessor's name. */
+export function PersonIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4.6 20.2c.9-3.6 3.9-5.8 7.4-5.8s6.5 2.2 7.4 5.8" {...line} />
+    </svg>
+  );
+}
+
+/** A calendar, for the days a course runs between. */
+export function CalendarIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.8" y="5.4" width="16.4" height="14.8" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 3.4v4M16 3.4v4M3.8 10.2h16.4" {...line} />
+    </svg>
+  );
+}
+
 
 
 /** Three bars: the menu button that opens the account drawer on a phone. */
@@ -264,6 +289,15 @@ export function CloseIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" {...line} />
+    </svg>
+  );
+}
+
+export function DiscoverIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" {...line} />
+      <path d="m16 8-2.5 5.5L8 16l2.5-5.5L16 8z" {...line} />
     </svg>
   );
 }

@@ -52,6 +52,11 @@ function CourseManagement() {
   const [courses, setCourses] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
+  // The categories other courses already use, offered on the course form.
+  const categories = useMemo(
+    () => [...new Set(courses.map((course) => course.category).filter(Boolean))].sort(),
+    [courses]
+  );
   // Status filter. Archived courses only show when "Archived" is picked.
   const [statusFilter, setStatusFilter] = useState(FILTER_ALL);
 
@@ -541,6 +546,7 @@ function CourseManagement() {
             busy={busy}
             error={formError}
             onCancel={() => setCourseForm(null)}
+            categories={categories}
             onSave={saveCourse}
           >
             {/* Uses the live course, so a new picture shows straight away. */}
@@ -618,7 +624,7 @@ function CourseManagement() {
               <thead>
                 <tr>
                   <th>Course</th>
-                  <th>Duration</th>
+                  <th>Runs</th>
                   <th className="is-center">Modules</th>
                   <th className="is-center">Students</th>
                   <th aria-label="Actions" />
@@ -710,6 +716,7 @@ function CourseManagement() {
           busy={busy}
           error={formError}
           onCancel={() => setCourseForm(null)}
+          categories={categories}
           onSave={saveCourse}
         />
       ) : null}

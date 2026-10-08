@@ -118,8 +118,8 @@ export default function RangeCalendar({
   startsOn,
   endsOn,
   onChange,
-  label = "Course duration",
-  placeholder = "Choose the course duration",
+  label = "Course run",
+  placeholder = "Choose when the course runs",
   required = false,
   disabled = false,
   // "YYYY-MM-DD". Days before it are greyed out and can't be picked.

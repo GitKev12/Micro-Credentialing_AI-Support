@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { MAX_LENGTH, checkCourseCode, checkCourseTitle, checkLength } from "../lib/fieldRules.js";
+import { MAX_LENGTH, checkCourseCode, checkCourseHours, checkCourseTitle, checkLength } from "../lib/fieldRules.js";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { readCourseDates, startsInPast, toIsoDay } from "../lib/courseDates.js";
 import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
@@ -362,6 +362,12 @@ export async function deleteCourseModule(request, response) {
  * file already knows how to do.
  */
 
+/** "30" -> 30, blank -> null. Validated by checkCourseHours first. */
+function readHours(value) {
+  const hours = String(value ?? "").trim();
+  return hours ? Number(hours) : null;
+}
+
 /** The course as the admin list renders it. */
 function publicCourse(course, counts = {}) {
   return {
@@ -369,6 +375,11 @@ function publicCourse(course, counts = {}) {
     code: courseCode(course),
     title: course.courseName ?? course.title ?? course.name ?? "",
     description: course.description ?? "",
+    // What kind of course it is, e.g. "Programming". Optional; students filter
+    // Discover by it.
+    category: String(course.category ?? "").trim(),
+    // How long the course takes, in hours. Null until an admin sets it.
+    courseHours: course.courseHours ?? null,
     // When the course runs. Either may be null — the field arrived after the
     // catalog did, and a course that predates it is not invalid.
     startsOn: toIsoDay(course.startsOn),
@@ -380,7 +391,7 @@ function publicCourse(course, counts = {}) {
   };
 }
 
-/** POST /api/admin/courses — { code, title, description?, startsOn?, endsOn? } */
+/** POST /api/admin/courses — { code, title, description?, category?, courseHours?, startsOn?, endsOn? } */
 export async function createCourse(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
@@ -391,7 +402,9 @@ export async function createCourse(request, response) {
   const fieldError =
     checkCourseCode(code) ??
     checkCourseTitle(title) ??
-    checkLength(body.description, "The description", MAX_LENGTH.courseDescription);
+    checkLength(body.description, "The description", MAX_LENGTH.courseDescription) ??
+    checkLength(body.category, "The category", MAX_LENGTH.courseCategory) ??
+    checkCourseHours(body.courseHours);
   if (fieldError) return response.status(400).json({ message: fieldError });
 
   // Codes are how modules, blueprints and badges find their course when they
@@ -414,6 +427,8 @@ export async function createCourse(request, response) {
     courseCode: code,
     courseName: title,
     description: String(body.description ?? "").trim(),
+    category: String(body.category ?? "").trim(),
+    courseHours: readHours(body.courseHours),
     startsOn: dates.startsOn ?? null,
     endsOn: dates.endsOn ?? null,
     createdAt: new Date()
@@ -426,7 +441,7 @@ export async function createCourse(request, response) {
     .json({ course: publicCourse({ ...document, _id: insertedId }) });
 }
 
-/** PATCH /api/admin/courses/:id — { code?, title?, description?, startsOn?, endsOn? } */
+/** PATCH /api/admin/courses/:id — { code?, title?, description?, category?, courseHours?, startsOn?, endsOn? } */
 export async function updateCourse(request, response) {
   if (!databaseReady()) return serviceUnavailable(response);
 
@@ -449,6 +464,18 @@ export async function updateCourse(request, response) {
     const descriptionError = checkLength(body.description, "The description", MAX_LENGTH.courseDescription);
     if (descriptionError) return response.status(400).json({ message: descriptionError });
     updates.description = String(body.description ?? "").trim();
+  }
+
+  if ("category" in body) {
+    const categoryError = checkLength(body.category, "The category", MAX_LENGTH.courseCategory);
+    if (categoryError) return response.status(400).json({ message: categoryError });
+    updates.category = String(body.category ?? "").trim();
+  }
+
+  if ("courseHours" in body) {
+    const hoursError = checkCourseHours(body.courseHours);
+    if (hoursError) return response.status(400).json({ message: hoursError });
+    updates.courseHours = readHours(body.courseHours);
   }
 
   // Checked against the stored course, not just against each other: a request

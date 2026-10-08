@@ -2969,6 +2969,43 @@
   color: var(--admin-ink);
 }
 
+/* A field with a <datalist> behind it — Course > Category is the only one so
+   far. Chrome is the one browser that says so, by drawing a solid black
+   triangle at the right end while the pointer is over the field; Firefox and
+   Safari draw nothing at all.
+
+   Kept rather than hidden, because it is the only sign that the categories
+   already in use can be picked instead of retyped. Redrawn as this console's
+   own chevron — the same path .admin-select__caret uses — and shown at rest
+   rather than on hover, so it reads as part of the field instead of
+   something that appeared under the cursor. The room for it is the room the
+   locked field already gives its padlock.
+
+   Masked rather than set as a background image: a data URI cannot read a
+   custom property, and masking lets the glyph take --gray-600 and follow the
+   dark theme with it. Safe to use unprefixed and prefixed here — the only
+   browser that renders this pseudo-element is the one both work in. */
+.admin-input[list] {
+  padding-right: 2.5rem;
+}
+
+.admin-input[list]::-webkit-calendar-picker-indicator {
+  width: 1rem;
+  height: 1rem;
+  /* Chrome lays the indicator out at the end of the input's content box,
+     which the padding above holds 2.5rem off the right edge — so left alone
+     it floated 40px in while the locked field's padlock sits at 14px. Pulled
+     back out to land exactly where that padlock lands: both glyphs are 1rem
+     wide and now both span 14px to 30px from the edge. */
+  margin: 0 -1.625rem 0 0;
+  padding: 0;
+  opacity: 1;
+  cursor: pointer;
+  background: var(--gray-600);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 /* The paragraph form of the field. Height comes from `rows`, so the caller
    decides how tall it opens; the reader can drag it between the two bounds
    below, but never sideways — a wider box than the dialog would break the
@@ -5695,4 +5732,227 @@
 
 .admin-lesson__pre {
   white-space: nowrap;
+}
+
+/* ===========================================================
+   Posting a class to Discover
+
+   Students find a course on Discover and join one of its
+   classes. Which classes they can find is decided inside the
+   class's own window; the table only reports where each class
+   stands, with the students waiting in a panel beside the form.
+   =========================================================== */
+
+/* A pill over the waiting count, and nothing to press — posting moved into
+   the class's window, because a cell in a long row is too easy to hit by
+   mistake. Down from 11rem now that the refusal reason has gone with the
+   button, but not down to the pill: the count line under it is the longer
+   of the two and wants about 110px. Held at all because the table scrolls
+   inside its card — left to grow, the column would push the rest of the row
+   out of view.
+
+   Only where there is room, mind. The table is `width: 100%` in a card that
+   scrolls, so once the row no longer fits the browser lays every column out
+   from its own minimum and this figure stops counting: around 768 the cell
+   comes out at 122px whatever is asked for (9rem and 14rem both measure the
+   same), and the count wraps there as the course and schedule columns
+   already do. That is the table's behaviour at that width rather than this
+   column's, and no width written here changes it. */
+.admin-class-posting {
+  width: 10rem;
+}
+
+/* Two words that mean one state, so they break as one or not at all. The
+   count line below is left breakable: if it ever outgrows the column,
+   wrapping is the better failure than spilling into the next cell. */
+.admin-class-posting .admin-status-pill {
+  white-space: nowrap;
+}
+
+/* The waiting count is a .admin-cell__sub wearing .admin-count--warn, and
+   .admin-cell__sub is written further down this file — same weight of
+   selector, so its own colour and 400 were winning and the line came out as
+   quiet as the enrollment line above it. Hand the warn step back. */
+.admin-class-posting .admin-count--warn {
+  color: var(--warning-text);
+  font-weight: 600;
+}
+
+/* ── The class's own window ─────────────────────────────── */
+
+/* One height whichever button is showing, so the field does not jump as the
+   class is posted and unposted. A chip is padded rather than sized, and the
+   two are different lengths of word in different weights of chip — Unpost
+   is the quiet grey one, Post to Discover the brand tint. They happen to
+   come out level on padding alone today; this is what keeps them level if
+   either chip's padding is ever touched. */
+.admin-class-discover__btn {
+  height: 2rem;
+}
+
+/* "Requests" stands beside "+ Enroll" under the roster, because the students
+   waiting to join and the students already in are one thought. It is a plain
+   chip and that one is bordered, so without a border of its own it stood 2px
+   shorter than the button it shares a line with. */
+.admin-roster-requests {
+  margin-top: 2px;
+  margin-left: 0.375rem;
+  border: 1px solid transparent;
+}
+
+/* Two inline-flex boxes on one line align by baseline, and theirs are taken
+   from different things — the first flex item in "+ Enroll" is an icon, which
+   has no baseline of its own, while this one starts with a word. That put the
+   two 2px apart. Aligned on the line's middle instead, which is the same point
+   for both now that the boxes are the same height. */
+.admin-field > .admin-roster-more,
+.admin-field > .admin-roster-requests {
+  vertical-align: middle;
+}
+
+/* An empty roster offers one full-width row instead of a chip, so the pair
+   stacks rather than sitting side by side. */
+.admin-roster-add + .admin-roster-requests {
+  margin-top: 0.5rem;
+  margin-left: 0;
+}
+
+/* The same amber the classes table counts them in, filled rather than set as
+   type: on the button it is a mark to notice, not a figure to read. White on
+   the amber measures 5.3:1, and the dark theme's lighter amber takes the
+   surface colour back for 9.8:1. */
+.admin-roster-requests__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--warning-text);
+  color: var(--surface);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nobody is waiting. The chip is already dimmed by .admin-chip-btn[disabled];
+   the mark gives up its amber as well, because there is nothing to notice. */
+.admin-roster-requests[disabled] .admin-roster-requests__count {
+  background: var(--gray-400);
+}
+
+/* The schedule block and the checkbox above it carry no bottom margin, so the
+   Enrollment field under them started about 14px nearer than every other
+   field in the window. Hung on the field that follows rather than on those
+   two: both are used in other forms, where nothing follows them and the space
+   would only be a gap at the foot. */
+.admin-check + .admin-field,
+.admin-form-grid + .admin-field {
+  margin-top: 0.875rem;
+}
+
+/* Who is waiting to join, in the box the roster above it sits in — but ruled
+   between rows rather than tinted on hover, because these rows are answered
+   where they stand rather than picked from. */
+.admin-class-requests__list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+/* One line each. Wrapping is decided before anything shrinks, so a name long
+   enough to fill the row would push the buttons onto a line of their own and
+   then not be cut short at all — the row would grow instead of the name
+   giving way, and one row in the list would be laid out unlike the rest. */
+.admin-class-requests__item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.625rem;
+}
+
+.admin-class-requests__item + .admin-class-requests__item {
+  border-top: 1px solid var(--gray-200);
+}
+
+.admin-class-requests__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Cut short rather than wrapped, which is what the roster above it does with
+   a long name and for the same reason: the panel is a 26rem column, and one
+   long name should not be the only row in the list laid out differently. */
+.admin-class-requests__name,
+.admin-class-requests__id {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The roster row's own two steps, so a student reads the same in both lists. */
+.admin-class-requests__name {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-body);
+}
+
+.admin-class-requests__id {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-class-requests__acts {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* ── The requests panel ─────────────────────────────────────
+   The same drawer the student picker opens in, beside the form.
+   ───────────────────────────────────────────────────────── */
+
+/* Both drawers were sized by their contents, so the picker filled the screen
+   with a long roster while this one came out a short box floating halfway
+   down beside a full-height form. Given the height the form is held to, the
+   two panels are one object however much is inside either of them — the body
+   scrolls and the foot stays at the bottom, which is what a drawer does. */
+.admin-drawer .admin-drawer__panel {
+  height: min(calc(88 * var(--vh)), 100%);
+}
+
+/* Lined up with the head and the count above it, which are padded by the
+   panel rather than by a body of their own. */
+.admin-drawer__error {
+  margin: 0 1.25rem 0.75rem;
+}
+
+/* Accept is a compact .admin-btn and Decline a chip, and the two are drawn
+   from different padding. Given one height they read as a pair. */
+.admin-class-requests__acts .admin-chip-btn {
+  height: 2.125rem;
+}
+
+/* On a phone the pair drops under the name. All of them, not only the rows
+   whose name is long enough to push them down — a list where one row answers
+   on the right and the next underneath reads as a mistake. */
+@media (max-width: 40rem) {
+  .admin-class-requests__item {
+    flex-wrap: wrap;
+  }
+
+  .admin-class-requests__acts {
+    width: 100%;
+  }
 }

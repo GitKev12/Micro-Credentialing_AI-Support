@@ -237,7 +237,6 @@ describe("the course progress card", () => {
   const card = (container) => container.querySelector(".modules-progress");
   const count = (container) =>
     card(container).querySelector(".modules-progress__count").textContent;
-  const of = (container) => card(container).querySelector(".modules-progress__of").textContent;
 
   /** The whole point of the change: papers count, not only reading. */
   it("counts the quizzes as well as the lessons", async () => {
@@ -248,7 +247,6 @@ describe("the course progress card", () => {
 
     // Two lessons read and one quiz passed, out of nine.
     expect(count(container)).toContain("33%");
-    expect(of(container)).toContain(`3 of ${ITEMS}`);
   });
 
   it("draws the bar to the figure it just printed", async () => {
@@ -270,7 +268,6 @@ describe("the course progress card", () => {
     const { container } = await draw();
 
     expect(count(container)).toContain("0%");
-    expect(of(container)).toContain(`0 of ${ITEMS}`);
   });
 
   /**
@@ -284,7 +281,6 @@ describe("the course progress card", () => {
     const { container } = await draw();
 
     expect(count(container)).toContain("44%");
-    expect(of(container)).toContain(`4 of ${ITEMS}`);
   });
 
   it("reaches full only once the final has been passed too", async () => {
@@ -304,7 +300,6 @@ describe("the course progress card", () => {
     ];
     view = await draw();
     expect(count(view.container)).toContain("100%");
-    expect(of(view.container)).toContain(`${ITEMS} of ${ITEMS}`);
   });
 
   /**
@@ -324,7 +319,6 @@ describe("the course progress card", () => {
     ];
     const { container } = await draw();
 
-    expect(of(container)).toContain(`1 of ${ITEMS}`);
   });
 
   /** No lessons yet is not 0% of nothing — the card has nothing to report. */

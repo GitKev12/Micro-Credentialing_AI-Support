@@ -935,16 +935,12 @@ function LearningModules() {
             </div>
           ) : modules.length === 0 ? null : (
             <div className="modules-progress">
-              {/* The label above the figure rather than beside it. Sharing a
-                  line, a small uppercase eyebrow and a large number had to be
-                  set on one baseline to sit level, and the count tucked in
-                  behind the percentage read as part of it. */}
+              {/* The label above the figure rather than beside it: sharing a
+                  line, a small eyebrow and a large number had to be set on one
+                  baseline to sit level. */}
               <p className="modules-progress__label">Course progress</p>
               <div className="modules-progress__row">
                 <span className="modules-progress__count">{progressPercent}%</span>
-                <span className="modules-progress__of">
-                  {completedCount} of {courseItems}
-                </span>
               </div>
               <div
                 className="modules-progress__bar"

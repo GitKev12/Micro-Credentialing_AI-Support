@@ -305,3 +305,4 @@ export function LockIcon({ size = 14 }) {
     </svg>
   );
 }
+

@@ -14,7 +14,7 @@ const RUN = { startsOn: "2026-08-04", endsOn: "2026-08-12" };
 const draw = (props = {}) => {
   const onChange = props.onChange ?? (() => {});
   const view = render(<RangeCalendar {...RUN} {...props} onChange={onChange} />);
-  fireEvent.click(screen.getByRole("button", { name: /Course duration/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Course run/ }));
   return view;
 };
 
@@ -24,7 +24,7 @@ const drawClosed = (props = {}) => {
   return render(<RangeCalendar {...RUN} {...props} onChange={onChange} />);
 };
 
-const trigger = () => screen.getByRole("button", { name: /Course duration/ });
+const trigger = () => screen.getByRole("button", { name: /Course run/ });
 
 const day = (container, key) => container.querySelector(`[data-day="${key}"]`);
 
@@ -209,7 +209,7 @@ describe("RangeCalendar — the dropdown", () => {
   it("says what it wants when there is no run yet", () => {
     drawClosed({ startsOn: "", endsOn: "" });
 
-    expect(trigger().textContent).toContain("Choose the course duration");
+    expect(trigger().textContent).toContain("Choose when the course runs");
   });
 
   it("opens on the down arrow, the way the console's other dropdowns do", () => {

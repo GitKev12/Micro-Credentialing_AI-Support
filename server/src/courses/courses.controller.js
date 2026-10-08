@@ -313,7 +313,7 @@ async function buildPassIndex(studentId, student, courses, owner) {
  * from the session, or by their student number), then load the Course docs
  * listed in enrolledCourses.
  */
-async function loadEnrollment(studentId) {
+export async function loadEnrollment(studentId) {
   const student = await mongoose.connection
     .collection(STUDENTS_COLLECTION)
     .findOne({

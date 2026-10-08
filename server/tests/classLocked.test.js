@@ -42,7 +42,7 @@ describe("a class after it is created", () => {
       await updateClass({ params: { id: "k1" }, body }, res);
 
       expect(res.code).toBe(400);
-      expect(res.body.message).toBe("Only the assessor, students and schedule can be changed after a class is created.");
+      expect(res.body.message).toBe("Only the assessor, students, schedule and enrollment can be changed after a class is created.");
       expect(writes).toBe(0);
     });
   }

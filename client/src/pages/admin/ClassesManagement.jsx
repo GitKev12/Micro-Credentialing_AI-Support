@@ -12,6 +12,7 @@ import {
   updateClass
 } from "../../services/classes";
 import { fetchAssessors, fetchCourses, fetchStudents } from "../../services/admin";
+import { acceptRequest, declineRequest, setDiscoverSettings } from "../../services/discover";
 import { ChevronRightIcon, ClassesIcon } from "./components/icons";
 import {
   AccountStatusPill,
@@ -38,6 +39,14 @@ import { SkeletonTable, SkeletonText } from "../../components/Skeleton";
 // The option that means "the ones with none of it" - no course, no assessor.
 // Its sense is the field's, so the same id serves both without colliding.
 const NONE = "none";
+
+// The Discover fields a write sends back, for patching a row in place.
+const discoverOf = (saved) => ({
+  posted: saved?.posted === true,
+  enrollment: saved?.enrollment,
+  refusal: saved?.refusal ?? null,
+  requestCount: saved?.requestCount ?? saved?.requests?.length ?? 0
+});
 
 // Archived rows can't be picked for a class, but ones already in it stay listed.
 function pickable(list, klass) {
@@ -151,7 +160,9 @@ function ClassesManagement() {
     setClasses((list) => list.map((row) => (row.id === cls.id ? { ...row, active: next } : row)));
     setBusy(true);
     try {
-      await setClassActive(cls.id, next);
+      const saved = await setClassActive(cls.id, next);
+      // Switching a class off or on changes whether it can be posted.
+      setClasses((list) => list.map((row) => (row.id === cls.id ? { ...row, ...discoverOf(saved) } : row)));
       setNotice({
         tone: "ok",
         text: `“${classTitle(cls)}” is now ${next ? "active" : "inactive"}.`
@@ -164,6 +175,49 @@ function ClassesManagement() {
         tone: "error",
         text: errorMessage(error, "Couldn't change this class's status.")
       });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Post the class being edited on Discover, or take it off. In the Edit
+   * window, not the row, so it can't be pressed by accident. Posting sends the
+   * enrollment chosen in the form too; unposting clears the waiting requests.
+   * Answers null when it worked, or the reason it didn't, which the form shows.
+   */
+  const postClass = async (posted, enrollment) => {
+    setBusy(true);
+    try {
+      const saved = await setDiscoverSettings(form.id, posted ? { posted, enrollment } : { posted });
+      setClasses((list) => list.map((row) => (row.id === form.id ? { ...row, ...discoverOf(saved) } : row)));
+      setNotice({
+        tone: "ok",
+        text: `“${classTitle(form)}” ${posted ? "is posted on Discover." : "was unposted."}`
+      });
+      return null;
+    } catch (error) {
+      return errorMessage(error, "Couldn't change this class's posting.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Accept or decline a Discover request from the Edit class window.
+  // Answers null when it worked, or the reason it didn't, which the
+  // requests panel shows.
+  const answerRequest = async (request, accept) => {
+    setBusy(true);
+    try {
+      await (accept ? acceptRequest : declineRequest)(form.id, request.studentId);
+      setNotice({
+        tone: "ok",
+        text: accept ? `${request.name} was enrolled.` : `${request.name}'s request was declined.`
+      });
+      refreshClasses().catch(() => {}); // the row's student and request counts
+      return null;
+    } catch (error) {
+      return errorMessage(error, "Couldn't answer this request.");
     } finally {
       setBusy(false);
     }
@@ -215,7 +269,9 @@ function ClassesManagement() {
       const saved = await setClassArchived(cls.id, archived);
       setClasses((list) =>
         list.map((row) =>
-          row.id === cls.id ? { ...row, archived: saved.archived, active: saved.active } : row
+          row.id === cls.id
+            ? { ...row, archived: saved.archived, active: saved.active, ...discoverOf(saved) }
+            : row
         )
       );
       setForm(null);
@@ -392,7 +448,7 @@ function ClassesManagement() {
       </div>
 
       {status === "loading" ? (
-        <SkeletonTable rows={6} cols={7} label="Loading classes…" />
+        <SkeletonTable rows={6} cols={8} label="Loading classes…" />
       ) : status === "error" ? (
         <div className="admin-state-card admin-state-card--error">
           Couldn&apos;t reach the API. Check that the server is running.
@@ -408,6 +464,7 @@ function ClassesManagement() {
                 <th className="is-center">Students</th>
                 <th>Schedule</th>
                 <th className="is-center">Status</th>
+                <th className="is-center">Posting</th>
                 <th aria-label="Actions" />
               </tr>
             </thead>
@@ -506,6 +563,9 @@ function ClassesManagement() {
                       </button>
                       )}
                     </td>
+                    <td className="admin-class-posting is-center">
+                      <PostingCell cls={cls} />
+                    </td>
                     <td className="admin-table__actions">
                       <button
                         type="button"
@@ -528,7 +588,7 @@ function ClassesManagement() {
                   {/* A filtered-to-nothing table says something different from
                       a search that missed, and both say something different
                       from a console nobody has made a class in yet. */}
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     {query.trim()
                       ? "No classes match your search."
                       : filter.value !== FILTER_ALL
@@ -574,6 +634,8 @@ function ClassesManagement() {
           error={formError}
           onCancel={() => setForm(null)}
           onArchive={(archived) => changeArchived(form, archived)}
+          onAnswer={answerRequest}
+          onPost={postClass}
           onDelete={() => askToDelete(form)}
           onSave={saveClass}
         />
@@ -594,6 +656,28 @@ function ClassesManagement() {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Whether students can find this class on Discover, and how many are waiting.
+ * Read-only: posting is done in the Edit class window.
+ */
+function PostingCell({ cls }) {
+  if (cls.archived) return <span className="admin-cell__quiet">—</span>;
+
+  return (
+    <>
+      <span className={`admin-status-pill${cls.posted ? "" : " admin-status-pill--off"}`}>
+        {cls.posted ? "Posted" : "Not posted"}
+      </span>
+      {/* Shown posted or not: unposting keeps the requests. */}
+      {cls.requestCount > 0 ? (
+        <span className="admin-cell__sub admin-count admin-count--warn">
+          {plural(cls.requestCount, "request")} waiting
+        </span>
+      ) : null}
+    </>
   );
 }
 
