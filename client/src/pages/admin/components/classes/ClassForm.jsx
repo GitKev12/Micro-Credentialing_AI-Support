@@ -7,7 +7,6 @@ import { EnrollmentChoice } from "./EnrollmentChoice";
 import RequestsPanel from "./RequestsPanel";
 import PeoplePicker from "./PeoplePicker";
 import { MAX_LENGTH } from "../../../../lib/fieldRules";
-import { plural } from "../../lib/format";
 
 /**
  * Create or edit a class.
@@ -76,6 +75,8 @@ function ClassForm({
   // Post / Unpost button, like Archive, not on Save.
   const [posted, setPosted] = useState(klass?.posted === true);
   const [postError, setPostError] = useState(null);
+  // Whether the "Unpost this class?" pop-up is open.
+  const [confirmingUnpost, setConfirmingUnpost] = useState(false);
   const [schedule, setSchedule] = useState({
     days: klass?.schedule?.days ?? "",
     time: klass?.schedule?.time ?? "",
@@ -138,10 +139,10 @@ function ClassForm({
 
   const post = async (next) => {
     const refusal = await onPost(next, enrollment);
+    setConfirmingUnpost(false);
     setPostError(refusal);
     if (refusal) return;
     setPosted(next);
-    if (!next) setRequests([]); // unposting clears them
   };
 
   const closeRequests = () => setClosingRequests(true);
@@ -173,257 +174,283 @@ function ClassForm({
   const ready = courseId && assessorId;
 
   return (
-    <AdminModal
-      title={editing ? "Edit class" : "New class"}
-      subtitle={editing ? classTitle(klass) : null}
-      // Slides out from under the picker while it is open, so the two sit side
-      // by side rather than one over the other.
-      // Dropped the moment the panel starts leaving, so the form travels back
-      // alongside it rather than after it.
-      tone={paired ? "admin-modal__panel--paired" : ""}
-      onClose={picking || viewingRequests ? () => {} : onCancel}
-      footer={
-        <>
-          <button
-            type="button"
-            className="admin-chip-btn admin-chip-btn--quiet"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <AdminButton
-            variant="admin-btn--compact"
-            disabled={busy || !ready}
-            onClick={() =>
-              onSave(
-                // An edit sends only what can still change.
-                editing
-                  ? { assessorIds: [assessorId], studentIds, schedule: cleanSchedule, enrollment }
-                  : {
-                      name: name.trim(),
-                      courseId,
-                      // Still sent as a list, because the field it is stored in
-                      // is one. Save is closed until it holds a name.
-                      assessorIds: [assessorId],
-                      mode,
-                      studentIds,
-                      schedule: cleanSchedule,
-                      enrollment
-                    }
-              )
-            }
-          >
-            {busy ? "Saving…" : editing ? "Save changes" : "Create class"}
-          </AdminButton>
-        </>
-      }
-    >
-      {error ? (
-        <p className="admin-notice admin-notice--error" role="status">
-          {error}
-        </p>
-      ) : null}
-
-      {editing ? (
-        <p className="admin-notice admin-class-locked">
-          <LockIcon /> Only the assessor, students, schedule and enrollment can be changed after a class is created.
-        </p>
-      ) : null}
-
-      <div className="admin-field">
-        <div className="admin-field__label">Section</div>
-        <AdminSelect
-          value={name}
-          disabled={editing}
-          onChange={setName}
-          options={sectionOptions}
-          label="Section"
-          placeholder="No section"
-        />
-      </div>
-
-      <div className="admin-field">
-        <div className="admin-field__label">
-          Course<span className="admin-field__required"> *</span>
-        </div>
-        <AdminSelect
-          value={courseId}
-          disabled={editing}
-          onChange={setCourseId}
-          options={courseOptions}
-          label="Course"
-          placeholder="Choose a course…"
-        />
-      </div>
-
-      <PathwayChoice value={mode} disabled={busy || editing} onChange={setMode} />
-
-      <div className="admin-field">
-        <div className="admin-field__label">
-          Assessor<span className="admin-field__required"> *</span>
-        </div>
-        <AdminSelect
-          value={assessorId}
-          onChange={setAssessorId}
-          options={assessorOptions}
-          label="Assessor"
-          placeholder="Choose an assessor…"
-        />
-      </div>
-
-      <ClassRoster
-        label="Students"
-        noun="students"
-        action="Enroll"
-        icon={<StudentsIcon size={18} />}
-        people={students}
-        ids={studentIds}
-        onChange={setStudentIds}
-        onAdd={() => setPicking(true)}
-        busy={busy}
-        disabled={!courseId}
-        hint="Choose a course first."
-        extra={requestsButton}
-      />
-
-      <label className="admin-check">
-        <input
-          type="checkbox"
-          checked={hasSchedule}
-          onChange={(event) => setHasSchedule(event.target.checked)}
-        />
-        Add a schedule
-      </label>
-
-      {hasSchedule ? (
-        <div className="admin-form-grid">
-          <AdminField
-            label="Days"
-            maxLength={MAX_LENGTH.schedule}
-            value={schedule.days}
-            onChange={setField("days")}
-            placeholder="e.g. MWF"
-          />
-          <AdminField
-            label="Time"
-            maxLength={MAX_LENGTH.schedule}
-            value={schedule.time}
-            onChange={setField("time")}
-            placeholder="e.g. 09:00–10:00"
-          />
-          <AdminField
-            label="Room"
-            maxLength={MAX_LENGTH.schedule}
-            value={schedule.room}
-            onChange={setField("room")}
-            placeholder="e.g. Lab 201"
-          />
-        </div>
-      ) : null}
-
-      <EnrollmentChoice value={enrollment} disabled={busy} onChange={setEnrollment} />
-
-      {editing && !klass.archived ? (
-        <div className="admin-field admin-class-discover">
-          <div className="admin-field__label">Discover</div>
-          {/* Just the one move: the button's word says which state the class is in. */}
-          <div className="admin-class-discover__row">
-            {posted ? (
-              <button
-                type="button"
-                className="admin-chip-btn admin-chip-btn--quiet admin-class-discover__btn"
-                disabled={busy}
-                onClick={() => post(false)}
-              >
-                Unpost
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="admin-chip-btn admin-class-discover__btn admin-class-discover__btn--post"
-                disabled={busy || Boolean(klass.refusal)}
-                onClick={() => post(true)}
-              >
-                Post to Discover
-              </button>
-            )}
-          </div>
-          {postError ? (
-            <p className="admin-field__hint admin-field__hint--error" role="alert">
-              {postError}
-            </p>
-          ) : klass.refusal ? (
-            <p className="admin-field__hint">{klass.refusal}</p>
-          ) : null}
-          {posted && requests.length > 0 ? (
-            <p className="admin-field__hint">
-              Unposting also clears the {plural(requests.length, "waiting request")}.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Archiving switches the class off and hides it; restoring brings it back.
-          Delete only shows once the class is archived. */}
-      {editing && onArchive ? (
-        <section className="admin-danger">
-          <h3 className="admin-danger__title">Danger Zone</h3>
-          <div className="admin-danger__actions">
+    <>
+      <AdminModal
+        title={editing ? "Edit class" : "New class"}
+        subtitle={editing ? classTitle(klass) : null}
+        // Slides out from under the picker while it is open, so the two sit side
+        // by side rather than one over the other.
+        // Dropped the moment the panel starts leaving, so the form travels back
+        // alongside it rather than after it.
+        tone={paired ? "admin-modal__panel--paired" : ""}
+        onClose={picking || viewingRequests || confirmingUnpost ? () => {} : onCancel}
+        footer={
+          <>
             <button
               type="button"
-              className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
+              className="admin-chip-btn admin-chip-btn--quiet"
               disabled={busy}
-              onClick={() => onArchive(!klass.archived)}
+              onClick={onCancel}
             >
-              <ArchiveIcon size={14} />
-              {klass.archived ? "Restore class" : "Archive class"}
+              Cancel
             </button>
-            {klass.archived && onDelete ? (
+            <AdminButton
+              variant="admin-btn--compact"
+              disabled={busy || !ready}
+              onClick={() =>
+                onSave(
+                  // An edit sends only what can still change.
+                  editing
+                    ? { assessorIds: [assessorId], studentIds, schedule: cleanSchedule, enrollment }
+                    : {
+                        name: name.trim(),
+                        courseId,
+                        // Still sent as a list, because the field it is stored in
+                        // is one. Save is closed until it holds a name.
+                        assessorIds: [assessorId],
+                        mode,
+                        studentIds,
+                        schedule: cleanSchedule,
+                        enrollment
+                      }
+                )
+              }
+            >
+              {busy ? "Saving…" : editing ? "Save changes" : "Create class"}
+            </AdminButton>
+          </>
+        }
+      >
+        {error ? (
+          <p className="admin-notice admin-notice--error" role="status">
+            {error}
+          </p>
+        ) : null}
+
+        {editing ? (
+          <p className="admin-notice admin-class-locked">
+            <LockIcon /> Only the assessor, students, schedule and enrollment can be changed after a class is created.
+          </p>
+        ) : null}
+
+        <div className="admin-field">
+          <div className="admin-field__label">Section</div>
+          <AdminSelect
+            value={name}
+            disabled={editing}
+            onChange={setName}
+            options={sectionOptions}
+            label="Section"
+            placeholder="No section"
+          />
+        </div>
+
+        <div className="admin-field">
+          <div className="admin-field__label">
+            Course<span className="admin-field__required"> *</span>
+          </div>
+          <AdminSelect
+            value={courseId}
+            disabled={editing}
+            onChange={setCourseId}
+            options={courseOptions}
+            label="Course"
+            placeholder="Choose a course…"
+          />
+        </div>
+
+        <PathwayChoice value={mode} disabled={busy || editing} onChange={setMode} />
+
+        <div className="admin-field">
+          <div className="admin-field__label">
+            Assessor<span className="admin-field__required"> *</span>
+          </div>
+          <AdminSelect
+            value={assessorId}
+            onChange={setAssessorId}
+            options={assessorOptions}
+            label="Assessor"
+            placeholder="Choose an assessor…"
+          />
+        </div>
+
+        <ClassRoster
+          label="Students"
+          noun="students"
+          action="Enroll"
+          icon={<StudentsIcon size={18} />}
+          people={students}
+          ids={studentIds}
+          onChange={setStudentIds}
+          onAdd={() => setPicking(true)}
+          busy={busy}
+          disabled={!courseId}
+          hint="Choose a course first."
+          extra={requestsButton}
+        />
+
+        <label className="admin-check">
+          <input
+            type="checkbox"
+            checked={hasSchedule}
+            onChange={(event) => setHasSchedule(event.target.checked)}
+          />
+          Add a schedule
+        </label>
+
+        {hasSchedule ? (
+          <div className="admin-form-grid">
+            <AdminField
+              label="Days"
+              maxLength={MAX_LENGTH.schedule}
+              value={schedule.days}
+              onChange={setField("days")}
+              placeholder="e.g. MWF"
+            />
+            <AdminField
+              label="Time"
+              maxLength={MAX_LENGTH.schedule}
+              value={schedule.time}
+              onChange={setField("time")}
+              placeholder="e.g. 09:00–10:00"
+            />
+            <AdminField
+              label="Room"
+              maxLength={MAX_LENGTH.schedule}
+              value={schedule.room}
+              onChange={setField("room")}
+              placeholder="e.g. Lab 201"
+            />
+          </div>
+        ) : null}
+
+        <EnrollmentChoice value={enrollment} disabled={busy} onChange={setEnrollment} />
+
+        {editing && !klass.archived ? (
+          <div className="admin-field admin-class-discover">
+            <div className="admin-field__label">Discover</div>
+            {/* Just the one move: the button's word says which state the class is in. */}
+            <div className="admin-class-discover__row">
+              {posted ? (
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--quiet admin-class-discover__btn"
+                  disabled={busy}
+                  onClick={() => setConfirmingUnpost(true)}
+                >
+                  Unpost
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-class-discover__btn admin-class-discover__btn--post"
+                  disabled={busy || Boolean(klass.refusal)}
+                  onClick={() => post(true)}
+                >
+                  Post to Discover
+                </button>
+              )}
+            </div>
+            {postError ? (
+              <p className="admin-field__hint admin-field__hint--error" role="alert">
+                {postError}
+              </p>
+            ) : klass.refusal ? (
+              <p className="admin-field__hint">{klass.refusal}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Archiving switches the class off and hides it; restoring brings it back.
+            Delete only shows once the class is archived. */}
+        {editing && onArchive ? (
+          <section className="admin-danger">
+            <h3 className="admin-danger__title">Danger Zone</h3>
+            <div className="admin-danger__actions">
               <button
                 type="button"
                 className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
                 disabled={busy}
-                onClick={onDelete}
+                onClick={() => onArchive(!klass.archived)}
               >
-                <TrashIcon size={14} />
-                Delete class
+                <ArchiveIcon size={14} />
+                {klass.archived ? "Restore class" : "Archive class"}
               </button>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+              {klass.archived && onDelete ? (
+                <button
+                  type="button"
+                  className="admin-chip-btn admin-chip-btn--danger admin-danger__btn"
+                  disabled={busy}
+                  onClick={onDelete}
+                >
+                  <TrashIcon size={14} />
+                  Delete class
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
-      {viewingRequests ? (
-        <RequestsPanel
-          requests={requests}
-          classLabel={classTitle(klass)}
-          busy={busy}
-          error={requestError}
-          closing={closingRequests}
-          onAnswer={answer}
-          onClose={closeRequests}
-          onClosed={requestsClosed}
-        />
-      ) : null}
+        {viewingRequests ? (
+          <RequestsPanel
+            requests={requests}
+            classLabel={classTitle(klass)}
+            busy={busy}
+            error={requestError}
+            closing={closingRequests}
+            onAnswer={answer}
+            onClose={closeRequests}
+            onClosed={requestsClosed}
+          />
+        ) : null}
 
-      {picking ? (
-        <PeoplePicker
-          people={students}
-          courseId={courseId}
-          courseLabel={courseOptions.find((option) => option.value === courseId)?.label ?? ""}
-          selected={studentIds}
-          ownIds={ownStudentIds}
-          closing={closingPicker}
-          onApply={(ids) => {
-            setStudentIds(ids);
-            closePicker();
-          }}
-          onClose={closePicker}
-          onClosed={pickerClosed}
-        />
+        {picking ? (
+          <PeoplePicker
+            people={students}
+            courseId={courseId}
+            courseLabel={courseOptions.find((option) => option.value === courseId)?.label ?? ""}
+            selected={studentIds}
+            ownIds={ownStudentIds}
+            closing={closingPicker}
+            onApply={(ids) => {
+              setStudentIds(ids);
+              closePicker();
+            }}
+            onClose={closePicker}
+            onClosed={pickerClosed}
+          />
+        ) : null}
+      </AdminModal>
+
+      {/* Asked first, so a stray click can't take the class off Discover. */}
+      {confirmingUnpost ? (
+        <AdminModal
+          title="Unpost this class?"
+          subtitle={classTitle(klass)}
+          onClose={busy ? () => {} : () => setConfirmingUnpost(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="admin-chip-btn admin-chip-btn--quiet"
+                disabled={busy}
+                onClick={() => setConfirmingUnpost(false)}
+              >
+                Cancel
+              </button>
+              <AdminButton variant="admin-btn--compact" disabled={busy} onClick={() => post(false)}>
+                {busy ? "Unposting…" : "Unpost"}
+              </AdminButton>
+            </>
+          }
+        >
+          <p className="admin-modal__lead">Students won't find it on Discover until you post it again.</p>
+          {requests.length > 0 ? (
+            <p className="admin-modal__lead">Waiting requests stay, so you can still accept or decline them.</p>
+          ) : null}
+        </AdminModal>
       ) : null}
-    </AdminModal>
+    </>
   );
 }
 

@@ -24,8 +24,8 @@ jest.unstable_mockModule("../src/services/discover.js", () => ({
 
 const { default: DiscoverCourse } = await import("../src/pages/student/DiscoverCourse.jsx");
 
-const TAUGHT = { mode: "taught", label: "Taught and assessed", enrollment: "open" };
-const ASSESS = { mode: "assessOnly", label: "Assess-only", enrollment: "approval" };
+const TAUGHT = { mode: "taught", label: "Taught and assessed", enrollment: "open", assessor: "Ramon Velasco", certificate: "CC2 Final Exam Credential" };
+const ASSESS = { mode: "assessOnly", label: "Assess-only", enrollment: "approval", assessor: "Marivic Cortez", certificate: "CC2 Final Exam Credential" };
 
 // The course view as the server sends it: a course, its pathways, its syllabus.
 function detail({ pathways, curriculum, ...course } = {}) {
@@ -84,11 +84,113 @@ describe("Discover course view", () => {
     expect(screen.getByText("30")).toBeTruthy();
   });
 
+  it("shows the dates the course runs between", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    await show();
+
+    expect(screen.getByText("Runs")).toBeTruthy();
+    // The length in weeks is deliberately not shown here.
+    expect(screen.queryByText("Length")).toBeNull();
+    expect(screen.queryByText("17 weeks")).toBeNull();
+  });
+
+  it("leaves out the run on a course with no dates", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ startsOn: null, endsOn: null }));
+    await show();
+
+    expect(screen.queryByText("Runs")).toBeNull();
+  });
+
   it("says nothing about hours on a course with none set", async () => {
     fetchDiscoverCourse.mockResolvedValue(detail({ courseHours: null }));
     await show();
 
     expect(screen.queryByText("Hours")).toBeNull();
+  });
+
+  it("says how the course is taken beside its code", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pathways: [ASSESS] }));
+    await show();
+
+    const head = document.querySelector(".sd-dcourse__head");
+    expect(head.querySelectorAll(".sd-dcourse__mode")).toHaveLength(1);
+    expect(head.textContent).toContain("Assess-only");
+  });
+
+  it("names every way in until one is picked, then that one", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    await show();
+
+    expect(document.querySelectorAll(".sd-dcourse__mode")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("radio", { name: /Assess-only/ }));
+    const modes = document.querySelectorAll(".sd-dcourse__mode");
+    expect(modes).toHaveLength(1);
+    expect(modes[0].textContent).toBe("Assess-only");
+  });
+
+  it("names the way the student is already on", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ enrolled: true, myMode: "taught", myModeLabel: "Taught and assessed" }));
+    await show();
+
+    const modes = document.querySelectorAll(".sd-dcourse__mode");
+    expect(modes).toHaveLength(1);
+    expect(modes[0].textContent).toBe("Taught and assessed");
+  });
+
+  it("still names it after their class stops being open on Discover", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ enrolled: true, myMode: "assessOnly", myModeLabel: "Assess-only", pathways: [] }));
+    await show();
+
+    const modes = document.querySelectorAll(".sd-dcourse__mode");
+    expect(modes).toHaveLength(1);
+    expect(modes[0].textContent).toBe("Assess-only");
+  });
+
+  it("names both assessors until a pathway is picked, then that one's", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    await show();
+
+    expect(screen.getByText("Assessors")).toBeTruthy();
+    expect(screen.getByText("Ramon Velasco, Marivic Cortez")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Assess-only/ }));
+    expect(screen.getByText("Assessor")).toBeTruthy();
+    expect(screen.getByText("Marivic Cortez")).toBeTruthy();
+  });
+
+  it("lists the facts in order: when, how much work, what is in it, who", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    await show();
+
+    const labels = [...document.querySelectorAll(".sd-dcourse__facts dt")].map((dt) => dt.textContent);
+    expect(labels).toEqual(["Runs", "Hours", "Lessons", "Badges", "Assessors"]);
+  });
+
+  it("names the certificate the course awards, once", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail());
+    await show();
+
+    const section = screen.getByRole("region", { name: "Certificate" });
+    // The course has one credential however many pathways lead to it.
+    expect(section.querySelectorAll(".sd-dcert__name")).toHaveLength(1);
+    expect(section.textContent).toContain("CC2 Certification");
+    expect(section.textContent).toContain("Your assessor releases it after you pass the final exam.");
+  });
+
+  it("leaves the certificate out while there is no final to earn it with", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pathways: [{ ...TAUGHT, certificate: null }] }));
+    await show();
+
+    expect(screen.queryByRole("region", { name: "Certificate" })).toBeNull();
+  });
+
+  it("names the student's own assessor once they have asked to join", async () => {
+    fetchDiscoverCourse.mockResolvedValue(detail({ pending: true, myMode: "taught", myAssessor: "Ramon Velasco" }));
+    await show();
+
+    expect(screen.getByText("Assessor")).toBeTruthy();
+    expect(screen.getByText("Ramon Velasco")).toBeTruthy();
   });
 
   it("names no section and shows no schedule", async () => {
@@ -140,7 +242,9 @@ describe("Discover course view", () => {
     });
 
     expect(enrollInCourse).toHaveBeenCalledWith("stu-1", "c1", "taught");
-    expect(screen.getByText("Enrolled")).toBeTruthy();
+    // No "Enrolled" tag: the way in is the link, and the status line says so.
+    expect(screen.queryByText("Enrolled")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("You're enrolled.");
     expect(screen.getByRole("link", { name: "Open course" }).getAttribute("href")).toBe("/student/courses/c1/modules");
   });
 

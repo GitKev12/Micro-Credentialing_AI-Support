@@ -92,12 +92,14 @@ export async function addStudentToClass(cls, student, { fromRequest = false } = 
 
   const filter = {
     _id: cls._id,
-    posted: true,
     active: { $ne: false },
     archived: { $ne: true },
     studentIds: { $nin: keys }
   };
+  // A student can only join a posted class. The admin can accept a request
+  // after unposting, because unposting keeps the requests.
   if (fromRequest) filter.requestedStudentIds = { $in: keys };
+  else filter.posted = true;
 
   const result = await collection(CLASSES).updateOne(filter, {
     $addToSet: { studentIds: student._id },

@@ -73,7 +73,8 @@ export async function setClassDiscover(req, res) {
   if ("posted" in body) updates.posted = body.posted;
   if ("enrollment" in body) updates.enrollment = body.enrollment;
   else if (body.posted === true) updates.enrollment = enrollmentOf(cls);
-  if (body.posted === false) updates.requestedStudentIds = [];
+  // Unposting only hides the class from Discover. Waiting requests stay, so the
+  // admin can still accept or decline them.
   await collection("Class").updateOne({ _id: cls._id, archived: { $ne: true } }, { $set: updates });
   return respondWithClass(res, cls._id);
 }
@@ -91,8 +92,9 @@ export async function acceptEnrollRequest(req, res) {
   if (mongoose.connection.readyState !== 1) return notReady(res);
   const cls = await requestedClass(req, res);
   if (!cls) return;
+  // Posted or not: the request was made while it was posted.
   const refusal = discoverRefusal(cls, await find("Course", cls.courseId));
-  if (!cls.posted || refusal) return res.status(409).json({ message: refusal || "This class isn't posted." });
+  if (refusal) return res.status(409).json({ message: refusal });
   const student = await find("Student", req.params.studentId);
   if (!student || accountStatus(student) !== "active") {
     return res.status(409).json({ message: "This student's account isn't active." });

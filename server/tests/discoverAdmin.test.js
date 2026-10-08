@@ -62,9 +62,18 @@ describe("admin Discover", () => {
     expect(db.Class[0].posted).toBe(false);
   });
 
-  it("unposting clears requests", async () => {
+  it("unposting keeps the waiting requests", async () => {
     const res = reply(); await setClassDiscover({ params: { id: "k1" }, body: { posted: false } }, res);
     expect(db.Class[0].posted).toBe(false);
+    expect(db.Class[0].requestedStudentIds).toEqual(["s1"]);
+    expect(res.body.class.requests[0]).toMatchObject({ name: "Andrea Santiago" });
+  });
+
+  it("still accepts a request after the class is unposted", async () => {
+    db.Class[0].posted = false;
+    const res = reply(); await acceptEnrollRequest({ params: { id: "k1", studentId: "s1" } }, res);
+    expect(res.code).toBe(200);
+    expect(db.Class[0].studentIds).toEqual(["s1"]);
     expect(db.Class[0].requestedStudentIds).toEqual([]);
   });
 

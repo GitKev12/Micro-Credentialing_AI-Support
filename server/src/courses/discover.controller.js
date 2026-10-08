@@ -4,7 +4,8 @@ import { courseStatus } from "../lib/courseAccess.js";
 import { toIsoDay } from "../lib/courseDates.js";
 import { classMode, isAssessOnly, CLASS_MODES, MODE_LABELS } from "../lib/classMode.js";
 import { sortLessons } from "../lib/lessonOrder.js";
-import { paperBelongsToClass } from "../assessments/classPapers.js";
+import { paperBelongsToClass, papersForClass } from "../assessments/classPapers.js";
+import { credentialNameFor } from "../assessments/assessments.format.js";
 import { enrolledCourseIds } from "../middleware/student.guard.js";
 import {
   addRequest,
@@ -13,6 +14,7 @@ import {
   isOpenOnDiscover,
   removeRequest
 } from "../admin/classEnrollment.js";
+import { personName } from "../admin/classes.controller.js";
 import { loadEnrollment } from "./courses.controller.js";
 
 /**
@@ -182,10 +184,33 @@ async function buildDetail(student, courseId) {
     badge: badgeFor.get(asId(lesson._id))?.name ?? null
   }));
 
-  const pathways = CLASS_MODES.map((mode) => {
-    const cls = pickClass(open, mode);
-    return cls && { mode, label: MODE_LABELS[mode], enrollment: enrollmentOf(cls) };
-  }).filter(Boolean);
+  const picked = CLASS_MODES.map((mode) => [mode, pickClass(open, mode)]).filter(([, cls]) => cls);
+
+  // The assessor's name for each class shown: the one each pathway would put
+  // the student in, and the one they are already in or waiting on.
+  const shown = [...picked.map(([, cls]) => cls), ...(mine ? [mine] : [])];
+  const assessors = await collection("Assessor")
+    .find({ _id: { $in: shown.flatMap((cls) => (cls.assessorIds ?? []).slice(0, 1).flatMap(idCandidates)) } })
+    .toArray();
+  const assessorOf = (cls) => {
+    const assessor = assessors.find((row) => asId(row._id) === asId(cls?.assessorIds?.[0]));
+    return assessor ? personName(assessor) : null;
+  };
+
+  // The credential a class's final awards (the name on its certificate), or
+  // null while that class has no posted final.
+  const certificateOf = (cls) => {
+    const [final] = papersForClass(finals, cls._id, { assessOnly: isAssessOnly(cls) });
+    return final ? credentialNameFor(final) : null;
+  };
+
+  const pathways = picked.map(([mode, cls]) => ({
+    mode,
+    label: MODE_LABELS[mode],
+    enrollment: enrollmentOf(cls),
+    assessor: assessorOf(cls),
+    certificate: certificateOf(cls)
+  }));
 
   const state = mine ? stateIn(mine, me) : "none";
   return {
@@ -203,6 +228,10 @@ async function buildDetail(student, courseId) {
       pending: state === "pending",
       // Which pathway they are on, so the page can say so without a section.
       myMode: mine ? classMode(mine) : null,
+      // Sent on its own, because their class may no longer be open on Discover.
+      myModeLabel: mine ? MODE_LABELS[classMode(mine)] : null,
+      myAssessor: mine ? assessorOf(mine) : null,
+      myCertificate: mine ? certificateOf(mine) : null,
       myFinalExam: mine
         ? finals.some((doc) => paperBelongsToClass(doc, mine._id, { assessOnly: isAssessOnly(mine) }))
         : false

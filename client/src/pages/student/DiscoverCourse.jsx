@@ -4,7 +4,7 @@ import { getStoredSession } from "../../auth/services/authService";
 import { fetchDiscoverCourse, enrollInCourse, cancelEnrollRequest } from "../../services/discover";
 import { formatCourseRange } from "../../lib/courseDuration";
 import CourseCover from "./components/CourseCover";
-import { BackIcon } from "./components/icons";
+import { BackIcon, BadgeIcon, BookIcon, CalendarIcon, CertificateIcon, ClockIcon, PersonIcon } from "./components/icons";
 
 /**
  * One course on Discover: what it is, what is in it, and the way in.
@@ -86,6 +86,24 @@ export default function DiscoverCourse() {
   const pathways = detail?.pathways ?? [];
   const curriculum = detail?.curriculum ?? [];
   const chosen = pathways.find((pathway) => pathway.mode === mode) ?? null;
+  // What goes with the class the student is in, or would be put in. With two
+  // pathways and none picked yet, each pathway's (each once).
+  const forStudent = (field, own) =>
+    course?.enrolled || course?.pending
+      ? [own].filter(Boolean)
+      : chosen
+        ? [chosen[field]].filter(Boolean)
+        : [...new Set(pathways.map((pathway) => pathway[field]).filter(Boolean))];
+  const assessors = forStudent("assessor", course?.myAssessor);
+  // Whether there is a posted final to earn a certificate with at all.
+  const certificates = forStudent("certificate", course?.myCertificate);
+  // Named the way the Assessor End and the Credentials page name it, so the
+  // student reads the same words wherever this credential appears.
+  const certificateName = course ? `${course.code} Certification` : null;
+  // How the course is taken, which the chooser below only says while there
+  // is a choice to make. Picked like the assessor above: theirs once they
+  // are on the course, the chosen one while choosing, else every way in.
+  const modeLabels = forStudent("label", course?.myModeLabel);
 
   if (status === "loading") {
     return (
@@ -113,14 +131,20 @@ export default function DiscoverCourse() {
 
       <div className="sd-dcourse__grid">
         <div className="sd-dcourse__main">
-          <span className="sd-dcourse__code">{course.code}</span>
-          <h1 className="sd-dcourse__title">{course.title}</h1>
+          {/* The code follows the title as a tag rather than announcing it.
+              It identifies the course; the title is what you read first. */}
+          <div className="sd-dcourse__head">
+            <h1 className="sd-dcourse__title">{course.title}</h1>
+            <span className="sd-dcourse__code">{course.code}</span>
+            {modeLabels.map((label) => (
+              <span className="sd-dcourse__mode" key={label}>{label}</span>
+            ))}
+          </div>
           {course.description ? <p className="sd-dcourse__desc">{course.description}</p> : null}
 
           <section className="sd-join" aria-label="Enrollment">
             {course.enrolled ? (
               <div className="sd-join__row">
-                <span className="sd-state" data-state="enrolled">Enrolled</span>
                 <Link className="sd-enroll" to={`/student/courses/${course.id}/modules`}>Open course</Link>
               </div>
             ) : course.pending ? (
@@ -217,13 +241,35 @@ export default function DiscoverCourse() {
 
         <aside className="sd-dcourse__side">
           <CourseCover course={course} className="sd-dcourse__cover" />
+          {/* A record rather than a panel - the cover above it is already a
+              box - in the order a student weighs a course: when it runs, how
+              much work it is, what is in it, and who assesses it. */}
           <dl className="sd-dcourse__facts">
-            <div className="sd-dcourse__fact"><dt>Lessons</dt><dd>{course.lessonCount}</dd></div>
-            <div className="sd-dcourse__fact"><dt>Badges</dt><dd>{course.badgeCount}</dd></div>
+            {/* The dates themselves; left out when the course has none. */}
+            {formatCourseRange(course) ? <div className="sd-dcourse__fact"><dt><CalendarIcon size={14} />Runs</dt><dd>{formatCourseRange(course)}</dd></div> : null}
             {/* Only when an admin has set it. */}
-            {course.courseHours ? <div className="sd-dcourse__fact"><dt>Hours</dt><dd>{course.courseHours}</dd></div> : null}
-            <div className="sd-dcourse__fact"><dt>Runs</dt><dd>{formatCourseRange(course)}</dd></div>
+            {course.courseHours ? <div className="sd-dcourse__fact"><dt><ClockIcon size={14} />Hours</dt><dd>{course.courseHours}</dd></div> : null}
+            <div className="sd-dcourse__fact"><dt><BookIcon size={14} />Lessons</dt><dd>{course.lessonCount}</dd></div>
+            <div className="sd-dcourse__fact"><dt><BadgeIcon size={14} />Badges</dt><dd>{course.badgeCount}</dd></div>
+            {assessors.length > 0 ? (
+              <div className="sd-dcourse__fact">
+                <dt><PersonIcon size={14} />{assessors.length > 1 ? "Assessors" : "Assessor"}</dt>
+                <dd>{assessors.join(", ")}</dd>
+              </div>
+            ) : null}
           </dl>
+
+          {/* The course's credential. Left out while there is no posted final,
+              because then there is nothing to earn it with yet. */}
+          {certificates.length > 0 ? (
+            <section className="sd-dcert" aria-label="Certificate">
+              <p className="sd-dcert__name">
+                <span className="sd-dcert__icon"><CertificateIcon size={16} /></span>
+                {certificateName}
+              </p>
+              <p className="sd-dcert__how">Your assessor releases it after you pass the final exam.</p>
+            </section>
+          ) : null}
         </aside>
       </div>
 

@@ -64,7 +64,7 @@ beforeEach(() => {
       { _id: "b1", courseId: "c1", moduleId: "m1", name: "Looping" },
       { _id: "b2", courseId: "c1", moduleId: "m2", name: "Arrays", active: false }
     ],
-    Assessment: [{ _id: "f1", courseId: "c1", scope: "final", status: "posted" }]
+    Assessment: [{ _id: "f1", courseId: "c1", scope: "final", status: "posted", title: "CC2 Final Exam", credentialName: "CC2 Final Exam Credential" }]
   };
   mongoose.connection.collection = fakeCollections(db);
 });
@@ -123,10 +123,37 @@ describe("Discover course view", () => {
     expect(res.body.course).toMatchObject({
       code: "CC2", description: "Loops and arrays.", lessonCount: 2, badgeCount: 1, hasFinalExam: true, courseHours: 30
     });
+    // The assess-only section has no final of its own, and it never takes the
+    // course's, so it has no certificate to offer yet.
     expect(res.body.pathways).toEqual([
-      { mode: "taught", label: "Taught and assessed", enrollment: "open" },
-      { mode: "assessOnly", label: "Assess-only", enrollment: "approval" }
+      { mode: "taught", label: "Taught and assessed", enrollment: "open", assessor: "Ramon Velasco", certificate: "CC2 Final Exam Credential" },
+      { mode: "assessOnly", label: "Assess-only", enrollment: "approval", assessor: "Ramon Velasco", certificate: null }
     ]);
+    expect(res.body.course).toMatchObject({ myAssessor: null, myCertificate: null });
+  });
+
+  it("names the certificate from the class's own final when it has one", async () => {
+    db.Assessment.push({ _id: "f2", courseId: "c1", classId: "k2", scope: "final", status: "posted", title: "CC2 Final Exam (Assess-only)" });
+
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "assessOnly" });
+    expect(res.body.pathways[1].certificate).toBe("CC2 Final Exam (Assess-only) Credential");
+    expect(res.body.course.myCertificate).toBe("CC2 Final Exam (Assess-only) Credential");
+  });
+
+  it("names the assessor of the section each pathway would place the student in", async () => {
+    db.Assessor.push({ _id: "a2", first_name: "Marivic", last_name: "Cortez" });
+    cls("k2").assessorIds = ["a2"];
+
+    const res = await call(getDiscoverCourse, { courseId: "c1" });
+    expect(res.body.pathways.map((pathway) => pathway.assessor)).toEqual(["Ramon Velasco", "Marivic Cortez"]);
+  });
+
+  it("names the student's own assessor once they have joined", async () => {
+    db.Assessor.push({ _id: "a2", first_name: "Marivic", last_name: "Cortez" });
+    cls("k2").assessorIds = ["a2"];
+
+    const res = await call(enrollInCourse, { courseId: "c1" }, { mode: "assessOnly" });
+    expect(res.body.course).toMatchObject({ pending: true, myAssessor: "Marivic Cortez" });
   });
 
   it("names no section anywhere in what the student is sent", async () => {
@@ -178,7 +205,7 @@ describe("Enroll", () => {
     expect(cls("k2").requestedStudentIds).toEqual(["s1"]);
     expect(cls("k2").studentIds).toEqual([]);
     expect(student().enrolledCourses).toEqual([]);
-    expect(res.body.course).toMatchObject({ pending: true, myMode: "assessOnly" });
+    expect(res.body.course).toMatchObject({ pending: true, myMode: "assessOnly", myModeLabel: "Assess-only" });
   });
 
   it("takes the open section over the gated one in the same pathway", async () => {

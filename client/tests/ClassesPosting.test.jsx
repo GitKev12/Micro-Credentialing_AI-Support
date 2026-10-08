@@ -77,21 +77,43 @@ describe("Posting", () => {
     expect(screen.queryByRole("button", { name: /^(Post|Unpost)$/ })).toBeNull();
   });
 
-  it("unposts from the Edit window, and says the requests go with it", async () => {
-    setDiscoverSettings.mockResolvedValue({ posted: false, enrollment: "approval", refusal: null, requests: [] });
+  it("asks before unposting, and keeps the waiting requests", async () => {
+    setDiscoverSettings.mockResolvedValue({ posted: false, enrollment: "approval", refusal: null, requests: [ANDREA] });
     await open();
     await openEdit("Section-A");
 
-    expect(screen.getByText("Unposting also clears the 1 waiting request.")).toBeTruthy();
+    // Pressing Unpost only opens the pop-up; Cancel leaves the class posted.
+    fireEvent.click(screen.getByRole("button", { name: "Unpost" }));
+    const ask = screen.getByRole("dialog", { name: "Unpost this class?" });
+    expect(within(ask).getByText("Waiting requests stay, so you can still accept or decline them.")).toBeTruthy();
+    fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Unpost this class?" })).toBeNull();
+    expect(setDiscoverSettings).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Unpost" }));
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Unpost" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Unpost this class?" })).getByRole("button", { name: "Unpost" }));
     });
 
     expect(setDiscoverSettings).toHaveBeenCalledWith("k1", { posted: false });
+    expect(screen.queryByRole("dialog", { name: "Unpost this class?" })).toBeNull();
     expect(screen.getByRole("button", { name: "Post to Discover" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Requests/ })).toBeNull();
-    expect(screen.getByText("“Section-A” was unposted. 1 request cleared.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Requests, 1 waiting" })).toBeTruthy();
+    expect(screen.getByText("“Section-A” was unposted.")).toBeTruthy();
     expect(within(tableRow("Section-A")).getByText("Not posted")).toBeTruthy();
+    expect(within(tableRow("Section-A")).getByText("1 request waiting")).toBeTruthy();
+  });
+
+  it("closes only the pop-up on Escape, not the Edit window", async () => {
+    await open();
+    await openEdit("Section-A");
+
+    fireEvent.click(screen.getByRole("button", { name: "Unpost" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Unpost this class?" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Edit class" })).toBeTruthy();
+    expect(setDiscoverSettings).not.toHaveBeenCalled();
   });
 
   it("posts with the enrollment chosen in the window", async () => {

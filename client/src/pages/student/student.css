@@ -5279,9 +5279,13 @@ body:has(.student-app) {
 
 /* -- The two columns -------------------------------------- */
 
+/* The right column is as wide as the cover wants to be: the picture is
+   pinned to it, so the column is the only thing that can grow it. The
+   left column still clears 540px at the 62rem fold, which the syllabus
+   rows and the pathway blocks both sit inside. */
 .sd-dcourse__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 19rem;
+  grid-template-columns: minmax(0, 1fr) 23rem;
   align-items: start;
   gap: var(--sd-6) var(--sd-8);
 }
@@ -5299,22 +5303,53 @@ body:has(.student-app) {
   min-width: 0;
 }
 
+/* Title then code, on one line. Centred rather than baseline-aligned, so
+   the tag holds the middle of the title however many lines it runs to; if
+   the pair runs out of room the tag drops below it. */
+.sd-dcourse__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-3);
+}
+
+/* The course's own identifier, boxed so it reads as a tag on the course
+   rather than a label announcing the heading. */
 .sd-dcourse__code {
-  margin: 0 0 var(--sd-1);
-  font-size: var(--sd-fs-meta);
+  margin: 0;
+  padding: 2px 0.5rem;
+  border: 1px solid var(--sd-border-strong);
+  border-radius: var(--sd-r-sm);
+  font-size: var(--sd-fs-label);
   font-weight: var(--sd-fw-semibold);
-  color: var(--sd-brand-text);
+  color: var(--sd-ink-2);
+  flex-shrink: 0;
+}
+
+/* How the course is taken, beside the code that says which course it is.
+   Filled where the code is outlined, so the pair reads as two kinds of fact
+   rather than two identifiers. */
+.sd-dcourse__mode {
+  margin: 0;
+  padding: 2px 0.5rem;
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-surface-2);
+  font-size: var(--sd-fs-label);
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-ink-2);
+  flex-shrink: 0;
 }
 
 .sd-dcourse__title {
   max-width: 26ch;
   margin: 0;
   font-size: clamp(1.5rem, calc(1.05rem + 1.35 * var(--vw)), 2.125rem);
-  font-weight: var(--sd-fw-semibold);
-  line-height: 1.15;
-  letter-spacing: -0.025em;
+  font-weight: var(--sd-fw-bold);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
   color: var(--sd-ink);
   text-wrap: balance;
+  min-width: 0;
 }
 
 /* 65ch and 1.6: this is the one paragraph on the screen, and it is read
@@ -5331,13 +5366,11 @@ body:has(.student-app) {
    One card, whatever state the student is in: the choice, the
    button, or what they are already holding. */
 
+/* No box of its own: it sits on the page with the description above it and
+   the syllabus below. The pathway options carry their own outlines, which is
+   where the choice actually lives. */
 .sd-join {
   margin-top: var(--sd-6);
-  padding: var(--sd-5);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-r-lg);
-  background: var(--sd-surface);
-  box-shadow: var(--sd-shadow-sm);
 }
 
 .sd-join__row {
@@ -5363,6 +5396,7 @@ body:has(.student-app) {
    difference has to be readable before it is picked, not after. */
 .sd-join__choice {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sd-3);
   margin-bottom: var(--sd-5);
 }
@@ -5373,7 +5407,9 @@ body:has(.student-app) {
   gap: var(--sd-3);
   padding: var(--sd-4);
   border: 1px solid var(--sd-border);
-  border-radius: var(--sd-r-md);
+  /* Held open in both states so choosing one shifts nothing. */
+  border-left: 3px solid var(--sd-border);
+  border-radius: var(--sd-r-sm);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -5383,9 +5419,11 @@ body:has(.student-app) {
   background: var(--sd-surface-2);
 }
 
+/* The bar alone carries the choice. Turning every edge brand as well
+   made the heavier left edge read as part of an outline instead of as
+   the mark it is. */
 .sd-join__option.is-chosen {
-  border-color: var(--sd-brand);
-  box-shadow: inset 0 0 0 1px var(--sd-brand);
+  border-left-color: var(--sd-brand);
   background: var(--sd-brand-wash);
 }
 
@@ -5505,7 +5543,9 @@ body:has(.student-app) {
    to show a single line is a drawer with nothing in it. */
 
 .sd-syllabus {
-  margin-top: var(--sd-8);
+  margin-top: var(--sd-6);
+  padding-top: var(--sd-6);
+  border-top: 1px solid var(--sd-border);
 }
 
 .sd-dcourse__h2 {
@@ -5515,31 +5555,44 @@ body:has(.student-app) {
   color: var(--sd-ink);
 }
 
+/* A rail, not a card. The chapters really are a sequence - 1 to 4 and
+   then the exam that closes the course - so a line through the numbers
+   says something true about them, which a bordered box did not. */
 .sd-syllabus__list {
+  position: relative;
   margin: 0;
   padding: 0;
-  overflow: hidden;
   list-style: none;
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-r-lg);
-  background: var(--sd-surface);
-  box-shadow: var(--sd-shadow-sm);
 }
 
+/* Runs between the first and last numbers rather than past them, so the
+   sequence reads as having a start and an end. */
+.sd-syllabus__list::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--sd-3) + 0.875rem);
+  bottom: calc(var(--sd-3) + 0.875rem);
+  left: 0.875rem;
+  width: 1px;
+  background: var(--sd-border-strong);
+}
+
+/* The number tops the row rather than centring in it. Centred, it moved
+   down whenever a lesson name wrapped, and the rail - which has to know
+   where the first and last numbers are - started 9px above the first
+   one on a phone. Top-aligned, every number sits at the same offset. */
 .sd-syllabus__item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--sd-4);
-  padding: var(--sd-4) var(--sd-5);
-}
-
-.sd-syllabus__item + .sd-syllabus__item {
-  border-top: 1px solid var(--sd-border);
+  padding: var(--sd-3) 0;
 }
 
 /* The chapter number as a disc, which is what carries the sequence - the
-   titles here are topics ("Arrays", "Looping") and never say where they fall. */
+   titles here are topics ("Arrays", "Looping") and never say where they fall.
+   It sits on the rail and hides the line behind it. */
 .sd-syllabus__n {
+  position: relative;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -5559,10 +5612,12 @@ body:has(.student-app) {
   color: var(--sd-ink);
 }
 
-/* What passing this lesson's quiz is worth, at the far end of the row. */
+/* What passing this lesson's quiz is worth. It sits against the lesson
+   rather than out at the column edge: the badge belongs to that lesson,
+   and pushed right it read as a column of its own that broke wherever a
+   lesson had no badge to earn. */
 .sd-syllabus__badge {
   flex-shrink: 0;
-  margin-left: auto;
   padding: 2px 0.5rem;
   border-radius: 999px;
   background: var(--sd-surface-2);
@@ -5583,7 +5638,7 @@ body:has(.student-app) {
 /* -- The right-hand column -------------------------------- */
 
 .sd-dcourse__cover {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-r-lg);
@@ -5599,30 +5654,91 @@ body:has(.student-app) {
   letter-spacing: -0.05em;
 }
 
-/* Stacked label-over-value rows, the shape a rail of facts takes - the old
-   flex strip was built to run across the full width of the page. */
+/* A ruled record rather than a panel: no box, because the cover sits in one
+   directly above and two stacked boxes is one too many. Label and icon left,
+   value right, a hairline between rows and none at either end. A value too
+   long for the row - two assessors - wraps in place, still on the right. */
 .sd-dcourse__facts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sd-4) var(--sd-5);
   margin: 0;
-  padding: var(--sd-5);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-r-lg);
-  background: var(--sd-surface);
+}
+
+.sd-dcourse__fact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--sd-4);
+  padding: var(--sd-3) 0;
+}
+
+.sd-dcourse__fact + .sd-dcourse__fact {
+  border-top: 1px solid var(--sd-border);
 }
 
 .sd-dcourse__fact dt {
-  font-size: var(--sd-fs-label);
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sd-2);
+  font-size: var(--sd-fs-body);
   color: var(--sd-muted);
 }
 
+/* Each icon repeats the word beside it, so the set marks them aria-hidden;
+   they are here to tell one row from the next at a glance. */
+.sd-dcourse__fact dt svg {
+  flex-shrink: 0;
+}
+
 .sd-dcourse__fact dd {
-  margin: 2px 0 0;
+  grid-area: 1 / 2;
+  margin: 0;
   font-size: var(--sd-fs-body-lg);
   font-weight: var(--sd-fw-semibold);
+  text-align: right;
   color: var(--sd-ink);
-  font-variant-numeric: tabular-nums;
+}
+
+/* -- The certificate the course leads to -------------------
+   The record above ends and this closes it: a hairline, then the one line
+   naming what the final awards. This was a filled card with the seal in a
+   tile of its own, which stood a second box under the cover's and spoke a
+   language nothing else in this column speaks - the record is hairlines,
+   small icons and text. The weight now sits in one 17px line and the one
+   brand-coloured mark in the column. */
+.sd-dcert {
+  padding-top: var(--sd-3);
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-dcert__name {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-2);
+  margin: 0;
+  font-size: var(--sd-fs-title);
+  font-weight: var(--sd-fw-semibold);
+  line-height: 1.25;
+  color: var(--sd-ink);
+}
+
+/* The facts' icons are muted because they label measurements. This one marks
+   the thing you earn, so it takes the brand and is the only mark here that
+   does. */
+.sd-dcert__icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--sd-brand-text);
+}
+
+/* Set under the name and not the seal, the way the record sets a value under
+   its label. */
+.sd-dcert__how {
+  margin: var(--sd-2) 0 0;
+  padding-left: calc(16px + var(--sd-2));
+  font-size: var(--sd-fs-meta);
+  line-height: 1.45;
+  color: var(--sd-muted);
 }
 
 /* What just happened - for the screen reader and for everyone else. Empty
@@ -5654,20 +5770,23 @@ body:has(.student-app) {
     aspect-ratio: 16 / 6;
   }
 
-  /* As many across as fit: hours is optional, so the panel holds three
-     facts or four. */
-  .sd-dcourse__facts {
-    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  /* A record is a column. Run across the full page it became a label at one
+     end and a number at the other with 600px of nothing between them. */
+  .sd-dcourse__facts,
+  .sd-dcert {
+    max-width: 26rem;
   }
 }
 
 @media (max-width: 40rem) {
-  .sd-dcourse__facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .sd-dcourse__cover {
     aspect-ratio: 16 / 9;
+  }
+
+  /* Two pathway cards side by side need a page's width; on a phone they
+     go back to one above the other. */
+  .sd-join__choice {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Both buttons take the row rather than sitting half-width beside each
@@ -5684,6 +5803,7 @@ body:has(.student-app) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     row-gap: var(--sd-2);
+    align-items: start;
     justify-items: start;
   }
 

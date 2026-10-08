@@ -190,12 +190,10 @@ function ClassesManagement() {
     setBusy(true);
     try {
       const saved = await setDiscoverSettings(form.id, posted ? { posted, enrollment } : { posted });
-      const waiting = classes.find((row) => row.id === form.id)?.requestCount ?? 0;
       setClasses((list) => list.map((row) => (row.id === form.id ? { ...row, ...discoverOf(saved) } : row)));
-      const cleared = !posted && waiting > 0 ? ` ${plural(waiting, "request")} cleared.` : "";
       setNotice({
         tone: "ok",
-        text: `“${classTitle(form)}” ${posted ? "is posted on Discover." : "was unposted."}${cleared}`
+        text: `“${classTitle(form)}” ${posted ? "is posted on Discover." : "was unposted."}`
       });
       return null;
     } catch (error) {
@@ -673,7 +671,8 @@ function PostingCell({ cls }) {
       <span className={`admin-status-pill${cls.posted ? "" : " admin-status-pill--off"}`}>
         {cls.posted ? "Posted" : "Not posted"}
       </span>
-      {cls.posted && cls.requestCount > 0 ? (
+      {/* Shown posted or not: unposting keeps the requests. */}
+      {cls.requestCount > 0 ? (
         <span className="admin-cell__sub admin-count admin-count--warn">
           {plural(cls.requestCount, "request")} waiting
         </span>
