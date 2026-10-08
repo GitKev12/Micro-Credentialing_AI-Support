@@ -1,6 +1,7 @@
+import { Link } from "react-router-dom";
 import { getStoredSession } from "../../../auth/services/authService";
 import { certificateFileUrl } from "../../../services/achievements";
-import { CertificateIcon, CheckIcon, DownloadIcon, LockIcon } from "./icons";
+import { ArrowIcon, CertificateIcon, CheckIcon, DownloadIcon, LockIcon } from "./icons";
 import { EmptyState } from "./ui";
 
 /**
@@ -89,14 +90,25 @@ function Certifications({ certifications = [] }) {
       <header className="sd-section-head">
         <div className="sd-section-head__text">
           <h2 className="sd-h3" id="sd-certs-title">
-            Your micro-credentials
+            Your Certifications
           </h2>
           {issuedCount ? <p className="sd-sub">{`${issuedCount} issued`}</p> : null}
         </div>
       </header>
 
       {certifications.length === 0 ? (
-        <EmptyState title="No credentials yet" />
+        <EmptyState
+          icon={<CertificateIcon size={28} />}
+          title="No Certifications Yet"
+          action={
+            <Link className="sd-btn sd-empty__action" to="/student">
+              Go to My Courses
+              <ArrowIcon size={16} />
+            </Link>
+          }
+        >
+          Continue your courses and pass a final exam to earn one.
+        </EmptyState>
       ) : (
         <ul className="sd-cert__list">
           {certifications.map((certification) => (

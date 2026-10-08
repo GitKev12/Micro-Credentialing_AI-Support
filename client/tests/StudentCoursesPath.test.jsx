@@ -8,17 +8,16 @@ globalThis.TextDecoder ??= TextDecoder;
 const { render, screen, act } = await import("@testing-library/react");
 const { MemoryRouter } = await import("react-router-dom");
 
-// The empty-state picture; Jest can't load image files.
-jest.unstable_mockModule("../src/assets/no-courses-student.png", () => ({ default: "" }));
-
 jest.unstable_mockModule("../src/auth/services/authService.js", () => ({
   getStoredSession: () => ({ user: { id: "stu-1" } })
 }));
 
 // One course: 4 lessons, 2 read, 1 quiz passed, 3 of 4 Pre-Assessments taken.
+// A test can set `courses` to [] to see the empty page.
+let courses = null;
 jest.unstable_mockModule("../src/services/courses.js", () => ({
   courseImageUrl: () => "",
-  fetchStudentCourses: async () => [
+  fetchStudentCourses: async () => courses ?? [
     {
       id: "c1",
       code: "CC2",
@@ -53,5 +52,23 @@ describe("home course progress with Pre-Assessments", () => {
     expect(screen.getByText("5 of 8")).toBeTruthy();
     // Exams stays at the 1 quiz actually passed.
     expect(screen.getByText("1 of 4")).toBeTruthy();
+  });
+});
+
+describe("home with no courses", () => {
+  it("sends the student to Discover", async () => {
+    courses = [];
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <StudentCourses />
+        </MemoryRouter>
+      );
+    });
+
+    expect(screen.getByText("You aren't enrolled in any courses yet")).toBeTruthy();
+    expect(screen.getByText("Find a course on Discover and enroll.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go to Discover" }).getAttribute("href")).toBe("/student/discover");
+    courses = null;
   });
 });

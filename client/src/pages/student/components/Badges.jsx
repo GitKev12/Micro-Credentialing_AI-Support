@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { ArrowIcon, BackIcon, CheckIcon } from "./icons";
+import { Link } from "react-router-dom";
+import { ArrowIcon, BackIcon, BadgeIcon, CheckIcon } from "./icons";
+import { EmptyState } from "./ui";
 
 /**
  * The badge wall, entered one course at a time.
@@ -144,7 +146,18 @@ function Badges({ badges = [] }) {
       </header>
 
       {groups.length === 0 ? (
-        <p className="sd-sub">No badges yet.</p>
+        <EmptyState
+          icon={<BadgeIcon size={28} />}
+          title="No Badges Yet"
+          action={
+            <Link className="sd-btn sd-empty__action" to="/student">
+              Go to My Courses
+              <ArrowIcon size={16} />
+            </Link>
+          }
+        >
+          Continue your courses and pass a lesson quiz to earn one.
+        </EmptyState>
       ) : selected ? (
         <>
           <div className="sd-breadcrumb sd-badge-back">

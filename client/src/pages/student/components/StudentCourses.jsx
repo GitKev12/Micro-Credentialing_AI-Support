@@ -1,17 +1,17 @@
 import CourseCover from "./CourseCover";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getStoredSession } from "../../../auth/services/authService";
 import { fetchStudentCourses } from "../../../services/courses";
 import { applySuspension, useStanding } from "../../../lib/useStanding";
-import noCoursesImage from "../../../assets/no-courses-student.png";
 import {
   daysLeftInRun,
   formatCourseEnded,
   formatCourseRange,
   hasCourseEnded
 } from "../../../lib/courseDuration";
-import { CheckIcon, ChevronDownIcon, LockIcon } from "./icons";
+import { ArrowIcon, CheckIcon, ChevronDownIcon, CoursesIcon, LockIcon } from "./icons";
+import { EmptyState } from "./ui";
 
 /**
  * Where the student stands in a course.
@@ -438,10 +438,18 @@ function StudentCourses() {
           </p>
         </>
       ) : courses.length === 0 ? (
-        <div className="sd-empty">
-          <img className="sd-empty__img" src={noCoursesImage} alt="" aria-hidden="true" />
-          <p className="sd-empty__title">You aren&apos;t enrolled in any courses yet</p>
-        </div>
+        <EmptyState
+          icon={<CoursesIcon size={28} />}
+          title="You aren't enrolled in any courses yet"
+          action={
+            <Link className="sd-btn sd-empty__action" to="/student/discover">
+              Go to Discover
+              <ArrowIcon size={16} />
+            </Link>
+          }
+        >
+          Find a course on Discover and enroll.
+        </EmptyState>
       ) : (
         <>
           {featured ? (
