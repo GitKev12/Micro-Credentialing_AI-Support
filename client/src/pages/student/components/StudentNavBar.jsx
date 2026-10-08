@@ -19,6 +19,7 @@ import {
   SunIcon
 } from "./icons";
 import ccsLogo from "../../../assets/ccs-logo.png";
+import tsuLogo from "../../../assets/tsu-logo.png";
 
 /** The bar greets the student by given name; `displayName` is "First Last". */
 function firstName(displayName) {
@@ -186,11 +187,8 @@ function StudentNavBar() {
   return (
     <header className="sd-topbar">
       <div className="sd-topbar__brand">
-        <img
-          className="sd-topbar__mark"
-          src={ccsLogo}
-          alt="College of Computer Studies, Tarlac State University"
-        />
+        <img className="sd-topbar__mark" src={tsuLogo} alt="Tarlac State University" />
+        <img className="sd-topbar__mark" src={ccsLogo} alt="College of Computer Studies" />
         <span className="sd-topbar__rule" aria-hidden="true" />
         <p className="sd-topbar__greeting">
           <span className="sd-topbar__hello">Welcome!</span>
