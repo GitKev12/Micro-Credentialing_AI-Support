@@ -11,10 +11,10 @@ import { CERTIFICATE_FIELDS, fillCertificate } from "../src/certificates/certifi
  * shrinks to fit rather than running off its line.
  */
 
-// A blank the size of the real template: portrait US Letter, one page.
+// A blank the size of the real template: landscape US Letter, one page.
 async function blankCertificate() {
   const pdf = await PDFDocument.create();
-  pdf.addPage([612, 792]);
+  pdf.addPage([792, 612]);
   return Buffer.from(await pdf.save());
 }
 
@@ -66,6 +66,6 @@ describe("fillCertificate", () => {
 
     const filled = await PDFDocument.load(bytes);
     expect(filled.getPageCount()).toBe(1);
-    expect(filled.getPages()[0].getSize()).toEqual({ width: 612, height: 792 });
+    expect(filled.getPages()[0].getSize()).toEqual({ width: 792, height: 612 });
   });
 });
