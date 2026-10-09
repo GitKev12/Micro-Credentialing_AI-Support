@@ -36,6 +36,11 @@ import { SkeletonText } from "../../components/Skeleton";
 // Breathing room left above a section heading when jumping to it.
 const SECTION_SCROLL_MARGIN = 12;
 
+// A lesson still being prepared on the server is asked for again: first after
+// 2 seconds, then waiting twice as long each time, up to 10 seconds.
+const PREPARE_POLL_FIRST_MS = 2000;
+const PREPARE_POLL_MAX_MS = 10000;
+
 // The extractor wraps runs that are italic in the source PDF with these
 // control markers; render them as <em>.
 const ITALIC_OPEN = String.fromCharCode(17); // U+0011
@@ -375,28 +380,55 @@ function LearningModules() {
     modules.find((module) => String(module.id) === String(moduleId))?.lockReason ?? null;
   const selectedLock = selectedLessonId ? lockFor(selectedLessonId) : null;
 
-  // Fetch the extracted text once per module (the server caches too, so
-  // repeat visits are instant).
+  // Fetch the lesson text once per module. The server prepares it in the
+  // background after upload; while it is still "queued" or "extracting" the
+  // reader shows "Preparing lesson…" and asks again until it is ready.
   useEffect(() => {
     if (!selectedLessonId || selectedLock || textByModule[selectedLessonId]) {
       return undefined;
     }
 
     let active = true;
+    let timer = null;
+    let delay = PREPARE_POLL_FIRST_MS;
     setTextStatus("loading");
 
-    fetchModuleText(selectedLessonId)
-      .then((data) => {
-        if (!active) return;
-        setTextByModule((cache) => ({ ...cache, [selectedLessonId]: data }));
-        setTextStatus("idle");
-      })
-      .catch(() => {
-        if (active) setTextStatus("error");
-      });
+    const load = () => {
+      fetchModuleText(selectedLessonId)
+        .then((data) => {
+          if (!active) return;
+          // An answer without a status comes from before job statuses existed.
+          const status = data?.status ?? "ready";
+
+          if (status === "queued" || status === "extracting") {
+            setTextStatus("preparing");
+            timer = setTimeout(load, delay);
+            delay = Math.min(delay * 2, PREPARE_POLL_MAX_MS);
+            return;
+          }
+          if (status === "failed") {
+            setTextStatus("failed");
+            return;
+          }
+
+          setTextByModule((cache) => ({ ...cache, [selectedLessonId]: data }));
+          // The text carries the section list too. Keep it for the rail if
+          // the rail didn't get one while the lesson was being prepared.
+          setSectionsByModule((cache) =>
+            cache[selectedLessonId] ? cache : { ...cache, [selectedLessonId]: data.sections ?? [] }
+          );
+          setTextStatus("idle");
+        })
+        .catch(() => {
+          if (active) setTextStatus("error");
+        });
+    };
+
+    load();
 
     return () => {
       active = false;
+      clearTimeout(timer);
     };
   }, [selectedLessonId, selectedLock, textByModule, textRetry]);
 
@@ -636,10 +668,13 @@ function LearningModules() {
   const sectionProgressFor = (moduleId, sectionId) =>
     isCompleted(moduleId) ? 100 : (reading[String(moduleId)]?.sections?.[sectionId] ?? 0);
 
-  // Fetches a lesson's section list once and keeps it.
+  // Fetches a lesson's section list once and keeps it. Null means the lesson
+  // is still being prepared, so nothing is kept and it's asked for again later.
   const loadSections = (moduleId) =>
     fetchModuleSections(moduleId)
-      .then((sections) => setSectionsByModule((cache) => ({ ...cache, [moduleId]: sections })))
+      .then((sections) => {
+        if (sections) setSectionsByModule((cache) => ({ ...cache, [moduleId]: sections }));
+      })
       .catch(() => setSectionsByModule((cache) => ({ ...cache, [moduleId]: [] })));
 
   // Lessons with a Pre-Assessment need their section count for the percentage,
@@ -661,9 +696,9 @@ function LearningModules() {
     if (!sectionsByModule[moduleId]) {
       setSectionsLoadingId(moduleId);
       fetchModuleSections(moduleId)
-        .then((sections) =>
-          setSectionsByModule((cache) => ({ ...cache, [moduleId]: sections }))
-        )
+        .then((sections) => {
+          if (sections) setSectionsByModule((cache) => ({ ...cache, [moduleId]: sections }));
+        })
         .catch(() =>
           setSectionsByModule((cache) => ({ ...cache, [moduleId]: [] }))
         )
@@ -1120,11 +1155,24 @@ function LearningModules() {
                     <p className="student-courses__status">{selectedLock}</p>
                   </div>
                 ) : !lessonText && textStatus === "loading" ? (
-                  <p className="student-courses__status">Extracting text…</p>
+                  <p className="student-courses__status">Loading lesson…</p>
+                ) : !lessonText && textStatus === "preparing" ? (
+                  <div className="module-viewer__text-status" role="status">
+                    <p className="student-courses__status">Preparing lesson…</p>
+                    <p className="student-courses__status">
+                      It opens here by itself when it&apos;s ready.
+                    </p>
+                  </div>
+                ) : !lessonText && textStatus === "failed" ? (
+                  <div className="module-viewer__text-status" role="alert">
+                    <p className="student-courses__status">
+                      This lesson couldn&apos;t be prepared. Let your administrator know.
+                    </p>
+                  </div>
                 ) : !lessonText && textStatus === "error" ? (
                   <div className="module-viewer__text-status">
                     <p className="student-courses__status">
-                      Couldn&apos;t extract this module&apos;s text.
+                      Couldn&apos;t load this lesson.
                     </p>
                     <button
                       type="button"

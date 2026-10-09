@@ -19,7 +19,7 @@ import { generateAssessmentItems } from "../integrations/openai/openai.client.js
 // The same cleaner the lesson reader uses, so the model reads what the student
 // reads rather than the raw PDF behind it.
 import { buildLessonBlocks } from "../modules/modules.format.js";
-import { stripStyleMarkers } from "../modules/modules.ocr.js";
+import { stripStyleMarkers } from "../modules/extraction/pdf.js";
 
 /**
  * Writing quizzes into the Assessment collection.

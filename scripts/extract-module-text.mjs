@@ -3,12 +3,15 @@
  *
  *   node scripts/extract-module-text.mjs            # report what is missing
  *   node scripts/extract-module-text.mjs --write    # extract it
- *   node scripts/extract-module-text.mjs --write --force   # re-extract everything
  *
- * Extraction already happens by itself the first time anyone opens a lesson,
- * and the result is cached in ModuleText. The problem is that nothing has
- * opened most of them: two thirds of the lessons have no text, and a lesson
- * with no text cannot have a quiz generated from it.
+ * A lesson's text is prepared in the background after upload, or the first
+ * time anyone opens it, and kept in ModuleText. Lessons uploaded before that
+ * existed and never opened have no text, and a lesson with no text cannot
+ * have a quiz generated from it.
+ *
+ * This asks for them one at a time and waits for each to finish, so it never
+ * piles every lesson onto the server at once. A lesson already prepared for
+ * its current PDF is not prepared again.
  *
  * So this is the step before generation — and it costs nothing, because
  * extraction is pdfjs and Tesseract, not a paid model. Scanned lessons fall
@@ -26,7 +29,31 @@ dotenv.config({ path: new URL("../server/.env", import.meta.url) });
 
 const BASE = process.env.API_BASE || `http://localhost:${process.env.PORT || 5000}`;
 const write = process.argv.includes("--write");
-const force = process.argv.includes("--force");
+
+// How often to ask whether a lesson has finished preparing, and for how long.
+const POLL_MS = 3000;
+const GIVE_UP_MS = 15 * 60 * 1000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Asks for the lesson's text, and keeps asking while it is queued or being
+// prepared. Resolves to the final answer (ready or failed).
+async function fetchPreparedText(moduleId, token) {
+  const startedAt = Date.now();
+
+  for (;;) {
+    const response = await fetch(`${BASE}/api/modules/${moduleId}/text`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const body = await response.json();
+    if (body.status !== "queued" && body.status !== "extracting") return body;
+    if (Date.now() - startedAt > GIVE_UP_MS) throw new Error(`still ${body.status} after 15 minutes`);
+
+    await sleep(POLL_MS);
+  }
+}
 
 function adminToken(adminId) {
   return jwt.sign({ role: "admin" }, process.env.AUTH_SECRET, {
@@ -65,7 +92,7 @@ async function main() {
 
   const pending = modules.filter((module) => {
     const existing = textByModule.get(String(module._id));
-    return force || !existing?.hasText;
+    return !existing?.hasText;
   });
 
   console.log(`Lessons: ${modules.length}`);
@@ -98,20 +125,13 @@ async function main() {
     const startedAt = Date.now();
 
     try {
-      const response = await fetch(`${BASE}/api/modules/${module._id}/text`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        failed += 1;
-        console.log(`${label} — HTTP ${response.status}`);
-        continue;
-      }
-
-      const body = await response.json();
+      const body = await fetchPreparedText(module._id, token);
       const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
 
-      if (body.hasText) {
+      if (body.status === "failed") {
+        failed += 1;
+        console.log(`${label} — could not be prepared, ${seconds}s`);
+      } else if (body.hasText) {
         extracted += 1;
         console.log(`${label} — ${body.textLength} chars, ${body.source}, ${seconds}s`);
       } else {

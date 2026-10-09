@@ -3,7 +3,7 @@
  *
  * It understands only what the Discover code asks of Mongo: plain values,
  * $in / $nin / $ne (on single values and on arrays), $or, and the $set /
- * $addToSet / $pull updates, plus insertOne. Every write is pushed onto `db.log`, so a test
+ * $addToSet / $pull updates, plus insertOne, upserts and deletes. Every write is pushed onto `db.log`, so a test
  * can check what was written and in what order.
  *
  * Not a test file itself (no ".test.js"), so Jest does not run it.
@@ -61,12 +61,29 @@ export function fakeCollections(db) {
         return { insertedId };
       },
       countDocuments: async (filter) => rows().filter((doc) => matches(doc, filter)).length,
-      updateOne: async (filter, change) => {
+      updateOne: async (filter, change, options = {}) => {
         const doc = rows().find((row) => matches(row, filter));
+        if (!doc && options.upsert) {
+          // Like Mongo: the filter's plain values plus the $set fields.
+          const plain = Object.fromEntries(
+            Object.entries(filter).filter(([key, value]) => !key.startsWith("$") && (value === null || typeof value !== "object"))
+          );
+          const created = { _id: `new${rows().length + 1}`, ...plain };
+          applyUpdate(created, change);
+          db[name] = [...rows(), created];
+          db.log.push({ op: "upsert", name, filter, change });
+          return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+        }
         if (!doc) return { matchedCount: 0, modifiedCount: 0 };
         applyUpdate(doc, change);
         db.log.push({ op: "updateOne", name, filter, change });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      deleteMany: async (filter) => {
+        const before = rows().length;
+        db[name] = rows().filter((doc) => !matches(doc, filter));
+        db.log.push({ op: "deleteMany", name, filter });
+        return { deletedCount: before - db[name].length };
       },
       updateMany: async (filter, change) => {
         const docs = rows().filter((row) => matches(row, filter));

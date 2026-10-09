@@ -6,6 +6,7 @@ import { COURSE_STATUSES, courseStatus } from "../lib/courseAccess.js";
 import { publishStanding } from "../lib/standingEvents.js";
 import { syncAllAssessors } from "./enrollment.sync.js";
 import { removePreAssessmentsFor } from "../preAssessments/preAssessments.controller.js";
+import { queueModuleExtraction } from "../modules/extraction/extractionJobs.js";
 
 /**
  * Adding and removing a course's learning modules.
@@ -234,7 +235,20 @@ export async function createCourseModule(request, response) {
     throw error;
   }
 
-  return response.status(201).json({ module: publicModule({ ...document, _id: insertedId }) });
+  const module = { ...document, _id: insertedId };
+
+  // Its text is prepared in the background. Only the "queued" status is
+  // written now; the extraction starts after this response is sent, so the
+  // admin never waits on OCR. A failure here doesn't undo the upload: the
+  // lesson is queued again the first time someone opens it.
+  let textStatus = null;
+  try {
+    textStatus = await queueModuleExtraction(module);
+  } catch (error) {
+    console.error(`Could not queue text extraction for module ${insertedId}:`, error.message);
+  }
+
+  return response.status(201).json({ module: { ...publicModule(module), textStatus } });
 }
 
 /**

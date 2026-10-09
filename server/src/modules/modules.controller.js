@@ -10,13 +10,8 @@ import {
   refuseRestrictedCourse,
   toCourseAccess
 } from "../lib/courseAccess.js";
-import { extractPdfFigures, extractPdfText, extractPdfTextViaOcr, stripStyleMarkers } from "./modules.ocr.js";
-import {
-  buildLessonBlocks,
-  buildSections,
-  countReadingMinutes,
-  insertFigureBlocks
-} from "./modules.format.js";
+import { findModuleFile } from "./moduleFile.js";
+import { queueModuleExtraction, readModuleText } from "./extraction/extractionJobs.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 import { lessonLockFor, loadLessonLocks } from "../lib/lessonLocks.js";
 
@@ -36,34 +31,11 @@ import { lessonLockFor, loadLessonLocks } from "../lib/lessonLocks.js";
  */
 const MODULES_COLLECTION = "LearningModule";
 const ASSESSMENTS_COLLECTION = "Assessment";
-const DEFAULT_BUCKET = "LearningModule";
 const COURSES_COLLECTION = "Course";
 const COURSE_IMAGES_BUCKET = "CourseImage";
 
-// OCR/text-extraction results are cached here, one document per module, so
-// each PDF is only parsed once: { moduleId, fileId, numPages, pages, ... }.
-// Bump the version when the extraction/formatting logic changes so stale
-// cache entries re-extract on their next request. v22: embedded figures are
-// extracted and interleaved into the lesson blocks. v23: a diagram's pieces
-// merge into one figure instead of fragmenting. v24: figures are placed at
-// their real vertical position (beside the matching text) instead of at the
-// end of the page, and evaluation/test sections are stripped. v25: figures
-// anchor to their "Figure N" caption text when present (geometry is only the
-// fallback), since the reflowed text makes raw position unreliable. v26:
-// full-page covers/scans are skipped and over-tall merges are split, so a
-// figure is never a whole page or a stack of unrelated diagrams. v28: the
-// lesson's Assignment/Homework part is dropped too. v27: five
-// numbering and placement fixes — a marker stranded on its own line is
-// rejoined to its step, a blank line between steps no longer ends the run, a
-// split run says which number it resumes at, a numbered section title is a
-// heading rather than the first item of a list, and a digits-only line is
-// dropped wherever it falls. Prose that merely mentions "Figure N" is now
-// read as introducing the picture, so the image follows it instead of being
-// placed above it as though the sentence were a caption.
-const MODULE_TEXT_COLLECTION = "ModuleText";
-// Bumping this is what re-extracts every cached module. The fixes above only
-// reach a lesson whose cache entry is older than the version that made them.
-const TEXT_FORMAT_VERSION = 28;
+// A lesson's text is prepared in the background after upload and kept in
+// ModuleText (see extraction/extractionJobs.js). These routes only read it.
 
 // Cropped figure images (PNG) are stored here, one GridFS file per figure,
 // tagged with metadata.moduleId so a re-extraction can replace them.
@@ -236,14 +208,6 @@ async function findModule(moduleId) {
     .findOne({ _id: { $in: idCandidates(moduleId) } });
 }
 
-async function findModuleFile(module) {
-  const bucketName = module.bucket ?? DEFAULT_BUCKET;
-  const fileDocument = await mongoose.connection
-    .collection(`${bucketName}.files`)
-    .findOne({ _id: { $in: idCandidates(module.fileId) } });
-  return { bucketName, fileDocument };
-}
-
 export async function getModuleFile(request, response) {
   const module = await findModule(request.params.moduleId);
 
@@ -280,55 +244,10 @@ export async function getModuleFile(request, response) {
   return stream.pipe(response);
 }
 
-function readGridFsBuffer(bucketName, fileId) {
-  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName });
-  const chunks = [];
-
-  return new Promise((resolve, reject) => {
-    bucket
-      .openDownloadStream(fileId)
-      .on("data", (chunk) => chunks.push(chunk))
-      .on("error", reject)
-      .on("end", () => resolve(Buffer.concat(chunks)));
-  });
-}
-
-// Uploads a module's freshly-cropped figures to GridFS, replacing any from a
-// previous extraction. Returns `[{ fileId, page, width, height }]` for the
-// blocks to reference.
-async function storeModuleFigures(moduleId, figures) {
-  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-    bucketName: MODULE_FIGURES_BUCKET
-  });
-
-  // Drop figures left over from an earlier extraction of this module.
-  const previous = await bucket.find({ "metadata.moduleId": moduleId }).toArray();
-  await Promise.all(previous.map((file) => bucket.delete(file._id).catch(() => {})));
-
-  const stored = [];
-  for (const figure of figures) {
-    const fileId = await new Promise((resolve, reject) => {
-      const upload = bucket.openUploadStream(`fig-${moduleId}-p${figure.page}-${figure.order}.png`, {
-        contentType: "image/png",
-        metadata: { moduleId, page: figure.page }
-      });
-      upload.on("error", reject).on("finish", () => resolve(upload.id));
-      upload.end(figure.png);
-    });
-    stored.push({
-      fileId: String(fileId),
-      page: figure.page,
-      width: figure.width,
-      height: figure.height,
-      top: figure.top ?? null
-    });
-  }
-  return stored;
-}
-
-function toTextResponse(record, cached) {
+function toTextResponse(record) {
   return {
     id: record.moduleId,
+    status: "ready",
     title: record.title,
     numPages: record.numPages,
     hasText: record.hasText,
@@ -339,121 +258,25 @@ function toTextResponse(record, cached) {
     sections: record.sections ?? [],
     readingMinutes: record.readingMinutes ?? 0,
     extractedAt: record.extractedAt,
-    cached
+    cached: true
   };
 }
 
-// Returns { record, cached } — serving the cache when it's fresh, otherwise
-// extracting, formatting, and re-caching. Failures return { error }.
-async function getOrExtractModuleText(module) {
-  const moduleKey = String(module._id);
-  const fileKey = String(module.fileId ?? "");
-  const textCollection = mongoose.connection.collection(MODULE_TEXT_COLLECTION);
+/**
+ * The answer for a lesson that isn't ready to read yet.
+ *
+ *   queued / extracting → 202, and the reader asks again shortly
+ *   failed              → 200 with status "failed", so the reader can say so
+ */
+function sendNotReady(response, module, status) {
+  const body = { id: String(module._id), title: module.title ?? "", status };
 
-  // Serve the cached extraction unless the module's file was replaced or the
-  // cache entry predates the current formatter.
-  const cachedRecord = await textCollection.findOne({ moduleId: moduleKey });
-  if (
-    cachedRecord &&
-    cachedRecord.fileId === fileKey &&
-    cachedRecord.formatVersion === TEXT_FORMAT_VERSION
-  ) {
-    return { record: cachedRecord, cached: true };
+  if (status === "failed") {
+    return response.json({ ...body, message: "This lesson couldn't be prepared." });
   }
 
-  const isPdf =
-    (module.contentType ?? "").includes("pdf") ||
-    (module.fileType ?? "").toLowerCase() === "pdf";
-
-  if (!isPdf) {
-    return {
-      cached: false,
-      record: {
-        moduleId: moduleKey,
-        title: module.title ?? "",
-        numPages: 0,
-        hasText: false,
-        source: "unsupported-type",
-        textLength: 0,
-        pages: [],
-        blocks: [],
-        sections: [],
-        readingMinutes: 0
-      }
-    };
-  }
-
-  const { bucketName, fileDocument } = await findModuleFile(module);
-
-  if (!fileDocument) {
-    return { error: { status: 404, message: "Module file is missing from storage." } };
-  }
-
-  let buffer;
-  let extracted;
-  try {
-    buffer = await readGridFsBuffer(bucketName, fileDocument._id);
-    extracted = await extractPdfText(buffer);
-  } catch (error) {
-    console.error(`Text extraction failed for module ${moduleKey}:`, error.message);
-    return { error: { status: 500, message: "Failed to extract text from this module." } };
-  }
-
-  // No embedded text layer means a scanned document — fall back to real OCR
-  // (tesseract). Slow, but cached like everything else, so it runs once.
-  let source = extracted.hasText ? "embedded-text" : "none";
-  if (!extracted.hasText) {
-    try {
-      const ocrResult = await extractPdfTextViaOcr(buffer);
-      if (ocrResult.hasText) {
-        extracted = ocrResult;
-        source = "ocr";
-      }
-    } catch (error) {
-      console.error(`OCR fallback failed for module ${moduleKey}:`, error.message);
-    }
-  }
-
-  let blocks = extracted.hasText ? buildLessonBlocks(extracted.pages) : [];
-
-  // Pull embedded figures and slot them into the blocks by page. Best-effort:
-  // a figure failure must never fail the whole lesson (the text still renders).
-  if (extracted.hasText) {
-    try {
-      const figures = await storeModuleFigures(moduleKey, await extractPdfFigures(buffer));
-      blocks = insertFigureBlocks(blocks, figures);
-    } catch (error) {
-      console.error(`Figure extraction failed for module ${moduleKey}:`, error.message);
-    }
-  }
-
-  const record = {
-    moduleId: moduleKey,
-    fileId: fileKey,
-    formatVersion: TEXT_FORMAT_VERSION,
-    title: module.title ?? "",
-    numPages: extracted.numPages,
-    // Raw page text is stored without the inline style markers.
-    pages: extracted.pages.map((entry) => ({
-      page: entry.page,
-      text: stripStyleMarkers(entry.text)
-    })),
-    blocks,
-    sections: buildSections(blocks),
-    readingMinutes: blocks.length ? countReadingMinutes(blocks) : 0,
-    textLength: extracted.textLength,
-    hasText: extracted.hasText,
-    source,
-    extractedAt: new Date()
-  };
-
-  await textCollection.updateOne(
-    { moduleId: moduleKey },
-    { $set: record },
-    { upsert: true }
-  );
-
-  return { record, cached: false };
+  response.set("Retry-After", "3");
+  return response.status(202).json({ ...body, message: "This lesson is being prepared." });
 }
 
 export async function getModuleText(request, response) {
@@ -466,15 +289,18 @@ export async function getModuleText(request, response) {
   const refused = await refuseLesson(request, response, module);
   if (refused) return refused;
 
-  const result = await getOrExtractModuleText(module);
-  if (result.error) {
-    return response.status(result.error.status).json({ message: result.error.message });
-  }
+  const { status, record } = await readModuleText(module);
+  if (status === "ready") return response.json(toTextResponse(record));
 
-  return response.json(toTextResponse(result.record, result.cached));
+  // Not ready: make sure its job is queued, then answer straight away. The
+  // extraction itself never runs inside this request.
+  const queuedStatus = await queueModuleExtraction(module);
+  return sendNotReady(response, module, queuedStatus);
 }
 
 // Lightweight section list for the curriculum dropdown — same cache, no blocks.
+// It never queues a job: the rail asks for many lessons at once, and only
+// opening a lesson should start its preparation.
 export async function getModuleSections(request, response) {
   const module = await findModule(request.params.moduleId);
 
@@ -485,14 +311,20 @@ export async function getModuleSections(request, response) {
   const refused = await refuseLesson(request, response, module);
   if (refused) return refused;
 
-  const result = await getOrExtractModuleText(module);
-  if (result.error) {
-    return response.status(result.error.status).json({ message: result.error.message });
+  const { status, record } = await readModuleText(module);
+  if (status !== "ready") {
+    return response.status(202).json({
+      id: String(module._id),
+      title: module.title ?? "",
+      status,
+      hasText: false,
+      sections: []
+    });
   }
 
-  const { record } = result;
   return response.json({
     id: record.moduleId,
+    status: "ready",
     title: record.title,
     hasText: record.hasText,
     sections: record.sections ?? []

@@ -18,16 +18,16 @@ import { requireOwnStudent } from "../middleware/student.guard.js";
 //   GET    /api/courses/:courseId/modules      — lesson list for a course
 //   GET    /api/courses/:courseId/assessments  — assessment list for a course
 //   GET    /api/modules/:moduleId/file         — streams the lesson file (PDF)
-//   GET    /api/modules/:moduleId/text         — OCR text + lesson blocks, cached
+//   GET    /api/modules/:moduleId/text         — prepared lesson text, or its preparation status
 //   GET    /api/modules/:moduleId/sections     — section list for the dropdown
 //   GET    /api/students/:studentId/courses/:courseId/progress — completed lessons
 //   POST   /api/students/:studentId/modules/:moduleId/complete — mark complete
 //   DELETE /api/students/:studentId/modules/:moduleId/complete — unmark
 const router = Router();
 
-// Course material is readable by anyone signed in — the OCR routes are the
-// expensive ones, and leaving them open invites strangers to spend the
-// server's memory for us.
+// Course material is readable by anyone signed in. Opening a lesson can queue
+// its background extraction, and leaving that open invites strangers to
+// spend the server's memory for us.
 const signedIn = [requireAuth];
 
 // The browser loads these itself, as <img src> and <a href>, so they take the

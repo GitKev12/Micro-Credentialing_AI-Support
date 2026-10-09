@@ -1,4 +1,4 @@
-import { ITALIC_CLOSE, ITALIC_OPEN, stripStyleMarkers } from "./modules.ocr.js";
+import { ITALIC_CLOSE, ITALIC_OPEN, stripStyleMarkers } from "./extraction/pdf.js";
 
 /**
  * Heuristic lesson formatter: turns raw per-page PDF text into structured
