@@ -261,7 +261,7 @@ function StudentNavBar() {
             </div>
           </>
         ) : isOpen ? (
-          <ul className="sd-menu" role="menu">
+          <ul className="sd-menu sd-menu--drop" role="menu">
             {renderItems(true)}
           </ul>
         ) : null}

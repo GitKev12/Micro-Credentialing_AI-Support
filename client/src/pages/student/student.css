@@ -417,6 +417,26 @@ body:has(.student-app) {
   box-shadow: var(--sd-shadow-lift);
 }
 
+/* The dropdown is mounted when it opens, so it comes in rather than simply
+   being there: the small fade and drop every other list in the system opens
+   with. The caret above it was already turning — this is the half of that
+   gesture that was missing.
+
+   In only. The drawer beside it slides both ways because it is a drawer: it
+   covers the screen, and a panel that size has to be seen leaving. A menu
+   this small is dismissed, not closed, and waiting on it to fade would put a
+   delay in front of whatever was just chosen. */
+.sd-menu--drop {
+  animation: sd-menu-in 0.14s ease both;
+}
+
+@keyframes sd-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 .sd-menu__head {
   padding: var(--sd-2) var(--sd-3) var(--sd-3);
   border-bottom: 1px solid var(--sd-border);
@@ -626,6 +646,10 @@ body:has(.student-app) {
   .sd-drawer,
   .sd-drawer.is-open {
     transition: none;
+  }
+
+  .sd-menu--drop {
+    animation: none;
   }
 }
 

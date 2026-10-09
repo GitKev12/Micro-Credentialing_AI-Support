@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon } from "../icons";
 import TosEditor from "./TosEditor";
@@ -30,7 +30,10 @@ import TosEditor from "./TosEditor";
  * without carrying a box.
  */
 export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, classId = null, assessOnly = false }) {
+  // The panel is handed to the editor as well: switching paper resizes it,
+  // and the editor is the one that knows when that happens and by how much.
   const panel = useRef(null);
+  const [contentReady, setContentReady] = useState(false);
   // Where the keyboard was when this opened, so it can be put back.
   const opener = useRef(null);
 
@@ -64,7 +67,7 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, c
         }}
       >
         <div
-          className="tos-modal__panel"
+          className={`tos-modal__panel${contentReady ? " is-loaded" : ""}`}
           role="dialog"
           aria-modal="true"
           aria-label="Table of Specification"
@@ -77,6 +80,8 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, c
             assessOnly={assessOnly}
             defaultMode={mode}
             defaultLesson={lessonId}
+            frame={panel}
+            onReady={setContentReady}
             onSaved={onSaved}
             headerEnd={
               <button

@@ -21,7 +21,7 @@ import { DEFAULT_MINUTES, TIMED, UNTIMED, limitModeFor, limitReady, timeLimitFor
 import GenerationProgress from "./components/GenerationProgress";
 import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
-import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, splitItems, toCount } from "./components/tos/levels";
+import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, LEVELS, splitItems, toCount } from "./components/tos/levels";
 import LevelChip from "./components/tos/LevelChip";
 
 /**
@@ -60,6 +60,8 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
   const [code, setCode] = useState(item.code ?? "");
   const [choices, setChoices] = useState(item.choices);
   const [key, setKey] = useState(item.key);
+  // "" means no level, which the server saves as none.
+  const [level, setLevel] = useState(item.level ?? "");
   // A question written without a snippet is most of them, so the box is not
   // stood in every form waiting to be ignored — it is offered.
   const [codeOpen, setCodeOpen] = useState(Boolean(item.code));
@@ -71,6 +73,7 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
     setCode(item.code ?? "");
     setChoices(item.choices);
     setKey(item.key);
+    setLevel(item.level ?? "");
     setCodeOpen(Boolean(item.code));
   }, [item, editing]);
 
@@ -124,9 +127,25 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
           aria-label={`Question ${item.n}`}
           onChange={(event) => setText(event.target.value)}
         />
-        {/* Stays while the question is being corrected: the level is what the
-            correction is being judged against. */}
-        <LevelChip level={item.level} />
+        {/* The level the question is judged against, so it can be changed here.
+            The console's own select, like every other dropdown on this screen.
+            It was a native one, which hands its list to the operating system:
+            drawn on the system's white in the system's type, so it was the one
+            control on the page that stayed light when the console went dark. */}
+        <AssessorSelect
+          variant="gen-q__level"
+          label={`Cognitive level for question ${item.n}`}
+          value={level}
+          onChange={setLevel}
+          options={[
+            { value: "", label: "No level" },
+            ...LEVELS.map((entry) => ({
+              value: entry.key,
+              label: entry.label,
+              dataLevel: entry.key
+            }))
+          ]}
+        />
       </div>
 
       {/* The snippet, editable — and, more to the point, on screen at all. The
@@ -139,15 +158,32 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
           present-but-empty code as, and it is the only way a question that no
           longer needs one gets rid of it. */}
       {codeOpen ? (
-        <textarea
-          className="gen-input gen-input--code"
-          value={code}
-          rows={Math.min(20, Math.max(4, code.split("\n").length))}
-          wrap="off"
-          spellCheck={false}
-          aria-label={`Code for question ${item.n}`}
-          onChange={(event) => setCode(event.target.value)}
-        />
+        <div className="gen-code">
+          {/* The line numbers the read-only block draws with a CSS counter.
+              A textarea has no lines to hang a counter off, so they sit in its
+              field shell: the same monospace at the same line height, and the
+              box grows rather than scrolls, so the two keep in step.
+
+              Uncapped now. The old 20-row ceiling could not be reached where
+              field-sizing is honoured — the box already grew past it — so all
+              it did was let a longer snippet scroll in a browser without it,
+              and a box that scrolls is one the numbers beside it stop
+              matching. */}
+          <div className="gen-code__lines" aria-hidden="true">
+            {code.split("\n").map((_, index) => (
+              <span key={index}>{index + 1}</span>
+            ))}
+          </div>
+          <textarea
+            className="gen-input gen-input--code"
+            value={code}
+            rows={Math.max(4, code.split("\n").length)}
+            wrap="off"
+            spellCheck={false}
+            aria-label={`Code for question ${item.n}`}
+            onChange={(event) => setCode(event.target.value)}
+          />
+        </div>
       ) : (
         <button
           type="button"
@@ -187,14 +223,19 @@ function QuestionCard({ item, editing, saving, onEdit, onCancel, onSave, readOnl
       </ul>
 
       <div className="gen-q__actions">
-        <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={saving}>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={onCancel}
+          disabled={saving}
+        >
           Cancel
         </button>
         <button
           type="button"
-          className="btn btn--primary"
+          className="btn btn--primary btn--sm"
           disabled={saving || !text.trim()}
-          onClick={() => onSave({ id: item.id, q: text.trim(), code, choices, key })}
+          onClick={() => onSave({ id: item.id, q: text.trim(), code, choices, key, level })}
         >
           {saving ? "Saving…" : "Save question"}
         </button>

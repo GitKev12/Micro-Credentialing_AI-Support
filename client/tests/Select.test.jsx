@@ -70,4 +70,27 @@ describe("where a select's list hangs", () => {
     layOut({ trigger: { left: 40, right: 1400 }, listWidth: 1500 });
     expect((await open()).dataset.align).toBe("start");
   });
+
+  it("carries an option's palette key to the selected value and its row", async () => {
+    const options = [
+      { value: "", label: "No level" },
+      { value: "analyze", label: "Analyzing", dataLevel: "analyze" }
+    ];
+    const { container } = render(
+      <Select
+        value="analyze"
+        onChange={() => {}}
+        options={options}
+        label="Cognitive level"
+        CaretIcon={Caret}
+        TickIcon={Caret}
+      />
+    );
+
+    expect(container.querySelector(".ui-select").dataset.level).toBe("analyze");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Cognitive level" }));
+    });
+    expect(screen.getByRole("option", { name: "Analyzing" }).dataset.level).toBe("analyze");
+  });
 });

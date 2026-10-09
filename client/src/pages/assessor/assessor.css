@@ -3655,9 +3655,65 @@
   background: var(--gray-050);
 }
 
+/* Open for correction. The card is the base card — same grey, same padding,
+   same lift — so opening a question does not redraw it under the reader; the
+   one change is a line round the one that is open. It is an outline rather
+   than a border so it adds nothing to the box, and it is offset inwards so it
+   is drawn on the card's own padding: the card takes up exactly the room it
+   takes up closed, down to the pixel, and the questions under it do not move.
+
+   Red as a literal, not var(--brand): that is the console's maroon in light
+   but TSU's navy in dark, where it measured 1.49:1 against the card it sat on
+   — so in dark mode nothing marked the open question. This is the one red the
+   file sets the same in both themes (it is --skill-weak's), and it holds in
+   both: 4.41:1 on the light card, 3.03:1 on the dark, either side of the 3:1
+   a state has to carry. */
 .gen-q.is-editing {
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1.5px var(--brand), var(--shadow-pill);
+  outline: 2px solid #d03b3b;
+  outline-offset: -2px;
+}
+
+/* Every field in the open form is drawn as the thing it replaces, so opening a
+   question changes nothing about the card but the line round it. A field shell
+   — white ground, hairline, 0.625rem of padding top and bottom — is what used
+   to grow it: the question box stood 3.75rem where the paragraph stands
+   1.59rem, and each choice stood 3.375rem where a choice stands 2.375rem, so a
+   four-choice question swelled by about 5.9rem on the way into the form and
+   threw the rest of the paper down the screen.
+
+   What is left is the form's own controls — Add code, and Cancel beside Save
+   — which the closed card has nothing to stand in for. */
+
+/* The question, as .gen-q__text: its padding, its weight, and no floor under
+   it, so the box is as tall as what is typed in it and no taller. */
+.gen-q.is-editing .gen-input--area {
+  min-height: 0;
+  padding: 0.1875rem 0 0;
+  background: transparent;
+  box-shadow: none;
+  font-weight: var(--fw-medium);
+}
+
+/* A choice, as .choice__text: the row's own type and colour, which .gen-input
+   otherwise sets a step larger, and none of the padding the row already has. */
+.gen-q.is-editing .choice .gen-input {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* Nothing is drawn round these now, so focus is the only thing that says which
+   one is taking the typing — and it has to say it in both themes. The ring was
+   var(--brand), which is TSU's navy in dark: 1.49:1 against the card, a ring
+   nobody could see on the one control that had nothing else to mark it.
+   --brand-text is the accent that resolves per theme — 8.32:1 light, 8.99:1
+   dark. The offset holds it off the glyphs now that there is no padding. */
+.gen-q.is-editing .gen-input:focus-visible {
+  outline: 2px solid var(--brand-text);
+  outline-offset: 2px;
 }
 
 .gen-q__head {
@@ -3667,6 +3723,63 @@
   /* Air under the question before its code or its choices, so the question
      reads as the thing being asked rather than the first line of the list. */
   margin-bottom: var(--sp-2);
+}
+
+/* The level, as a dropdown in the question's editing card — the console's own
+   select (.assessor-select), standing where .chip stands when the question is
+   not being corrected.
+
+   Sized to that chip and no wider: the same type, the same 1.675rem tall, and
+   its width is its label's, as the chip's is. No floor under it — a floor set
+   the control wider than the chip for every level with a short name, which is
+   most of them. A little less at the sides than the chip, because the trigger
+   carries a caret the chip has not got.
+
+   The top margin is .chip's own, to the same end: the question box beside it
+   is now padded exactly as the paragraph is, so what lines this up with the
+   first line of the question is what lines the chip up with it. */
+.gen-q__level {
+  flex: 0 0 auto;
+  margin-top: 0.1875rem;
+}
+
+/* No ground and no hairline: .chip has neither, and this stands where it
+   stands. The caret is what says it can be opened. */
+.gen-q__level .assessor-select__trigger {
+  padding: 0.3125rem 0.625rem;
+  background: transparent;
+  box-shadow: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
+}
+
+.gen-q__level[data-level] .assessor-select__trigger {
+  color: var(--level);
+}
+
+.gen-q__level[data-level] .assessor-select__caret,
+.gen-q__level[data-level] .assessor-select__trigger:hover .assessor-select__caret,
+.gen-q__level[data-level] .assessor-select__trigger:focus-visible .assessor-select__caret,
+.gen-q__level[data-level].is-open .assessor-select__caret {
+  color: var(--level);
+}
+
+.gen-q__level .assessor-select__option[data-level] .assessor-select__option-label {
+  color: var(--level);
+}
+
+.gen-q__level .assessor-select__option-label {
+  font-size: var(--fs-micro);
+}
+
+.gen-q__level .assessor-select__option:not([data-level]) .assessor-select__option-label {
+  color: var(--text-muted);
+}
+
+.gen-q__level .assessor-select__tick {
+  display: none;
 }
 
 .gen-q__num {
@@ -3996,8 +4109,18 @@
 }
 
 .gen-input--area {
-  resize: vertical;
+  resize: none;
+  flex: 1 1 0%;
+  width: 100%;
+  min-width: 0;
+  field-sizing: content;
+  min-height: 3.75rem;
   line-height: 1.5;
+}
+
+/* Choice text is a single line; there is nothing for the corner to stretch. */
+.gen-q .choice .gen-input {
+  resize: none;
 }
 
 /* A snippet, in the same field shell as the rest of the correction form but
@@ -4009,7 +4132,9 @@
    half of line 3. Long lines scroll sideways instead, which is what the block
    itself does. */
 .gen-input--code {
-  resize: vertical;
+  resize: none;
+  field-sizing: content;
+  min-height: 4rem;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.6;
@@ -4017,6 +4142,68 @@
   white-space: pre;
   overflow-wrap: normal;
   overflow-x: auto;
+}
+
+/* The snippet while it is being corrected, numbered inside its field.
+
+   A question can point at a line — "what does line 4 print?" — so the line
+   numbers are not decoration, they are what the question refers to. The
+   read-only block numbers itself with a CSS counter on each line; a textarea
+   has no lines to put one on, so the numbers are their own column in the
+   field shell. They keep step with the box by being set in the same monospace
+   at the same line height. The box grows to its content and never scrolls,
+   which is the other half of keeping step.
+
+   The 2.5ch column and the 1.25ch beside it are .code-block__line::before's
+   own measurements, so a snippet is numbered in the same place whether it is
+   being read or being fixed. ch resolves in the mono font, which is why the
+   stack is set on the row and not only on the box. */
+.gen-code {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.gen-code__lines {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 2.5ch;
+  /* The field shell supplies the vertical padding for both columns. */
+  margin-right: 1.25ch;
+  text-align: right;
+  color: var(--text-muted);
+  opacity: 0.75;
+  user-select: none;
+}
+
+/* The field shell owns the surface, shadow and padding. The textarea only
+   takes the remaining space beside the number column. */
+.gen-code .gen-input--code {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The whole shell is the text field, including its number gutter. */
+.gen-q.is-editing .gen-code:focus-within {
+  outline: 2px solid var(--brand-text);
+  outline-offset: 2px;
+}
+
+.gen-q.is-editing .gen-code .gen-input--code:focus-visible {
+  outline: none;
 }
 
 /* Sits where the snippet would be, at the size of the thing it adds rather
@@ -5195,6 +5382,13 @@
    own ground so the cards pass under it rather than through it. */
 .tos-editor__head {
   --edge: var(--pad, var(--sp-5));
+  /* The right-hand one is its own sum, because the dialog gives the scrollbar
+     a lane cut out of that side's padding (see .tos-modal__panel). This is
+     the one thing in the blueprint that reaches past the text to the dialog's
+     edges, so it has to reach by what the padding actually is on each side:
+     bleeding by the left-hand figure on the right hung it over the lane, and
+     the dialog scrolled sideways by the width of a scrollbar. */
+  --edge-end: var(--pad-end, var(--edge));
   position: sticky;
   top: calc(var(--edge) * -1);
   z-index: 2;
@@ -5203,8 +5397,8 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--sp-4);
-  margin: calc(var(--edge) * -1) calc(var(--edge) * -1) 0;
-  padding: var(--edge);
+  margin: calc(var(--edge) * -1) calc(var(--edge-end) * -1) 0 calc(var(--edge) * -1);
+  padding: var(--edge) var(--edge-end) var(--edge) var(--edge);
   background: var(--bg-app);
 }
 
@@ -5225,6 +5419,154 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+}
+
+/* -- The Save button says how it went ----------------------
+   Maroon at rest, green once it is saved, red when it is not. Colour is
+   never the only cue here: the word changes and so does the mark, which is
+   what lets a green stand against a red at all - the same rule
+   .final-head__verdict is written to further up.
+
+   The two fills are literals rather than tokens, for a reason each. The
+   console's green, --skill-strong, is 3.35:1 under the white label where
+   this one is 5.5:1; and --error-text is a pale pink in dark mode because
+   it is meant to be read as text, not sat behind it. Both of these carry
+   white at 5.5:1 and 6.5:1 in either theme. */
+.tos-save {
+  --tos-saved: #0b7a0b;
+  --tos-failed: #b3261e;
+  /* "Save changes" is wider than "Saved", so the button is held at the
+     widest of its words and the row never jumps as the state turns. */
+  min-width: 10rem;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: filter 0.15s ease;
+}
+
+.tos-save:disabled {
+  cursor: default;
+}
+
+.tos-save[data-state="saved"] {
+  background: var(--tos-saved);
+}
+
+.tos-save[data-state="failed"] {
+  background: var(--tos-failed);
+}
+
+.tos-save__icon {
+  flex-shrink: 0;
+}
+
+/* The fill is a layer that wipes across from the left, so the change reads
+   as the button being filled rather than a colour swapping. It is behind the
+   label and the mark. */
+.tos-save::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--tos-saved);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.tos-save[data-state="failed"]::before {
+  background: var(--tos-failed);
+}
+
+.tos-save[data-state="saved"]::before,
+.tos-save[data-state="failed"]::before {
+  animation: tos-wipe 0.3s ease-out forwards;
+}
+
+/* Drawn, so the mark is still there when the animation is not. The draw
+   starts these at 1 and runs them back to this. */
+.tos-save__stroke,
+.tos-save__ring {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+/* In the order the button tells it: the fill turns, the mark draws itself,
+   then the word arrives. */
+.tos-save[data-state="saved"] .tos-save__icon,
+.tos-save[data-state="failed"] .tos-save__icon {
+  animation: tos-pop 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.25) 0.1s backwards;
+}
+
+.tos-save[data-state="saved"] .tos-save__stroke {
+  animation: tos-draw 0.32s ease-out 0.18s backwards;
+}
+
+.tos-save[data-state="saved"] .tos-save__label {
+  animation: tos-word 0.26s ease-out 0.42s backwards;
+}
+
+/* The ring closes first and the cross goes in after it. One dash animation
+   across the path's two lines draws them one after the other. */
+.tos-save[data-state="failed"] .tos-save__ring {
+  animation: tos-draw 0.3s ease-out 0.15s backwards;
+}
+
+.tos-save[data-state="failed"] .tos-save__stroke {
+  animation: tos-draw 0.3s ease-out 0.42s backwards;
+}
+
+.tos-save[data-state="failed"] .tos-save__label {
+  animation: tos-word 0.26s ease-out 0.66s backwards;
+}
+
+/* Only a from: the to is whatever the element already is. */
+@keyframes tos-wipe {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes tos-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+@keyframes tos-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes tos-word {
+  from {
+    opacity: 0;
+    transform: translateY(0.3rem);
+  }
+}
+
+/* The colour and the word still change; they just arrive rather than play.
+   The marks rest drawn, so turning the animation off shows them at once. */
+@media (prefers-reduced-motion: reduce) {
+  .tos-save,
+  .tos-save .tos-save__icon,
+  .tos-save .tos-save__stroke,
+  .tos-save .tos-save__ring,
+  .tos-save .tos-save__label {
+    transition: none;
+    animation: none;
+  }
+
+  .tos-save[data-state="saved"]::before,
+  .tos-save[data-state="failed"]::before {
+    animation: none;
+    transform: scaleX(1);
+  }
 }
 
 /* ── Opened over the screen that spends it ────────── */
@@ -5277,6 +5619,25 @@
   animation: tos-modal-panel 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
+/* The skeleton is compact. Once the editor is ready, its panel grows from the
+   middle, so its top and bottom edges arrive together. */
+.tos-modal__panel.is-loaded {
+  transform-origin: center;
+  animation: tos-modal-panel-expand 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tos-editor--loaded {
+  animation: tos-editor-content-in 0.24s ease-out 0.08s both;
+}
+
+.tos-editor__mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+  animation: tos-editor-content-in 0.22s ease-out both;
+}
+
 .tos-modal__panel:focus {
   outline: none;
 }
@@ -5308,6 +5669,32 @@
      say. The matrix scrolls in a square box and needs none of this. */
   .tos-modal__panel::-webkit-scrollbar-track {
     margin: var(--radius-xl) 0;
+  }
+
+  /* The bar is given a lane of its own that is always there, and the lane is
+     cut out of the dialog's right padding rather than off the blueprint.
+
+     Always there, because the longer paper scrolls and the shorter one does
+     not: the bar used to arrive on the first frame of the switch and take its
+     width off every card at once, which is a reflow in the middle of the
+     animation that was just made smooth. Cut out of the padding, because that
+     width has to come from somewhere, and the white space beside the
+     blueprint can spare it where the blueprint cannot. The right-hand gap
+     stays the padding it always was — the bar simply lands in the outer half
+     of it when there is something to scroll.
+
+     Only here: the sum has to know how wide the bar is, and only in this
+     block is that ours to say. Firefox draws the thin bar the app asks for
+     everywhere else and keeps it. */
+  .tos-modal__panel {
+    --bar: 0.5rem;
+    --pad-end: calc(var(--pad) - var(--bar));
+    scrollbar-gutter: stable;
+    padding-right: var(--pad-end);
+  }
+
+  .tos-modal__panel::-webkit-scrollbar {
+    width: var(--bar);
   }
 }
 
@@ -5349,6 +5736,29 @@
   from {
     opacity: 0;
     transform: translateY(12px);
+  }
+}
+
+@keyframes tos-modal-panel-expand {
+  from {
+    transform: scaleY(0.72);
+  }
+}
+
+@keyframes tos-editor-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tos-modal,
+  .tos-modal__panel,
+  .tos-modal__panel.is-loaded,
+  .tos-editor--loaded,
+  .tos-editor__mode {
+    animation: none;
   }
 }
 
