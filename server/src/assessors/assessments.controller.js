@@ -778,7 +778,9 @@ export async function updateCourseAssessment(request, response) {
         code: "code" in patch ? patch.code : stored.code,
         choices: patch.choices ?? stored.choices,
         key: patch.key ?? stored.key,
-        explanation: "explanation" in patch ? patch.explanation : stored.explanation
+        explanation: "explanation" in patch ? patch.explanation : stored.explanation,
+        // Only one of the six levels is kept; anything else is saved as no level.
+        level: "level" in patch ? patch.level : stored.level
       },
       index
     );

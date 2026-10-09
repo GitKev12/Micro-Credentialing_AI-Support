@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fetchCourseTos, saveCourseTos, storedAssessorId } from "../../../../services/assessors";
 import { readError } from "../../../../services/readError";
 import { LoadFailed, Segmented } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
-import { noticeClass, useNotice } from "../../../../lib/useNotice";
 import AllocationBar from "./AllocationBar";
 import ContentSplit from "./ContentSplit";
 import LevelSplit from "./LevelSplit";
 import Matrix from "./Matrix";
+import SaveButton from "./SaveButton";
 import Stepper from "./Stepper";
+import { animateHeight, animateHeightClipped, heightOf } from "./resize";
 import {
   DEFAULT_FINAL_ITEMS,
   LEVEL_KEYS,
@@ -59,6 +60,9 @@ import {
  */
 
 const MAX_ITEMS = 120;
+
+// How long the button shows "Saved" or "Not saved" before going back to "Save changes".
+const SAVE_RESULT_MS = 2500;
 
 /* ───────────────────────────── The blueprint ───────────────────────────── */
 
@@ -118,15 +122,25 @@ function readTos(tos, lessons) {
   return { quizzes, finalItems, content, levels, grid };
 }
 
-function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, defaultLesson, headerEnd, onSaved }) {
+function TosEditor({
+  courseId,
+  classId = null,
+  assessOnly = false,
+  defaultMode,
+  defaultLesson,
+  frame = null,
+  headerEnd,
+  onReady,
+  onSaved
+}) {
   const assessorId = storedAssessorId();
 
   const [data, setData] = useState(null);
   // The whole refusal rather than a flag: the server says why, and a boolean
   // left the screen to guess — it always guessed the network.
   const [failure, setFailure] = useState(null);
-  const [notice, setNotice] = useNotice();
-  const [saving, setSaving] = useState(false);
+  // "idle", "saving", "saved" or "failed" — what the Save button shows.
+  const [saveState, setSaveState] = useState("idle");
 
   // Opened from the generate screen, so it opens on the paper that screen is
   // pointed at — the assessor came here about that one, and we keep it there.
@@ -136,20 +150,62 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
   const [lessonId] = useState(defaultLesson ?? "");
   const [draft, setDraft] = useState(null);
 
+  /* ── Switching paper ──────────────────────────────────────────────────────
+   *
+   * Two boxes move, so both are animated: the paper, which is as long as the
+   * blueprint on it, and the dialog around it, which is as long as it can be.
+   * The dialog has a ceiling and the paper has not, so the paper almost always
+   * runs past it — leaving the dialog to grow a little and then scroll the
+   * rest. Animating only the dialog left its scrollbar arriving at its final
+   * size on the first frame, because the new paper's whole length was already
+   * under it.
+   *
+   * Both heights are taken before the switch, and both ends are measured
+   * before either animation starts: holding the paper in shortens the dialog,
+   * so the dialog has to be measured while the paper is still at its full
+   * length or it would be told to stop where it started. */
+  const paper = useRef(null);
+  // The two heights the switch is leaving behind, or null when the paper on
+  // screen is the one it opened on and there is nothing to grow from.
+  const leaving = useRef(null);
+
+  const changeMode = (nextMode) => {
+    if (nextMode === mode) return;
+    leaving.current = { frame: heightOf(frame?.current), paper: heightOf(paper.current) };
+    setMode(nextMode);
+  };
+
+  useLayoutEffect(() => {
+    const was = leaving.current;
+    if (!was) return undefined;
+    leaving.current = null;
+
+    // The dialog first, while the paper is still at its full new length.
+    const frameGrow = animateHeight(frame?.current, was.frame);
+    const paperGrow = animateHeightClipped(paper.current, was.paper);
+
+    return () => {
+      frameGrow?.cancel();
+      paperGrow?.cancel();
+    };
+  }, [mode, frame]);
+
   /* ── Loading ──────────────────────────────────────────────────────────── */
 
   const load = useCallback(async () => {
     if (!courseId || !assessorId) return;
+    onReady?.(false);
     setFailure(null);
 
     try {
       const payload = await fetchCourseTos(assessorId, courseId, classId);
       setData(payload);
       setDraft(readTos(payload.tos, payload.lessons ?? []));
+      onReady?.(true);
     } catch (error) {
       setFailure(readError(error, "This blueprint could not be loaded."));
     }
-  }, [assessorId, courseId, classId]);
+  }, [assessorId, courseId, classId, onReady]);
 
   useEffect(() => {
     load();
@@ -236,8 +292,15 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
 
   /* ── Saving ───────────────────────────────────────────────────────────── */
 
+  // Puts the button back to "Save changes" a moment after it shows the result.
+  useEffect(() => {
+    if (saveState !== "saved" && saveState !== "failed") return undefined;
+    const timer = setTimeout(() => setSaveState("idle"), SAVE_RESULT_MS);
+    return () => clearTimeout(timer);
+  }, [saveState]);
+
   const save = async () => {
-    setSaving(true);
+    setSaveState("saving");
     try {
       const payload = await saveCourseTos(assessorId, courseId, {
         // An assess-only class has no lesson quizzes, so it writes no rows for
@@ -262,12 +325,10 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
         }
       }, classId);
       setData((current) => ({ ...current, tos: payload.tos }));
-      setNotice({ tone: "ok", text: "Blueprint saved." });
+      setSaveState("saved");
       onSaved?.(payload.tos);
     } catch (_error) {
-      setNotice({ tone: "bad", text: "That did not save. Try again." });
-    } finally {
-      setSaving(false);
+      setSaveState("failed");
     }
   };
 
@@ -297,7 +358,7 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
   const gridTotal = draft.grid.reduce((sum, row) => sum + splitItems(row), 0);
 
   return (
-    <div className="tos-editor assessor-stack">
+    <div className="tos-editor tos-editor--loaded assessor-stack">
       {/* The dialog's only chrome is the close control the frame hands in, so
           that the blueprint keeps one header rather than gaining a second. */}
       <header className="tos-editor__head">
@@ -311,14 +372,10 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
           <h2 className="tos-editor__title">Table of Specification</h2>
         </div>
         <div className="tos-editor__actions">
-          <button type="button" className="btn btn--primary" disabled={saving} onClick={save}>
-            {saving ? "Saving…" : "Save changes"}
-          </button>
+          <SaveButton state={saveState} onClick={save} />
           {headerEnd}
         </div>
       </header>
-
-      {notice ? <p className={noticeClass(notice)}>{notice.text}</p> : null}
 
       {/* One paper, so no choice of paper. Kept out rather than shown with
           the Lesson half dead — a switch with one working side is a question
@@ -327,7 +384,7 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
         <Segmented
           label="Which paper"
           value={mode}
-          onChange={setMode}
+          onChange={changeMode}
           options={[
             { key: "lesson", label: "Lesson" },
             { key: "final", label: "Final exam" }
@@ -335,8 +392,9 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
         />
       )}
 
-      {mode === "lesson" ? (
-        <section className="assessor-card tos-block">
+      <div className="tos-editor__mode" key={mode} ref={paper}>
+        {mode === "lesson" ? (
+          <section className="assessor-card tos-block">
           <div className="tos-block__head">
             <div>
               <h2 className="tos-block__title">Lesson exam</h2>
@@ -359,9 +417,9 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
           <AllocationBar target={quizItems} split={quizSplit} />
 
           <LevelSplit split={quizSplit} total={quizItems} onChange={setQuizLevel} />
-        </section>
-      ) : (
-        <>
+          </section>
+        ) : (
+          <>
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
               <h2 className="tos-block__title">The exam</h2>
@@ -431,8 +489,9 @@ function TosEditor({ courseId, classId = null, assessOnly = false, defaultMode, 
                 : `The matrix holds ${gridTotal} questions, and the exam is ${draft.finalItems}.`}
             </p>
           </section>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

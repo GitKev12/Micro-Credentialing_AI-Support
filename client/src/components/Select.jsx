@@ -238,6 +238,7 @@ export function Select({
     <div
       className={[classPrefix, variant, open ? "is-open" : ""].filter(Boolean).join(" ")}
       ref={rootRef}
+      data-level={selected?.dataLevel}
     >
       <button
         type="button"
@@ -281,6 +282,7 @@ export function Select({
               role="option"
               aria-selected={option.value === value}
               aria-disabled={option.disabled ? true : undefined}
+              data-level={option.dataLevel}
               className={[
                 `${classPrefix}__option`,
                 index === activeIndex && !option.disabled ? "is-active" : "",
