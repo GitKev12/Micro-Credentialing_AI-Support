@@ -5756,6 +5756,25 @@
   }
 }
 
+/* The global scrollbar treatment also applies to the blueprint panel and its
+   matrix. Undo the older reserved track lane so neither reduces its content
+   width when it overflows. */
+.tos-modal__panel,
+.tos-matrix-scroll {
+  scrollbar-width: none;
+}
+
+.tos-modal__panel {
+  scrollbar-gutter: auto;
+  padding-right: var(--pad);
+}
+
+.tos-modal__panel::-webkit-scrollbar,
+.tos-matrix-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .tos-modal__close {
   display: grid;
   place-items: center;

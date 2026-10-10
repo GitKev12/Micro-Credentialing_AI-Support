@@ -127,9 +127,9 @@
 * {
   box-sizing: border-box;
   scroll-behavior: smooth;
-  /* Thin scrollbars app-wide (Firefox + Chromium 121+). */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(120, 130, 160, 0.5) transparent;
+  /* Keep native scrollbar tracks out of layout. Scrolling still works with a
+     mouse wheel, touchpad, touch, keyboard, and programmatic focus. */
+  scrollbar-width: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -138,23 +138,10 @@
   }
 }
 
-/* Slim scrollbars for older Chromium/Edge/Safari. */
+/* Chromium/Edge/Safari counterpart to Firefox's scrollbar-width: none. */
 *::-webkit-scrollbar {
-  width: 0.5rem;
-  height: 0.5rem;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(120, 130, 160, 0.5);
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 130, 160, 0.75);
+  width: 0;
+  height: 0;
 }
 
 body {
@@ -1170,7 +1157,9 @@ a {
 }
 
 /* The scrolling part of the rail: the progress card and the "Lessons" eyebrow
-   stay pinned above it, and the final exam below it. */
+   stay pinned above it, and the final exam below it. Native scrollbar tracks
+   follow the app-wide treatment, so the lesson list keeps the rail's full
+   width. */
 .modules-layout__scroll {
   flex: 1;
   min-height: 0;
@@ -1178,38 +1167,6 @@ a {
   /* Room for the last row's focus ring and shadow. */
   padding: 2px 2px 0.75rem;
   margin: -2px -2px 0;
-  /* A rail is a long list in a narrow column, and the platform scrollbar takes
-     a sixth of that column to say so. Thin and untinted until the pointer is
-     in the rail, so the lessons keep the width. */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 0.2s ease;
-}
-
-.modules-layout__aside:hover .modules-layout__scroll,
-.modules-layout__scroll:focus-within {
-  scrollbar-color: var(--border) transparent;
-}
-
-/* WebKit says the same thing in its own dialect. */
-.modules-layout__scroll::-webkit-scrollbar {
-  width: 0.5rem;
-}
-
-.modules-layout__scroll::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: content-box;
-  background-color: transparent;
-  transition: background-color 0.2s ease;
-}
-
-.modules-layout__aside:hover .modules-layout__scroll::-webkit-scrollbar-thumb {
-  background-color: var(--border);
-}
-
-.modules-layout__scroll::-webkit-scrollbar-thumb:hover {
-  background-color: var(--muted);
 }
 
 .modules-layout__main {
