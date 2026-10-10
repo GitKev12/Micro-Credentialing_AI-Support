@@ -127,21 +127,17 @@
 * {
   box-sizing: border-box;
   scroll-behavior: smooth;
-  /* Keep native scrollbar tracks out of layout. Scrolling still works with a
-     mouse wheel, touchpad, touch, keyboard, and programmatic focus. */
-  scrollbar-width: none;
+  /* Leave overlay-vs-classic rendering to the browser and operating system.
+     Do not size a WebKit scrollbar: doing so forces it into a layout gutter. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 130, 160, 0.5) transparent;
+  scrollbar-gutter: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto;
   }
-}
-
-/* Chromium/Edge/Safari counterpart to Firefox's scrollbar-width: none. */
-*::-webkit-scrollbar {
-  width: 0;
-  height: 0;
 }
 
 body {

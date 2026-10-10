@@ -5756,12 +5756,12 @@
   }
 }
 
-/* The global scrollbar treatment also applies to the blueprint panel and its
-   matrix. Undo the older reserved track lane so neither reduces its content
-   width when it overflows. */
+/* Let the browser render a visible overlay scrollbar when the platform supports
+   it. These declarations undo the older panel-only reserved lane. */
 .tos-modal__panel,
 .tos-matrix-scroll {
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 130, 160, 0.5) transparent;
 }
 
 .tos-modal__panel {
@@ -5771,8 +5771,7 @@
 
 .tos-modal__panel::-webkit-scrollbar,
 .tos-matrix-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  all: revert;
 }
 
 .tos-modal__close {
