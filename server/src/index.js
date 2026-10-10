@@ -3,6 +3,7 @@ import app from "./app.js";
 import connectDatabase from "./config/db.js";
 import { ensureCoreIndexes, summarise } from "./lib/indexes.js";
 import { assertAuthSecret } from "./auth/tokens.js";
+import { resumeExtractionJobs } from "./modules/extraction/extractionJobs.js";
 
 dotenv.config();
 
@@ -23,6 +24,15 @@ const startServer = async () => {
     console.log(summarise(await ensureCoreIndexes()));
   } catch (error) {
     console.warn("Index check failed:", error.message);
+  }
+
+  // Lesson extractions that were queued or running when the server last
+  // stopped carry on, one at a time, in the background. Never fatal.
+  try {
+    const resumed = await resumeExtractionJobs();
+    if (resumed > 0) console.log(`Resumed ${resumed} lesson extraction job(s).`);
+  } catch (error) {
+    console.warn("Could not resume lesson extraction jobs:", error.message);
   }
 
   app.listen(port, () => {

@@ -107,9 +107,16 @@
 
 * {
   box-sizing: border-box;
+  scroll-behavior: smooth;
   /* Thin scrollbars app-wide (Firefox + Chromium 121+). */
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 130, 160, 0.5) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
 }
 
 /* Slim scrollbars for older Chromium/Edge/Safari. */

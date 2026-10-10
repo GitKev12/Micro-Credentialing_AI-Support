@@ -6,7 +6,7 @@ import api, { withAuthToken } from "./api";
  *   GET /api/courses/:courseId/modules      → { course, modules: [...] }
  *   GET /api/courses/:courseId/assessments  → { assessments: [...] }
  *   GET /api/modules/:moduleId/file         → streams the lesson file (PDF)
- *   GET /api/modules/:moduleId/text         → OCR/extracted text, cached server-side
+ *   GET /api/modules/:moduleId/text         → the prepared lesson text, or its status
  *
  * Each module arrives as
  *   { id, title, subject, fileName, fileType, fileSize, uploadDate }
@@ -44,9 +44,14 @@ export function moduleFigureUrl(moduleId, figureId) {
   return withAuthToken(`${api.defaults.baseURL}/modules/${moduleId}/figures/${figureId}`);
 }
 
-// Extracted text arrives as { title, numPages, hasText, readingMinutes,
-// blocks: [{ type, ... }], pages: [{ page, text }] } — `blocks` is the
-// lesson-formatted structure, `pages` the raw fallback.
+// A lesson's text is prepared on the server after upload. The answer has a
+// `status`:
+//   "ready"                 — { title, numPages, hasText, readingMinutes,
+//                               blocks: [{ type, ... }], pages: [{ page, text }] }
+//                             `blocks` is the lesson-formatted structure,
+//                             `pages` the raw fallback
+//   "queued" / "extracting" — still being prepared; ask again shortly
+//   "failed"                — it couldn't be prepared
 export async function fetchModuleText(moduleId) {
   const { data } = await api.get(`/modules/${moduleId}/text`);
   return data;
@@ -55,8 +60,11 @@ export async function fetchModuleText(moduleId) {
 // Section list for a module's curriculum dropdown — the server derives these
 // from the chapter's template headings and caches them with the text.
 // Each section is { id, title, page, start, end } (block index range).
+// Null while the lesson is still being prepared, so the caller asks again
+// later instead of keeping an empty list.
 export async function fetchModuleSections(moduleId) {
   const { data } = await api.get(`/modules/${moduleId}/sections`);
+  if (data?.status && data.status !== "ready") return null;
   return data?.sections ?? [];
 }
 

@@ -15,20 +15,19 @@ export default function QuestionsField({ count, split, paper, onModify }) {
 
   return (
     <div className="gen-field">
-      <div className="gen-field__head">
-        <label className="field-label" htmlFor={id}>
-          Number of questions
-        </label>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={onModify}>
-          Modify TOS
-        </button>
-      </div>
-
       <div className={`q-length${assigned > 0 ? "" : " is-unplanned"}`}>
         <div className="q-length__top">
-          <output id={id} className={`q-length__count${count > 0 ? "" : " is-empty"}`}>
-            {count > 0 ? count : "—"}
-          </output>
+          <div className="q-length__summary">
+            <label className="field-label" htmlFor={id}>
+              Number of questions
+            </label>
+            <output id={id} className={`q-length__count${count > 0 ? "" : " is-empty"}`}>
+              {count > 0 ? count : "—"}
+            </output>
+          </div>
+          <button type="button" className="btn btn--ghost btn--sm q-length__edit" onClick={onModify}>
+            Modify TOS
+          </button>
         </div>
 
         <div className="q-length__mix">
@@ -57,12 +56,17 @@ function MixFigures({ split, assigned, count }) {
   const spread = atLength(split, count);
 
   return (
-    <ul className="tos-mix">
+    <ul className="tos-mix" aria-label="Question distribution" role="list">
       {GROUPS.map((group) => (
         <li className="tos-mix__group" key={group.key} data-group={group.key}>
-          <span className="tos-mix__label">{group.label}</span>
-          <span className="tos-mix__n">{groupItems(spread, group.key)}</span>
+          <abbr className="tos-mix__label" title={group.name}>{group.label}</abbr>
           <span className="tos-mix__pct">{share(groupItems(split, group.key), assigned)}%</span>
+          <div className="tos-mix__total">
+            <span className="tos-mix__n">{groupItems(spread, group.key)}</span>
+            <span className="tos-mix__unit">
+              {groupItems(spread, group.key) === 1 ? "question" : "questions"}
+            </span>
+          </div>
         </li>
       ))}
     </ul>
@@ -71,7 +75,7 @@ function MixFigures({ split, assigned, count }) {
 
 function LevelFloor({ split, assigned, count }) {
   if (!(assigned > 0) || !(count > 0)) {
-    return <div className="q-length__floor" aria-hidden="true" />;
+    return null;
   }
 
   const spread = atLength(split, count);
