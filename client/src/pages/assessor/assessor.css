@@ -3651,6 +3651,7 @@
 
 .gen-q {
   padding: var(--sp-4);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   background: var(--gray-050);
 }
@@ -3984,97 +3985,117 @@
   margin-bottom: var(--sp-4);
 }
 
-/* A field whose label shares its line with a way out to the screen that
-   decides it. The label is micro type; the Modify TOS control is a small
-   ghost button that offers the same escape as a visible control rather than a
-   bare link.
-
-   The button is pushed over by an auto margin rather than by space-between, so
-   that a narrow column drops it onto a line of its own still against the right
-   edge, instead of leaving the two to wrap into each other. */
-.gen-field__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-1) var(--sp-3);
-}
-
-.gen-field__head .btn--sm {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-/* The question count is set in the Table of Specification, not on this
-   screen. This reads as an output: a quiet panel with the figure, its
-   cognitive split, and the level bar attached as one object. */
+/* Keep the total, its edit action, and the cognitive split in one summary. */
 .q-length {
-  overflow: hidden;
+  container-type: inline-size;
+  min-width: 0;
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   background: var(--gray-050);
 }
 
 .q-length__top {
-  padding: var(--sp-3) var(--sp-3) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.q-length__summary {
+  display: contents;
+}
+
+.q-length__summary .field-label {
+  grid-column: 1 / -1;
+  color: var(--text-body);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .q-length__count {
   display: block;
   color: var(--text-strong);
-  font-size: var(--fs-h3);
-  font-weight: var(--fw-medium);
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
-  line-height: 1.3;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .q-length__count.is-empty {
   color: var(--text-muted);
 }
 
+.q-length__edit {
+  min-height: calc(2.25rem / var(--app-zoom, 1));
+  margin-left: auto;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--gray-300);
+}
+
+.q-length__edit:focus-visible {
+  outline-color: var(--brand-text);
+}
+
+.q-length__edit:active {
+  background: var(--brand-hover);
+}
+
 .q-length__mix {
-  display: flex;
-  align-items: center;
-  min-height: calc(var(--sp-1) + var(--sp-3) + 1.5rem);
-  padding: var(--sp-1) var(--sp-3) var(--sp-3);
+  margin: 0 var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--gray-200);
 }
 
 .q-length__mix .gen-hint {
   margin: 0;
 }
 
-.q-length__mix .tos-mix {
-  flex: 1;
-}
-
 .q-length__floor {
   display: flex;
   gap: 2px;
   height: var(--sp-2);
-}
-
-.q-length.is-unplanned .q-length__floor {
-  background: var(--gray-200);
+  margin: 0 var(--sp-4) var(--sp-4);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
 }
 
 .tos-mix {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-3);
+  gap: var(--sp-6);
   margin: 0;
   padding: 0;
   list-style: none;
   font-variant-numeric: tabular-nums;
 }
 
+.tos-mix::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px solid var(--gray-300);
+  pointer-events: none;
+}
+
 .tos-mix__group {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: var(--sp-2);
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
 }
 
 .tos-mix__label {
   font-size: var(--fs-label);
   font-weight: var(--fw-semibold);
+  text-decoration: none;
 }
 
 .tos-mix__group[data-group="lots"] .tos-mix__label {
@@ -4085,15 +4106,51 @@
   color: var(--lv-hots-ink);
 }
 
-.tos-mix__n {
-  color: var(--text-strong);
-  font-size: var(--fs-body-lg);
-  font-weight: var(--fw-medium);
+.tos-mix__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sp-1);
+  grid-column: 1 / -1;
 }
 
-.tos-mix__pct {
+.tos-mix__n {
+  color: var(--text-strong);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.tos-mix__pct,
+.tos-mix__unit {
   color: var(--text-muted);
   font-size: var(--fs-label);
+}
+
+@container (max-width: 16rem) {
+  .tos-mix {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+
+  .tos-mix::after {
+    display: none;
+  }
+
+  .tos-mix__group + .tos-mix__group {
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--gray-300);
+  }
+}
+
+@container (max-width: 12rem) {
+  .q-length__edit {
+    grid-column: 1 / -1;
+    justify-self: start;
+    max-width: 100%;
+    margin-left: 0;
+    white-space: normal;
+  }
 }
 
 .gen-input {
@@ -4464,6 +4521,7 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-1);
   padding: var(--sp-1);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-pill);
   background: var(--gray-050);
 }
