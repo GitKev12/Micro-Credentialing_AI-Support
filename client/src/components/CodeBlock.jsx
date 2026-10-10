@@ -1,3 +1,16 @@
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import c from "highlight.js/lib/languages/c";
+import cpp from "highlight.js/lib/languages/cpp";
+import csharp from "highlight.js/lib/languages/csharp";
+import java from "highlight.js/lib/languages/java";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import php from "highlight.js/lib/languages/php";
+import python from "highlight.js/lib/languages/python";
+import sql from "highlight.js/lib/languages/sql";
+import xml from "highlight.js/lib/languages/xml";
+
 /**
  * A question's code sample, shown the way code is read.
  *
@@ -7,13 +20,8 @@
  * because an error-tracing question says "line 4" and the student has to be
  * able to find it.
  *
- * The numbers are drawn by CSS rather than written into the text, so copying
- * the code copies the code and not a column of digits beside it.
- *
- * A model that numbers its snippet in the returned text gets those numbers
- * tucked into a hidden span here: they stay in the source, so a pasted block
- * keeps exactly what the generator wrote, but they must not show next to the
- * CSS column or the lines would count twice.
+ * The number column is separate from the highlighted code, so copying the code
+ * copies the code and not the digits beside it.
  *
  * Shared by the student's quiz and the assessor's review, so a question is laid
  * out the same for the person writing it as for the person answering it.
@@ -22,30 +30,56 @@
 // whitespace after it to read as line label rather than as code.
 const lineNumberLabel = /^\d+[.)]?\s+(?=\S)/;
 
+const languages = {
+  bash,
+  c,
+  cpp,
+  csharp,
+  java,
+  javascript,
+  json,
+  php,
+  python,
+  sql,
+  xml
+};
+
+for (const [name, importedDefinition] of Object.entries(languages)) {
+  const definition = importedDefinition.default ?? importedDefinition;
+  if (!hljs.getLanguage(name)) hljs.registerLanguage(name, definition);
+}
+
+const languageNames = Object.keys(languages);
+
 function CodeBlock({ code, className = "" }) {
   const source = String(code ?? "");
   if (!source.trim()) return null;
 
+  // Old generated papers sometimes wrote their own line-number column. Remove
+  // it before highlighting because this component already draws the numbers.
+  const cleanSource = source
+    .split("\n")
+    .map((line) => line.replace(lineNumberLabel, ""))
+    .join("\n");
+  const highlighted = hljs.highlightAuto(cleanSource, languageNames);
+  const lines = cleanSource.split("\n");
+
   return (
-    <pre className={`code-block${className ? ` ${className}` : ""}`}>
-      <code>
-        {/* Inline spans ending in their own newline, so `pre` does the line
-            breaking and a copied snippet keeps its breaks. */}
-        {source.split("\n").map((line, index) => {
-          const label = lineNumberLabel.exec(line)?.[0];
-          return (
-            <span className="code-block__line" key={index}>
-              {label && (
-                <span className="code-block__label" aria-hidden="true">
-                  {label}
-                </span>
-              )}
-              {label ? line.slice(label.length) : line}
-              {"\n"}
-            </span>
-          );
-        })}
-      </code>
+    <pre
+      className={`code-block${className ? ` ${className}` : ""}`}
+      data-language={highlighted.language || undefined}
+    >
+      <span className="code-block__lines" aria-hidden="true">
+        {lines.map((_, index) => (
+          <span className="code-block__line" key={index}>
+            {index + 1}
+          </span>
+        ))}
+      </span>
+      <code
+        className={`hljs${highlighted.language ? ` language-${highlighted.language}` : ""}`}
+        dangerouslySetInnerHTML={{ __html: highlighted.value }}
+      />
     </pre>
   );
 }

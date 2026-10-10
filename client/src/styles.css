@@ -48,6 +48,16 @@
   --accent-soft: #eaf1ff;
   --border: rgba(15, 23, 42, 0.08);
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+
+  /* Syntax colours for code carried by assessment questions. */
+  --code-comment: #59636e;
+  --code-keyword: #9c1c2b;
+  --code-string: #075985;
+  --code-number: #6d28d9;
+  --code-title: #047857;
+  --code-type: #9a3412;
+  --code-variable: #1d4ed8;
+  --code-meta: #7c3aed;
 }
 
 [data-theme="dark"] {
@@ -67,6 +77,15 @@
   --accent-soft: #192a3f;
   --border: rgba(255, 255, 255, 0.12);
   --shadow: 0 6px 18px rgba(255, 255, 255, 0.03);
+
+  --code-comment: #9aa7bd;
+  --code-keyword: #ff8e91;
+  --code-string: #91d7ff;
+  --code-number: #c4a7ff;
+  --code-title: #6ee7b7;
+  --code-type: #fdba74;
+  --code-variable: #93c5fd;
+  --code-meta: #d8b4fe;
 }
 
 /* Student & assessor: college red theme (light mode only). */
@@ -1578,6 +1597,10 @@ ol.lesson-reader__list li::marker {
    Built on the shared tokens so it sits in the student's quiz and the
    assessor's review alike; each console only adjusts the spacing around it. */
 .code-block {
+  display: grid;
+  grid-template-columns: 2.5ch minmax(0, 1fr);
+  align-items: start;
+  column-gap: 1.25ch;
   margin: 0;
   padding: 0.85rem 1rem 0.85rem 0.5rem;
   border: 1px solid var(--border);
@@ -1590,31 +1613,84 @@ ol.lesson-reader__list li::marker {
   color: var(--ink);
   white-space: pre;
   tab-size: 4;
-  counter-reset: code-line;
 }
 
 .code-block code {
+  display: block;
+  min-width: max-content;
+  padding: 0;
+  background: transparent;
   font: inherit;
+  color: var(--ink);
 }
 
-.code-block__line::before {
-  counter-increment: code-line;
-  content: counter(code-line);
-  display: inline-block;
-  width: 2.5ch;
-  margin-right: 1.25ch;
+.code-block__lines {
+  display: flex;
+  flex-direction: column;
   text-align: right;
   color: var(--muted);
   opacity: 0.75;
   user-select: none;
 }
 
-/* A line number a model wrote into the returned code. The CSS column above
-   already numbers every line, so these would show a second column of digits.
-   Hidden whole — including the whitespace that separated them from the code,
-   so the code it frames is left exactly as the generator wrote it. */
-.code-block__line > .code-block__label {
-  visibility: hidden;
+.code-block__line {
+  display: block;
+}
+
+.code-block .hljs-comment,
+.code-block .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.code-block .hljs-keyword,
+.code-block .hljs-literal,
+.code-block .hljs-selector-tag,
+.code-block .hljs-section,
+.code-block .hljs-link {
+  color: var(--code-keyword);
+  font-weight: 600;
+}
+
+.code-block .hljs-string,
+.code-block .hljs-regexp,
+.code-block .hljs-addition,
+.code-block .hljs-attribute {
+  color: var(--code-string);
+}
+
+.code-block .hljs-number,
+.code-block .hljs-symbol,
+.code-block .hljs-bullet {
+  color: var(--code-number);
+}
+
+.code-block .hljs-title,
+.code-block .hljs-title.class_,
+.code-block .hljs-title.function_ {
+  color: var(--code-title);
+  font-weight: 600;
+}
+
+.code-block .hljs-built_in,
+.code-block .hljs-type {
+  color: var(--code-type);
+}
+
+.code-block .hljs-variable,
+.code-block .hljs-template-variable,
+.code-block .hljs-attr,
+.code-block .hljs-property {
+  color: var(--code-variable);
+}
+
+.code-block .hljs-meta,
+.code-block .hljs-meta .hljs-keyword {
+  color: var(--code-meta);
+}
+
+.code-block .hljs-deletion {
+  color: var(--code-keyword);
 }
 
 /* "Term — definition": the tint says it is set apart, and the bar down the
