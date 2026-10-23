@@ -4339,6 +4339,111 @@
   cursor: not-allowed;
 }
 
+/* ── The time limit, as two boxes ─────────────────────────
+   Hours and Minutes written the way a code is entered, because that is what
+   the assessor is doing: two digits, then two digits, with the colon between
+   them saying which is which. One box reading "90" could be either.
+
+   The digits are set at the heading size in the console's stat weight — the
+   treatment .q-length__count gives the number of questions. They are the
+   figure being set, and the words under them are only their names.
+   ───────────────────────────────────────────────────────── */
+
+.time-boxes {
+  display: flex;
+  /* Top-aligned, so the boxes line up with each other and the names hang
+     below them. */
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.time-boxes__unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* Square enough to read as a box for two digits rather than a field that has
+   been cut short. The shell is the .gen-input shell — same inset hairline,
+   same radius, same ground — because it is the same kind of thing as the
+   fields above it in this column. */
+.time-boxes__field {
+  width: 3.5rem;
+  height: 3rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: box-shadow 0.14s ease;
+}
+
+/* "00" is the shape of the answer, not an answer. Lighter than the names
+   under the boxes, so an empty box never reads as a filled one. */
+.time-boxes__field::placeholder {
+  color: var(--gray-400);
+  font-weight: var(--fw-regular);
+}
+
+/* Not while it is wrong: the hairline is carrying the error then, and a
+   pointer passing over is not worth overwriting that with. */
+.time-boxes:not(.is-invalid) .time-boxes__field:enabled:hover:not(:focus) {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
+.time-boxes__field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* Centred on the digits, not on the pair of boxes: the colon belongs to the
+   numbers, and the names below them are not part of what it separates. */
+.time-boxes__colon {
+  display: flex;
+  align-items: center;
+  height: 3rem;
+  color: var(--text-muted);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+.time-boxes__name {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+/* Off: the boxes stay where they are, greyed. The same treatment
+   .gen-input:disabled gets, for the same reason — the figure is still the
+   answer to how long the paper would run, and it is worth reading before the
+   switch beside it is pressed. */
+.time-boxes__field:disabled {
+  background: var(--gray-050);
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.time-boxes.is-disabled .time-boxes__colon,
+.time-boxes.is-disabled .time-boxes__name {
+  color: var(--gray-400);
+}
+
+/* Nothing set, on a paper the switch beside it says is timed. The hairline turns
+   and the line under the boxes says what to do about it — the colour is never
+   the whole message. The focus ring stays the focus ring, so being focused
+   and being wrong each say one thing. */
+.time-boxes.is-invalid .time-boxes__field {
+  box-shadow: inset 0 0 0 1px var(--error-text);
+}
+
 /* ── Select (the shared listbox — see components/Select) ──
    A native <select> hands its list to the operating system, which draws it in
    the system's type on the system's white, ignoring this console's radii and
@@ -4625,9 +4730,19 @@
    Off is a named state — the row reads "No time limit" — rather than the
    absence of a tick. That is the whole point: the most permissive setting a
    paper has used to have no words on screen anywhere. */
+/* Standing beside the time boxes it was a different kind of object: a flat
+   strip of field against two 3rem boxes of figures, with a track small enough
+   to read as a speck next to them. It is built to a box now — the same height,
+   the same shell, the same hairline under the pointer — and its track has
+   grown in the same proportion. The word it carries is the answer, so it is
+   set at the weight the figures are.
+
+   The roster's switch is left where it was. It reports a status in a table
+   row and has nothing to be the size of. */
 .gen-switch {
   display: flex;
   width: 100%;
+  min-height: 3rem;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
@@ -4638,14 +4753,62 @@
   box-shadow: var(--shadow-field);
   font-family: inherit;
   font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
   color: var(--text-strong);
   text-align: left;
   cursor: pointer;
 }
 
+.gen-switch:hover {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
 .gen-switch:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
+}
+
+/* 36 × 20 rather than the roster's 30 × 17, with the knob and its travel moved
+   by the same amount: 2.5px of ground all round, as before. */
+.gen-switch__track {
+  width: 2.25rem;
+  height: 1.25rem;
+}
+
+.gen-switch__thumb {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.gen-switch.is-on .gen-switch__thumb {
+  transform: translateX(16px);
+}
+
+/* ── The time limit, switch and length on one line ────────
+   One setting, so one row: the switch says whether the paper is timed and the
+   boxes beside it say for how long. The switch takes the space the boxes do
+   not need, and wraps under them on a column too narrow for both — which is
+   the phone layout, where this column is the page.
+
+   Top-aligned, and the switch is built to a box's height, so the two controls
+   start and finish on the same two lines. What hangs below them is the boxes'
+   own names, which belong to the boxes and not to the row.
+   ───────────────────────────────────────────────────────── */
+
+.gen-limit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.gen-limit .gen-switch {
+  flex: 1 1 9rem;
+  width: auto;
+}
+
+.gen-limit .time-boxes {
+  flex: none;
 }
 
 .gen-actions {

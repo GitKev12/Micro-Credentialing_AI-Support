@@ -3,10 +3,26 @@ import {
   DEFAULT_MINUTES,
   TIMED,
   UNTIMED,
+  fromHoursAndMinutes,
   limitModeFor,
   limitReady,
-  timeLimitFor
+  timeLimitFor,
+  toHoursAndMinutes
 } from "../src/pages/assessor/timeLimit.js";
+
+describe("hours and minutes", () => {
+  it("shows a total as two boxes of two digits", () => {
+    expect(toHoursAndMinutes(90)).toEqual({ hours: "01", minutes: "30" });
+    expect(toHoursAndMinutes(45)).toEqual({ hours: "00", minutes: "45" });
+    expect(toHoursAndMinutes(null)).toEqual({ hours: "", minutes: "" });
+  });
+
+  it("adds the boxes back up to minutes", () => {
+    expect(fromHoursAndMinutes("01", "30")).toBe(90);
+    expect(fromHoursAndMinutes("2", "")).toBe(120);
+    expect(fromHoursAndMinutes("", "")).toBe("");
+  });
+});
 
 /**
  * The one control that decides how long a paper runs: two answers, one of
