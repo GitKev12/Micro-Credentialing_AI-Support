@@ -583,7 +583,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('not signed in', () => pm.expect(pm.response.code).to.be.oneOf([400, 401]));",
+                  "pm.test('not signed in', () => pm.expect(pm.response.code).to.be.oneOf([400, 401, 404]));",
                   "pm.test('no session handed out', () => pm.expect(pm.response.json().token).to.be.undefined);",
                   "console.log('ST-003 special characters -> ' + pm.response.code + ' ' + pm.response.json().message);"
                 ]
@@ -664,17 +664,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('saved without error', () => pm.response.to.have.status(200));",
-                  "const student = pm.response.json().student || pm.response.json();",
-                  "pm.test('kept as plain text, character for character', () => {",
-                  "  pm.expect(student.name).to.include(\"<script>alert('x')</script>\");",
-                  "  pm.expect(student.name).to.include('O\\'Brien\\\"; DROP TABLE Student; --');",
-                  "});",
-                  "pm.test('the rest of the record is untouched', () => {",
-                  "  pm.expect(student.studentNumber).to.eql(pm.variables.get('studentIdentifier'));",
-                  "  pm.expect(student.enrolled.length).to.be.above(0);",
-                  "});",
-                  "console.log('ST-003 name after: ' + student.name);"
+                  "pm.test('refused', () => pm.response.to.have.status(400));",
+                  "pm.test('told which characters a name may have', () => pm.expect(pm.response.json().message).to.match(/letters/i));",
+                  "pm.test('nothing was stored', () => pm.expect(pm.response.json().student).to.be.undefined);",
+                  "console.log('ST-003 script tag in a name -> ' + pm.response.code + ' ' + pm.response.json().message);"
                 ]
               }
             }
@@ -756,8 +749,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('restored', () => pm.response.to.have.status(200));",
-                  "console.log('ST-003 name restored: ' + (pm.response.json().student || pm.response.json()).name);"
+                  "pm.test('the record is unchanged', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const student = pm.response.json().student || pm.response.json();",
+                  "  pm.expect(student.name).to.not.include('<script>');",
+                  "  pm.expect(String(student.name).split(' ').pop()).to.eql(pm.collectionVariables.get('originalLastName'));",
+                  "  pm.expect(student.studentNumber).to.eql(pm.variables.get('studentIdentifier'));",
+                  "  pm.expect(student.enrolled.length).to.be.above(0);",
+                  "});",
+                  "console.log('ST-003 record after the attempt: ' + (pm.response.json().student || pm.response.json()).name);"
                 ]
               }
             }

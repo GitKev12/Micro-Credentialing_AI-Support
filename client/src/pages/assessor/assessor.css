@@ -3985,6 +3985,19 @@
   margin-bottom: var(--sp-4);
 }
 
+/* The lists in this column are tied to the field they open under.
+
+   A select's list is normally free to grow wider than its trigger, so a long
+   lesson title does not wrap onto three lines. This column is 23.75rem and
+   the titles are longer than that, so here that freedom put the open list
+   over the edge of the card it belongs to. It keeps 90% of the field instead
+   and the titles wrap. The cap above still applies, so the one-column
+   layout does not open a list the width of the screen. */
+.gen-side .assessor-select__list {
+  min-width: 0;
+  width: 90%;
+}
+
 /* Keep the total, its edit action, and the cognitive split in one summary. */
 .q-length {
   container-type: inline-size;
