@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { sortLessons } from "../lib/lessonOrder.js";
 import { TOS_LEVELS } from "../assessments/assessments.format.js";
+import { manualTrueFalse } from "../assessments/assessments.blueprint.js";
 import {
   courseCode,
   courseTitle,
@@ -55,6 +56,16 @@ const levelsOf = (source) =>
   Object.fromEntries(TOS_LEVELS.map((level) => [level, toCount(source?.[level])]));
 
 /**
+ * The assessor's True or False count, never more than the paper holds. Null
+ * when it is on the default (the LOTS count).
+ */
+function trueFalseWithin(value, items) {
+  const manual = manualTrueFalse(value);
+  if (manual === null) return null;
+  return items > 0 ? Math.min(manual, items) : manual;
+}
+
+/**
  * One row of the per-lesson blueprint.
  *
  * `moduleId` is the row's real identity — `course` is a coverage label anyone
@@ -66,11 +77,13 @@ function quizRow(row) {
   if (!row?.moduleId) return null;
 
   const levels = levelsOf(row);
+  const items = TOS_LEVELS.reduce((sum, level) => sum + levels[level], 0);
   return {
     moduleId: String(row.moduleId),
     course: String(row.course ?? "").trim(),
     ...levels,
-    items: TOS_LEVELS.reduce((sum, level) => sum + levels[level], 0)
+    items,
+    trueFalse: trueFalseWithin(row.trueFalse, items)
   };
 }
 
@@ -102,9 +115,11 @@ function finalBlock(source) {
 
   const rows = (Array.isArray(source.rows) ? source.rows : []).map(finalRow).filter(Boolean);
 
+  const items = toCount(source.items);
   return {
-    items: toCount(source.items),
+    items,
     levels: levelsOf(source.levels),
+    trueFalse: trueFalseWithin(source.trueFalse, items),
     rows
   };
 }

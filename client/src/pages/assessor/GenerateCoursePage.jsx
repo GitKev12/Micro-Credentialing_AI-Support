@@ -455,13 +455,14 @@ function GenerateCoursePage() {
       const stated = toCount(tos?.final?.items);
       return {
         split,
-        items: stated && stated !== 40 ? stated : assigned || DEFAULT_FINAL_ITEMS
+        items: stated && stated !== 40 ? stated : assigned || DEFAULT_FINAL_ITEMS,
+        trueFalse: tos?.final?.trueFalse ?? null
       };
     }
 
     const row = (tos?.rows ?? []).find((entry) => String(entry.moduleId) === String(moduleId));
     const split = Object.fromEntries(LEVEL_KEYS.map((key) => [key, toCount(row?.[key])]));
-    return { split, items: splitItems(split) };
+    return { split, items: splitItems(split), trueFalse: row?.trueFalse ?? null };
   }, [tos, scope, moduleId]);
 
   // One source of truth for a paper's length. The generate screen used to
@@ -830,6 +831,7 @@ function GenerateCoursePage() {
             <QuestionsField
               count={length}
               split={brief.split}
+              trueFalse={brief.trueFalse}
               paper={scope === "final" ? "final exam" : "exam"}
               onModify={() => setTosOpen(true)}
             />

@@ -21,6 +21,48 @@ const toCount = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
+// The lower-order levels. The default True or False count is how many of these there are.
+const LOTS_LEVELS = ["remember", "understand", "apply"];
+
+/**
+ * The assessor's own True or False count, or null when it is on the default.
+ * Zero is a real answer ("no True or False at all"), so it is kept.
+ */
+export function manualTrueFalse(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
+}
+
+/**
+ * How many True or False and Multiple Choice questions one paper gets.
+ *
+ * The default is the LOTS count as True or False and the HOTS count as
+ * Multiple Choice, scaled to the paper's length. A count the assessor typed in
+ * the ToS wins. Either way it is only a count: a True or False question can be
+ * at any level. The client works this out the same way (questionTypes in
+ * tos/levels.js), so both ends agree.
+ *
+ * Null when there is nothing to go on, and the model chooses.
+ */
+export function questionTypes({ itemCount, distribution = null, trueFalse = null }) {
+  const total = toCount(itemCount);
+  if (!(total > 0)) return null;
+
+  const manual = manualTrueFalse(trueFalse);
+  if (manual !== null) {
+    const count = Math.min(manual, total);
+    return { trueFalse: count, multipleChoice: total - count };
+  }
+
+  const levels = TOS_LEVELS.reduce((sum, level) => sum + toCount(distribution?.[level]), 0);
+  if (!(levels > 0)) return null;
+
+  const lots = LOTS_LEVELS.reduce((sum, level) => sum + toCount(distribution?.[level]), 0);
+  const count = Math.min(total, Math.round((lots * total) / levels));
+  return { trueFalse: count, multipleChoice: total - count };
+}
+
 /** Items asked of one TOS row, by level and in total. */
 export function rowDistribution(row) {
   const distribution = {};
@@ -65,6 +107,8 @@ function finalFromTos(doc) {
     // the first, so the matrix stands in rather than reading zero.
     items: stated || written,
     levels: Object.fromEntries(TOS_LEVELS.map((level) => [level, toCount(doc?.final?.levels?.[level])])),
+    // Null means the default True or False count.
+    trueFalse: manualTrueFalse(doc?.final?.trueFalse),
     totalItems: written,
     rows: mapped
   };
@@ -113,7 +157,9 @@ export function blueprintFromTos(doc) {
       coverage: String(row?.course ?? ""),
       moduleId: row?.moduleId ? String(row.moduleId) : null,
       hours: toCount(row?.hours),
-      ...perRow[index]
+      ...perRow[index],
+      // Null means the default True or False count.
+      trueFalse: manualTrueFalse(row?.trueFalse)
     })),
     // Null until an assessor writes one, which is what keeps every blueprint
     // stored before the final had a table of its own still readable.

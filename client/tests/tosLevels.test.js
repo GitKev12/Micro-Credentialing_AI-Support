@@ -146,13 +146,31 @@ describe("setLevelWithinTotal", () => {
     expect(splitItems(next)).toBe(60);
   });
 
-  it("preserves the proportions of the remaining levels while scaling", () => {
-    const paper = split([10, 5, 5, 20, 10, 10]);
-    const next = setLevelWithinTotal(paper, "create", 30, 60);
+  it("takes the extra item from the biggest other level", () => {
+    // 10 items: Understanding 3, Analyzing 6, Creating 1. Raising Evaluating
+    // to 1 makes Analyzing 5; the paper stays at 10.
+    const paper = split([0, 3, 0, 6, 0, 1]);
+    const next = setLevelWithinTotal(paper, "evaluate", 1, 10);
 
-    // The remaining levels half from 1 : 1/2 : 1/2 : 2 : 1 to fill 30 items.
-    expect(next).toEqual(split([6, 3, 3, 12, 6, 30]));
-    expect(splitItems(next)).toBe(60);
+    expect(next).toEqual(split([0, 3, 0, 5, 1, 1]));
+    expect(splitItems(next)).toBe(10);
+  });
+
+  it("starts taking from LOTS once a LOTS level is the biggest", () => {
+    // Pushing Evaluating to 5 drains Analyzing to 3, then the 3-3 tie goes to
+    // Understanding, which is listed first.
+    const paper = split([0, 3, 0, 6, 0, 1]);
+    const next = setLevelWithinTotal(paper, "evaluate", 5, 10);
+
+    expect(next).toEqual(split([0, 2, 0, 2, 5, 1]));
+    expect(splitItems(next)).toBe(10);
+  });
+
+  it("can move the whole paper into HOTS", () => {
+    const paper = split([2, 2, 2, 2, 1, 1]);
+    const next = setLevelWithinTotal(paper, "analyze", 10, 10);
+
+    expect(next).toEqual(split([0, 0, 0, 10, 0, 0]));
   });
 
   it("works when all other levels start at zero", () => {

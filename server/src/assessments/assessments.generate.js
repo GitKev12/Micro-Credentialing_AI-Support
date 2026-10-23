@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { collectionExists, idCandidates } from "../lib/mongo.js";
 import { hashSeed, sample, seededRandom } from "../lib/random.js";
-import { loadLessonBlueprint, loadQuizBlueprint } from "./assessments.blueprint.js";
+import { loadLessonBlueprint, loadQuizBlueprint, questionTypes } from "./assessments.blueprint.js";
 import { papersForClass } from "./classPapers.js";
 import {
   DEFAULT_FINAL_MINUTES,
@@ -406,6 +406,13 @@ export async function generateModuleAssessment({
   // for why that went.
   const paperLength = Math.min(wantedItems, MAX_REQUESTED_ITEMS);
 
+  // How many True or False and Multiple Choice items, from the ToS row.
+  const types = questionTypes({
+    itemCount: paperLength,
+    distribution: blueprintRow?.distribution ?? null,
+    trueFalse: blueprintRow?.trueFalse ?? null
+  });
+
   if (dryRun) {
     return {
       status: "planned",
@@ -414,7 +421,8 @@ export async function generateModuleAssessment({
       itemCount: paperLength,
       sourceChars: sourceText.length,
       estimatedInputTokens: Math.round(sourceText.length / CHARS_PER_TOKEN),
-      distribution: blueprintRow?.distribution ?? null
+      distribution: blueprintRow?.distribution ?? null,
+      types
     };
   }
 
@@ -431,6 +439,7 @@ export async function generateModuleAssessment({
       sourceText,
       itemCount: paperLength,
       distribution: blueprintRow?.distribution ?? null,
+      types,
       model
     });
   } catch (error) {
@@ -978,6 +987,19 @@ export function planFinalPaper({ plan, lessons, wanted = null }) {
     ? spreadPaperLevels(paperLevels, carrying.map((row) => row.items))
     : null;
 
+  // A True or False count the assessor typed for the whole exam, shared out
+  // across the lessons by how many questions each carries. Null leaves each
+  // lesson on the default, its own LOTS count.
+  const paperItems = carrying.reduce((sum, row) => sum + row.items, 0);
+  const typedTrueFalse = plan?.trueFalse ?? null;
+  const trueFalseByLesson =
+    typedTrueFalse === null
+      ? null
+      : shareOut(
+          Object.fromEntries(carrying.map((row) => [row.moduleId, row.items])),
+          Math.min(typedTrueFalse, paperItems)
+        );
+
   return carrying.map((row, index) => ({
     moduleId: row.moduleId,
     coverage: row.coverage,
@@ -985,7 +1007,8 @@ export function planFinalPaper({ plan, lessons, wanted = null }) {
     // The lesson's own cells where the assessor filled them in, scaled to what
     // it ended up carrying; otherwise its slice of the paper's mix. Null when
     // they stated neither, and the model is left to choose.
-    distribution: row.stated ? shareOut(row.stated, row.items) : (spread?.[index] ?? null)
+    distribution: row.stated ? shareOut(row.stated, row.items) : (spread?.[index] ?? null),
+    trueFalse: trueFalseByLesson ? trueFalseByLesson[row.moduleId] : null
   }));
 }
 
@@ -1208,6 +1231,11 @@ export async function generateFinalAssessment({
         sourceText: sourceOf.get(entry.moduleId) ?? "",
         itemCount: entry.items,
         distribution: entry.distribution,
+        types: questionTypes({
+          itemCount: entry.items,
+          distribution: entry.distribution,
+          trueFalse: entry.trueFalse
+        }),
         model
       });
 

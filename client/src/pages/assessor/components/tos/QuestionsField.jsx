@@ -1,5 +1,15 @@
 import { useId } from "react";
-import { GROUPS, LEVELS, LEVEL_KEYS, apportion, groupItems, share, splitItems, toCount } from "./levels";
+import {
+  GROUPS,
+  LEVELS,
+  LEVEL_KEYS,
+  apportion,
+  groupItems,
+  questionTypes,
+  share,
+  splitItems,
+  toCount
+} from "./levels";
 
 /**
  * The paper length as its Table of Specification sets it.
@@ -9,7 +19,7 @@ import { GROUPS, LEVELS, LEVEL_KEYS, apportion, groupItems, share, splitItems, t
  * two answers to one decision. The count is changed in the ToS; this control
  * keeps that plan visible at the point where it will be spent.
  */
-export default function QuestionsField({ count, split, paper, onModify }) {
+export default function QuestionsField({ count, split, trueFalse = null, paper, onModify }) {
   const id = useId();
   const assigned = splitItems(split);
 
@@ -41,8 +51,37 @@ export default function QuestionsField({ count, split, paper, onModify }) {
         </div>
 
         <LevelFloor split={split} assigned={assigned} count={count} />
+
+        {count > 0 && assigned > 0 ? (
+          <div className="q-length__mix q-length__types">
+            <TypeFigures split={split} count={count} trueFalse={trueFalse} />
+          </div>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+/** How many True or False and Multiple Choice questions the ToS asks for. */
+function TypeFigures({ split, count, trueFalse }) {
+  const types = questionTypes(split, count, trueFalse);
+  const rows = [
+    { key: "true-false", label: "True or False", n: types.trueFalse },
+    { key: "multiple-choice", label: "Multiple Choice", n: types.multipleChoice }
+  ];
+
+  return (
+    <ul className="tos-mix" aria-label="Question types" role="list">
+      {rows.map((row) => (
+        <li className="tos-mix__group" key={row.key} data-type={row.key}>
+          <span className="tos-mix__label">{row.label}</span>
+          <div className="tos-mix__total">
+            <span className="tos-mix__n">{row.n}</span>
+            <span className="tos-mix__unit">{row.n === 1 ? "question" : "questions"}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

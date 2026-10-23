@@ -4140,6 +4140,47 @@
   font-size: var(--fs-label);
 }
 
+/* ── The question types, in the same box ──────────────────
+   Not a second reading of the levels above them. True or False and Multiple
+   Choice cut across every level — a recall question and an evaluation
+   question can both be True or False — but set in the levels' own two
+   columns, under the levels' own divider, with the default counts landing
+   equal, the pair read as a key to the pair above: True or False for LOTS,
+   Multiple Choice for HOTS. Neither one is for either.
+
+   So they run along the row instead, each sized to its own words, with no
+   divider for the eye to carry down from the levels and nothing standing
+   under either column. The figures are a step smaller than the levels', the
+   levels being the plan and the types a cut taken across it.
+   ───────────────────────────────────────────────────────── */
+
+.q-length__types .tos-mix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+}
+
+.q-length__types .tos-mix::after {
+  display: none;
+}
+
+/* The name and its figure on one line, so a type reads as a statement rather
+   than as a column heading with a number beneath it. */
+.q-length__types .tos-mix__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.q-length__types .tos-mix__total {
+  grid-column: auto;
+}
+
+.q-length__types .tos-mix__n {
+  font-size: var(--fs-body-lg);
+}
+
 @container (max-width: 16rem) {
   .tos-mix {
     grid-template-columns: minmax(0, 1fr);
@@ -6310,6 +6351,77 @@
 .tos-step__field:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: -2px;
+}
+
+/* ── No. Items ─────────────────────────────────────────────
+   The length of the paper, typed instead of stepped. It stands in the head of
+   a card where the stepper used to, so it is built to the same height: the
+   stepper's 2rem buttons inside its hairline is 2.125rem, and the heads do
+   not change height when a card carries one or the other.
+
+   The words sit to the left of the box in the muted label size. The number is
+   the thing being read here; the label only says what it counts.
+   ───────────────────────────────────────────────────────── */
+
+.tos-items {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.tos-items__label {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* Three digits with room around them — the longest paper is 999 — in figures
+   of one width, so the box does not shift as the number is typed over. The
+   corner is the stepper's 8px rather than the 12px the cards and the full
+   fields carry: this is a control the size of a chip, and 12px on a box this
+   small reads as a lozenge. */
+.tos-items__field {
+  width: 3.25rem;
+  height: 2.125rem;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: border-color 0.14s ease;
+}
+
+/* The edge firms up under the pointer, the same quiet answer the stepper's
+   buttons give. */
+.tos-items__field:hover:not(:disabled) {
+  border-color: var(--gray-400);
+}
+
+/* The ring every other field on this console carries. */
+.tos-items__field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* Still readable rather than faded away: the number is the answer to how long
+   the paper is, which is worth reading even where it cannot be set from
+   here. */
+.tos-items__field:disabled {
+  border-color: var(--gray-200);
+  background: var(--gray-050);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.tos-items.is-disabled .tos-items__label {
+  color: var(--gray-400);
 }
 
 /* ── The matrix ───────────────────────────────────────────── */

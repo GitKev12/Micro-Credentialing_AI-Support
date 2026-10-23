@@ -5,10 +5,11 @@ import { LoadFailed, Segmented } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
 import AllocationBar from "./AllocationBar";
 import ContentSplit from "./ContentSplit";
+import ItemsField from "./ItemsField";
 import LevelSplit from "./LevelSplit";
 import Matrix from "./Matrix";
 import SaveButton from "./SaveButton";
-import Stepper from "./Stepper";
+import TypeSplit from "./TypeSplit";
 import { animateHeight, animateHeightClipped, heightOf } from "./resize";
 import {
   DEFAULT_FINAL_ITEMS,
@@ -18,6 +19,8 @@ import {
   columnTotals,
   defaultSplit,
   emptySplit,
+  readTrueFalse,
+  resizeSplit,
   setLevelWithinTotal,
   splitItems,
   toCount
@@ -119,7 +122,13 @@ function readTos(tos, lessons) {
       ? columns
       : defaultSplit(finalItems);
 
-  return { quizzes, finalItems, content, levels, grid };
+  // The assessor's True or False counts. Null is the default (the LOTS count).
+  const quizTypes = Object.fromEntries(
+    lessons.map((lesson) => [lesson.id, readTrueFalse(quizRows.get(String(lesson.id))?.trueFalse)])
+  );
+  const finalTrueFalse = readTrueFalse(tos?.final?.trueFalse);
+
+  return { quizzes, quizTypes, finalItems, content, levels, finalTrueFalse, grid };
 }
 
 function TosEditor({
@@ -226,14 +235,19 @@ function TosEditor({
   const quizSplit = draft?.quizzes?.[lessonId] ?? emptySplit();
   const quizItems = splitItems(quizSplit);
 
+  // Same rule as the final: a level change never adds a question. The extra
+  // item comes out of another level (see setLevelWithinTotal).
   const setQuizLevel = (key, value) =>
-    setDraft((current) => ({
-      ...current,
-      quizzes: {
-        ...current.quizzes,
-        [lessonId]: { ...current.quizzes[lessonId], [key]: value }
-      }
-    }));
+    setDraft((current) => {
+      const split = current.quizzes[lessonId] ?? emptySplit();
+      return {
+        ...current,
+        quizzes: {
+          ...current.quizzes,
+          [lessonId]: setLevelWithinTotal(split, key, value, splitItems(split))
+        }
+      };
+    });
 
   /**
    * Retargeting a quiz keeps the mix it already has.
@@ -243,23 +257,37 @@ function TosEditor({
    * are re-apportioned instead: a 1/2/3/4 paper doubles to 2/4/6/8 rather than
    * emptying. With nothing set yet there is nothing to keep, so the first count
    * opens on the curriculum's 30/70 spread rather than on six zeros.
+   *
+   * resizeSplit does both. This used to read the 30/70 default as if it were a
+   * list of numbers, so a lesson with no levels yet came back as 0 items.
    */
   const setQuizItems = (next) =>
-    setDraft((current) => {
-      const split = current.quizzes[lessonId] ?? emptySplit();
-      const spread =
-        splitItems(split) > 0
-          ? apportion(next, LEVEL_KEYS.map((key) => split[key]))
-          : defaultSplit(next);
+    setDraft((current) => ({
+      ...current,
+      quizzes: {
+        ...current.quizzes,
+        [lessonId]: resizeSplit(current.quizzes[lessonId] ?? emptySplit(), next)
+      }
+    }));
 
-      return {
-        ...current,
-        quizzes: {
-          ...current.quizzes,
-          [lessonId]: Object.fromEntries(LEVEL_KEYS.map((key, index) => [key, spread[index]]))
-        }
-      };
-    });
+  // The final's length works the same way.
+  const setFinalItems = (next) =>
+    setDraft((current) => ({
+      ...current,
+      finalItems: next,
+      levels: resizeSplit(current.levels, next)
+    }));
+
+  const quizTrueFalse = draft?.quizTypes?.[lessonId] ?? null;
+
+  // Null puts the count back on the default.
+  const setQuizTrueFalse = (value) =>
+    setDraft((current) => ({
+      ...current,
+      quizTypes: { ...current.quizTypes, [lessonId]: value }
+    }));
+
+  const setFinalTrueFalse = (value) => patch({ finalTrueFalse: value });
 
   const setContent = (id, value) => patch({ content: { ...draft.content, [id]: value } });
 
@@ -311,11 +339,13 @@ function TosEditor({
           : lessons.map((lesson) => ({
               moduleId: lesson.id,
               course: lesson.title,
-              ...draft.quizzes[lesson.id]
+              ...draft.quizzes[lesson.id],
+              trueFalse: draft.quizTypes[lesson.id] ?? null
             })),
         final: {
           items: draft.finalItems,
           levels: draft.levels,
+          trueFalse: draft.finalTrueFalse,
           rows: lessons.map((lesson, index) => ({
             moduleId: lesson.id,
             coverage: lesson.title,
@@ -394,6 +424,7 @@ function TosEditor({
 
       <div className="tos-editor__mode" key={mode} ref={paper}>
         {mode === "lesson" ? (
+          <>
           <section className="assessor-card tos-block">
           <div className="tos-block__head">
             <div>
@@ -405,12 +436,7 @@ function TosEditor({
               ) : null}
             </div>
             <div className="tos-block__tools">
-              <Stepper
-                value={quizItems}
-                max={MAX_ITEMS}
-                label="Questions in this exam"
-                onChange={setQuizItems}
-              />
+              <ItemsField value={quizItems} max={MAX_ITEMS} onChange={setQuizItems} />
             </div>
           </div>
 
@@ -418,26 +444,21 @@ function TosEditor({
 
           <LevelSplit split={quizSplit} total={quizItems} onChange={setQuizLevel} />
           </section>
+
+          <QuestionTypesBlock
+            split={quizSplit}
+            total={quizItems}
+            trueFalse={quizTrueFalse}
+            onChange={setQuizTrueFalse}
+          />
+          </>
         ) : (
           <>
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
               <h2 className="tos-block__title">The exam</h2>
               <div className="tos-block__tools">
-                <Stepper
-                  value={draft.finalItems}
-                  max={MAX_ITEMS}
-                  label="Questions in the final exam"
-                  onChange={(next) => {
-                    const spread = apportion(next, LEVEL_KEYS.map((key) => draft.levels[key]));
-                    patch({
-                      finalItems: next,
-                      levels: Object.fromEntries(
-                        LEVEL_KEYS.map((key, index) => [key, spread[index]])
-                      )
-                    });
-                  }}
-                />
+                <ItemsField value={draft.finalItems} max={MAX_ITEMS} onChange={setFinalItems} />
               </div>
             </div>
 
@@ -469,6 +490,13 @@ function TosEditor({
             <LevelSplit split={draft.levels} total={draft.finalItems} onChange={setFinalLevel} />
           </section>
 
+          <QuestionTypesBlock
+            split={draft.levels}
+            total={draft.finalItems}
+            trueFalse={draft.finalTrueFalse}
+            onChange={setFinalTrueFalse}
+          />
+
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
               <h2 className="tos-block__title">Lessons by level</h2>
@@ -493,6 +521,27 @@ function TosEditor({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The True or False / Multiple Choice card. It never changes the cognitive
+ * levels. "Use Default" puts the counts back on the LOTS/HOTS numbers, and
+ * only shows once the assessor has changed them.
+ */
+function QuestionTypesBlock({ split, total, trueFalse, onChange }) {
+  return (
+    <section className="assessor-card tos-block">
+      <div className="tos-block__head">
+        <h2 className="tos-block__title">Question types</h2>
+        {trueFalse !== null ? (
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => onChange(null)}>
+            Use Default
+          </button>
+        ) : null}
+      </div>
+      <TypeSplit split={split} total={total} trueFalse={trueFalse} onChange={onChange} />
+    </section>
   );
 }
 
