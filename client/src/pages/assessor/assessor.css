@@ -346,13 +346,7 @@
 }
 
 .assessor-rail--collapsed .assessor-rail__avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-.assessor-rail--collapsed .assessor-rail__avatar svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  --avatar: 2.5rem;
 }
 
 .assessor-rail--collapsed .assessor-rail__nav {
@@ -419,14 +413,27 @@
   text-align: center;
 }
 
+/* The glyph is a head and shoulders drawn to the very edges of its own box —
+   no ground around it — so it can only be set as a share of the circle it
+   stands in. Asked for at 56px in a 62px disc it ran out of the disc on both
+   shoulders, and it was a different share of the circle again once the rail
+   was folded. Three fifths is what the folded rail was already drawing; both
+   states take it from the one figure now, so they cannot drift apart. */
 .assessor-rail__avatar {
+  --avatar: 3.875rem;
   display: grid;
   place-items: center;
-  width: 3.875rem;
-  height: 3.875rem;
+  width: var(--avatar);
+  height: var(--avatar);
   border-radius: 50%;
   background: var(--surface);
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.14);
+  transition: width 0.22s ease, height 0.22s ease;
+}
+
+.assessor-rail__avatar svg {
+  width: calc(var(--avatar) * 0.6);
+  height: calc(var(--avatar) * 0.6);
   transition: width 0.22s ease, height 0.22s ease;
 }
 
@@ -5044,6 +5051,7 @@
   .gen-toggle__pill,
   .assessor-rail__toggle,
   .assessor-rail__avatar,
+  .assessor-rail__avatar svg,
   .progress__fill,
   .focus-dot {
     transition: none;
@@ -5696,6 +5704,17 @@
   gap: var(--sp-2);
 }
 
+/* Why the last save did not take, under the header that carries the button
+   that tried. The console's inline-error step, as .assessor-cutoff__error is
+   written: the colour is the tone and the server's own words are the
+   message. */
+.tos-editor__error {
+  margin: 0 0 var(--sp-4);
+  color: var(--error-text);
+  font-size: var(--fs-label);
+  line-height: 1.45;
+}
+
 /* -- The Save button says how it went ----------------------
    Maroon at rest, green once it is saved, red when it is not. Colour is
    never the only cue here: the word changes and so does the mark, which is
@@ -5991,6 +6010,73 @@
   all: revert;
 }
 
+/* ── "Discard them?" ──────────────────────────────────────
+   Asked at the top of the panel and pinned there, because the panel is what
+   scrolls: a final's blueprint is four cards long, and a question that only
+   exists above the first card is a question nobody scrolled up far enough to
+   be asked.
+
+   It bleeds to the dialog's edges the way the blueprint's own header does,
+   and carries the dialog's ground, so the cards pass under it rather than
+   through it. The weight is in the one word that cannot be taken back —
+   Discard changes is the console's error colour; everything else here stays
+   quiet, because the safe answer should not have to shout to be picked.
+   ───────────────────────────────────────────────────────── */
+
+.tos-modal__confirm {
+  --edge: var(--pad, var(--sp-5));
+  position: sticky;
+  /* Above the header, which pins to this same edge. */
+  top: calc(var(--edge) * -1);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: calc(var(--edge) * -1) calc(var(--edge) * -1) 0;
+  padding: var(--sp-4) var(--edge);
+  background: var(--bg-app);
+  box-shadow: inset 0 -1px 0 var(--gray-200);
+}
+
+/* While the question is up the header stops sticking and stops bleeding
+   upward: two bars pinned to one edge is one bar hiding the other, and the
+   header's own negative top margin would otherwise pull it over this one. */
+.tos-modal__panel:has(.tos-modal__confirm) .tos-editor__head {
+  position: static;
+  margin-top: 0;
+}
+
+.tos-modal__confirm-text {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+/* Right of the question where both fit on the line, and right of the panel
+   where the question has taken the line to itself. */
+.tos-modal__confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+/* There is no danger button in this console, and one button is not a reason
+   to start a variant. It is .btn--ghost with its tone changed: the hover wash
+   stays the console's own, so the weight is carried by the word and the line
+   around it rather than by a second red. */
+.tos-modal__discard {
+  color: var(--error-text);
+  box-shadow: inset 0 0 0 1px var(--error-text);
+}
+
+.tos-modal__discard:hover {
+  background: var(--brand-hover);
+}
+
 .tos-modal__close {
   display: grid;
   place-items: center;
@@ -6067,11 +6153,63 @@
   margin: 0;
 }
 
-/* The card already rules between its two rows and spaces them; a third rule
-   under the last would make a two-row card look like a table with a footer. */
-.tos-brief .tos-check {
-  padding-top: 0;
-  border-top: none;
+/* ── How much of the paper a card has placed ──────────────
+   A count, in the head of the card it belongs to, beside that card's own
+   action. It replaces a sentence set under the table, which said the same
+   thing in words, said it the same way whether it was good news or not, and
+   on the matrix sat a scroll below the cells it was reporting on.
+
+   Both figures stay on screen while the cells are typed — what is placed and
+   what the paper is — because the gap between them is the thing being worked
+   off. Full, it takes the console's own ok wash; short, it is a quiet count
+   rather than an alarm, the blueprint being somewhere to think and nothing
+   here being wrong until it is saved.
+   ───────────────────────────────────────────────────────── */
+
+/* Named for what it counts, and not .tos-tally: that name was already the
+   matrix's own cell total, which is a figure stacked over the figure it was
+   aiming at. Sharing it put this count in a column and the matrix's totals
+   in a grey pill. */
+.tos-placed {
+  display: inline-flex;
+  /* One line. It stands in a flex row beside a button that will not shrink,
+     so every pixel the head is short of would otherwise come out of this. */
+  flex: none;
+  white-space: nowrap;
+  align-items: baseline;
+  gap: 0.5ch;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-pill);
+  background: var(--gray-050);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-placed__n {
+  color: var(--text-strong);
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+/* Every question has a cell: the wash .assessor-notice--ok carries, so a
+   finished count reads as the console's own good news. */
+.tos-placed.is-ok {
+  background: rgba(2, 110, 120, 0.1);
+  color: var(--teal-700);
+}
+
+.tos-placed.is-ok .tos-placed__n,
+.tos-placed.is-over .tos-placed__n {
+  color: inherit;
+}
+
+/* More in the cells than the paper has room for. Short is a count on its way
+   somewhere and stays quiet; over is a figure that cannot be generated, and
+   it is the one state here worth the error step. */
+.tos-placed.is-over {
+  color: var(--error-text);
 }
 
 .tos-brief__total {
@@ -6302,6 +6440,27 @@
   padding: var(--sp-4);
   border-radius: var(--radius-sm);
   background: var(--gray-050);
+}
+
+/* What the last change took, and the way back. A report rather than a
+   warning: nothing went wrong, items moved — so it is set in the muted label
+   step and the card's own spacing carries it, with the way back at the end of
+   the line it describes. On a narrow card the button drops under the
+   sentence rather than squeezing it. */
+.tos-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  line-height: 1.45;
+}
+
+.tos-undo__text {
+  min-width: 0;
 }
 
 .tos-group__head {

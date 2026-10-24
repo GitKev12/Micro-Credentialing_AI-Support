@@ -5,6 +5,7 @@ import {
   autoFill,
   columnTotals,
   groupItems,
+  levelsTaken,
   setLevelWithinTotal,
   share,
   splitItems,
@@ -189,5 +190,31 @@ describe("setLevelWithinTotal", () => {
     const hotsPct = share(groupItems(next, "hots"), whole);
 
     expect(lotsPct + hotsPct).toBe(100);
+  });
+});
+
+describe("levelsTaken", () => {
+  it("names each level that lost items, and how many", () => {
+    const before = split([0, 3, 0, 6, 0, 1]);
+    const after = setLevelWithinTotal(before, "analyze", 10, 10);
+
+    expect(levelsTaken(before, after, "analyze")).toEqual([
+      "3 from Understanding",
+      "1 from Creating"
+    ]);
+  });
+
+  it("is empty when there was free room", () => {
+    const before = split([0, 3, 0, 5, 0, 1]);
+    const after = setLevelWithinTotal(before, "analyze", 6, 10);
+
+    expect(levelsTaken(before, after, "analyze")).toEqual([]);
+  });
+
+  it("does not count the level that was changed", () => {
+    const before = split([0, 3, 0, 6, 0, 1]);
+    const after = setLevelWithinTotal(before, "analyze", 2, 10);
+
+    expect(levelsTaken(before, after, "analyze")).toEqual([]);
   });
 });

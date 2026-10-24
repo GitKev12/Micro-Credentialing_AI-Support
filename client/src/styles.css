@@ -1233,14 +1233,37 @@ a {
 .module-viewer__head {
   display: flex;
   align-items: center;
+  /* So the paper's facts can drop under the title instead of squeezing it. */
+  flex-wrap: wrap;
   gap: 0.7rem;
   flex: none;
-  padding: 0.85rem 1.15rem;
+  /* Still deeper below the title than above it — the space the paper used to
+     hold above itself is here now, because a scroller cannot pad its own top
+     and still have something pinned flush to it, and the strip at the top of
+     a quiz is pinned. Shallower than it was at both ends: the band is a place
+     for the title to sit, not a margin around it. */
+  padding: 0.6rem 1.15rem 0.8rem;
   /* One less than the card's, which is the radius the inside of a 1px border
      actually turns through. */
   border-radius: 15px 15px 0 0;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, var(--accent-soft), var(--surface-strong));
+}
+
+/* Where an exam's facts stand: the length, the pass mark and the time left,
+   in the band beside the title.
+
+   Pushed across by its own margin rather than by space-between on the head.
+   A lesson's head is [mark][title], and space-between would send that title
+   to the far right of the band.
+
+   It does not shrink. Squeezed, the strip would wrap inside itself and the
+   title would give up width to it; this way the whole strip drops to the next
+   line and the title keeps the one it is on. The box is empty while the brief
+   or the loading state is up, and an empty box draws nothing. */
+.module-viewer__meta {
+  flex: none;
+  margin-left: auto;
 }
 
 /* The one piece of ornament in the pane. It is also what the empty state
@@ -1274,12 +1297,6 @@ a {
   overflow-wrap: anywhere;
 }
 
-.module-viewer__desc {
-  margin: 0;
-  color: var(--ink);
-  line-height: 1.5;
-}
-
 /* The scrolling part of the viewer when what it holds is not a lesson —
    a quiz or the final exam. The head stays pinned above it. The padding is
    its own now that the card around it has none, and it leaves room for a
@@ -1297,16 +1314,17 @@ a {
    alignment, which is the right thing to lose. */
 .module-viewer__body {
   /* Named so a child pinned to the top of this scroller can bleed back out to
-     its edges without hardcoding the figure twice — see .sd-quiz__meta. */
+     its side edges without hardcoding the figure twice — see .sd-quiz__meta.
+     The top is half of it, taken from the same figure so the two cannot drift
+     apart: the head holds the rest of that space. */
   --viewer-pad-x: 1.5rem;
-  --viewer-pad-top: 1.35rem;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--viewer-pad-top) var(--viewer-pad-x) 1.5rem;
+  padding: calc(var(--viewer-pad-x) / 2) var(--viewer-pad-x) 1.5rem;
 }
 
 /* ── Module viewer: OCR text mode ─────────────────────── */
@@ -1432,11 +1450,6 @@ a {
 .module-row--button[disabled] {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-/* Auto-completion status chip — looks like an action pill but is inert. */
-.module-viewer__complete {
-  pointer-events: none;
 }
 
 /* ── Lesson reader: formatted module text ─────────────── */
@@ -1749,9 +1762,16 @@ ol.lesson-reader__list li::marker {
      side padding stays: it is the card's, and the card has none of its own. */
   .module-viewer__body {
     --viewer-pad-x: 1.1rem;
-    --viewer-pad-top: 1.1rem;
     overflow-y: visible;
-    padding: var(--viewer-pad-top) var(--viewer-pad-x) 1.25rem;
+    padding: calc(var(--viewer-pad-x) / 2) var(--viewer-pad-x) 1.25rem;
+  }
+
+  /* A line of its own, under the title and starting where the title starts.
+     Hung on the right it would read as a second column on a screen with no
+     room for two. */
+  .module-viewer__meta {
+    flex: 1 1 100%;
+    margin-left: 0;
   }
 
   .module-viewer__text {

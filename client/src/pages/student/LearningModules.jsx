@@ -252,6 +252,14 @@ function LearningModules() {
   const [activeSection, setActiveSection] = useState(null);
   // The badge a quiz was just passed for, shown in the corner for five seconds.
   const [earnedBadge, setEarnedBadge] = useState(null);
+  /* The node in the rail that holds an examination's number strip, once
+     it is on screen. State rather than a ref so the runner is told the
+     moment it exists — a ref would still be null on the render that
+     creates it, and the strip would have nowhere to go. */
+  const [pagerSlot, setPagerSlot] = useState(null);
+  // The node in the exam's title bar that holds its question count, pass
+  // mark and timer. State for the same reason as pagerSlot.
+  const [metaSlot, setMetaSlot] = useState(null);
   // The course's Pre-Assessments, each with this student's attempt (or null).
   const [preAssessments, setPreAssessments] = useState([]);
   // Bumped when a closed course opens again under the student, to send the
@@ -1110,6 +1118,13 @@ function LearningModules() {
                   <span className="sd-final__tag">Locked</span>
                 ) : null}
               </button>
+
+              {/* Where the paper's number strip stands on this pathway:
+                  under the examination it belongs to, in a rail that has
+                  no lesson list to make room for. The runner fills it in
+                  while the paper is open; the rest of the time it is an
+                  empty box and draws nothing. */}
+              {assessOnly ? <div className="sd-final__pager" ref={setPagerSlot} /> : null}
             </div>
           ) : null}
         </aside>
@@ -1253,11 +1268,7 @@ function LearningModules() {
                   {selected.item.title ||
                     (selected.item.scope === "final" ? "Final Exam" : "Exam")}
                 </h3>
-                {selected.item.scope === "final" ? (
-                  <span className="module-row__action module-viewer__complete">
-                    Final Exam
-                  </span>
-                ) : null}
+                <div className="module-viewer__meta" ref={setMetaSlot} />
               </div>
 
               {/* The viewer is a locked-height pane, so the paper needs its own
@@ -1267,6 +1278,8 @@ function LearningModules() {
                 <QuizRunner
                   studentId={studentId}
                   assessment={selected.item}
+                  pagerSlot={pagerSlot}
+                  metaSlot={metaSlot}
                   onSubmitted={refreshAssessments}
                   onBadgeEarned={setEarnedBadge}
                   onOpenLesson={

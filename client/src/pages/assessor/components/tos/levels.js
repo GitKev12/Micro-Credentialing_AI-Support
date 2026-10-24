@@ -225,6 +225,18 @@ export function setLevelWithinTotal(split, key, value, total) {
 }
 
 /**
+ * What a level change took from the other levels, in words: ["3 from
+ * Understanding", "1 from Creating"]. Empty when nothing was taken.
+ */
+export function levelsTaken(before, after, key) {
+  return LEVELS.filter(
+    (level) => level.key !== key && toCount(after?.[level.key]) < toCount(before?.[level.key])
+  ).map(
+    (level) => `${toCount(before[level.key]) - toCount(after[level.key])} from ${level.label}`
+  );
+}
+
+/**
  * A first draft of the matrix, from the two distributions that define it.
  *
  * The assessor has already said how many items each lesson gets and how many

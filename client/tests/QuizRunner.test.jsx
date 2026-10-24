@@ -494,3 +494,42 @@ describe("QuizRunner — picking up where the student left off", () => {
     expect(screen.getByRole("radio", { name: "Source" })).toBeChecked();
   });
 });
+
+/**
+ * The question count, pass mark and timer go in the exam's title bar when the
+ * page gives a place for them, and stay at the top of the paper when it does not.
+ */
+describe("QuizRunner — the paper's facts in the title bar", () => {
+  it("puts them in the slot it is given", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+
+    render(
+      <QuizRunner
+        studentId="stu-1"
+        assessment={PAPER}
+        metaSlot={slot}
+        onSubmitted={() => {}}
+        onBadgeEarned={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Start/ }));
+    await screen.findByText("What does the compiler read?");
+
+    expect(slot).toHaveTextContent("2 questions");
+    expect(slot).toHaveTextContent("Pass mark 1 of 2");
+    expect(slot.querySelector(".sd-quiz__meta--head")).not.toBeNull();
+    expect(document.querySelectorAll(".sd-quiz__meta")).toHaveLength(1);
+    slot.remove();
+  });
+
+  it("keeps them at the top of the paper without one", async () => {
+    fetchAssessment.mockResolvedValue(ready());
+
+    const { container } = draw(PAPER);
+    await screen.findByText("What does the compiler read?");
+
+    expect(container.querySelector(".sd-quiz > .sd-quiz__meta")).toHaveTextContent("Pass mark 1 of 2");
+  });
+});
