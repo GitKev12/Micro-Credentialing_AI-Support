@@ -48,6 +48,7 @@ export default function LevelSplit({ split, total, onChange, disabled = false })
                   <span className="tos-level__name">{level.label}</span>
                   <Stepper
                     value={split?.[level.key] ?? 0}
+                    max={whole}
                     label={level.label}
                     disabled={disabled}
                     onChange={(next) => onChange(level.key, next)}

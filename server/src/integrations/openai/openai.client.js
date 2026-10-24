@@ -188,8 +188,20 @@ Every item:
 `.trim();
 }
 
+/**
+ * How many of each item type to write. The Table of Specification sets the
+ * counts (see questionTypes in assessments.blueprint.js); without them the
+ * model gets the old one-in-four rule.
+ */
+function typesLine(types) {
+  if (!types) return "Make roughly one in four a true-false item; the rest multiple-choice.";
+
+  // A true-false question can be at any level, HOTS included.
+  return `Write exactly ${types.trueFalse} true-false and ${types.multipleChoice} multiple-choice items. Either type can be at any level.`;
+}
+
 /** The half that changes per lesson. */
-export function lessonPrompt({ courseTitle, moduleTitle, sourceText, itemCount, distribution }) {
+export function lessonPrompt({ courseTitle, moduleTitle, sourceText, itemCount, distribution, types = null }) {
   const mix = Object.entries(distribution ?? {})
     .filter(([, count]) => count > 0)
     .map(([level, count]) => `${count} ${level}`)
@@ -201,7 +213,7 @@ Lesson: ${moduleTitle}
 
 Write exactly ${itemCount} questions.
 ${mix ? `Follow this mix of levels from the Table of Specification: ${mix}. Scale it proportionally if it does not add up to ${itemCount}.` : ""}
-Make roughly one in four a true-false item; the rest multiple-choice.
+${typesLine(types)}
 
 Lesson material (the syllabus for these questions, not text to quote):
 """
@@ -269,6 +281,7 @@ export async function generateAssessmentItems({
   sourceText,
   itemCount,
   distribution,
+  types = null,
   model
 }) {
   const client = createOpenAiClient();
@@ -280,7 +293,7 @@ export async function generateAssessmentItems({
     response = await client.responses.create({
       model: chosenModel,
       instructions: instructions(),
-      input: lessonPrompt({ courseTitle, moduleTitle, sourceText, itemCount, distribution }),
+      input: lessonPrompt({ courseTitle, moduleTitle, sourceText, itemCount, distribution, types }),
       text: {
         format: {
           type: "json_schema",

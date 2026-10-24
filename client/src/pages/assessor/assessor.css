@@ -346,13 +346,7 @@
 }
 
 .assessor-rail--collapsed .assessor-rail__avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-.assessor-rail--collapsed .assessor-rail__avatar svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  --avatar: 2.5rem;
 }
 
 .assessor-rail--collapsed .assessor-rail__nav {
@@ -419,14 +413,27 @@
   text-align: center;
 }
 
+/* The glyph is a head and shoulders drawn to the very edges of its own box —
+   no ground around it — so it can only be set as a share of the circle it
+   stands in. Asked for at 56px in a 62px disc it ran out of the disc on both
+   shoulders, and it was a different share of the circle again once the rail
+   was folded. Three fifths is what the folded rail was already drawing; both
+   states take it from the one figure now, so they cannot drift apart. */
 .assessor-rail__avatar {
+  --avatar: 3.875rem;
   display: grid;
   place-items: center;
-  width: 3.875rem;
-  height: 3.875rem;
+  width: var(--avatar);
+  height: var(--avatar);
   border-radius: 50%;
   background: var(--surface);
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.14);
+  transition: width 0.22s ease, height 0.22s ease;
+}
+
+.assessor-rail__avatar svg {
+  width: calc(var(--avatar) * 0.6);
+  height: calc(var(--avatar) * 0.6);
   transition: width 0.22s ease, height 0.22s ease;
 }
 
@@ -3985,17 +3992,17 @@
   margin-bottom: var(--sp-4);
 }
 
-/* The lists in this column are tied to the field they open under.
+/* The lists in this column are exactly as wide as the field they open under.
 
    A select's list is normally free to grow wider than its trigger, so a long
    lesson title does not wrap onto three lines. This column is 23.75rem and
    the titles are longer than that, so here that freedom put the open list
-   over the edge of the card it belongs to. It keeps 90% of the field instead
-   and the titles wrap. The cap above still applies, so the one-column
-   layout does not open a list the width of the screen. */
+   over the edge of the card it belongs to. It takes the trigger's width
+   instead and the titles wrap. The base rule's `min-width: 100%` holds it
+   there in every layout: a minimum beats the maximum above it, so the
+   26rem cap cannot pull the list in off the field's edge. */
 .gen-side .assessor-select__list {
-  min-width: 0;
-  width: 90%;
+  width: 100%;
 }
 
 /* Keep the total, its edit action, and the cognitive split in one summary. */
@@ -4138,6 +4145,47 @@
 .tos-mix__unit {
   color: var(--text-muted);
   font-size: var(--fs-label);
+}
+
+/* ── The question types, in the same box ──────────────────
+   Not a second reading of the levels above them. True or False and Multiple
+   Choice cut across every level — a recall question and an evaluation
+   question can both be True or False — but set in the levels' own two
+   columns, under the levels' own divider, with the default counts landing
+   equal, the pair read as a key to the pair above: True or False for LOTS,
+   Multiple Choice for HOTS. Neither one is for either.
+
+   So they run along the row instead, each sized to its own words, with no
+   divider for the eye to carry down from the levels and nothing standing
+   under either column. The figures are a step smaller than the levels', the
+   levels being the plan and the types a cut taken across it.
+   ───────────────────────────────────────────────────────── */
+
+.q-length__types .tos-mix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+}
+
+.q-length__types .tos-mix::after {
+  display: none;
+}
+
+/* The name and its figure on one line, so a type reads as a statement rather
+   than as a column heading with a number beneath it. */
+.q-length__types .tos-mix__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.q-length__types .tos-mix__total {
+  grid-column: auto;
+}
+
+.q-length__types .tos-mix__n {
+  font-size: var(--fs-body-lg);
 }
 
 @container (max-width: 16rem) {
@@ -4296,6 +4344,111 @@
   box-shadow: none;
   color: var(--text-muted);
   cursor: not-allowed;
+}
+
+/* ── The time limit, as two boxes ─────────────────────────
+   Hours and Minutes written the way a code is entered, because that is what
+   the assessor is doing: two digits, then two digits, with the colon between
+   them saying which is which. One box reading "90" could be either.
+
+   The digits are set at the heading size in the console's stat weight — the
+   treatment .q-length__count gives the number of questions. They are the
+   figure being set, and the words under them are only their names.
+   ───────────────────────────────────────────────────────── */
+
+.time-boxes {
+  display: flex;
+  /* Top-aligned, so the boxes line up with each other and the names hang
+     below them. */
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.time-boxes__unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* Square enough to read as a box for two digits rather than a field that has
+   been cut short. The shell is the .gen-input shell — same inset hairline,
+   same radius, same ground — because it is the same kind of thing as the
+   fields above it in this column. */
+.time-boxes__field {
+  width: 3.5rem;
+  height: 3rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-field);
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: box-shadow 0.14s ease;
+}
+
+/* "00" is the shape of the answer, not an answer. Lighter than the names
+   under the boxes, so an empty box never reads as a filled one. */
+.time-boxes__field::placeholder {
+  color: var(--gray-400);
+  font-weight: var(--fw-regular);
+}
+
+/* Not while it is wrong: the hairline is carrying the error then, and a
+   pointer passing over is not worth overwriting that with. */
+.time-boxes:not(.is-invalid) .time-boxes__field:enabled:hover:not(:focus) {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
+.time-boxes__field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* Centred on the digits, not on the pair of boxes: the colon belongs to the
+   numbers, and the names below them are not part of what it separates. */
+.time-boxes__colon {
+  display: flex;
+  align-items: center;
+  height: 3rem;
+  color: var(--text-muted);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+.time-boxes__name {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+/* Off: the boxes stay where they are, greyed. The same treatment
+   .gen-input:disabled gets, for the same reason — the figure is still the
+   answer to how long the paper would run, and it is worth reading before the
+   switch beside it is pressed. */
+.time-boxes__field:disabled {
+  background: var(--gray-050);
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.time-boxes.is-disabled .time-boxes__colon,
+.time-boxes.is-disabled .time-boxes__name {
+  color: var(--gray-400);
+}
+
+/* Nothing set, on a paper the switch beside it says is timed. The hairline turns
+   and the line under the boxes says what to do about it — the colour is never
+   the whole message. The focus ring stays the focus ring, so being focused
+   and being wrong each say one thing. */
+.time-boxes.is-invalid .time-boxes__field {
+  box-shadow: inset 0 0 0 1px var(--error-text);
 }
 
 /* ── Select (the shared listbox — see components/Select) ──
@@ -4584,9 +4737,19 @@
    Off is a named state — the row reads "No time limit" — rather than the
    absence of a tick. That is the whole point: the most permissive setting a
    paper has used to have no words on screen anywhere. */
+/* Standing beside the time boxes it was a different kind of object: a flat
+   strip of field against two 3rem boxes of figures, with a track small enough
+   to read as a speck next to them. It is built to a box now — the same height,
+   the same shell, the same hairline under the pointer — and its track has
+   grown in the same proportion. The word it carries is the answer, so it is
+   set at the weight the figures are.
+
+   The roster's switch is left where it was. It reports a status in a table
+   row and has nothing to be the size of. */
 .gen-switch {
   display: flex;
   width: 100%;
+  min-height: 3rem;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
@@ -4597,14 +4760,62 @@
   box-shadow: var(--shadow-field);
   font-family: inherit;
   font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
   color: var(--text-strong);
   text-align: left;
   cursor: pointer;
 }
 
+.gen-switch:hover {
+  box-shadow: inset 0 0 0 1px var(--gray-400);
+}
+
 .gen-switch:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
+}
+
+/* 36 × 20 rather than the roster's 30 × 17, with the knob and its travel moved
+   by the same amount: 2.5px of ground all round, as before. */
+.gen-switch__track {
+  width: 2.25rem;
+  height: 1.25rem;
+}
+
+.gen-switch__thumb {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.gen-switch.is-on .gen-switch__thumb {
+  transform: translateX(16px);
+}
+
+/* ── The time limit, switch and length on one line ────────
+   One setting, so one row: the switch says whether the paper is timed and the
+   boxes beside it say for how long. The switch takes the space the boxes do
+   not need, and wraps under them on a column too narrow for both — which is
+   the phone layout, where this column is the page.
+
+   Top-aligned, and the switch is built to a box's height, so the two controls
+   start and finish on the same two lines. What hangs below them is the boxes'
+   own names, which belong to the boxes and not to the row.
+   ───────────────────────────────────────────────────────── */
+
+.gen-limit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.gen-limit .gen-switch {
+  flex: 1 1 9rem;
+  width: auto;
+}
+
+.gen-limit .time-boxes {
+  flex: none;
 }
 
 .gen-actions {
@@ -4840,6 +5051,7 @@
   .gen-toggle__pill,
   .assessor-rail__toggle,
   .assessor-rail__avatar,
+  .assessor-rail__avatar svg,
   .progress__fill,
   .focus-dot {
     transition: none;
@@ -5492,6 +5704,17 @@
   gap: var(--sp-2);
 }
 
+/* Why the last save did not take, under the header that carries the button
+   that tried. The console's inline-error step, as .assessor-cutoff__error is
+   written: the colour is the tone and the server's own words are the
+   message. */
+.tos-editor__error {
+  margin: 0 0 var(--sp-4);
+  color: var(--error-text);
+  font-size: var(--fs-label);
+  line-height: 1.45;
+}
+
 /* -- The Save button says how it went ----------------------
    Maroon at rest, green once it is saved, red when it is not. Colour is
    never the only cue here: the word changes and so does the mark, which is
@@ -5787,6 +6010,73 @@
   all: revert;
 }
 
+/* ── "Discard them?" ──────────────────────────────────────
+   Asked at the top of the panel and pinned there, because the panel is what
+   scrolls: a final's blueprint is four cards long, and a question that only
+   exists above the first card is a question nobody scrolled up far enough to
+   be asked.
+
+   It bleeds to the dialog's edges the way the blueprint's own header does,
+   and carries the dialog's ground, so the cards pass under it rather than
+   through it. The weight is in the one word that cannot be taken back —
+   Discard changes is the console's error colour; everything else here stays
+   quiet, because the safe answer should not have to shout to be picked.
+   ───────────────────────────────────────────────────────── */
+
+.tos-modal__confirm {
+  --edge: var(--pad, var(--sp-5));
+  position: sticky;
+  /* Above the header, which pins to this same edge. */
+  top: calc(var(--edge) * -1);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: calc(var(--edge) * -1) calc(var(--edge) * -1) 0;
+  padding: var(--sp-4) var(--edge);
+  background: var(--bg-app);
+  box-shadow: inset 0 -1px 0 var(--gray-200);
+}
+
+/* While the question is up the header stops sticking and stops bleeding
+   upward: two bars pinned to one edge is one bar hiding the other, and the
+   header's own negative top margin would otherwise pull it over this one. */
+.tos-modal__panel:has(.tos-modal__confirm) .tos-editor__head {
+  position: static;
+  margin-top: 0;
+}
+
+.tos-modal__confirm-text {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+/* Right of the question where both fit on the line, and right of the panel
+   where the question has taken the line to itself. */
+.tos-modal__confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+/* There is no danger button in this console, and one button is not a reason
+   to start a variant. It is .btn--ghost with its tone changed: the hover wash
+   stays the console's own, so the weight is carried by the word and the line
+   around it rather than by a second red. */
+.tos-modal__discard {
+  color: var(--error-text);
+  box-shadow: inset 0 0 0 1px var(--error-text);
+}
+
+.tos-modal__discard:hover {
+  background: var(--brand-hover);
+}
+
 .tos-modal__close {
   display: grid;
   place-items: center;
@@ -5863,11 +6153,63 @@
   margin: 0;
 }
 
-/* The card already rules between its two rows and spaces them; a third rule
-   under the last would make a two-row card look like a table with a footer. */
-.tos-brief .tos-check {
-  padding-top: 0;
-  border-top: none;
+/* ── How much of the paper a card has placed ──────────────
+   A count, in the head of the card it belongs to, beside that card's own
+   action. It replaces a sentence set under the table, which said the same
+   thing in words, said it the same way whether it was good news or not, and
+   on the matrix sat a scroll below the cells it was reporting on.
+
+   Both figures stay on screen while the cells are typed — what is placed and
+   what the paper is — because the gap between them is the thing being worked
+   off. Full, it takes the console's own ok wash; short, it is a quiet count
+   rather than an alarm, the blueprint being somewhere to think and nothing
+   here being wrong until it is saved.
+   ───────────────────────────────────────────────────────── */
+
+/* Named for what it counts, and not .tos-tally: that name was already the
+   matrix's own cell total, which is a figure stacked over the figure it was
+   aiming at. Sharing it put this count in a column and the matrix's totals
+   in a grey pill. */
+.tos-placed {
+  display: inline-flex;
+  /* One line. It stands in a flex row beside a button that will not shrink,
+     so every pixel the head is short of would otherwise come out of this. */
+  flex: none;
+  white-space: nowrap;
+  align-items: baseline;
+  gap: 0.5ch;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-pill);
+  background: var(--gray-050);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-placed__n {
+  color: var(--text-strong);
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+/* Every question has a cell: the wash .assessor-notice--ok carries, so a
+   finished count reads as the console's own good news. */
+.tos-placed.is-ok {
+  background: rgba(2, 110, 120, 0.1);
+  color: var(--teal-700);
+}
+
+.tos-placed.is-ok .tos-placed__n,
+.tos-placed.is-over .tos-placed__n {
+  color: inherit;
+}
+
+/* More in the cells than the paper has room for. Short is a count on its way
+   somewhere and stays quiet; over is a figure that cannot be generated, and
+   it is the one state here worth the error step. */
+.tos-placed.is-over {
+  color: var(--error-text);
 }
 
 .tos-brief__total {
@@ -6100,6 +6442,27 @@
   background: var(--gray-050);
 }
 
+/* What the last change took, and the way back. A report rather than a
+   warning: nothing went wrong, items moved — so it is set in the muted label
+   step and the card's own spacing carries it, with the way back at the end of
+   the line it describes. On a narrow card the button drops under the
+   sentence rather than squeezing it. */
+.tos-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  line-height: 1.45;
+}
+
+.tos-undo__text {
+  min-width: 0;
+}
+
 .tos-group__head {
   display: flex;
   align-items: baseline;
@@ -6310,6 +6673,77 @@
 .tos-step__field:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: -2px;
+}
+
+/* ── No. Items ─────────────────────────────────────────────
+   The length of the paper, typed instead of stepped. It stands in the head of
+   a card where the stepper used to, so it is built to the same height: the
+   stepper's 2rem buttons inside its hairline is 2.125rem, and the heads do
+   not change height when a card carries one or the other.
+
+   The words sit to the left of the box in the muted label size. The number is
+   the thing being read here; the label only says what it counts.
+   ───────────────────────────────────────────────────────── */
+
+.tos-items {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.tos-items__label {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* Three digits with room around them — the longest paper is 999 — in figures
+   of one width, so the box does not shift as the number is typed over. The
+   corner is the stepper's 8px rather than the 12px the cards and the full
+   fields carry: this is a control the size of a chip, and 12px on a box this
+   small reads as a lozenge. */
+.tos-items__field {
+  width: 3.25rem;
+  height: 2.125rem;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: border-color 0.14s ease;
+}
+
+/* The edge firms up under the pointer, the same quiet answer the stepper's
+   buttons give. */
+.tos-items__field:hover:not(:disabled) {
+  border-color: var(--gray-400);
+}
+
+/* The ring every other field on this console carries. */
+.tos-items__field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* Still readable rather than faded away: the number is the answer to how long
+   the paper is, which is worth reading even where it cannot be set from
+   here. */
+.tos-items__field:disabled {
+  border-color: var(--gray-200);
+  background: var(--gray-050);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.tos-items.is-disabled .tos-items__label {
+  color: var(--gray-400);
 }
 
 /* ── The matrix ───────────────────────────────────────────── */

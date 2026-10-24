@@ -5,6 +5,7 @@ import {
   autoFill,
   columnTotals,
   groupItems,
+  levelsTaken,
   setLevelWithinTotal,
   share,
   splitItems,
@@ -146,13 +147,31 @@ describe("setLevelWithinTotal", () => {
     expect(splitItems(next)).toBe(60);
   });
 
-  it("preserves the proportions of the remaining levels while scaling", () => {
-    const paper = split([10, 5, 5, 20, 10, 10]);
-    const next = setLevelWithinTotal(paper, "create", 30, 60);
+  it("takes the extra item from the biggest other level", () => {
+    // 10 items: Understanding 3, Analyzing 6, Creating 1. Raising Evaluating
+    // to 1 makes Analyzing 5; the paper stays at 10.
+    const paper = split([0, 3, 0, 6, 0, 1]);
+    const next = setLevelWithinTotal(paper, "evaluate", 1, 10);
 
-    // The remaining levels half from 1 : 1/2 : 1/2 : 2 : 1 to fill 30 items.
-    expect(next).toEqual(split([6, 3, 3, 12, 6, 30]));
-    expect(splitItems(next)).toBe(60);
+    expect(next).toEqual(split([0, 3, 0, 5, 1, 1]));
+    expect(splitItems(next)).toBe(10);
+  });
+
+  it("starts taking from LOTS once a LOTS level is the biggest", () => {
+    // Pushing Evaluating to 5 drains Analyzing to 3, then the 3-3 tie goes to
+    // Understanding, which is listed first.
+    const paper = split([0, 3, 0, 6, 0, 1]);
+    const next = setLevelWithinTotal(paper, "evaluate", 5, 10);
+
+    expect(next).toEqual(split([0, 2, 0, 2, 5, 1]));
+    expect(splitItems(next)).toBe(10);
+  });
+
+  it("can move the whole paper into HOTS", () => {
+    const paper = split([2, 2, 2, 2, 1, 1]);
+    const next = setLevelWithinTotal(paper, "analyze", 10, 10);
+
+    expect(next).toEqual(split([0, 0, 0, 10, 0, 0]));
   });
 
   it("works when all other levels start at zero", () => {
@@ -171,5 +190,31 @@ describe("setLevelWithinTotal", () => {
     const hotsPct = share(groupItems(next, "hots"), whole);
 
     expect(lotsPct + hotsPct).toBe(100);
+  });
+});
+
+describe("levelsTaken", () => {
+  it("names each level that lost items, and how many", () => {
+    const before = split([0, 3, 0, 6, 0, 1]);
+    const after = setLevelWithinTotal(before, "analyze", 10, 10);
+
+    expect(levelsTaken(before, after, "analyze")).toEqual([
+      "3 from Understanding",
+      "1 from Creating"
+    ]);
+  });
+
+  it("is empty when there was free room", () => {
+    const before = split([0, 3, 0, 5, 0, 1]);
+    const after = setLevelWithinTotal(before, "analyze", 6, 10);
+
+    expect(levelsTaken(before, after, "analyze")).toEqual([]);
+  });
+
+  it("does not count the level that was changed", () => {
+    const before = split([0, 3, 0, 6, 0, 1]);
+    const after = setLevelWithinTotal(before, "analyze", 2, 10);
+
+    expect(levelsTaken(before, after, "analyze")).toEqual([]);
   });
 });

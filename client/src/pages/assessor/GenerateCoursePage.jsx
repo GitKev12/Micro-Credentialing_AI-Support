@@ -19,6 +19,7 @@ import CodeBlock from "../../components/CodeBlock";
 import { noticeClass, useNotice } from "../../lib/useNotice";
 import { DEFAULT_MINUTES, TIMED, UNTIMED, limitModeFor, limitReady, timeLimitFor } from "./timeLimit";
 import GenerationProgress from "./components/GenerationProgress";
+import TimeBoxes from "./components/TimeBoxes";
 import QuestionsField from "./components/tos/QuestionsField";
 import TosModal from "./components/tos/TosModal";
 import { DEFAULT_FINAL_ITEMS, LEVEL_KEYS, LEVELS, splitItems, toCount } from "./components/tos/levels";
@@ -455,13 +456,14 @@ function GenerateCoursePage() {
       const stated = toCount(tos?.final?.items);
       return {
         split,
-        items: stated && stated !== 40 ? stated : assigned || DEFAULT_FINAL_ITEMS
+        items: stated && stated !== 40 ? stated : assigned || DEFAULT_FINAL_ITEMS,
+        trueFalse: tos?.final?.trueFalse ?? null
       };
     }
 
     const row = (tos?.rows ?? []).find((entry) => String(entry.moduleId) === String(moduleId));
     const split = Object.fromEntries(LEVEL_KEYS.map((key) => [key, toCount(row?.[key])]));
-    return { split, items: splitItems(split) };
+    return { split, items: splitItems(split), trueFalse: row?.trueFalse ?? null };
   }, [tos, scope, moduleId]);
 
   // One source of truth for a paper's length. The generate screen used to
@@ -830,6 +832,7 @@ function GenerateCoursePage() {
             <QuestionsField
               count={length}
               split={brief.split}
+              trueFalse={brief.trueFalse}
               paper={scope === "final" ? "final exam" : "exam"}
               onModify={() => setTosOpen(true)}
             />
@@ -849,50 +852,54 @@ function GenerateCoursePage() {
               <span className="field-label" id="gen-limit-label">
                 Time limit
               </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={limit === TIMED}
-                /* Named by the field's own label, so what is read out is
-                   "Time limit, on" rather than the state word twice. */
-                aria-labelledby="gen-limit-label"
-                className={`gen-switch${limit === TIMED ? " is-on" : ""}`}
-                onClick={() => setLimit(limit === TIMED ? UNTIMED : TIMED)}
-              >
-                <span>{limit === TIMED ? "Timed" : "No time limit"}</span>
-                <span className="gen-switch__track">
-                  <span className="gen-switch__thumb" />
-                </span>
-              </button>
-            </div>
 
-            {/* Only while there is a clock to set. A field that cannot apply to
-                the paper is a question the assessor has to work out the answer
-                is "nothing" to. */}
-            {limit === TIMED ? (
-              <div className="gen-field">
-                <label className="field-label" htmlFor="gen-minutes">
-                  Minutes
-                </label>
-                <input
-                  id="gen-minutes"
-                  type="number"
-                  className="gen-input"
-                  min={1}
-                  max={600}
-                  value={minutes}
-                  onChange={(event) => setMinutes(event.target.value)}
-                />
-                {/* An empty field would save an untimed paper, which is not
-                    what the switch above says. Says what to do next rather
-                    than what is wrong. */}
-                {limitSet ? null : (
-                  <span className="gen-hint is-warn">
-                    Enter a length, or turn the time limit off.
+              {/* The switch and the length it sets, on one line. They are one
+                  setting: the boxes are what the switch turns on, and asking
+                  the assessor to read them as two fields was asking them to
+                  hold the first answer while they gave the second.
+
+                  Off, the boxes grey out rather than leave. How long the paper
+                  would run is worth seeing before the switch is pressed, and a
+                  control that comes and goes moves everything under it. */}
+              <div className="gen-limit">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={limit === TIMED}
+                  /* Named by the field's own label, so what is read out is
+                     "Time limit, on" rather than the state word twice. */
+                  aria-labelledby="gen-limit-label"
+                  className={`gen-switch${limit === TIMED ? " is-on" : ""}`}
+                  onClick={() => setLimit(limit === TIMED ? UNTIMED : TIMED)}
+                >
+                  <span>{limit === TIMED ? "Timed" : "No time limit"}</span>
+                  <span className="gen-switch__track">
+                    <span className="gen-switch__thumb" />
                   </span>
-                )}
+                </button>
+
+                {/* Hours and Minutes in their own boxes, named by the
+                    "Time limit" label above. The number is kept while the
+                    switch is off; it is the switch that decides whether the
+                    paper carries it (see timeLimitFor). */}
+                <TimeBoxes
+                  labelledBy="gen-limit-label"
+                  minutes={minutes}
+                  onChange={setMinutes}
+                  invalid={!limitSet}
+                  disabled={limit !== TIMED}
+                />
               </div>
-            ) : null}
+
+              {/* An empty field would save an untimed paper, which is not what
+                  the switch beside it says. Says what to do next rather than
+                  what is wrong. */}
+              {limitSet ? null : (
+                <span className="gen-hint is-warn">
+                  Enter a length, or turn the time limit off.
+                </span>
+              )}
+            </div>
 
             {/* A final used to go straight through on the click that reached
                 it: assembling one drew on questions that already existed and

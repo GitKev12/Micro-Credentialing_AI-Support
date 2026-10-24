@@ -90,6 +90,17 @@ export function defaultSplit(total) {
   return { ...spreadIn("lots", lots), ...spreadIn("hots", whole - lots) };
 }
 
+/**
+ * The levels for a new paper length. A paper that already has a mix keeps it,
+ * scaled (1/2/3/4 doubles to 2/4/6/8); an empty one opens on the 30/70 default.
+ */
+export function resizeSplit(split, total) {
+  if (splitItems(split) <= 0) return defaultSplit(total);
+
+  const parts = apportion(toCount(total), LEVEL_KEYS.map((key) => toCount(split?.[key])));
+  return Object.fromEntries(LEVEL_KEYS.map((key, index) => [key, parts[index]]));
+}
+
 /** Whole, non-negative, and never NaN — every figure on this screen is a count. */
 export function toCount(value) {
   const parsed = Number.parseInt(value, 10);
@@ -111,6 +122,38 @@ export function columnTotals(rows) {
     for (const key of LEVEL_KEYS) totals[key] += toCount(row?.[key]);
   }
   return totals;
+}
+
+/**
+ * The assessor's own True or False count, or null when it is on the default.
+ * Zero is a real answer ("no True or False at all"), so it is kept.
+ */
+export function readTrueFalse(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
+}
+
+/**
+ * How many True or False and Multiple Choice questions a paper gets.
+ *
+ * The default is the LOTS count as True or False and the HOTS count as
+ * Multiple Choice, scaled to the paper's length. `trueFalse` is the assessor's
+ * own count when they changed it. It is only a count: a True or False question
+ * can be at any level. The server works this out the same way (questionTypes
+ * in assessments.blueprint.js), so both ends agree.
+ */
+export function questionTypes(split, total, trueFalse = null) {
+  const whole = toCount(total);
+  const manual = readTrueFalse(trueFalse);
+  const levels = splitItems(split);
+
+  let count = 0;
+  if (manual !== null) count = manual;
+  else if (levels > 0) count = Math.round((groupItems(split, "lots") * whole) / levels);
+
+  count = Math.min(count, whole);
+  return { trueFalse: count, multipleChoice: whole - count };
 }
 
 /**
@@ -152,26 +195,44 @@ export function apportion(total, weights) {
 }
 
 /**
- * Set one level without spending more than the stated length of a paper.
+ * Set one level without changing the number of questions in the paper.
  *
- * The changed level is kept where possible. When it would push the split past
- * the paper length, the other levels share the remaining space in the same
- * proportions they already had. `apportion` makes that redistribution exact.
+ * Free room is used first. When there is none, each extra item is taken from
+ * the biggest other level, one at a time (on a tie, the one listed first). So
+ * on a full 10-item paper with Analyzing 6, raising Evaluating to 1 makes
+ * Analyzing 5, and LOTS levels only shrink once they are the biggest.
  */
 export function setLevelWithinTotal(split, key, value, total) {
   const target = toCount(total);
-  const selected = Math.min(toCount(value), target);
-  const others = LEVEL_KEYS.filter((entry) => entry !== key);
-  const weights = others.map((entry) => toCount(split?.[entry]));
-  const room = target - selected;
-  const existing = weights.reduce((sum, weight) => sum + weight, 0);
-  const values = existing > room ? apportion(room, weights) : weights;
+  const next = Object.fromEntries(LEVEL_KEYS.map((entry) => [entry, toCount(split?.[entry])]));
+  next[key] = Math.min(toCount(value), target);
 
-  return Object.fromEntries(
-    LEVEL_KEYS.map((entry) => [
-      entry,
-      entry === key ? selected : values[others.indexOf(entry)]
-    ])
+  let over = splitItems(next) - target;
+  while (over > 0) {
+    // The biggest other level still holding something.
+    let donor = null;
+    for (const entry of LEVEL_KEYS) {
+      if (entry === key || next[entry] <= 0) continue;
+      if (donor === null || next[entry] > next[donor]) donor = entry;
+    }
+    if (donor === null) break;
+
+    next[donor] -= 1;
+    over -= 1;
+  }
+
+  return next;
+}
+
+/**
+ * What a level change took from the other levels, in words: ["3 from
+ * Understanding", "1 from Creating"]. Empty when nothing was taken.
+ */
+export function levelsTaken(before, after, key) {
+  return LEVELS.filter(
+    (level) => level.key !== key && toCount(after?.[level.key]) < toCount(before?.[level.key])
+  ).map(
+    (level) => `${toCount(before[level.key]) - toCount(after[level.key])} from ${level.label}`
   );
 }
 

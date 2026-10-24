@@ -54,6 +54,27 @@ export function limitModeFor(timeLimitMinutes) {
   return clampMinutes(timeLimitMinutes) === null ? UNTIMED : TIMED;
 }
 
+/** The most the Hours box takes: 10 hours is the 600-minute ceiling. */
+export const MAX_HOURS = MAX_MINUTES / 60;
+
+/**
+ * Total minutes as the two boxes show them, two digits each: 90 → "01" : "30".
+ * Empty boxes when there is no length yet.
+ */
+export function toHoursAndMinutes(total) {
+  const value = Math.floor(Number(total) || 0);
+  if (value <= 0) return { hours: "", minutes: "" };
+
+  const pad = (n) => String(n).padStart(2, "0");
+  return { hours: pad(Math.floor(value / 60)), minutes: pad(value % 60) };
+}
+
+/** The two boxes back to total minutes, or "" when both are empty. */
+export function fromHoursAndMinutes(hours, minutes) {
+  if (hours === "" && minutes === "") return "";
+  return (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+}
+
 /**
  * Whether the control has been answered fully.
  *

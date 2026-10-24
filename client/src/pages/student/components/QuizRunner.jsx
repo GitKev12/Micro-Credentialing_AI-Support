@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchAssessment, submitAssessment } from "../../../services/assessments";
 import {
   clearQuizDraft,
@@ -29,7 +30,19 @@ import { LOW_TIME_MS, clockFace, spokenTimeLeft } from "../assessmentClock";
  * posted it to the course; until then the rail's row is a locked placeholder
  * and this component is never opened on it.
  */
-function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenLesson }) {
+function QuizRunner({
+  studentId,
+  assessment,
+  onSubmitted,
+  onBadgeEarned,
+  onOpenLesson,
+  // Somewhere else to put the number strip, given by whoever opened the
+  // paper. Null means it stays at the head of the paper, as it always has.
+  pagerSlot = null,
+  // Where the question count, pass mark and timer go: the exam's title bar.
+  // Null keeps them at the top of the paper.
+  metaSlot = null
+}) {
   const assessmentId = assessment?.id ?? null;
   // A row standing in for a paper that was never written, or written and not
   // yet posted. There is no document behind its id.
@@ -452,43 +465,92 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
   const quiz = state.assessment;
   const done = Boolean(result);
 
+  /* The number strip: which question you are on, which are answered, and
+     the way to any of them. A quiz is answered in whatever order the
+     student likes, so this is navigation rather than a progress read-out.
+
+     A value rather than markup in place, because it does not always stand
+     here. On the assess-only pathway the rail hands us a slot under the
+     examination button and the strip goes there: that rail carries no
+     lesson list, so the room is free, and the question keeps the pane. */
+  const pager = (
+    <nav className="sd-quiz__pager" aria-label={`Questions in this ${paper}`}>
+      {items.map((item, index) => {
+        const answered = Boolean(answers[item.id]);
+        const verdict = verdicts.get(String(item.id)) ?? null;
+        // Marked state replaces answered state rather than stacking on it:
+        // once a paper is in, "you put something here" stops being the useful
+        // fact and "you got it wrong" starts being it.
+        const marked = verdict === "correct" || verdict === "incorrect";
+
+        return (
+          <button
+            type="button"
+            key={item.id}
+            className={
+              "sd-quiz__pager-btn" +
+              (index === current ? " is-current" : "") +
+              (marked
+                ? verdict === "correct"
+                  ? " is-correct"
+                  : " is-wrong"
+                : answered
+                  ? " is-answered"
+                  : "")
+            }
+            aria-current={index === current ? "true" : undefined}
+            aria-label={
+              marked
+                ? `Question ${index + 1}, ${verdict === "correct" ? "correct" : "incorrect"}`
+                : `Question ${index + 1}, ${answered ? "answered" : "not answered"}`
+            }
+            onClick={() => setCurrent(index)}
+          >
+            {index + 1}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
+  /* The facts about this paper: how many questions, the pass mark and the
+     time left. In the exam's title bar when the page gives us a slot there,
+     so they stay on screen however far down the paper the student is. */
+  const meta = (
+    <div className={`sd-quiz__meta${metaSlot ? " sd-quiz__meta--head" : ""}`}>
+      <span className="sd-quiz__meta-item">
+        <QuizIcon size={14} /> {quiz.itemCount} question
+        {quiz.itemCount === 1 ? "" : "s"}
+      </span>
+      <span className="sd-quiz__meta-item">
+        Pass mark {quiz.passMark} of {quiz.totalPoints}
+      </span>
+      {msLeft !== null && !done ? (
+        <span
+          className={`sd-quiz__meta-item sd-clock${
+            msLeft <= 0 ? " is-out" : msLeft <= LOW_TIME_MS ? " is-low" : ""
+          }`}
+          role="timer"
+        >
+          <ClockIcon size={14} />
+          <span className="sd-clock__face" aria-hidden="true">
+            {msLeft <= 0 ? "Time's up" : clockFace(msLeft)}
+          </span>
+          {/* The digits read out as a time of day, so the spoken form is
+              its own sentence — and only at the marks an invigilator would
+              call, because a live region that talks every second talks over
+              everything the student is trying to read. */}
+          <span className="sd-sr-only" aria-live="polite">
+            {spoken}
+          </span>
+        </span>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="sd-quiz">
-      {/* Pinned, so it is on screen at question fifty-one as well as at
-          question one. It is the strip of facts about this paper and the time
-          left is one of them, so it belongs here rather than in a badge of
-          its own floating somewhere else. */}
-      <div className="sd-quiz__meta">
-        <span className="sd-quiz__meta-item">
-          <QuizIcon size={14} /> {quiz.itemCount} question
-          {quiz.itemCount === 1 ? "" : "s"}
-        </span>
-        <span className="sd-quiz__meta-item">
-          Pass mark {quiz.passMark} of {quiz.totalPoints}
-        </span>
-        {msLeft !== null && !done ? (
-          <span
-            className={`sd-quiz__meta-item sd-clock${
-              msLeft <= 0 ? " is-out" : msLeft <= LOW_TIME_MS ? " is-low" : ""
-            }`}
-            role="timer"
-          >
-            <ClockIcon size={14} />
-            <span className="sd-clock__face" aria-hidden="true">
-              {msLeft <= 0 ? "Time's up" : clockFace(msLeft)}
-            </span>
-            {/* The digits read out as a time of day, so the spoken form is
-                its own sentence — and only at the marks an invigilator would
-                call, because a live region that talks every second talks over
-                everything the student is trying to read. */}
-            <span className="sd-sr-only" aria-live="polite">
-              {spoken}
-            </span>
-          </span>
-        ) : null}
-      </div>
-
-      {quiz.description ? <p className="module-viewer__desc">{quiz.description}</p> : null}
+      {metaSlot ? createPortal(meta, metaSlot) : meta}
 
       {done ? (
         <div className={`sd-quiz__result${result.passed ? " is-passed" : " is-failed"}`}>
@@ -534,46 +596,18 @@ function QuizRunner({ studentId, assessment, onSubmitted, onBadgeEarned, onOpenL
         </div>
       ) : null}
 
-      {/* The number strip: which question you are on, which are answered, and
-          the way to any of them. A quiz is answered in whatever order the
-          student likes, so this is navigation rather than a progress read-out. */}
-      <nav className="sd-quiz__pager" aria-label={`Questions in this ${paper}`}>
-        {items.map((item, index) => {
-          const answered = Boolean(answers[item.id]);
-          const verdict = verdicts.get(String(item.id)) ?? null;
-          // Marked state replaces answered state rather than stacking on it:
-          // once a paper is in, "you put something here" stops being the useful
-          // fact and "you got it wrong" starts being it.
-          const marked = verdict === "correct" || verdict === "incorrect";
-
-          return (
-            <button
-              type="button"
-              key={item.id}
-              className={
-                "sd-quiz__pager-btn" +
-                (index === current ? " is-current" : "") +
-                (marked
-                  ? verdict === "correct"
-                    ? " is-correct"
-                    : " is-wrong"
-                  : answered
-                    ? " is-answered"
-                    : "")
-              }
-              aria-current={index === current ? "true" : undefined}
-              aria-label={
-                marked
-                  ? `Question ${index + 1}, ${verdict === "correct" ? "correct" : "incorrect"}`
-                  : `Question ${index + 1}, ${answered ? "answered" : "not answered"}`
-              }
-              onClick={() => setCurrent(index)}
-            >
-              {index + 1}
-            </button>
-          );
-        })}
-      </nav>
+      {/* Named only where it stands away from the paper. At the head of the
+          pane the strip is under the question it belongs to and says what it
+          is by being there; in the rail it is one panel among others. */}
+      {pagerSlot
+        ? createPortal(
+            <>
+              <p className="sd-quiz__pager-label">Number</p>
+              {pager}
+            </>,
+            pagerSlot
+          )
+        : pager}
 
       {question ? (
         <div className="sd-quiz__item sd-quiz__item--single" key={question.id}>

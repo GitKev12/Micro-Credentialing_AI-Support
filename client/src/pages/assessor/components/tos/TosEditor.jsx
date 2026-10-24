@@ -5,10 +5,11 @@ import { LoadFailed, Segmented } from "../ui";
 import { SkeletonText } from "../../../../components/Skeleton";
 import AllocationBar from "./AllocationBar";
 import ContentSplit from "./ContentSplit";
+import ItemsField from "./ItemsField";
 import LevelSplit from "./LevelSplit";
 import Matrix from "./Matrix";
 import SaveButton from "./SaveButton";
-import Stepper from "./Stepper";
+import TypeSplit from "./TypeSplit";
 import { animateHeight, animateHeightClipped, heightOf } from "./resize";
 import {
   DEFAULT_FINAL_ITEMS,
@@ -18,6 +19,9 @@ import {
   columnTotals,
   defaultSplit,
   emptySplit,
+  levelsTaken,
+  readTrueFalse,
+  resizeSplit,
   setLevelWithinTotal,
   splitItems,
   toCount
@@ -119,7 +123,13 @@ function readTos(tos, lessons) {
       ? columns
       : defaultSplit(finalItems);
 
-  return { quizzes, finalItems, content, levels, grid };
+  // The assessor's True or False counts. Null is the default (the LOTS count).
+  const quizTypes = Object.fromEntries(
+    lessons.map((lesson) => [lesson.id, readTrueFalse(quizRows.get(String(lesson.id))?.trueFalse)])
+  );
+  const finalTrueFalse = readTrueFalse(tos?.final?.trueFalse);
+
+  return { quizzes, quizTypes, finalItems, content, levels, finalTrueFalse, grid };
 }
 
 function TosEditor({
@@ -131,7 +141,8 @@ function TosEditor({
   frame = null,
   headerEnd,
   onReady,
-  onSaved
+  onSaved,
+  onDirtyChange
 }) {
   const assessorId = storedAssessorId();
 
@@ -141,6 +152,14 @@ function TosEditor({
   const [failure, setFailure] = useState(null);
   // "idle", "saving", "saved" or "failed" — what the Save button shows.
   const [saveState, setSaveState] = useState("idle");
+  // Why the last save failed. Stays on screen until a save works, because the
+  // button's "Not saved" is gone again after a moment.
+  const [saveError, setSaveError] = useState(null);
+  // The draft as last loaded or saved, to tell whether there are unsaved edits.
+  const [savedJson, setSavedJson] = useState(null);
+  // The levels before a change that took items from other levels, so it can
+  // be undone: { paper: "lesson" | "final", split, text }.
+  const [undo, setUndo] = useState(null);
 
   // Opened from the generate screen, so it opens on the paper that screen is
   // pointed at — the assessor came here about that one, and we keep it there.
@@ -199,8 +218,10 @@ function TosEditor({
 
     try {
       const payload = await fetchCourseTos(assessorId, courseId, classId);
+      const loaded = readTos(payload.tos, payload.lessons ?? []);
       setData(payload);
-      setDraft(readTos(payload.tos, payload.lessons ?? []));
+      setDraft(loaded);
+      setSavedJson(JSON.stringify(loaded));
       onReady?.(true);
     } catch (error) {
       setFailure(readError(error, "This blueprint could not be loaded."));
@@ -210,6 +231,12 @@ function TosEditor({
   useEffect(() => {
     load();
   }, [load]);
+
+  // Unsaved edits, told to the dialog so it can ask before closing.
+  const dirty = draft !== null && savedJson !== null && JSON.stringify(draft) !== savedJson;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const lessons = data?.lessons ?? [];
   const course = data?.course ?? null;
@@ -226,14 +253,29 @@ function TosEditor({
   const quizSplit = draft?.quizzes?.[lessonId] ?? emptySplit();
   const quizItems = splitItems(quizSplit);
 
-  const setQuizLevel = (key, value) =>
-    setDraft((current) => ({
-      ...current,
-      quizzes: {
-        ...current.quizzes,
-        [lessonId]: { ...current.quizzes[lessonId], [key]: value }
-      }
-    }));
+  // When a level change took items from other levels, say so and offer Undo.
+  // Typing 10 into one level can empty all the others in one go.
+  const noteTaken = (paperName, before, after, key) => {
+    const taken = levelsTaken(before, after, key);
+    setUndo(taken.length ? { paper: paperName, split: before, text: `Took ${taken.join(", ")}.` } : null);
+  };
+
+  const setQuizSplit = (split) =>
+    setDraft((current) => ({ ...current, quizzes: { ...current.quizzes, [lessonId]: split } }));
+
+  // Same rule as the final: a level change never adds a question. The extra
+  // item comes out of another level (see setLevelWithinTotal).
+  const setQuizLevel = (key, value) => {
+    const after = setLevelWithinTotal(quizSplit, key, value, quizItems);
+    setQuizSplit(after);
+    noteTaken("lesson", quizSplit, after, key);
+  };
+
+  const undoTaken = () => {
+    if (undo.paper === "lesson") setQuizSplit(undo.split);
+    else patch({ levels: undo.split });
+    setUndo(null);
+  };
 
   /**
    * Retargeting a quiz keeps the mix it already has.
@@ -243,23 +285,32 @@ function TosEditor({
    * are re-apportioned instead: a 1/2/3/4 paper doubles to 2/4/6/8 rather than
    * emptying. With nothing set yet there is nothing to keep, so the first count
    * opens on the curriculum's 30/70 spread rather than on six zeros.
+   *
+   * resizeSplit does both. This used to read the 30/70 default as if it were a
+   * list of numbers, so a lesson with no levels yet came back as 0 items.
    */
-  const setQuizItems = (next) =>
-    setDraft((current) => {
-      const split = current.quizzes[lessonId] ?? emptySplit();
-      const spread =
-        splitItems(split) > 0
-          ? apportion(next, LEVEL_KEYS.map((key) => split[key]))
-          : defaultSplit(next);
+  const setQuizItems = (next) => {
+    setQuizSplit(resizeSplit(quizSplit, next));
+    // The old levels were for the old length, so they can't be put back.
+    setUndo(null);
+  };
 
-      return {
-        ...current,
-        quizzes: {
-          ...current.quizzes,
-          [lessonId]: Object.fromEntries(LEVEL_KEYS.map((key, index) => [key, spread[index]]))
-        }
-      };
-    });
+  // The final's length works the same way.
+  const setFinalItems = (next) => {
+    patch({ finalItems: next, levels: resizeSplit(draft.levels, next) });
+    setUndo(null);
+  };
+
+  const quizTrueFalse = draft?.quizTypes?.[lessonId] ?? null;
+
+  // Null puts the count back on the default.
+  const setQuizTrueFalse = (value) =>
+    setDraft((current) => ({
+      ...current,
+      quizTypes: { ...current.quizTypes, [lessonId]: value }
+    }));
+
+  const setFinalTrueFalse = (value) => patch({ finalTrueFalse: value });
 
   const setContent = (id, value) => patch({ content: { ...draft.content, [id]: value } });
 
@@ -270,11 +321,11 @@ function TosEditor({
     });
   };
 
-  const setFinalLevel = (key, value) =>
-    setDraft((current) => ({
-      ...current,
-      levels: setLevelWithinTotal(current.levels, key, value, current.finalItems)
-    }));
+  const setFinalLevel = (key, value) => {
+    const after = setLevelWithinTotal(draft.levels, key, value, draft.finalItems);
+    patch({ levels: after });
+    noteTaken("final", draft.levels, after, key);
+  };
 
   const setCell = (index, key, value) =>
     setDraft((current) => ({
@@ -301,6 +352,9 @@ function TosEditor({
 
   const save = async () => {
     setSaveState("saving");
+    setSaveError(null);
+    // What is being saved, so it counts as saved once the server takes it.
+    const sent = JSON.stringify(draft);
     try {
       const payload = await saveCourseTos(assessorId, courseId, {
         // An assess-only class has no lesson quizzes, so it writes no rows for
@@ -311,11 +365,13 @@ function TosEditor({
           : lessons.map((lesson) => ({
               moduleId: lesson.id,
               course: lesson.title,
-              ...draft.quizzes[lesson.id]
+              ...draft.quizzes[lesson.id],
+              trueFalse: draft.quizTypes[lesson.id] ?? null
             })),
         final: {
           items: draft.finalItems,
           levels: draft.levels,
+          trueFalse: draft.finalTrueFalse,
           rows: lessons.map((lesson, index) => ({
             moduleId: lesson.id,
             coverage: lesson.title,
@@ -325,10 +381,13 @@ function TosEditor({
         }
       }, classId);
       setData((current) => ({ ...current, tos: payload.tos }));
+      setSavedJson(sent);
+      setUndo(null);
       setSaveState("saved");
       onSaved?.(payload.tos);
-    } catch (_error) {
+    } catch (error) {
       setSaveState("failed");
+      setSaveError(readError(error, "The blueprint could not be saved.").message);
     }
   };
 
@@ -377,6 +436,12 @@ function TosEditor({
         </div>
       </header>
 
+      {saveError ? (
+        <p className="tos-editor__error" role="alert">
+          Not saved: {saveError}
+        </p>
+      ) : null}
+
       {/* One paper, so no choice of paper. Kept out rather than shown with
           the Lesson half dead — a switch with one working side is a question
           the assessor has to answer before they can ignore it. */}
@@ -394,6 +459,7 @@ function TosEditor({
 
       <div className="tos-editor__mode" key={mode} ref={paper}>
         {mode === "lesson" ? (
+          <>
           <section className="assessor-card tos-block">
           <div className="tos-block__head">
             <div>
@@ -405,39 +471,30 @@ function TosEditor({
               ) : null}
             </div>
             <div className="tos-block__tools">
-              <Stepper
-                value={quizItems}
-                max={MAX_ITEMS}
-                label="Questions in this exam"
-                onChange={setQuizItems}
-              />
+              <ItemsField value={quizItems} max={MAX_ITEMS} onChange={setQuizItems} />
             </div>
           </div>
 
           <AllocationBar target={quizItems} split={quizSplit} />
 
           <LevelSplit split={quizSplit} total={quizItems} onChange={setQuizLevel} />
+          {undo?.paper === "lesson" ? <UndoLine text={undo.text} onUndo={undoTaken} /> : null}
           </section>
+
+          <QuestionTypesBlock
+            split={quizSplit}
+            total={quizItems}
+            trueFalse={quizTrueFalse}
+            onChange={setQuizTrueFalse}
+          />
+          </>
         ) : (
           <>
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
               <h2 className="tos-block__title">The exam</h2>
               <div className="tos-block__tools">
-                <Stepper
-                  value={draft.finalItems}
-                  max={MAX_ITEMS}
-                  label="Questions in the final exam"
-                  onChange={(next) => {
-                    const spread = apportion(next, LEVEL_KEYS.map((key) => draft.levels[key]));
-                    patch({
-                      finalItems: next,
-                      levels: Object.fromEntries(
-                        LEVEL_KEYS.map((key, index) => [key, spread[index]])
-                      )
-                    });
-                  }}
-                />
+                <ItemsField value={draft.finalItems} max={MAX_ITEMS} onChange={setFinalItems} />
               </div>
             </div>
 
@@ -447,9 +504,12 @@ function TosEditor({
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
               <h2 className="tos-block__title">Where the questions come from</h2>
-              <button type="button" className="btn btn--ghost" onClick={spreadEvenly}>
-                Spread evenly
-              </button>
+              <div className="tos-block__tools">
+                <Tally placed={contentTotal} of={draft.finalItems} />
+                <button type="button" className="btn btn--ghost" onClick={spreadEvenly}>
+                  Spread evenly
+                </button>
+              </div>
             </div>
             <ContentSplit
               lessons={lessons}
@@ -457,24 +517,30 @@ function TosEditor({
               total={draft.finalItems}
               onChange={setContent}
             />
-            <p className={`tos-check${contentTotal === draft.finalItems ? " is-ok" : ""}`}>
-              {contentTotal === draft.finalItems
-                ? `All ${draft.finalItems} questions are accounted for.`
-                : `The lessons add up to ${contentTotal}, and the exam is ${draft.finalItems}.`}
-            </p>
           </section>
 
           <section className="assessor-card tos-block">
             <h2 className="tos-block__title">Cognitive levels</h2>
             <LevelSplit split={draft.levels} total={draft.finalItems} onChange={setFinalLevel} />
+            {undo?.paper === "final" ? <UndoLine text={undo.text} onUndo={undoTaken} /> : null}
           </section>
+
+          <QuestionTypesBlock
+            split={draft.levels}
+            total={draft.finalItems}
+            trueFalse={draft.finalTrueFalse}
+            onChange={setFinalTrueFalse}
+          />
 
           <section className="assessor-card tos-block">
             <div className="tos-block__head">
-              <h2 className="tos-block__title">Lessons by level</h2>
-              <button type="button" className="btn btn--ghost" onClick={buildMatrix}>
-                Fill from the splits
-              </button>
+              <h2 className="tos-block__title">The matrix</h2>
+              <div className="tos-block__tools">
+                <Tally placed={gridTotal} of={draft.finalItems} />
+                <button type="button" className="btn btn--ghost" onClick={buildMatrix}>
+                  Fill from the splits
+                </button>
+              </div>
             </div>
             <Matrix
               lessons={lessons}
@@ -483,16 +549,63 @@ function TosEditor({
               colTargets={draft.levels}
               onCell={setCell}
             />
-            <p className={`tos-check${gridTotal === draft.finalItems ? " is-ok" : ""}`}>
-              {gridTotal === draft.finalItems
-                ? "The matrix matches the exam."
-                : `The matrix holds ${gridTotal} questions, and the exam is ${draft.finalItems}.`}
-            </p>
           </section>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * How much of the exam this card has placed, in the card's own head.
+ *
+ * It was a sentence under the table — "The matrix matches the exam." — which
+ * is read once and then stops being looked at, and on the longest card in the
+ * blueprint it sat a scroll below the cells it was reporting on. The figures
+ * are what the assessor is after, and they move as the cells are typed.
+ */
+function Tally({ placed, of }) {
+  const state = placed === of ? " is-ok" : placed > of ? " is-over" : "";
+
+  return (
+    <span className={`tos-placed${state}`}>
+      <span className="tos-placed__n">{placed}</span>
+      <span className="tos-placed__of">of {of} placed</span>
+    </span>
+  );
+}
+
+/** "Took 3 from Understanding. [Undo]" under the levels after a change took items. */
+function UndoLine({ text, onUndo }) {
+  return (
+    <p className="tos-undo" role="status">
+      <span className="tos-undo__text">{text}</span>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={onUndo}>
+        Undo
+      </button>
+    </p>
+  );
+}
+
+/**
+ * The True or False / Multiple Choice card. It never changes the cognitive
+ * levels. "Use Default" puts the counts back on the LOTS/HOTS numbers, and
+ * only shows once the assessor has changed them.
+ */
+function QuestionTypesBlock({ split, total, trueFalse, onChange }) {
+  return (
+    <section className="assessor-card tos-block">
+      <div className="tos-block__head">
+        <h2 className="tos-block__title">Question types</h2>
+        {trueFalse !== null ? (
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => onChange(null)}>
+            Use Default
+          </button>
+        ) : null}
+      </div>
+      <TypeSplit split={split} total={total} trueFalse={trueFalse} onChange={onChange} />
+    </section>
   );
 }
 

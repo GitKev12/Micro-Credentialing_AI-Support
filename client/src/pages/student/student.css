@@ -3200,6 +3200,25 @@ body:has(.student-app) {
   font-weight: var(--sd-fw-semibold);
 }
 
+/* Where the number strip stands on this pathway. The rail has no lesson list
+   here, so the room under the examination is free, and the strip is about the
+   paper the button opens — it belongs with it rather than at the head of the
+   pane, where it was taking the width the question wanted.
+
+   Six to a row at this rail's width, and as tall as the paper makes it: no
+   ceiling, and nothing to scroll inside. The rail carries one examination and
+   nothing else, so the strip can be as long as the paper is. */
+.sd-final__pager {
+  margin-top: var(--sd-3);
+}
+
+/* The rule under the strip divides it from the first question, which is in
+   the other pane now. Nothing follows it here. */
+.sd-final__pager .sd-quiz__pager {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sd-final__btn {
     transition: none;
@@ -3211,7 +3230,10 @@ body:has(.student-app) {
   border-top: 1px solid var(--sd-border);
 }
 
-.sd-final__label {
+/* Both eyebrows in the rail: the one over the examination, and the one over
+   its number strip. */
+.sd-final__label,
+.sd-quiz__pager-label {
   margin: 0 0 var(--sd-2);
   padding-left: var(--sd-1);
   font-size: var(--sd-fs-micro);
@@ -3476,10 +3498,20 @@ body:has(.student-app) {
   gap: var(--sd-4);
 }
 
+/* The scroller centres what it holds, which is right for the brief and for a
+   one-question paper, but it floated the strip down the pane and left a gap
+   above a bar whose whole job is to be at the top. A paper hangs from the top
+   instead; the brief and the loading state, which are not .sd-quiz, keep the
+   centring. */
+.module-viewer__body:has(> .sd-quiz) {
+  justify-content: flex-start;
+}
+
 /* Pinned to the top of the scroller, so the time left is on screen at question
    fifty-one and not only at question one. Bled back out to the scroller's own
-   padding (see --viewer-pad-*) so questions pass behind it rather than
-   appearing in the gap above it. */
+   side padding (see --viewer-pad-x) so questions pass behind it rather than
+   appearing in the gap beside it. Nothing to cancel at the top: the scroller
+   has no padding there, which is what lets this sit flush under the head. */
 .sd-quiz__meta {
   position: sticky;
   top: 0;
@@ -3488,12 +3520,34 @@ body:has(.student-app) {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sd-4);
-  margin: calc(-1 * var(--viewer-pad-top, 1.35rem)) calc(-1 * var(--viewer-pad-x, 1.5rem)) 0;
+  margin: 0 calc(-1 * var(--viewer-pad-x, 1.5rem));
   padding: var(--sd-3) var(--viewer-pad-x, 1.5rem);
   border-bottom: 1px solid var(--sd-border);
   background: var(--sd-surface);
   font-size: var(--sd-fs-meta);
   color: var(--sd-muted);
+}
+
+/* The same facts, standing in the exam's title bar. Nothing of the pinned
+   strip survives the move: the head is outside the scroller and is already a
+   band of its own, so the sticky position, the bleed out to the scroller's
+   side padding, the surface it painted and the rule under it all come off.
+   What is left is the row of facts and the colour they are set in. */
+.sd-quiz__meta--head {
+  position: static;
+  gap: var(--sd-3);
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+  background: none;
+  justify-content: flex-end;
+}
+
+/* On its own line it starts at the left, with the title above it. */
+@media (max-width: 52rem) {
+  .sd-quiz__meta--head {
+    justify-content: flex-start;
+  }
 }
 
 .sd-quiz__meta-item {
@@ -3710,10 +3764,19 @@ body:has(.student-app) {
   color: var(--sd-brand-text);
 }
 
-/* One question on screen: it carries the whole pane, so it sits flatter and
-   roomier than a row in a list ever needed to. */
+/* One question on screen: it carries the whole pane, so it has no card. A
+   card is how one item is told from the next in a list, and there is no next
+   one here — a border round the only thing on the page is a box drawn inside
+   a box. The question sits on the viewer itself, in the scroller's own
+   padding, and the paper reads as a page rather than a slide.
+
+   The base rule stays as it is: the Pre-Assessment lists its items, and there
+   a card is doing the job it was written for. */
 .sd-quiz__item--single {
-  padding: var(--sd-6);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 /* Three sizes in three steps: the label that says where you are, the question

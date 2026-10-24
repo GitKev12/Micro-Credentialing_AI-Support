@@ -36,13 +36,37 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, c
   const [contentReady, setContentReady] = useState(false);
   // Where the keyboard was when this opened, so it can be put back.
   const opener = useRef(null);
+  // Unsaved edits in the editor, and whether we are asking about them.
+  const [dirty, setDirty] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const keepEditing = useRef(null);
+
+  // Closing with unsaved edits asks first, instead of throwing them away.
+  const requestClose = () => {
+    if (dirty) setConfirming(true);
+    else onClose();
+  };
+
+  // The latest version, for the key listener below, which is added once.
+  const closeRef = useRef(requestClose);
+  closeRef.current = requestClose;
+  const confirmingRef = useRef(confirming);
+  confirmingRef.current = confirming;
 
   useEffect(() => {
     opener.current = document.activeElement;
     panel.current?.focus();
 
     const onKey = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      // Escape while asking means "keep editing".
+      if (confirmingRef.current) {
+        setConfirming(false);
+        return;
+      }
+      // Escape inside a number box is not a request to close the dialog.
+      if (event.target?.closest?.("input, textarea, select")) return;
+      closeRef.current();
     };
     document.addEventListener("keydown", onKey);
 
@@ -56,14 +80,21 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, c
       document.body.style.overflow = overflow;
       opener.current?.focus?.();
     };
-  }, [onClose]);
+    // Once per opening. It used to re-run on every render of the page behind,
+    // which pulled the keyboard out of whatever box the assessor was typing in.
+  }, []);
+
+  // Put the keyboard on "Keep editing" when the question appears.
+  useEffect(() => {
+    if (confirming) keepEditing.current?.focus();
+  }, [confirming]);
 
   return createPortal(
     <div className="assessor-app tos-portal">
       <div
         className="tos-modal"
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) onClose();
+          if (event.target === event.currentTarget) requestClose();
         }}
       >
         <div
@@ -74,6 +105,25 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, c
           tabIndex={-1}
           ref={panel}
         >
+          {confirming ? (
+            <div className="tos-modal__confirm" role="alertdialog" aria-label="Unsaved changes">
+              <p className="tos-modal__confirm-text">You have unsaved changes. Discard them?</p>
+              <div className="tos-modal__confirm-actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  ref={keepEditing}
+                  onClick={() => setConfirming(false)}
+                >
+                  Keep editing
+                </button>
+                <button type="button" className="btn btn--ghost btn--sm tos-modal__discard" onClick={onClose}>
+                  Discard changes
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <TosEditor
             courseId={courseId}
             classId={classId}
@@ -83,11 +133,12 @@ export default function TosModal({ courseId, mode, lessonId, onClose, onSaved, c
             frame={panel}
             onReady={setContentReady}
             onSaved={onSaved}
+            onDirtyChange={setDirty}
             headerEnd={
               <button
                 type="button"
                 className="tos-modal__close"
-                onClick={onClose}
+                onClick={requestClose}
                 aria-label="Close the blueprint"
               >
                 <CloseIcon size={15} />
