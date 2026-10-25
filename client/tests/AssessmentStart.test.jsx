@@ -114,7 +114,7 @@ describe("before the paper is turned over", () => {
   it("asks nothing of the server until Start is pressed", async () => {
     paint(TIMED);
 
-    expect(await screen.findByText("CC2 Final Exam")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /^Start/ })).toBeInTheDocument();
     expect(fetchAssessment).not.toHaveBeenCalled();
   });
 
@@ -140,7 +140,7 @@ describe("before the paper is turned over", () => {
     const { container } = paint(TIMED);
 
     expect(await screen.findByText("1 hour 30 minutes")).toBeInTheDocument();
-    expect(container.querySelector(".sd-brief__clock")).not.toBeNull();
+    expect(container.querySelector(".sd-brief__term--time")).not.toBeNull();
   });
 
   it("says what pressing Start does", async () => {
@@ -173,7 +173,7 @@ describe("before the paper is turned over", () => {
     const { container } = paint({ ...TIMED, timeLimitMinutes: null });
 
     await screen.findByText("Questions");
-    expect(container.querySelector(".sd-brief__clock")).toBeNull();
+    expect(container.querySelector(".sd-brief__term--time")).toBeNull();
     expect(screen.queryByText(/clock starts/i)).toBeNull();
   });
 
