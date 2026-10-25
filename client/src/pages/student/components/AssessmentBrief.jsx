@@ -1,4 +1,4 @@
-import { ClockIcon, QuizIcon } from "./icons";
+import { QuizIcon } from "./icons";
 import { durationLabel } from "../assessmentClock";
 
 /**
@@ -7,18 +7,22 @@ import { durationLabel } from "../assessmentClock";
  * Nothing here is fetched. Every figure on this screen — how many questions,
  * the pass mark, the length, which attempt this is — already travelled with
  * the rail row, and that is the whole point: asking the server for the paper
- * is what registers the sitting as begun and starts the clock (see
+ * is what registers the attempt as begun and starts the clock (see
  * openAttempt). A brief that loaded the questions in order to describe them
  * would have started the examination to ask whether the candidate was ready.
  *
  * So this is the closed paper rather than a dialog over an open one. It stands
- * where the questions will stand, and pressing Start turns it over.
+ * where the questions will stand, and pressing Start turns it over. It is laid
+ * out as the cover of a printed paper and wears no card of its own: the viewer
+ * is already the card, and the first question will stand on this same plane
+ * once the cover is turned.
  *
  * What it says is what an invigilator says before a paper is handed out: how
  * long, how many, what passes, and what happens when the time is gone. The
- * length is the only figure set large, because it is the one that changes how
- * the candidate works. An untimed quiz has no such block at all — an absence
- * does not need a label reading "Untimed".
+ * title is not repeated here — the band above the pane is already carrying it.
+ * The length leads the rubric and is the one figure set large, because it is
+ * the one that changes how the candidate works. An untimed paper has no such
+ * row at all — an absence does not need a label reading "Untimed".
  */
 function AssessmentBrief({ assessment, result, starting, error, onStart }) {
   const isFinal = assessment?.scope === "final";
@@ -29,7 +33,7 @@ function AssessmentBrief({ assessment, result, starting, error, onStart }) {
 
   const attemptsLeft = result?.attemptsLeft ?? null;
   const attemptsAllowed = result?.attemptsAllowed ?? null;
-  // Which sitting this is about to be, counted from what has already gone.
+  // Which attempt this is about to be, counted from what has already gone.
   // A paper just handed in reports the attempt it was rather than a tally, so
   // that number is the tally — the same reading StudentPage takes of it.
   const nextAttempt = (result?.attemptsUsed ?? result?.attempt ?? 0) + 1;
@@ -41,40 +45,37 @@ function AssessmentBrief({ assessment, result, starting, error, onStart }) {
 
   return (
     <div className="sd-brief">
-      <div className="sd-brief__head">
-        <h3 className="sd-brief__title">{assessment?.title ?? (isFinal ? "Final exam" : "Exam")}</h3>
-        {assessment?.description ? (
-          <p className="sd-brief__desc">{assessment.description}</p>
+      {/* Terms, so they are marked up as terms. These are related facts about
+          one paper, which is a description list; cut into cards they would
+          read as unrelated things. */}
+      <dl className="sd-brief__rubric">
+        {timed ? (
+          <div className="sd-brief__term sd-brief__term--time">
+            <dt>Time allowed</dt>
+            <dd>
+              <span className="sd-brief__time">{durationLabel(minutes)}</span>
+              {/* A footnote to the figure above it rather than a notice of
+                  its own: it is about the clock, so it leaves with it. */}
+              <p className="sd-brief__note">
+                The clock starts when you press Start and keeps running if you
+                leave this page. When it runs out your paper hands itself in.
+              </p>
+            </dd>
+          </div>
         ) : null}
-      </div>
 
-      {timed ? (
-        <div className="sd-brief__clock">
-          <span className="sd-brief__clock-icon" aria-hidden="true">
-            <ClockIcon size={18} />
-          </span>
-          <p className="sd-brief__clock-figure">{durationLabel(minutes)}</p>
-          <p className="sd-brief__clock-note">
-            The clock starts when you press Start and keeps running if you leave
-            this page. When it runs out your paper hands itself in.
-          </p>
-        </div>
-      ) : null}
-
-      {/* Terms, so they are marked up as terms. Four related facts about one
-          paper are a description list; cut into four cards they would read as
-          four unrelated things. */}
-      <dl className="sd-brief__terms">
         <div className="sd-brief__term">
           <dt>Questions</dt>
           <dd>{assessment?.itemCount ?? "—"}</dd>
         </div>
+
         <div className="sd-brief__term">
           <dt>Pass mark</dt>
           <dd>
             {assessment?.passMark ?? "—"} of {assessment?.totalPoints ?? "—"}
           </dd>
         </div>
+
         {attemptsLeft !== null ? (
           <div className="sd-brief__term">
             <dt>Attempts left</dt>
@@ -91,6 +92,8 @@ function AssessmentBrief({ assessment, result, starting, error, onStart }) {
         </p>
       ) : null}
 
+      {/* The threshold: one rule across the cover, and below it the clock
+          starts. */}
       <div className="sd-brief__go">
         <button
           type="button"

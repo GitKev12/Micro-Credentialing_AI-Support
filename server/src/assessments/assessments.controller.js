@@ -316,10 +316,30 @@ function resultItems(result) {
   }));
 }
 
+/**
+ * What the paper needs to offer a retake, or explain why it cannot.
+ *
+ * Used by both the mark sent at hand-in and the mark sent on a reopen, so the
+ * two cannot differ. They did: the hand-in reply had no `canRetake`, and the
+ * Retake button only showed after a reload.
+ */
+export function retakeFields(result, summary, used, restriction = null) {
+  const limit = attemptLimitFor(summary.scope);
+
+  return {
+    attempt: attemptNo(result),
+    attemptsUsed: used,
+    attemptsAllowed: Number.isFinite(limit) ? limit : null,
+    attemptsLeft: Number.isFinite(limit) ? Math.max(0, limit - used) : null,
+    // A course that has ended offers no further sitting, however many
+    // attempts the paper itself would still allow.
+    canRetake: !restriction && retakeState(result, summary, used).allowed
+  };
+}
+
 function resultSummary(result, summary, attempts = [], restriction = null) {
   if (!result) return null;
   const score = effectiveScore(result);
-  const limit = attemptLimitFor(summary.scope);
   const used = attemptsUsedFrom(attempts, result);
 
   return {
@@ -332,14 +352,7 @@ function resultSummary(result, summary, attempts = [], restriction = null) {
     // recorded, which is all of them until the first one after this change.
     durationMs: result.durationMs ?? null,
     items: resultItems(result),
-    // What the rail needs to offer a retake, or explain why it cannot.
-    attempt: attemptNo(result),
-    attemptsUsed: used,
-    attemptsAllowed: Number.isFinite(limit) ? limit : null,
-    attemptsLeft: Number.isFinite(limit) ? Math.max(0, limit - used) : null,
-    // A course that has ended offers no further sitting, however many
-    // attempts the paper itself would still allow.
-    canRetake: !restriction && retakeState(result, summary, used).allowed
+    ...retakeFields(result, summary, used, restriction)
   };
 }
 
@@ -755,13 +768,9 @@ export async function submitAssessment(request, response) {
       itemCount: graded.items.length,
       submittedAt: record.submittedAt,
       durationMs: record.durationMs,
-      attempt,
-      attemptsAllowed: Number.isFinite(attemptLimitFor(summary.scope))
-        ? attemptLimitFor(summary.scope)
-        : null,
-      attemptsLeft: Number.isFinite(attemptLimitFor(summary.scope))
-        ? Math.max(0, attemptLimitFor(summary.scope) - attempt)
-        : null,
+      // This attempt is the latest, so it is also the number used. A course
+      // that has ended was refused above, so there is no restriction here.
+      ...retakeFields(record, summary, attempt),
       // Same shape resultSummary sends, so reopening the quiz later paints the
       // question strip exactly as it is painted the moment it is handed in.
       items: graded.items.map((item) => ({

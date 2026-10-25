@@ -1048,9 +1048,13 @@ function LearningModules() {
               and one the student would wait for. */}
           {assessOnly && !isLoading ? (
             <p className="sd-pathway-note">
-              One examination, and nothing to finish before it. This pathway has
-              no lessons and no lesson exams — you are assessed on what you already
-              know.
+              <span className="sd-pathway-note__lead">
+                One examination, and nothing to finish before it.
+              </span>
+              <span className="sd-pathway-note__detail">
+                This pathway has no lessons and no lesson exams — you are assessed
+                on what you already know.
+              </span>
             </p>
           ) : null}
 

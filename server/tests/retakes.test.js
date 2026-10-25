@@ -4,6 +4,7 @@ import {
   attemptLimitFor,
   attemptsUsedFrom,
   currentAttempt,
+  retakeFields,
   retakeState
 } from "../src/assessments/assessments.controller.js";
 
@@ -116,5 +117,36 @@ describe("attemptsUsedFrom", () => {
   it("never reads below the number of rows it was given", () => {
     // Two rows are two takes even if neither says which it was.
     expect(attemptsUsedFrom([{}, {}])).toBe(2);
+  });
+});
+
+// The mark sent at hand-in and the mark sent on a reopen both use this, so the
+// Retake button shows straight after handing in, not only after a reload.
+describe("retakeFields", () => {
+  it("offers a retake right after a first attempt at a final", () => {
+    expect(retakeFields(taken(1), final, 1)).toEqual({
+      attempt: 1,
+      attemptsUsed: 1,
+      attemptsAllowed: 3,
+      attemptsLeft: 2,
+      canRetake: true
+    });
+  });
+
+  it("offers none after the third attempt at a final", () => {
+    const fields = retakeFields(taken(3), final, 3);
+    expect(fields.attemptsLeft).toBe(0);
+    expect(fields.canRetake).toBe(false);
+  });
+
+  it("leaves a lesson quiz open, with no limit to count down", () => {
+    const fields = retakeFields(taken(5), lesson, 5);
+    expect(fields.attemptsAllowed).toBeNull();
+    expect(fields.attemptsLeft).toBeNull();
+    expect(fields.canRetake).toBe(true);
+  });
+
+  it("offers none on a course that has ended", () => {
+    expect(retakeFields(taken(1), final, 1, { reason: "ended" }).canRetake).toBe(false);
   });
 });
