@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { TARGET, TIER_BANDS, tierBandFor, toScore } from "../performance";
+import { Fragment, useMemo } from "react";
+import { TARGET, TIER_BANDS, gapAdvice, tierBandFor, toScore } from "../performance";
 import { BandIcon } from "./icons";
 import { Meter } from "./ui";
 
@@ -12,6 +12,32 @@ import { Meter } from "./ui";
  * its own value and the items it came from, and the figures are repeated in
  * full under Raw computation for anyone the picture does not reach.
  */
+/**
+ * Picks the lesson names out of a sentence so the eye lands on them. In the
+ * recommendation the names run together ("StringBuilder, Loops"), so one
+ * indexOf finds the whole run and the names are redrawn one at a time inside
+ * it. Plain string search, not a pattern, so a lesson title with a bracket or
+ * a plus in it needs no escaping.
+ */
+function withLessons(text, topics) {
+  const names = topics.filter(Boolean);
+  const run = names.join(", ");
+  const at = run ? text.indexOf(run) : -1;
+  if (at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      {names.map((name, index) => (
+        <Fragment key={index}>
+          {index > 0 ? ", " : ""}
+          <b className="sd-skills__lesson">{name}</b>
+        </Fragment>
+      ))}
+      {text.slice(at + run.length)}
+    </>
+  );
+}
+
 // "12 Sept 2026", or "" when there is no date.
 const dayLabel = (value) => {
   const date = value ? new Date(value) : null;
@@ -62,6 +88,7 @@ function SkillGapAnalysis({ skills = [], cutoff = TARGET, tiers = [], exam = nul
   );
 
   const belowTarget = rows.filter((row) => row.gap > 0);
+  const advice = gapAdvice(rows);
 
   if (rows.length === 0) {
     return (
@@ -176,6 +203,29 @@ function SkillGapAnalysis({ skills = [], cutoff = TARGET, tiers = [], exam = nul
           </li>
         ))}
       </ul>
+
+      {/* What the gaps mean and what to do next. Only shown when a topic is
+          under the cut-off. */}
+      {advice ? (
+        <dl className="sd-skills__advice">
+          <div className="sd-skills__advice-row">
+            <dt>Evidence</dt>
+            <dd>
+              <ul className="sd-skills__evidence">
+                {advice.evidence.map((line, index) => (
+                  <li key={index}>{withLessons(line, [advice.topics[index]])}</li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+          <div className="sd-skills__advice-row">
+            <dt>Recommendation</dt>
+            <dd className="sd-skills__recommendation">
+              {withLessons(advice.recommendation, advice.topics)}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
     </section>
   );
 }

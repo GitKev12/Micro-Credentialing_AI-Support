@@ -110,6 +110,37 @@ export function gapToTarget(value) {
   return Math.max(0, TARGET - toScore(value));
 }
 
+/**
+ * What to tell a student about the topics under the cut-off: one evidence line
+ * per topic, and one recommendation that names them all. Null when no topic is
+ * under the cut-off.
+ */
+export function gapAdvice(skills) {
+  // A topic the final did not ask about (0 items) was not failed.
+  const failed = skills.filter((skill) => skill.gap > 0 && skill.total !== 0);
+  if (failed.length === 0) return null;
+
+  const evidence = failed.map((skill) => {
+    // An older server sends no item counts, so fall back to the score.
+    if (skill.total == null) {
+      return `${toScore(skill.score)}% on ${skill.topic}-related questions in the Final Exam`;
+    }
+    const questions = skill.total === 1 ? "question" : "questions";
+    return `${skill.correct} of ${skill.total} ${skill.topic}-related ${questions} answered correctly in the Final Exam`;
+  });
+
+  // The names on their own as well as inside the sentence, so the panel can
+  // pick them out of the text instead of searching it for them.
+  const names = failed.map((skill) => skill.topic);
+  const modules = failed.length === 1 ? "module" : "modules";
+
+  return {
+    evidence,
+    topics: names,
+    recommendation: `Review the ${names.join(", ")} ${modules} and retake the assessment.`
+  };
+}
+
 export function averageScore(values) {
   if (!values.length) return 0;
   const total = values.reduce((sum, value) => sum + toScore(value), 0);
