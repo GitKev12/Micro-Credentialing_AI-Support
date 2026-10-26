@@ -127,9 +127,11 @@ function StudentNavBar() {
   const renderItems = (asMenu) => (
     <>
       <li role={asMenu ? "none" : undefined} className="sd-menu__head">
-        {asMenu ? null : <ProfileAvatar src={avatarUrl} name={studentName} size={56} />}
-        <p className="sd-menu__name">{studentName}</p>
-        <p className="sd-menu__sub">{studentNumber}</p>
+        <ProfileAvatar src={avatarUrl} name={studentName} size={asMenu ? 36 : 56} />
+        <div className="sd-menu__who">
+          <p className="sd-menu__name">{studentName}</p>
+          <p className="sd-menu__sub">{studentNumber}</p>
+        </div>
       </li>
 
       {(asMenu ? ACHIEVEMENT_ITEMS : [...NAV_ITEMS, ...ACHIEVEMENT_ITEMS]).map((item) => (

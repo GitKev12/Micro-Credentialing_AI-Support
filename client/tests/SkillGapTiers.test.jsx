@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 
 import SkillGapAnalysis from "../src/pages/student/components/SkillGapAnalysis.jsx";
 import CutoffEditor from "../src/pages/assessor/components/CutoffEditor.jsx";
+import { gapAdvice } from "../src/pages/student/performance.js";
 
 const tiers = [
   { id: "strength", status: "Strength", min: 80, max: 100 },
@@ -90,5 +91,62 @@ describe("skill gap exam line", () => {
       <SkillGapAnalysis cutoff={60} tiers={tiers} skills={[{ moduleId: "m1", topic: "A", score: 90, tier: "strength", gap: 0 }]} />
     );
     expect(container.querySelector(".sd-eyebrow").textContent).toBe("Final exam");
+  });
+});
+
+describe("gapAdvice", () => {
+  it("gives one evidence line and names the module for one failed topic", () => {
+    const advice = gapAdvice([
+      { topic: "StringBuilder", correct: 2, total: 7, gap: 31 },
+      { topic: "Arrays", correct: 6, total: 7, gap: 0 }
+    ]);
+    expect(advice.evidence).toEqual([
+      "2 of 7 StringBuilder-related questions answered correctly in the Final Exam"
+    ]);
+    expect(advice.recommendation).toBe("Review the StringBuilder module and retake the assessment.");
+  });
+
+  it("joins several failed topics with commas", () => {
+    const advice = gapAdvice([
+      { topic: "StringBuilder", correct: 2, total: 7, gap: 31 },
+      { topic: "Loops", correct: 1, total: 5, gap: 40 }
+    ]);
+    expect(advice.evidence).toHaveLength(2);
+    expect(advice.recommendation).toBe("Review the StringBuilder, Loops modules and retake the assessment.");
+  });
+
+  it("is null when nothing is under the cut-off", () => {
+    expect(gapAdvice([{ topic: "A", correct: 7, total: 7, gap: 0 }])).toBeNull();
+  });
+
+  it("skips a topic the exam did not ask about", () => {
+    expect(gapAdvice([{ topic: "A", correct: 0, total: 0, gap: 60 }])).toBeNull();
+  });
+
+  it("uses the score when there are no item counts", () => {
+    const advice = gapAdvice([{ topic: "A", score: 30, correct: null, total: null, gap: 30 }]);
+    expect(advice.evidence).toEqual(["30% on A-related questions in the Final Exam"]);
+  });
+});
+
+describe("skill gap advice box", () => {
+  it("shows Evidence and Recommendation under the list", () => {
+    const { container } = render(
+      <SkillGapAnalysis
+        cutoff={60}
+        tiers={tiers}
+        skills={[{ moduleId: "m1", topic: "StringBuilder", score: 28.6, correct: 2, total: 7, tier: "skill-gap", gap: 31 }]}
+      />
+    );
+    const box = container.querySelector(".sd-skills__list + .sd-skills__advice");
+    expect(box.textContent).toContain("2 of 7 StringBuilder-related questions answered correctly in the Final Exam");
+    expect(box.textContent).toContain("Review the StringBuilder module and retake the assessment.");
+  });
+
+  it("is hidden when every topic meets the cut-off", () => {
+    const { container } = render(
+      <SkillGapAnalysis cutoff={60} tiers={tiers} skills={[{ moduleId: "m1", topic: "A", score: 90, tier: "strength", gap: 0 }]} />
+    );
+    expect(container.querySelector(".sd-skills__advice")).toBeNull();
   });
 });

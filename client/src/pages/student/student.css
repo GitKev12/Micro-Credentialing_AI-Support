@@ -29,6 +29,11 @@
   --sd-canvas: #f7eeee;
   --sd-surface: #fffbfb;             /* card plane — the contrast reference */
   --sd-surface-2: #faf3f3;           /* recessed wells, table stripes       */
+  /* The one plane here with no red in it. Every surface above is warm, so a
+     card that has to read as set apart from the panel it sits on has nowhere
+     neutral to go. --surface-strong in styles.css is the white this borrows,
+     but inside .student-page that token is itself warmed to #fffbfb. */
+  --sd-surface-plain: #ffffff;
   --sd-border: rgba(63, 20, 24, 0.11);
   --sd-border-strong: rgba(63, 20, 24, 0.2);
 
@@ -143,6 +148,9 @@
   --sd-canvas: #0e1824;
   --sd-surface: #121e2d;
   --sd-surface-2: #192a3f;
+  /* No white in this theme to be plain against, so the neutral plane is the
+     lift instead: the same step the recessed wells use, one above the card. */
+  --sd-surface-plain: #192a3f;
   --sd-border: rgba(255, 255, 255, 0.12);
   --sd-border-strong: rgba(255, 255, 255, 0.30);
 
@@ -437,10 +445,30 @@ body:has(.student-app) {
   }
 }
 
+/* Whose menu this is. A card rather than a rule underneath: the rule was the
+   same hairline the rest of the console divides things with, so it read as
+   one more separator instead of marking the account off from the list below.
+
+   Plain white, off the warm ramp everything else here is painted on, and the
+   photo beside the name — the dropdown was the one place the account showed
+   its name without its face. White on the panel's #fffbfb is half a step, so
+   the hairline and the small shadow are what actually draw the edge. */
 .sd-menu__head {
-  padding: var(--sd-2) var(--sd-3) var(--sd-3);
-  border-bottom: 1px solid var(--sd-border);
+  display: flex;
+  align-items: center;
+  gap: var(--sd-3);
   margin-bottom: var(--sd-2);
+  padding: var(--sd-2) var(--sd-3);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-surface-plain);
+  box-shadow: var(--sd-shadow-sm);
+}
+
+/* The name and the number as one block beside the photo. min-width keeps a
+   long name wrapping inside the card instead of pushing it wider. */
+.sd-menu__who {
+  min-width: 0;
 }
 
 .sd-menu__name {
@@ -604,12 +632,20 @@ body:has(.student-app) {
   box-shadow: none;
 }
 
+/* The drawer keeps the stacked head and the rule. It is a full-height panel
+   with a 56px photo at the top of it, not a 15rem menu, and a card around
+   that would be a box around the whole head of the drawer. */
 .sd-menu--drawer .sd-menu__head {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   margin: var(--sd-5) 0 var(--sd-3);
   padding: 0 var(--sd-3) var(--sd-4);
+  border: 0;
+  border-bottom: 1px solid var(--sd-border);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 /* Spaced off the avatar; the student number stays tucked under it. */
@@ -1912,6 +1948,102 @@ body:has(.student-app) {
    that hold the list widen; the course chart's stay as they were. */
 .sd-tip:has(.sd-tip__list) {
   max-width: min(21.5rem, calc(100vw - 2rem));
+}
+
+/* ── Evidence and recommendation ───────────────────────
+   What the bars above come to, in words, for the lessons under the cut-off:
+   one statement per lesson, then the single thing to do about them.
+
+   Each statement is its own card rather than a bullet in a list. They are
+   full sentences that wrap to two lines on a phone, and a wrapped bullet
+   runs back under its own marker; a card holds its sentence together and
+   says where one ends and the next begins without a mark at all.
+
+   The labels are caps, over their cards rather than beside them. Same
+   eyebrow .sd-eyebrow sets at the head of this card, so they name their
+   rows without reading as headings of their own. */
+
+.sd-skills__advice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-4);
+  /* Mirrors the key above the list: 1rem clear of the last row, 1rem under
+     the rule. */
+  margin: var(--sd-4) 0 0;
+  padding-top: var(--sd-4);
+  border-top: 1px solid var(--sd-border);
+}
+
+.sd-skills__advice-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-2);
+}
+
+.sd-skills__advice dt {
+  font-size: var(--sd-fs-micro);
+  font-weight: var(--sd-fw-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+}
+
+.sd-skills__advice dd {
+  margin: 0;
+}
+
+/* No marker and no indent — the card is the list. */
+.sd-skills__evidence {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One card around all the statements, and the same card again for the
+   recommendation. Plain white off the warm ramp — the plane the account card
+   in the nav menu is drawn on — with the hairline and the small shadow doing
+   the work of the edge, since white on this panel is half a step. */
+.sd-skills__evidence,
+.sd-skills__recommendation {
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-r-sm);
+  background: var(--sd-surface-plain);
+  box-shadow: var(--sd-shadow-sm);
+  font-size: var(--sd-fs-body);
+  line-height: 1.55;
+  color: var(--sd-ink-2);
+}
+
+/* The one thing to do next, so it carries more weight than the figures it
+   came from. */
+.sd-skills__recommendation {
+  padding: var(--sd-3) var(--sd-4);
+  font-weight: var(--sd-fw-medium);
+  color: var(--sd-ink);
+}
+
+.sd-skills__evidence li {
+  padding: var(--sd-3) var(--sd-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The card marks the statements off from the rest of the panel; inside it
+   the rows still need marking off from each other, because each one is a
+   sentence that wraps to two lines on a narrow card. */
+.sd-skills__evidence li + li {
+  border-top: 1px solid var(--sd-border);
+}
+
+/* The lesson's own name, picked out of the sentence around it. Brand, which
+   this system reserves for chrome — this is emphasis, not a data mark, so it
+   leaves the four band colours to the bars and the key. In dark mode
+   --sd-brand-text resolves to the ink colour, which is still a step brighter
+   than the --sd-ink-2 the statements are set in. */
+.sd-skills__lesson {
+  font-weight: var(--sd-fw-semibold);
+  color: var(--sd-brand-text);
 }
 
 /* ── Badge earned popup ─────────────────────────────────── */
